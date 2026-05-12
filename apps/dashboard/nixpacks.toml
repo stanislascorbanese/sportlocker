@@ -1,0 +1,27 @@
+# Nixpacks config pour le service Railway @sportlocker/dashboard.
+#
+# ⚠️ PRÉREQUIS RAILWAY : le service doit avoir Root Directory = `/`
+#    (racine du repo), PAS `apps/dashboard/`. Sinon :
+#      - Nixpacks ne voit pas pnpm-workspace.yaml ni pnpm-lock.yaml
+#      - le workspace dep `@sportlocker/types: workspace:*` ne résout pas
+#      - Nixpacks fallback sur npm
+#
+# Pour pointer Railway sur ce fichier : Service → Settings → Build →
+#   Custom Nixpacks Config File Path = `apps/dashboard/nixpacks.toml`
+
+[phases.setup]
+nixPkgs = ['nodejs_20', 'pnpm-9_x']
+
+[phases.install]
+# corepack pour matcher la version exacte déclarée dans package.json#packageManager
+cmds = [
+  'corepack enable',
+  'corepack prepare pnpm@9.0.0 --activate',
+  'pnpm install --frozen-lockfile --filter=@sportlocker/dashboard...',
+]
+
+[phases.build]
+cmds = ['pnpm --filter @sportlocker/dashboard build']
+
+[start]
+cmd = 'pnpm --filter @sportlocker/dashboard start'
