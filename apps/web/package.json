@@ -1,0 +1,15 @@
+{
+  "name": "@sportlocker/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev":       "serve -l 4000 .",
+    "build":     "echo 'static site — no build step'",
+    "lint":      "echo 'no lint configured'",
+    "typecheck": "echo 'no typecheck for HTML'",
+    "clean":     "echo 'nothing to clean'"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

@@ -1,0 +1,54 @@
+# Build outputs
+**/dist
+**/build
+**/.next
+**/.turbo
+**/.expo
+**/*.tsbuildinfo
+
+# Dependencies (always reinstalled in the builder stage)
+**/node_modules
+.pnpm-store
+
+# Local env (secrets — provided by Railway as runtime env)
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# OS / editor
+.DS_Store
+**/.vscode
+**/.idea
+*.swp
+
+# Tests / coverage
+**/coverage
+**/.nyc_output
+**/test-results
+
+# Mobile / firmware / dashboard (out of scope for API image)
+apps/mobile
+apps/dashboard
+apps/web
+services/firmware
+
+# Logs
+**/*.log
+**/npm-debug.log*
+**/pnpm-debug.log*
+
+# Git
+.git
+.gitignore
+.github
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.venv

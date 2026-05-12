@@ -1,0 +1,7 @@
+{
+  "name": "@sportlocker/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.js",
+  "files": ["eslint/", "tsconfig/", "index.js"]
+}

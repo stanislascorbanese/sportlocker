@@ -1,0 +1,22 @@
+# Config Railway pour le service @sportlocker/api.
+#
+# À placer à la racine du repo OU à pointer depuis la config Railway UI
+# (Settings → Service → Config-as-Code).
+
+[build]
+builder        = "DOCKERFILE"
+dockerfilePath = "services/api/Dockerfile"
+# Le contexte de build = racine du repo (le Dockerfile attend pnpm-workspace.yaml,
+# packages/, services/ depuis CWD).
+buildCommand = ""
+
+[deploy]
+# Healthcheck Railway : la route /health/ ne touche ni Postgres ni Redis,
+# donc le service est marqué READY dès que Fastify écoute.
+healthcheckPath    = "/health/"
+healthcheckTimeout = 30
+restartPolicyType  = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+
+# Le démarrage exécute migrate.mjs (cf. entrypoint.sh), donc start-period long.
+# Railway respecte le HEALTHCHECK du Dockerfile (start-period=20s).
