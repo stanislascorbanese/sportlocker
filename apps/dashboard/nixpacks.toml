@@ -20,10 +20,15 @@ nixPkgs = ['nodejs_20', 'pnpm-9_x']
 # deps d'autres workspaces (notamment react-native-screens dans apps/mobile
 # qui requiert `bob`/`husky` non installés). Le dashboard n'a aucun
 # postinstall critique (sharp dégrade proprement vers squoosh), on les skip.
+#
+# `--prod=false` : Railway set NODE_ENV=production, ce qui pousse pnpm à
+# skipper les devDependencies. Or `next build` a besoin de tailwindcss,
+# postcss, autoprefixer, typescript, etc. — tous en devDeps. On force
+# l'install complet à la build, le runtime n'en garde que les prod deps.
 cmds = [
   'corepack enable',
   'corepack prepare pnpm@9.0.0 --activate',
-  'pnpm install --frozen-lockfile --filter=@sportlocker/dashboard... --ignore-scripts',
+  'pnpm install --frozen-lockfile --filter=@sportlocker/dashboard... --ignore-scripts --prod=false',
 ]
 
 [phases.build]
