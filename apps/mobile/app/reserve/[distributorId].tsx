@@ -4,10 +4,10 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { fetchDistributor, type DistributorLocker } from '../../src/api/distributors'
-import { createReservation } from '../../src/api/reservations'
+import { type DistributorLocker } from '../../src/api/distributors'
+import { useDistributorDetail } from '../../src/hooks/useDistributorDetail'
+import { useCreateReservation } from '../../src/hooks/useCreateReservation'
 
 const PALETTE = {
   navy: '#0D1B2A',
@@ -43,30 +43,26 @@ function statusLabel(state: DistributorLocker['state'], hasItem: boolean): strin
 export default function DistributorDetailScreen() {
   const { distributorId } = useLocalSearchParams<{ distributorId: string }>()
   const router = useRouter()
-  const qc = useQueryClient()
   const [selectedLockerId, setSelectedLockerId] = useState<string | null>(null)
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['distributor', distributorId],
-    queryFn: () => fetchDistributor(distributorId!),
-    enabled: !!distributorId,
-  })
+  const { data, isLoading, error } = useDistributorDetail(distributorId)
+  const reserve = useCreateReservation()
 
-  const reserve = useMutation({
-    mutationFn: () => {
-      const locker = data!.lockers.find((l) => l.id === selectedLockerId)
-      if (!locker?.currentItemId) throw new Error('Casier sans item')
-      return createReservation(locker.id, locker.currentItemId, data!.communeId)
-    },
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['my-reservations'] })
-      qc.invalidateQueries({ queryKey: ['distributor', distributorId] })
-      router.push(`/qr/${res.id}`)
-    },
-    onError: (err: Error) => {
-      Alert.alert('Réservation impossible', err.message)
-    },
-  })
+  const onReserve = () => {
+    if (!data) return
+    const locker = data.lockers.find((l) => l.id === selectedLockerId)
+    if (!locker?.currentItemId) {
+      Alert.alert('Réservation impossible', 'Casier sans item')
+      return
+    }
+    reserve.mutate(
+      { lockerId: locker.id, itemId: locker.currentItemId, communeId: data.communeId },
+      {
+        onSuccess: (res) => { router.push(`/qr/${res.id}`) },
+        onError: (err) => { Alert.alert('Réservation impossible', err.message) },
+      },
+    )
+  }
 
   const availableCount = useMemo(
     () => data?.lockers.filter((l) => l.state === 'idle' && l.currentItemId).length ?? 0,
@@ -145,7 +141,7 @@ export default function DistributorDetailScreen() {
 
       <View style={styles.footer}>
         <Pressable
-          onPress={() => reserve.mutate()}
+          onPress={onReserve}
           disabled={!canReserve}
           style={[styles.cta, !canReserve && styles.ctaDisabled]}
         >

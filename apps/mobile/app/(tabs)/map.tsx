@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps'
-import * as Location from 'expo-location'
 import { useRouter } from 'expo-router'
-import { useQuery } from '@tanstack/react-query'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { fetchDistributors } from '../../src/api/distributors'
+import { useDistributorsNearby } from '../../src/hooks/useDistributorsNearby'
 import { useDistributorsStore, type DistributorWithGeo } from '../../src/store/distributors'
 import { useDistributorsSocket } from '../../src/hooks/useDistributorsSocket'
+import { useLocationStore } from '../../src/store/location'
 import { haversineKm } from '../../src/lib/distance'
 
 const PALETTE = {
@@ -23,7 +22,7 @@ const PALETTE = {
   divider: 'rgba(255,255,255,0.08)',
 }
 
-const PARIS_FALLBACK = { latitude: 48.8566, longitude: 2.3522 }
+const RADIUS_KM = 5
 
 type Status = DistributorWithGeo['status']
 type Row = DistributorWithGeo & { distanceKm: number }
@@ -37,48 +36,34 @@ function markerColor(status: Status, idleLockers: number): string {
 
 export default function MapScreen() {
   const router = useRouter()
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [locationNote, setLocationNote] = useState<string | null>(null)
+
+  const coords = useLocationStore((s) => s.coords)
+  const fallbackReason = useLocationStore((s) => s.fallbackReason)
+  const locationStatus = useLocationStore((s) => s.status)
+  const requestPermission = useLocationStore((s) => s.requestPermission)
 
   const setAll = useDistributorsStore((s) => s.setAll)
   const byId = useDistributorsStore((s) => s.byId)
 
   useDistributorsSocket()
 
+  // Demande la permission au montage si pas encore tentée.
   useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== 'granted') {
-        if (cancelled) return
-        setLocationNote('Géoloc refusée — résultats centrés sur Paris')
-        setCoords(PARIS_FALLBACK)
-        return
-      }
-      try {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-        if (cancelled) return
-        setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
-      } catch {
-        if (cancelled) return
-        setLocationNote('Position indisponible — résultats centrés sur Paris')
-        setCoords(PARIS_FALLBACK)
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (locationStatus === 'idle') {
+      void requestPermission()
     }
-  }, [])
+  }, [locationStatus, requestPermission])
 
-  const { data } = useQuery({
-    queryKey: ['distributors'],
-    queryFn: fetchDistributors,
-    enabled: !!coords,
-    staleTime: 60_000,
-  })
+  // Géofiltrage côté serveur via /v1/distributors/nearby.
+  const { data } = useDistributorsNearby(
+    coords?.latitude ?? null,
+    coords?.longitude ?? null,
+    RADIUS_KM,
+  )
 
-  // Snapshot REST → store (filtre/normalise les distributeurs sans coords).
-  // Le WS prend ensuite le relais en patches incrémentaux de stock/statut.
+  // Snapshot REST → store (la WS prend ensuite le relais en patches incrémentaux).
+  // Le store filtre les distributeurs sans coords, mais /nearby les exclut déjà
+  // côté SQL ; ce filtre devient un no-op pour les rangées renvoyées.
   useEffect(() => {
     if (!data?.items) return
     setAll(data.items)
@@ -128,9 +113,9 @@ export default function MapScreen() {
         ))}
       </MapView>
 
-      {locationNote && (
+      {fallbackReason && (
         <View style={styles.banner} pointerEvents="none">
-          <Text style={styles.bannerText}>{locationNote}</Text>
+          <Text style={styles.bannerText}>{fallbackReason}</Text>
         </View>
       )}
 
