@@ -1,0 +1,74 @@
+# CI SportLocker — typecheck + tests sur tout le monorepo.
+#
+# Déclenchée :
+#   - sur chaque push vers `main` (filet final, sécurise les merges)
+#   - sur chaque PR ciblant `main` (gate avant merge)
+#
+# Notes :
+#   - Les tests API utilisent testcontainers (Postgres + Redis). Le runner
+#     `ubuntu-latest` a Docker pré-installé, rien à setup.
+#   - pnpm est pinné à 9.0.0 via corepack pour matcher package.json#packageManager.
+#   - Turbo cache + pnpm store cache pour les rebuilds rapides.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Une seule run par ref : on cancel les anciennes quand un nouveau push arrive
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: typecheck + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20 + pnpm (via corepack)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Activate pnpm 9.0.0
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.0.0 --activate
+          pnpm --version
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Cache turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
