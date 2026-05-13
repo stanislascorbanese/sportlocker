@@ -28,11 +28,10 @@
 **/.nyc_output
 **/test-results
 
-# Mobile / firmware / dashboard (out of scope for API image)
-apps/mobile
-apps/dashboard
-apps/web
-services/firmware
+# Note : on n'exclut pas apps/* ni services/firmware au niveau racine.
+# Chaque Dockerfile (services/api, apps/web…) est sélectif dans ses COPY,
+# donc le contenu de l'image n'en dépend pas. Exclure ces dossiers cassait
+# le build du service @sportlocker/web qui doit COPY apps/web/index.html.
 
 # Logs
 **/*.log
