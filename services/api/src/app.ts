@@ -12,6 +12,7 @@ import { healthRoutes } from './routes/health.js'
 import { distributorRoutes } from './routes/distributors.js'
 import { reservationRoutes } from './routes/reservations.js'
 import { authRoutes } from './routes/auth.js'
+import { itemTypeRoutes } from './routes/item-types.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -33,6 +34,7 @@ export async function buildApp() {
 
   await app.register(healthRoutes,       { prefix: '/health' })
   await app.register(authRoutes,         { prefix: '/v1/auth' })
+  await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
 
