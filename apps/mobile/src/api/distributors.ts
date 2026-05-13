@@ -28,14 +28,31 @@ export interface DistributorDetail extends Distributor {
   lockers: DistributorLocker[]
 }
 
-/**
- * Liste complète du parc — pas de filtre côté serveur pour l'instant.
- * Le tri par distance se fait dans map.tsx (Haversine app-side).
- * TODO: passer en /v1/distributors?lat=...&lng=...&radius=... quand l'endpoint
- * de géofiltrage sera implémenté côté API.
- */
+/** Distributeur retourné par /v1/distributors/nearby (lat/lng garantis + distance serveur). */
+export interface DistributorNearby extends Omit<Distributor, 'idleLockers' | 'latitude' | 'longitude'> {
+  idleLockers: number
+  latitude: number
+  longitude: number
+  distanceKm: number
+}
+
+/** Liste complète du parc (route legacy — préférer `fetchDistributorsNearby`). */
 export function fetchDistributors() {
   return apiFetch<{ items: Distributor[] }>('/v1/distributors')
+}
+
+/**
+ * Filtre + tri serveur : retourne les distributeurs dans `radiusKm` autour
+ * de (lat,lng), triés par distance croissante. La route API utilise Haversine
+ * SQL pur (Postgres vanilla, pas d'earthdistance).
+ */
+export function fetchDistributorsNearby(lat: number, lng: number, radiusKm = 5) {
+  const qs = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+    radius_km: String(radiusKm),
+  })
+  return apiFetch<{ items: DistributorNearby[] }>(`/v1/distributors/nearby?${qs.toString()}`)
 }
 
 export function fetchDistributor(id: string) {
