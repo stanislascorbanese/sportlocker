@@ -64,16 +64,23 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
-      # On exclut apps/mobile de la CI : react-native-screens a un postinstall
-      # qui exige `bob` (react-native-builder-bob) non disponible sur les
-      # runners GitHub. Idem côté turbo pour ne pas tenter de typecheck/test
-      # un workspace dont les node_modules ne sont pas installés.
-      # À ré-intégrer quand le mobile aura ses deps propres déclarées.
-      - name: Install dependencies (sans apps/mobile)
-        run: pnpm install --frozen-lockfile --filter '!@sportlocker/mobile'
+      # --ignore-scripts : pnpm avec --frozen-lockfile télécharge TOUS les
+      # packages du lockfile dans le store et exécute leurs postinstall,
+      # indépendamment d'un éventuel --filter. react-native-screens (dep
+      # de apps/mobile) a un postinstall qui exige `bob` non dispo sur les
+      # runners. Même fix que sur Nixpacks dashboard (commit beb31b8).
+      - name: Install dependencies (sans postinstall scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # esbuild a besoin de son binaire natif (téléchargé normalement par
+      # son postinstall) pour que vitest fonctionne. On rebuild juste ce
+      # package — pnpm rebuild sans args rebuilderait TOUT et re-déclencherait
+      # le postinstall react-native-screens.
+      - name: Rebuild esbuild (binaire natif pour vitest)
+        run: pnpm rebuild esbuild || true
 
       - name: Typecheck
-        run: pnpm exec turbo run typecheck --filter='!@sportlocker/mobile'
+        run: pnpm typecheck
 
       - name: Tests
-        run: pnpm exec turbo run test --filter='!@sportlocker/mobile'
+        run: pnpm test
