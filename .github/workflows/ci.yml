@@ -64,11 +64,16 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      # On exclut apps/mobile de la CI : react-native-screens a un postinstall
+      # qui exige `bob` (react-native-builder-bob) non disponible sur les
+      # runners GitHub. Idem côté turbo pour ne pas tenter de typecheck/test
+      # un workspace dont les node_modules ne sont pas installés.
+      # À ré-intégrer quand le mobile aura ses deps propres déclarées.
+      - name: Install dependencies (sans apps/mobile)
+        run: pnpm install --frozen-lockfile --filter '!@sportlocker/mobile'
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm exec turbo run typecheck --filter='!@sportlocker/mobile'
 
       - name: Tests
-        run: pnpm test
+        run: pnpm exec turbo run test --filter='!@sportlocker/mobile'
