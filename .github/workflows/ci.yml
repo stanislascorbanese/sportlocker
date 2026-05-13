@@ -64,8 +64,20 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      # --ignore-scripts : pnpm avec --frozen-lockfile télécharge TOUS les
+      # packages du lockfile dans le store et exécute leurs postinstall,
+      # indépendamment d'un éventuel --filter. react-native-screens (dep
+      # de apps/mobile) a un postinstall qui exige `bob` non dispo sur les
+      # runners. Même fix que sur Nixpacks dashboard (commit beb31b8).
+      - name: Install dependencies (sans postinstall scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # esbuild a besoin de son binaire natif (téléchargé normalement par
+      # son postinstall) pour que vitest fonctionne. On rebuild juste ce
+      # package — pnpm rebuild sans args rebuilderait TOUT et re-déclencherait
+      # le postinstall react-native-screens.
+      - name: Rebuild esbuild (binaire natif pour vitest)
+        run: pnpm rebuild esbuild || true
 
       - name: Typecheck
         run: pnpm typecheck

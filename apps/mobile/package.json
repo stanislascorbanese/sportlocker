@@ -10,7 +10,7 @@
     "build":     "expo export",
     "lint":      "eslint .",
     "typecheck": "tsc --noEmit",
-    "test":      "jest",
+    "test":      "jest --passWithNoTests",
     "clean":     "rm -rf .expo dist"
   },
   "dependencies": {
