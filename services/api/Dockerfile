@@ -32,8 +32,12 @@ COPY packages/config/package.json             packages/config/
 RUN pnpm install --frozen-lockfile --filter "@sportlocker/api..."
 
 # Sources
-COPY services/api  services/api
+COPY services/api   services/api
 COPY packages/types packages/types
+
+# Migrations SQL — copiées dans le builder pour pouvoir être ré-extraites
+# par le stage runtime (cf. COPY --from=builder /repo/database plus bas).
+COPY database       database
 
 # Compile TS → JS dans services/api/dist
 RUN pnpm --filter @sportlocker/api build
