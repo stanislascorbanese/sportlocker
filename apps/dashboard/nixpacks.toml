@@ -14,10 +14,16 @@ nixPkgs = ['nodejs_20', 'pnpm-9_x']
 
 [phases.install]
 # corepack pour matcher la version exacte déclarée dans package.json#packageManager
+#
+# `--ignore-scripts` : pnpm install avec --frozen-lockfile parcourt tout le
+# lockfile pour vérifier la cohérence, ce qui déclenche les postinstall des
+# deps d'autres workspaces (notamment react-native-screens dans apps/mobile
+# qui requiert `bob`/`husky` non installés). Le dashboard n'a aucun
+# postinstall critique (sharp dégrade proprement vers squoosh), on les skip.
 cmds = [
   'corepack enable',
   'corepack prepare pnpm@9.0.0 --activate',
-  'pnpm install --frozen-lockfile --filter=@sportlocker/dashboard...',
+  'pnpm install --frozen-lockfile --filter=@sportlocker/dashboard... --ignore-scripts',
 ]
 
 [phases.build]
