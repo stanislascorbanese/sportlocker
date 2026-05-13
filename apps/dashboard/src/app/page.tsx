@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import { fetchDistributors } from '../lib/api'
 import { StatusPill } from '../components/StatusPill'
 import { BatteryGauge } from '../components/BatteryGauge'
@@ -43,7 +45,15 @@ export default async function HomePage() {
             {totalIdle} / {totalLockers} casiers libres
           </p>
         </div>
-        <RefreshButton />
+        <div className="flex items-center gap-3">
+          <RefreshButton />
+          <Link
+            href="/distributors/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
+          >
+            + Nouveau
+          </Link>
+        </div>
       </header>
 
       {fetchError && (
@@ -73,6 +83,7 @@ export default async function HomePage() {
                 <th className="px-4 py-3 font-medium">Batterie</th>
                 <th className="px-4 py-3 font-medium">Position</th>
                 <th className="px-4 py-3 font-medium">Dernier signe</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -105,6 +116,14 @@ export default async function HomePage() {
                   </td>
                   <td className="px-4 py-3 text-white/60">
                     {fmtRelative(d.lastSeenAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/distributors/${d.id}/edit`}
+                      className="text-xs text-emerald-300 transition hover:text-emerald-200"
+                    >
+                      Modifier
+                    </Link>
                   </td>
                 </tr>
               ))}
