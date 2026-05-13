@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+
+import { NavLinks } from '../components/NavLinks'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -16,11 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="font-display text-xl tracking-tight">
               SportLocker · <span className="text-emerald-400">ops</span>
             </Link>
-            <nav className="flex gap-6 text-sm text-white/70">
-              <Link href="/" className="transition hover:text-white">Distributeurs</Link>
-              <Link href="/reservations" className="transition hover:text-white">Réservations</Link>
-              <Link href="/maintenance" className="transition hover:text-white">Maintenance</Link>
-            </nav>
+            <NavLinks />
           </div>
         </header>
         <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
