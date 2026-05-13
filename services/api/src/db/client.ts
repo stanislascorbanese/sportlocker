@@ -13,12 +13,27 @@ import * as schema from './schema.js'
  * Le try/catch ci-dessous couvre uniquement le cas (rare) où l'URL est mal
  * formée ou les options invalides — pour ne pas faire crasher le boot.
  */
+/**
+ * Supabase Transaction pooler (port 6543) tourne sous PgBouncer en mode
+ * transaction, lequel ne supporte pas les prepared statements (chaque query
+ * peut atterrir sur une connexion physique différente). postgres-js cache
+ * ses prepared statements par défaut — on les désactive explicitement
+ * quand on détecte le port 6543 dans l'URL.
+ *
+ * Session pooler (port 5432) et Postgres direct gardent les prepared
+ * statements (perf préservée).
+ */
+function shouldDisablePreparedStatements(url: string): boolean {
+  return url.includes(':6543')
+}
+
 function buildQueryClient() {
   try {
     return postgres(env.DATABASE_URL, {
       max: env.NODE_ENV === 'production' ? 20 : 5,
       idle_timeout: 30,
       connect_timeout: 5,
+      prepare: !shouldDisablePreparedStatements(env.DATABASE_URL),
       onnotice: () => undefined,
     })
   } catch (err) {
