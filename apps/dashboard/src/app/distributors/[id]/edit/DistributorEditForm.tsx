@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
-import { useFormStatus } from 'react-dom'
+import { useFormState, useFormStatus } from 'react-dom'
 
 import { updateDistributorAction, type FormState } from '../../_actions'
 import { cn } from '../../../../lib/cn'
@@ -14,7 +13,7 @@ const STATUS_OPTIONS = ['online', 'offline', 'maintenance', 'decommissioned'] as
 
 export function DistributorEditForm({ distributor }: { distributor: DistributorDetail }) {
   const action = updateDistributorAction.bind(null, distributor.id)
-  const [state, formAction] = useActionState(action, INITIAL)
+  const [state, formAction] = useFormState(action, INITIAL)
 
   return (
     <form action={formAction} className="space-y-5">

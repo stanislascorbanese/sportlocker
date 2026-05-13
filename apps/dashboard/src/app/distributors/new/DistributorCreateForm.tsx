@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
-import { useFormStatus } from 'react-dom'
+import { useFormState, useFormStatus } from 'react-dom'
 
 import { createDistributorAction, type FormState } from '../_actions'
 import { cn } from '../../../lib/cn'
@@ -10,7 +9,7 @@ import { cn } from '../../../lib/cn'
 const INITIAL: FormState = { status: 'idle' }
 
 export function DistributorCreateForm() {
-  const [state, formAction] = useActionState(createDistributorAction, INITIAL)
+  const [state, formAction] = useFormState(createDistributorAction, INITIAL)
 
   return (
     <form action={formAction} className="space-y-5">
