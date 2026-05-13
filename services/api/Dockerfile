@@ -23,9 +23,13 @@ COPY services/api/package.json                services/api/
 COPY packages/types/package.json              packages/types/
 COPY packages/config/package.json             packages/config/
 
-# Install : on filtre sur l'API + ses workspace deps transitives
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter "@sportlocker/api..."
+# Install : on filtre sur l'API + ses workspace deps transitives.
+#
+# NB : on n'utilise pas --mount=type=cache pour le store pnpm. Railway impose
+# que l'`id` d'un cache mount soit préfixé `s/<service-id>-…` sinon le
+# builder Metal refuse le Dockerfile. Pour ce projet la perte de cache est
+# acceptable (~20s en plus par build).
+RUN pnpm install --frozen-lockfile --filter "@sportlocker/api..."
 
 # Sources
 COPY services/api  services/api
