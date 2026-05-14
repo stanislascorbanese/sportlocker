@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   ci:
-    name: typecheck + tests
+    name: typecheck + tests (node)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -84,3 +84,46 @@ jobs:
 
       - name: Tests
         run: pnpm test
+
+  # ─── Firmware Python (services/firmware) ─────────────────────────────
+  # Job parallèle au job Node ci-dessus. Lance ruff + pytest avec coverage
+  # sur l'agent firmware. Indépendant de l'install pnpm — les deux jobs
+  # tournent en parallèle.
+  firmware:
+    name: firmware (python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            services/firmware/pyproject.toml
+            services/firmware/requirements.txt
+
+      # pyzbar (lecture QR) charge dynamiquement libzbar via ctypes au
+      # premier import → indispensable même quand cv2/pyzbar sont mockés
+      # dans les tests. libgl1 est requis par opencv-python (le wheel
+      # non-headless qu'on installe ici).
+      - name: Install system libs (libzbar, libGL)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libzbar0 libgl1
+
+      - name: Install firmware (dev extras)
+        working-directory: services/firmware
+        run: pip install -e ".[dev]"
+
+      - name: Ruff
+        working-directory: services/firmware
+        run: ruff check src tests
+
+      - name: Pytest + coverage
+        working-directory: services/firmware
+        run: pytest --cov=src --cov-fail-under=80
