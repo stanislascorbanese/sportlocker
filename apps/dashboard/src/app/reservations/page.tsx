@@ -1,9 +1,227 @@
-export default function ReservationsPage() {
+import Link from 'next/link'
+
+import {
+  RESERVATION_STATUSES,
+  fetchDistributors,
+  fetchReservations,
+  type Reservation,
+  type ReservationStatus,
+} from '../../lib/api'
+import { RefreshButton } from '../../components/RefreshButton'
+import { cn } from '../../lib/cn'
+
+export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Réservations · SportLocker ops' }
+
+const PAGE_SIZE = 50
+
+const STATUS_STYLE: Record<ReservationStatus, { bg: string; border: string; text: string }> = {
+  pending:   { bg: 'bg-sky-500/10',     border: 'border-sky-500/30',     text: 'text-sky-300' },
+  active:    { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300' },
+  returned:  { bg: 'bg-zinc-500/10',    border: 'border-zinc-500/30',    text: 'text-zinc-300' },
+  overdue:   { bg: 'bg-rose-500/10',    border: 'border-rose-500/30',    text: 'text-rose-300' },
+  cancelled: { bg: 'bg-zinc-700/30',    border: 'border-zinc-700/50',    text: 'text-zinc-400' },
+  expired:   { bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   text: 'text-amber-300' },
+}
+
+function StatusBadge({ status }: { status: ReservationStatus }) {
+  const s = STATUS_STYLE[status]
   return (
-    <div className="space-y-4">
-      <h2 className="font-display text-2xl">Réservations</h2>
-      <p className="text-white/60">Historique + filtres par statut, commune, distributeur</p>
-      {/* TODO: timeline + drawer détail */}
+    <span className={cn(
+      'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide',
+      s.bg, s.border, s.text,
+    )}>
+      {status}
+    </span>
+  )
+}
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function fmtUser(r: Reservation): string {
+  return r.user.displayName ?? r.user.email
+}
+
+type SearchParams = {
+  status?: string
+  distributorId?: string
+  cursor?: string
+}
+
+export default async function ReservationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  const params = await searchParams
+  const status = (RESERVATION_STATUSES as readonly string[]).includes(params.status ?? '')
+    ? (params.status as ReservationStatus)
+    : undefined
+  const distributorId = params.distributorId && /^[0-9a-f-]{36}$/i.test(params.distributorId)
+    ? params.distributorId
+    : undefined
+
+  const filters: Parameters<typeof fetchReservations>[0] = { limit: PAGE_SIZE }
+  if (status) filters.status = status
+  if (distributorId) filters.distributorId = distributorId
+  if (params.cursor) filters.cursor = params.cursor
+
+  let page: Awaited<ReturnType<typeof fetchReservations>> | null = null
+  let distributors: Awaited<ReturnType<typeof fetchDistributors>> = []
+  let fetchError: string | null = null
+
+  try {
+    [page, distributors] = await Promise.all([
+      fetchReservations(filters),
+      fetchDistributors(),
+    ])
+  } catch (err) {
+    fetchError = err instanceof Error ? err.message : 'API unreachable'
+  }
+
+  const items = page?.items ?? []
+
+  return (
+    <div className="space-y-6">
+      <header className="flex items-end justify-between">
+        <div>
+          <h2 className="font-display text-3xl">Réservations</h2>
+          <p className="mt-1 text-sm text-white/55">
+            {items.length} affichée{items.length > 1 ? 's' : ''}
+            {page?.nextCursor ? ' · pagination disponible' : ''}
+          </p>
+        </div>
+        <RefreshButton />
+      </header>
+
+      <form className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-navy-800 p-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="status" className="text-[11px] uppercase tracking-wide text-white/50">Statut</label>
+          <select
+            id="status"
+            name="status"
+            defaultValue={status ?? ''}
+            className="min-w-[140px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+          >
+            <option value="">Tous</option>
+            {RESERVATION_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="distributorId" className="text-[11px] uppercase tracking-wide text-white/50">Distributeur</label>
+          <select
+            id="distributorId"
+            name="distributorId"
+            defaultValue={distributorId ?? ''}
+            className="min-w-[200px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+          >
+            <option value="">Tous</option>
+            {distributors.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          className="inline-flex items-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
+        >
+          Filtrer
+        </button>
+
+        {(status || distributorId) && (
+          <Link
+            href="/reservations"
+            className="text-xs text-white/50 underline-offset-2 hover:text-white/80 hover:underline"
+          >
+            Réinitialiser
+          </Link>
+        )}
+      </form>
+
+      {fetchError && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+          <p className="font-semibold">API injoignable</p>
+          <p className="mt-1 font-mono text-xs text-rose-300/80">{fetchError}</p>
+        </div>
+      )}
+
+      {!fetchError && items.length === 0 && (
+        <div className="rounded-xl border border-white/10 bg-navy-800 p-8 text-center text-sm text-white/55">
+          Aucune réservation pour ces filtres.
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
+          <table className="w-full text-sm">
+            <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
+              <tr>
+                <th className="px-4 py-3 font-medium">Créée le</th>
+                <th className="px-4 py-3 font-medium">Utilisateur</th>
+                <th className="px-4 py-3 font-medium">Distributeur</th>
+                <th className="px-4 py-3 font-medium">Article</th>
+                <th className="px-4 py-3 font-medium">Statut</th>
+                <th className="px-4 py-3 font-medium">Échéance</th>
+                <th className="px-4 py-3 font-medium text-right">Prolong.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {items.map((r) => (
+                <tr key={r.id} className="transition hover:bg-white/[0.02]">
+                  <td className="px-4 py-3 text-white/80 tabular-nums">{fmtDate(r.createdAt)}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-white">{fmtUser(r)}</div>
+                    {r.user.displayName && (
+                      <div className="mt-0.5 text-[11px] text-white/40">{r.user.email}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-white">{r.distributor.name}</div>
+                    <div className="mt-0.5 font-mono text-[11px] text-white/40">{r.distributor.serialNumber}</div>
+                  </td>
+                  <td className="px-4 py-3 text-white/80">{r.item.typeName}</td>
+                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                  <td className="px-4 py-3 text-white/70 tabular-nums">
+                    {r.status === 'pending' ? fmtDate(r.expiresAt) : fmtDate(r.dueAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-white/70 tabular-nums">
+                    {r.extensionCount > 0 ? `×${r.extensionCount}` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {page?.nextCursor && (
+        <div className="flex justify-end">
+          <Link
+            href={buildNextHref(params, page.nextCursor)}
+            className="inline-flex items-center rounded-lg border border-white/15 bg-navy-800 px-3 py-1.5 text-sm text-white/80 transition hover:border-white/30 hover:text-white"
+          >
+            Page suivante →
+          </Link>
+        </div>
+      )}
     </div>
   )
+}
+
+function buildNextHref(params: SearchParams, cursor: string): string {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.distributorId) qs.set('distributorId', params.distributorId)
+  qs.set('cursor', cursor)
+  return `/reservations?${qs.toString()}`
 }
