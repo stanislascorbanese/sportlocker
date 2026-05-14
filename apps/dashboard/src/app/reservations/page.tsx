@@ -7,6 +7,7 @@ import {
   type Reservation,
   type ReservationStatus,
 } from '../../lib/api'
+import { DEMO_RESERVATIONS } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
 
@@ -85,16 +86,32 @@ export default async function ReservationsPage({
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
 
-  const items = page?.items ?? []
+  const realItems = page?.items ?? []
+  const noFilterActive = !status && !distributorId && !params.cursor
+  // Bascule en démo si l'API a planté OU si la table est vide sans filtre.
+  // Avec filtre, on respecte le vrai résultat même s'il est vide (sinon UX trompeuse).
+  const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
+
+  const items = useDemo
+    ? DEMO_RESERVATIONS.filter((r) => (!status || r.status === status))
+    : realItems
 
   return (
     <div className="space-y-6">
       <header className="flex items-end justify-between">
         <div>
-          <h2 className="font-display text-3xl">Réservations</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-display text-3xl">Réservations</h2>
+            {useDemo && (
+              <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                Démo
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-white/55">
             {items.length} affichée{items.length > 1 ? 's' : ''}
-            {page?.nextCursor ? ' · pagination disponible' : ''}
+            {!useDemo && page?.nextCursor ? ' · pagination disponible' : ''}
+            {useDemo && ' · données fictives — branchez un token admin valide pour voir les vraies'}
           </p>
         </div>
         <RefreshButton />
@@ -149,13 +166,13 @@ export default async function ReservationsPage({
       </form>
 
       {fetchError && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
-          <p className="font-semibold">API injoignable</p>
-          <p className="mt-1 font-mono text-xs text-rose-300/80">{fetchError}</p>
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
+          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
+          <p className="mt-1 font-mono text-[11px] text-amber-300/70">{fetchError}</p>
         </div>
       )}
 
-      {!fetchError && items.length === 0 && (
+      {!useDemo && items.length === 0 && (
         <div className="rounded-xl border border-white/10 bg-navy-800 p-8 text-center text-sm text-white/55">
           Aucune réservation pour ces filtres.
         </div>
@@ -204,7 +221,7 @@ export default async function ReservationsPage({
         </div>
       )}
 
-      {page?.nextCursor && (
+      {!useDemo && page?.nextCursor && (
         <div className="flex justify-end">
           <Link
             href={buildNextHref(params, page.nextCursor)}
