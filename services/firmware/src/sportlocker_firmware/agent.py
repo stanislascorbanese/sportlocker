@@ -20,7 +20,7 @@ import structlog
 
 from .config import load_config
 from .heartbeat import heartbeat_loop
-from .locker_controller import LockerController
+from .locker_ctrl import LockerController
 from .mqtt_client import MQTTClient
 from .qr_reader import QRReader
 
@@ -76,8 +76,13 @@ async def main() -> None:
     await mqtt.disconnect()
 
 
-if __name__ == "__main__":
+def run() -> None:
+    """Entry-point synchrone — utilisé par le console_script ``sportlocker-firmware``."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    run()

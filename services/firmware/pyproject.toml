@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sportlocker-firmware"
 version = "0.1.0"
@@ -14,7 +18,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.2.0", "ruff>=0.4.0", "mypy>=1.10.0"]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-cov>=5.0.0",
+  "pytest-asyncio>=0.23.0",
+  "ruff>=0.4.0",
+  "mypy>=1.10.0",
+]
+
+[project.scripts]
+sportlocker-firmware = "sportlocker_firmware.agent:run"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sportlocker_firmware*"]
 
 [tool.ruff]
 line-length = 100
@@ -22,3 +42,30 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+disallow_any_generics = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra"
+
+[tool.coverage.run]
+branch = true
+source = ["src/sportlocker_firmware"]
+omit = ["src/sportlocker_firmware/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
