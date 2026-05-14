@@ -16,7 +16,7 @@ import cv2
 import structlog
 from pyzbar import pyzbar
 
-from .locker_controller import LockerController
+from .locker_ctrl import LockerController
 
 log = structlog.get_logger(__name__)
 
