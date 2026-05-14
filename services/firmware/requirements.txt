@@ -7,6 +7,10 @@ paho-mqtt==2.1.0
 opencv-python==4.10.0.84
 pyzbar==0.1.9
 python-jose[cryptography]==3.5.0
-llrpy==0.5.0
+# llrpy : non publié sur PyPI sous ce nom. RFID = feature future, on
+# réintégrera la lib RFID réelle (probablement sllurp ou llrp-tools)
+# quand on connectera un vrai reader. Le firmware actuel n'en a pas
+# besoin (machine à états + GPIO + QR suffisent).
+# llrpy==0.5.0
 pydantic==2.13.4
 structlog==25.5.0
