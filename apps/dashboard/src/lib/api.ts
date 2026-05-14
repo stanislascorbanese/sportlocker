@@ -60,8 +60,73 @@ export const DistributorUpdateInput = z.object({
 
 export type DistributorUpdateInput = z.infer<typeof DistributorUpdateInput>
 
+export const RESERVATION_STATUSES = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+export type ReservationStatus = typeof RESERVATION_STATUSES[number]
+
+export const Reservation = z.object({
+  id: z.string().uuid(),
+  status: z.enum(RESERVATION_STATUSES),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  openedAt: z.string().datetime().nullable(),
+  returnedAt: z.string().datetime().nullable(),
+  dueAt: z.string().datetime().nullable(),
+  extensionCount: z.number().int().nonnegative(),
+  user: z.object({
+    id: z.string().uuid(),
+    email: z.string(),
+    displayName: z.string().nullable(),
+  }),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+  }),
+  item: z.object({
+    id: z.string().uuid(),
+    typeName: z.string(),
+  }),
+})
+
+export type Reservation = z.infer<typeof Reservation>
+
+export const ReservationsPage = z.object({
+  items: z.array(Reservation),
+  nextCursor: z.string().nullable(),
+})
+
+export type ReservationsPage = z.infer<typeof ReservationsPage>
+
+export const MAINTENANCE_STATUSES = ['open', 'in_progress', 'resolved', 'wontfix'] as const
+export type MaintenanceStatus = typeof MAINTENANCE_STATUSES[number]
+
+export const MaintenanceTicket = z.object({
+  id: z.string().uuid(),
+  status: z.enum(MAINTENANCE_STATUSES),
+  severity: z.number().int().min(1).max(5),
+  title: z.string(),
+  description: z.string().nullable(),
+  resolutionNote: z.string().nullable(),
+  resolvedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+  }),
+  assignee: z.object({
+    id: z.string().uuid(),
+    email: z.string(),
+    displayName: z.string().nullable(),
+  }).nullable(),
+})
+
+export type MaintenanceTicket = z.infer<typeof MaintenanceTicket>
+
 const ListDistributors = z.object({ items: z.array(Distributor) })
 const ListItemTypes    = z.object({ items: z.array(ItemType) })
+const ListMaintenance  = z.object({ items: z.array(MaintenanceTicket) })
 
 const API_URL = process.env.INTERNAL_API_URL ?? 'http://localhost:3000'
 
@@ -131,6 +196,83 @@ export async function updateDistributor(
     throw new ApiError(res.status, detail)
   }
   return Distributor.parse(await res.json())
+}
+
+export type ReservationFilters = {
+  status?: ReservationStatus
+  distributorId?: string
+  cursor?: string
+  limit?: number
+}
+
+export async function fetchReservations(filters: ReservationFilters = {}): Promise<ReservationsPage> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.cursor) params.set('cursor', filters.cursor)
+  if (filters.limit) params.set('limit', String(filters.limit))
+
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/reservations${qs ? `?${qs}` : ''}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['reservations'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return ReservationsPage.parse(await res.json())
+}
+
+export type MaintenanceFilters = {
+  status?: MaintenanceStatus
+  distributorId?: string
+}
+
+export async function fetchMaintenanceTickets(filters: MaintenanceFilters = {}): Promise<MaintenanceTicket[]> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.distributorId) params.set('distributorId', filters.distributorId)
+
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/maintenance-tickets${qs ? `?${qs}` : ''}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['maintenance'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return ListMaintenance.parse(await res.json()).items
+}
+
+export const MaintenanceUpdateInput = z.object({
+  status:         z.enum(MAINTENANCE_STATUSES).optional(),
+  assignedTo:     z.string().uuid().nullable().optional(),
+  resolutionNote: z.string().max(2000).nullable().optional(),
+  severity:       z.number().int().min(1).max(5).optional(),
+})
+
+export type MaintenanceUpdateInput = z.infer<typeof MaintenanceUpdateInput>
+
+export async function updateMaintenanceTicket(
+  id: string,
+  input: MaintenanceUpdateInput,
+): Promise<MaintenanceTicket> {
+  const body = MaintenanceUpdateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/maintenance-tickets/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return MaintenanceTicket.parse(await res.json())
 }
 
 export class ApiError extends Error {

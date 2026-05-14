@@ -11,6 +11,8 @@ import { authPlugin } from './plugins/auth.js'
 import { healthRoutes } from './routes/health.js'
 import { distributorRoutes } from './routes/distributors.js'
 import { reservationRoutes } from './routes/reservations.js'
+import { adminReservationRoutes } from './routes/admin-reservations.js'
+import { adminMaintenanceRoutes } from './routes/admin-maintenance.js'
 import { authRoutes } from './routes/auth.js'
 import { itemTypeRoutes } from './routes/item-types.js'
 
@@ -37,6 +39,8 @@ export async function buildApp() {
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
+  await app.register(adminReservationRoutes,  { prefix: '/v1/admin/reservations' })
+  await app.register(adminMaintenanceRoutes,  { prefix: '/v1/admin/maintenance-tickets' })
 
   app.setErrorHandler((err, _req, reply) => {
     app.log.error({ err }, 'unhandled error')
