@@ -124,6 +124,57 @@ export const MaintenanceTicket = z.object({
 
 export type MaintenanceTicket = z.infer<typeof MaintenanceTicket>
 
+export const Commune = z.object({
+  id: z.string().uuid(),
+  inseeCode: z.string().length(5),
+  name: z.string(),
+  postalCode: z.string().length(5),
+  department: z.string(),
+  region: z.string(),
+  population: z.number().int().nullable(),
+  contractStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  contractEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  monthlyFeeCents: z.number().int().nonnegative(),
+  contactEmail: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  distributorCount: z.number().int().nonnegative(),
+})
+
+export type Commune = z.infer<typeof Commune>
+
+export const CommuneCreateInput = z.object({
+  inseeCode:       z.string().regex(/^\d{5}$/),
+  name:            z.string().min(1).max(120),
+  postalCode:      z.string().regex(/^\d{5}$/),
+  department:      z.string().min(2).max(3),
+  region:          z.string().min(1).max(60),
+  population:      z.number().int().positive().nullable().optional(),
+  contractStart:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  contractEnd:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  monthlyFeeCents: z.number().int().nonnegative().max(1_000_000),
+  contactEmail:    z.string().email().max(180).nullable().optional(),
+  contactPhone:    z.string().min(6).max(20).nullable().optional(),
+})
+
+export type CommuneCreateInput = z.infer<typeof CommuneCreateInput>
+
+export const CommuneUpdateInput = z.object({
+  name:            z.string().min(1).max(120).optional(),
+  postalCode:      z.string().regex(/^\d{5}$/).optional(),
+  department:      z.string().min(2).max(3).optional(),
+  region:          z.string().min(1).max(60).optional(),
+  population:      z.number().int().positive().nullable().optional(),
+  contractStart:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  contractEnd:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  monthlyFeeCents: z.number().int().nonnegative().max(1_000_000).optional(),
+  contactEmail:    z.string().email().max(180).nullable().optional(),
+  contactPhone:    z.string().min(6).max(20).nullable().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: 'at_least_one_field_required' })
+
+export type CommuneUpdateInput = z.infer<typeof CommuneUpdateInput>
+
+const ListCommunes = z.object({ items: z.array(Commune) })
+
 const ListDistributors = z.object({ items: z.array(Distributor) })
 const ListItemTypes    = z.object({ items: z.array(ItemType) })
 const ListMaintenance  = z.object({ items: z.array(MaintenanceTicket) })
@@ -223,6 +274,63 @@ export async function fetchReservations(filters: ReservationFilters = {}): Promi
     throw new ApiError(res.status, detail)
   }
   return ReservationsPage.parse(await res.json())
+}
+
+export async function fetchCommunes(): Promise<Commune[]> {
+  const res = await fetch(`${API_URL}/v1/admin/communes`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['communes'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return ListCommunes.parse(await res.json()).items
+}
+
+export async function fetchCommune(id: string): Promise<Commune> {
+  const res = await fetch(`${API_URL}/v1/admin/communes/${id}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['communes', `commune:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'commune_not_found')
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return Commune.parse(await res.json())
+}
+
+export async function createCommune(input: CommuneCreateInput): Promise<Commune> {
+  const body = CommuneCreateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/communes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return Commune.parse(await res.json())
+}
+
+export async function updateCommune(id: string, input: CommuneUpdateInput): Promise<Commune> {
+  const body = CommuneUpdateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/communes/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return Commune.parse(await res.json())
 }
 
 export const DailyPoint = z.object({

@@ -1,4 +1,4 @@
-import type { DailyPoint, MaintenanceTicket, Reservation } from './api'
+import type { Commune, DailyPoint, MaintenanceTicket, Reservation } from './api'
 
 /**
  * Données fictives affichées quand l'API admin renvoie 401 ou 0 résultats.
@@ -41,6 +41,69 @@ export function demoReservationsDaily(days = 7): DailyPoint[] {
   }
   return out
 }
+
+export const DEMO_COMMUNES: Commune[] = [
+  {
+    id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01',
+    inseeCode: '75111',
+    name: 'Paris 11e',
+    postalCode: '75011',
+    department: '75',
+    region: 'Île-de-France',
+    population: 147017,
+    contractStart: '2025-09-01',
+    contractEnd: '2027-08-31',
+    monthlyFeeCents: 1500_00,
+    contactEmail: 'contrats@mairie11.paris.fr',
+    contactPhone: '+33 1 53 27 11 00',
+    distributorCount: 8,
+  },
+  {
+    id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee02',
+    inseeCode: '69387',
+    name: 'Lyon 7e',
+    postalCode: '69007',
+    department: '69',
+    region: 'Auvergne-Rhône-Alpes',
+    population: 84057,
+    contractStart: '2026-01-01',
+    contractEnd: '2027-12-31',
+    monthlyFeeCents: 800_00,
+    contactEmail: 'sports@mairie-lyon.fr',
+    contactPhone: '+33 4 78 92 73 00',
+    distributorCount: 4,
+  },
+  {
+    id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee03',
+    inseeCode: '13208',
+    name: 'Marseille 8e',
+    postalCode: '13008',
+    department: '13',
+    region: 'Provence-Alpes-Côte d\'Azur',
+    population: 80022,
+    contractStart: '2025-11-15',
+    contractEnd: '2026-11-14',
+    monthlyFeeCents: 1200_00,
+    contactEmail: 'maires.adjoints@marseille.fr',
+    contactPhone: '+33 4 91 55 88 00',
+    distributorCount: 6,
+  },
+  {
+    id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee04',
+    inseeCode: '44109',
+    name: 'Nantes',
+    postalCode: '44000',
+    department: '44',
+    region: 'Pays de la Loire',
+    population: 320732,
+    contractStart: null,
+    contractEnd: null,
+    monthlyFeeCents: 0,
+    contactEmail: 'pilote.sport@nantesmetropole.fr',
+    contactPhone: null,
+    distributorCount: 0,
+  },
+]
 
 const DEMO_USERS = [
   { id: '11111111-1111-1111-1111-111111111111', email: 'alice.martin@example.fr',  displayName: 'Alice Martin' },

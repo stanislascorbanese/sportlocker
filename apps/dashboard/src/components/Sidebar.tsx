@@ -8,6 +8,7 @@ import {
   Server,
   CalendarClock,
   Wrench,
+  Building2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -19,6 +20,7 @@ const ITEMS: Item[] = [
   { href: '/',             label: 'Accueil',       icon: Home },
   { href: '/map',          label: 'Carte',         icon: Map },
   { href: '/distributors', label: 'Distributeurs', icon: Server },
+  { href: '/communes',     label: 'Communes',      icon: Building2 },
   { href: '/reservations', label: 'Réservations',  icon: CalendarClock },
   { href: '/maintenance',  label: 'Maintenance',   icon: Wrench },
 ]
