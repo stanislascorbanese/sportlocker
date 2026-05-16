@@ -1,4 +1,7 @@
-import type { AdminUser, Commune, DailyPoint, MaintenanceTicket, Reservation } from './api'
+import type {
+  AdminUser, Commune, DailyPoint, MaintenanceTicket, Reservation,
+  ReservationDetail, ReservationEvent,
+} from './api'
 
 /**
  * Données fictives affichées quand l'API admin renvoie 401 ou 0 résultats.
@@ -40,6 +43,51 @@ export function demoReservationsDaily(days = 7): DailyPoint[] {
     })
   }
   return out
+}
+
+/** Génère une timeline plausible pour une réservation démo selon son statut. */
+export function demoReservationDetail(r: Reservation): ReservationDetail {
+  const events: ReservationEvent[] = []
+  const pushEvent = (
+    iso: string,
+    type: ReservationEvent['eventType'],
+    source = 'api',
+    metadata: Record<string, unknown> = {},
+  ) => {
+    events.push({
+      id: `aaaaaaaa-0000-0000-0000-${events.length.toString().padStart(12, '0')}`,
+      eventType: type,
+      source,
+      metadata,
+      createdAt: iso,
+    })
+  }
+
+  // Toujours : reservation créée → event 'reserved'
+  pushEvent(r.createdAt, 'reserved')
+
+  if (r.openedAt) pushEvent(r.openedAt, 'opened')
+  if (r.extensionCount > 0 && r.openedAt && r.dueAt) {
+    // approximation : extension survient avant la deadline
+    const mid = new Date(
+      (new Date(r.openedAt).getTime() + new Date(r.dueAt).getTime()) / 2,
+    ).toISOString()
+    pushEvent(mid, 'extended', 'api', { extensionCount: r.extensionCount, addedMinutes: 60 })
+  }
+  if (r.returnedAt) pushEvent(r.returnedAt, 'returned')
+  if (r.status === 'cancelled') {
+    pushEvent(r.createdAt, 'cancelled', 'api', { reason: 'user_cancel' })
+  }
+  if (r.status === 'expired') {
+    pushEvent(r.expiresAt, 'expired', 'system')
+  }
+
+  return {
+    ...r,
+    cancellationReason: r.status === 'cancelled' ? 'user_cancel' : null,
+    qrJti: r.id.replace(/-/g, ''),
+    events,
+  }
 }
 
 export const DEMO_ADMIN_USERS: AdminUser[] = [

@@ -1,13 +1,45 @@
 'use server'
 
+import { revalidatePath, revalidateTag } from 'next/cache'
+
 import {
   ApiError,
   fetchReservationsCsv,
+  forceCancelReservation,
   type Reservation,
   type ReservationExportFilters,
   type ReservationStatus,
 } from '../../lib/api'
 import { DEMO_RESERVATIONS } from '../../lib/demo-data'
+
+export type ActionResult = { ok: true } | { ok: false; error: string }
+
+export async function forceCancelReservationAction(
+  id: string,
+  reason: string,
+): Promise<ActionResult> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: 'invalid_id' }
+  const trimmed = reason.trim()
+  if (trimmed.length < 4) return { ok: false, error: 'Raison trop courte (4 caractères minimum).' }
+
+  try {
+    await forceCancelReservation(id, trimmed)
+  } catch (err) {
+    if (err instanceof ApiError) {
+      if (err.status === 401) return { ok: false, error: 'Authentification requise (token admin).' }
+      if (err.status === 403) return { ok: false, error: 'Token sans rôle admin.' }
+      if (err.status === 404) return { ok: false, error: 'Réservation introuvable.' }
+      if (err.status === 409) return { ok: false, error: 'Réservation déjà terminée (cancelled/returned/expired).' }
+      return { ok: false, error: `API ${err.status}: ${err.detail}` }
+    }
+    return { ok: false, error: err instanceof Error ? err.message : 'Erreur inconnue.' }
+  }
+
+  revalidatePath('/reservations')
+  revalidateTag('reservations')
+  revalidateTag(`reservation:${id}`)
+  return { ok: true }
+}
 
 export type CsvResult =
   | { ok: true; csv: string; filename: string; source: 'live' | 'demo' }

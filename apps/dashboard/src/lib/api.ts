@@ -90,6 +90,30 @@ export const Reservation = z.object({
 
 export type Reservation = z.infer<typeof Reservation>
 
+export const LOCKER_EVENT_TYPES = [
+  'reserved', 'opened', 'closed', 'returned',
+  'expired', 'cancelled', 'fault', 'maintenance', 'extended',
+] as const
+export type LockerEventType = typeof LOCKER_EVENT_TYPES[number]
+
+export const ReservationEvent = z.object({
+  id: z.string().uuid(),
+  eventType: z.enum(LOCKER_EVENT_TYPES),
+  source: z.string(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+})
+
+export type ReservationEvent = z.infer<typeof ReservationEvent>
+
+export const ReservationDetail = Reservation.extend({
+  cancellationReason: z.string().nullable(),
+  qrJti: z.string(),
+  events: z.array(ReservationEvent),
+})
+
+export type ReservationDetail = z.infer<typeof ReservationDetail>
+
 export const ReservationsPage = z.object({
   items: z.array(Reservation),
   nextCursor: z.string().nullable(),
@@ -288,6 +312,34 @@ export type ReservationFilters = {
   distributorId?: string
   cursor?: string
   limit?: number
+}
+
+export async function fetchReservationDetail(id: string): Promise<ReservationDetail> {
+  const res = await fetch(`${API_URL}/v1/admin/reservations/${id}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['reservations', `reservation:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'reservation_not_found')
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return ReservationDetail.parse(await res.json())
+}
+
+export async function forceCancelReservation(id: string, reason?: string): Promise<ReservationDetail> {
+  const res = await fetch(`${API_URL}/v1/admin/reservations/${id}/force-cancel`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(reason ? { reason } : {}),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return ReservationDetail.parse(await res.json())
 }
 
 export type ReservationExportFilters = {
