@@ -1,15 +1,20 @@
 import Link from 'next/link'
 
 import {
+  ApiError,
   RESERVATION_STATUSES,
   fetchDistributors,
+  fetchReservationDetail,
   fetchReservations,
   type Reservation,
+  type ReservationDetail,
   type ReservationStatus,
 } from '../../lib/api'
-import { DEMO_RESERVATIONS } from '../../lib/demo-data'
+import { DEMO_RESERVATIONS, demoReservationDetail } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
+import { ClickableRow } from './ClickableRow'
 import { ExportCsvButton } from './ExportCsvButton'
+import { ReservationDrawer } from './ReservationDrawer'
 import { cn } from '../../lib/cn'
 
 export const dynamic = 'force-dynamic'
@@ -54,6 +59,23 @@ type SearchParams = {
   status?: string
   distributorId?: string
   cursor?: string
+  detail?: string
+}
+
+function buildHref(
+  params: SearchParams,
+  set: SearchParams = {},
+  clear: (keyof SearchParams)[] = [],
+): string {
+  const merged: SearchParams = { ...params, ...set }
+  for (const k of clear) delete merged[k]
+  const qs = new URLSearchParams()
+  if (merged.status) qs.set('status', merged.status)
+  if (merged.distributorId) qs.set('distributorId', merged.distributorId)
+  if (merged.cursor) qs.set('cursor', merged.cursor)
+  if (merged.detail) qs.set('detail', merged.detail)
+  const s = qs.toString()
+  return s ? `/reservations?${s}` : '/reservations'
 }
 
 export default async function ReservationsPage({
@@ -96,6 +118,32 @@ export default async function ReservationsPage({
   const items = useDemo
     ? DEMO_RESERVATIONS.filter((r) => (!status || r.status === status))
     : realItems
+
+  // Drawer detail
+  const detailId = params.detail && /^[0-9a-f-]{36}$/i.test(params.detail) ? params.detail : null
+  let detail: ReservationDetail | null = null
+  let detailError: string | undefined
+  if (detailId) {
+    if (useDemo) {
+      const demoMatch = DEMO_RESERVATIONS.find((r) => r.id === detailId)
+      if (demoMatch) detail = demoReservationDetail(demoMatch)
+      else detailError = 'Réservation introuvable dans les données démo.'
+    } else {
+      try {
+        detail = await fetchReservationDetail(detailId)
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          detailError = 'Réservation introuvable.'
+        } else if (err instanceof Error) {
+          detailError = err.message
+        } else {
+          detailError = 'Erreur de chargement du détail.'
+        }
+      }
+    }
+  }
+
+  const closeDrawerHref = buildHref(params, {}, ['detail'])
 
   return (
     <div className="space-y-6">
@@ -201,7 +249,11 @@ export default async function ReservationsPage({
             </thead>
             <tbody className="divide-y divide-white/5">
               {items.map((r) => (
-                <tr key={r.id} className="transition hover:bg-white/[0.02]">
+                <ClickableRow
+                  key={r.id}
+                  href={buildHref(params, { detail: r.id })}
+                  selected={r.id === detailId}
+                >
                   <td className="px-4 py-3 text-white/80 tabular-nums">{fmtDate(r.createdAt)}</td>
                   <td className="px-4 py-3">
                     <div className="text-white">{fmtUser(r)}</div>
@@ -221,7 +273,7 @@ export default async function ReservationsPage({
                   <td className="px-4 py-3 text-right text-white/70 tabular-nums">
                     {r.extensionCount > 0 ? `×${r.extensionCount}` : '—'}
                   </td>
-                </tr>
+                </ClickableRow>
               ))}
             </tbody>
           </table>
@@ -231,21 +283,22 @@ export default async function ReservationsPage({
       {!useDemo && page?.nextCursor && (
         <div className="flex justify-end">
           <Link
-            href={buildNextHref(params, page.nextCursor)}
+            href={buildHref(params, { cursor: page.nextCursor }, ['detail'])}
             className="inline-flex items-center rounded-lg border border-white/15 bg-navy-800 px-3 py-1.5 text-sm text-white/80 transition hover:border-white/30 hover:text-white"
           >
             Page suivante →
           </Link>
         </div>
       )}
+
+      {detailId && (
+        <ReservationDrawer
+          detail={detail}
+          closeHref={closeDrawerHref}
+          demo={useDemo}
+          error={detailError}
+        />
+      )}
     </div>
   )
-}
-
-function buildNextHref(params: SearchParams, cursor: string): string {
-  const qs = new URLSearchParams()
-  if (params.status) qs.set('status', params.status)
-  if (params.distributorId) qs.set('distributorId', params.distributorId)
-  qs.set('cursor', cursor)
-  return `/reservations?${qs.toString()}`
 }

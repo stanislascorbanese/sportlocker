@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import {
-  distributors, itemTypes, items, reservations, users,
+  distributors, itemTypes, items, lockerEvents, lockers, reservations, users,
 } from '../db/schema.js'
 
 const RESERVATION_STATUS = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
@@ -33,6 +33,25 @@ const ReservationAdminDTO = z.object({
     id: z.string().uuid(),
     typeName: z.string(),
   }),
+})
+
+const LOCKER_EVENT_TYPE = [
+  'reserved', 'opened', 'closed', 'returned',
+  'expired', 'cancelled', 'fault', 'maintenance', 'extended',
+] as const
+
+const ReservationEventDTO = z.object({
+  id: z.string().uuid(),
+  eventType: z.enum(LOCKER_EVENT_TYPE),
+  source: z.string(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+})
+
+const ReservationDetailDTO = ReservationAdminDTO.extend({
+  cancellationReason: z.string().nullable(),
+  qrJti: z.string(),
+  events: z.array(ReservationEventDTO),
 })
 
 const ListQuery = z.object({
@@ -259,5 +278,235 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       .header('Content-Type', 'text/csv; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="${filename}"`)
       .send(csv)
+  })
+
+  /**
+   * GET /v1/admin/reservations/:id — détail d'une réservation avec sa
+   * timeline d'événements (locker_events) tri ASC pour reconstituer l'ordre
+   * chronologique. Pour le drawer admin dashboard.
+   */
+  app.get('/:id', {
+    onRequest: [app.authenticate],
+    schema: {
+      params: z.object({ id: z.string().uuid() }),
+      response: {
+        200: ReservationDetailDTO,
+        401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    if (req.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    }
+
+    const [r] = await db
+      .select({
+        id: reservations.id,
+        status: reservations.status,
+        createdAt: reservations.createdAt,
+        expiresAt: reservations.expiresAt,
+        openedAt: reservations.openedAt,
+        returnedAt: reservations.returnedAt,
+        dueAt: reservations.dueAt,
+        extensionCount: reservations.extensionCount,
+        cancellationReason: reservations.cancellationReason,
+        qrJti: reservations.qrJti,
+        userId: users.id,
+        userEmail: users.email,
+        userDisplayName: users.displayName,
+        distributorId: distributors.id,
+        distributorName: distributors.name,
+        distributorSerial: distributors.serialNumber,
+        itemId: items.id,
+        itemTypeName: itemTypes.name,
+      })
+      .from(reservations)
+      .innerJoin(users, eq(users.id, reservations.userId))
+      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+      .innerJoin(items, eq(items.id, reservations.itemId))
+      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
+      .where(eq(reservations.id, req.params.id))
+      .limit(1)
+
+    if (!r) return reply.code(404).send({ error: 'reservation_not_found' })
+
+    const events = await db
+      .select({
+        id: lockerEvents.id,
+        eventType: lockerEvents.eventType,
+        source: lockerEvents.source,
+        metadata: lockerEvents.metadata,
+        createdAt: lockerEvents.createdAt,
+      })
+      .from(lockerEvents)
+      .where(eq(lockerEvents.reservationId, r.id))
+      .orderBy(lockerEvents.createdAt)
+      .limit(200)
+
+    return {
+      id: r.id,
+      status: r.status,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt.toISOString(),
+      openedAt: r.openedAt?.toISOString() ?? null,
+      returnedAt: r.returnedAt?.toISOString() ?? null,
+      dueAt: r.dueAt?.toISOString() ?? null,
+      extensionCount: r.extensionCount,
+      cancellationReason: r.cancellationReason,
+      qrJti: r.qrJti,
+      user: { id: r.userId, email: r.userEmail, displayName: r.userDisplayName },
+      distributor: { id: r.distributorId, name: r.distributorName, serialNumber: r.distributorSerial },
+      item: { id: r.itemId, typeName: r.itemTypeName },
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        source: e.source,
+        metadata: (e.metadata ?? {}) as Record<string, unknown>,
+        createdAt: e.createdAt.toISOString(),
+      })),
+    }
+  })
+
+  /**
+   * POST /v1/admin/reservations/:id/force-cancel — annule en force depuis le
+   * dashboard admin. Diffère du POST /:id/cancel user-facing :
+   * - accepte 'pending' ET 'active' (le user-facing n'accepte que 'pending')
+   * - cancellation_reason = 'admin_force_cancel'
+   * - inscrit un locker_event avec source='admin'
+   * - libère le locker associé (state='idle') si encore reserved/active
+   */
+  app.post('/:id/force-cancel', {
+    onRequest: [app.authenticate],
+    schema: {
+      params: z.object({ id: z.string().uuid() }),
+      body: z.object({ reason: z.string().min(4).max(500).optional() }).optional(),
+      response: {
+        200: ReservationDetailDTO,
+        401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO, 409: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    if (req.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    }
+
+    const reason = req.body?.reason ?? 'admin_force_cancel'
+    const now = new Date()
+
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
+        .from(reservations)
+        .where(eq(reservations.id, req.params.id))
+        .for('update')
+        .limit(1)
+
+      if (!existing) return { kind: 'not_found' as const }
+
+      // Déjà dans un état terminal — pas idempotent, on signale.
+      if (
+        existing.status === 'cancelled'
+        || existing.status === 'expired'
+        || existing.status === 'returned'
+      ) {
+        return { kind: 'already_terminal' as const }
+      }
+
+      await tx
+        .update(reservations)
+        .set({ status: 'cancelled', cancellationReason: reason, updatedAt: now })
+        .where(eq(reservations.id, existing.id))
+
+      // Libère le locker si encore réservé/actif (overdue inclus).
+      await tx
+        .update(lockers)
+        .set({ state: 'idle', lastStateAt: now, updatedAt: now })
+        .where(eq(lockers.id, existing.lockerId))
+
+      await tx.insert(lockerEvents).values({
+        lockerId: existing.lockerId,
+        reservationId: existing.id,
+        eventType: 'cancelled',
+        source: 'admin',
+        metadata: { reason },
+      })
+
+      return { kind: 'ok' as const }
+    })
+
+    if (result.kind === 'not_found') {
+      return reply.code(404).send({ error: 'reservation_not_found' })
+    }
+    if (result.kind === 'already_terminal') {
+      return reply.code(409).send({ error: 'reservation_already_terminal' })
+    }
+
+    // Re-fetch via la route detail pour renvoyer le DTO complet (avec events updated)
+    const [r] = await db
+      .select({
+        id: reservations.id,
+        status: reservations.status,
+        createdAt: reservations.createdAt,
+        expiresAt: reservations.expiresAt,
+        openedAt: reservations.openedAt,
+        returnedAt: reservations.returnedAt,
+        dueAt: reservations.dueAt,
+        extensionCount: reservations.extensionCount,
+        cancellationReason: reservations.cancellationReason,
+        qrJti: reservations.qrJti,
+        userId: users.id,
+        userEmail: users.email,
+        userDisplayName: users.displayName,
+        distributorId: distributors.id,
+        distributorName: distributors.name,
+        distributorSerial: distributors.serialNumber,
+        itemId: items.id,
+        itemTypeName: itemTypes.name,
+      })
+      .from(reservations)
+      .innerJoin(users, eq(users.id, reservations.userId))
+      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+      .innerJoin(items, eq(items.id, reservations.itemId))
+      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
+      .where(eq(reservations.id, req.params.id))
+      .limit(1)
+
+    if (!r) return reply.code(404).send({ error: 'reservation_not_found' })
+
+    const events = await db
+      .select({
+        id: lockerEvents.id,
+        eventType: lockerEvents.eventType,
+        source: lockerEvents.source,
+        metadata: lockerEvents.metadata,
+        createdAt: lockerEvents.createdAt,
+      })
+      .from(lockerEvents)
+      .where(eq(lockerEvents.reservationId, r.id))
+      .orderBy(lockerEvents.createdAt)
+      .limit(200)
+
+    return {
+      id: r.id,
+      status: r.status,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt.toISOString(),
+      openedAt: r.openedAt?.toISOString() ?? null,
+      returnedAt: r.returnedAt?.toISOString() ?? null,
+      dueAt: r.dueAt?.toISOString() ?? null,
+      extensionCount: r.extensionCount,
+      cancellationReason: r.cancellationReason,
+      qrJti: r.qrJti,
+      user: { id: r.userId, email: r.userEmail, displayName: r.userDisplayName },
+      distributor: { id: r.distributorId, name: r.distributorName, serialNumber: r.distributorSerial },
+      item: { id: r.itemId, typeName: r.itemTypeName },
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        source: e.source,
+        metadata: (e.metadata ?? {}) as Record<string, unknown>,
+        createdAt: e.createdAt.toISOString(),
+      })),
+    }
   })
 }
