@@ -114,7 +114,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
         {missingCoords > 0 && (
           <span className="text-amber-300/80">
             {missingCoords} distributeur{missingCoords > 1 ? 's' : ''} sans coordonnées —{' '}
-            <Link href="/" className="underline">renseigner</Link>
+            <Link href="/distributors" className="underline">renseigner</Link>
           </span>
         )}
       </div>

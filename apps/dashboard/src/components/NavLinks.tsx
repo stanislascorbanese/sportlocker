@@ -6,8 +6,9 @@ import { usePathname } from 'next/navigation'
 import { cn } from '../lib/cn'
 
 const ITEMS = [
+  { href: '/',             label: 'Accueil' },
   { href: '/map',          label: 'Carte' },
-  { href: '/',             label: 'Distributeurs' },
+  { href: '/distributors', label: 'Distributeurs' },
   { href: '/reservations', label: 'Réservations' },
   { href: '/maintenance',  label: 'Maintenance' },
 ] as const
@@ -19,7 +20,7 @@ export function NavLinks() {
     <nav className="flex gap-6 text-sm">
       {ITEMS.map((item) => {
         const active = item.href === '/'
-          ? pathname === '/' || pathname.startsWith('/distributors')
+          ? pathname === '/'
           : pathname.startsWith(item.href)
 
         return (

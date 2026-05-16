@@ -66,7 +66,7 @@ export async function createDistributorAction(
   revalidatePath('/')
   revalidatePath('/map')
   revalidateTag('distributors')
-  redirect('/')
+  redirect('/distributors')
 }
 
 export async function updateDistributorAction(
@@ -96,7 +96,7 @@ export async function updateDistributorAction(
   revalidatePath('/map')
   revalidateTag('distributors')
   revalidateTag(`distributor:${id}`)
-  redirect('/')
+  redirect('/distributors')
 }
 
 function zodToState(error: z.ZodError): FormState {
