@@ -175,6 +175,40 @@ export type CommuneUpdateInput = z.infer<typeof CommuneUpdateInput>
 
 const ListCommunes = z.object({ items: z.array(Commune) })
 
+export const USER_ROLES = ['citizen', 'operator', 'admin'] as const
+export type UserRole = typeof USER_ROLES[number]
+
+export const AdminUser = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  displayName: z.string().nullable(),
+  phone: z.string().nullable(),
+  role: z.enum(USER_ROLES),
+  trustScore: z.number().int().min(0).max(100),
+  totalReservations: z.number().int().nonnegative(),
+  isBanned: z.boolean(),
+  bannedReason: z.string().nullable(),
+  commune: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  lastActiveAt: z.string().datetime().nullable(),
+  gdprDeleteRequestedAt: z.string().datetime().nullable(),
+  gdprDeletedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+})
+
+export type AdminUser = z.infer<typeof AdminUser>
+
+const ListUsers = z.object({ items: z.array(AdminUser) })
+
+export const UserUpdateInput = z.object({
+  role:                  z.enum(USER_ROLES).optional(),
+  isBanned:              z.boolean().optional(),
+  bannedReason:          z.string().max(500).nullable().optional(),
+  trustScore:            z.number().int().min(0).max(100).optional(),
+  gdprDeleteRequestedAt: z.string().datetime().nullable().optional(),
+})
+
+export type UserUpdateInput = z.infer<typeof UserUpdateInput>
+
 const ListDistributors = z.object({ items: z.array(Distributor) })
 const ListItemTypes    = z.object({ items: z.array(ItemType) })
 const ListMaintenance  = z.object({ items: z.array(MaintenanceTicket) })
@@ -331,6 +365,45 @@ export async function updateCommune(id: string, input: CommuneUpdateInput): Prom
     throw new ApiError(res.status, detail)
   }
   return Commune.parse(await res.json())
+}
+
+export type UserFilters = {
+  role?: UserRole
+  banned?: 'true' | 'false'
+  q?: string
+}
+
+export async function fetchUsers(filters: UserFilters = {}): Promise<AdminUser[]> {
+  const params = new URLSearchParams()
+  if (filters.role) params.set('role', filters.role)
+  if (filters.banned) params.set('banned', filters.banned)
+  if (filters.q) params.set('q', filters.q)
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/users${qs ? `?${qs}` : ''}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['users'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return ListUsers.parse(await res.json()).items
+}
+
+export async function updateUser(id: string, input: UserUpdateInput): Promise<AdminUser> {
+  const body = UserUpdateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return AdminUser.parse(await res.json())
 }
 
 export const DailyPoint = z.object({
