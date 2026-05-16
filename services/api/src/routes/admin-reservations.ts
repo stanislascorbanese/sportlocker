@@ -61,6 +61,22 @@ function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
   return { createdAt: d, id }
 }
 
+const ExportQuery = z.object({
+  status:        z.enum(RESERVATION_STATUS).optional(),
+  distributorId: z.string().uuid().optional(),
+})
+
+/** Escape CSV cell selon RFC 4180 : guillemets doublés, champ entouré
+ *  de guillemets si contient virgule / guillemet / retour ligne. */
+function csvCell(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return ''
+  const s = String(v)
+  if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+
 export async function adminReservationRoutes(rawApp: FastifyInstance) {
   const app = rawApp.withTypeProvider<ZodTypeProvider>()
 
@@ -149,5 +165,99 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       })),
       nextCursor,
     }
+  })
+
+  /**
+   * GET /v1/admin/reservations/export.csv — export complet, mêmes filtres
+   * que la liste mais sans pagination (limite dure 10k pour mémoire).
+   * BOM UTF-8 + RFC 4180 pour ouverture clean dans Excel/Sheets/Numbers.
+   */
+  app.get('/export.csv', {
+    onRequest: [app.authenticate],
+    schema: {
+      querystring: ExportQuery,
+    },
+  }, async (req, reply) => {
+    if (req.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    }
+
+    const { status, distributorId } = req.query
+
+    const conditions = []
+    if (status) conditions.push(eq(reservations.status, status))
+    if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
+
+    const rows = await db
+      .select({
+        id: reservations.id,
+        status: reservations.status,
+        createdAt: reservations.createdAt,
+        expiresAt: reservations.expiresAt,
+        openedAt: reservations.openedAt,
+        returnedAt: reservations.returnedAt,
+        dueAt: reservations.dueAt,
+        extensionCount: reservations.extensionCount,
+        cancellationReason: reservations.cancellationReason,
+        userEmail: users.email,
+        userDisplayName: users.displayName,
+        distributorName: distributors.name,
+        distributorSerial: distributors.serialNumber,
+        itemTypeName: itemTypes.name,
+      })
+      .from(reservations)
+      .innerJoin(users, eq(users.id, reservations.userId))
+      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+      .innerJoin(items, eq(items.id, reservations.itemId))
+      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
+      .where(conditions.length > 0 ? and(...conditions) : sql`true`)
+      .orderBy(desc(reservations.createdAt))
+      .limit(10_000)
+
+    const header = [
+      'id',
+      'created_at',
+      'status',
+      'user_email',
+      'user_name',
+      'distributor_name',
+      'distributor_serial',
+      'item_type',
+      'expires_at',
+      'opened_at',
+      'due_at',
+      'returned_at',
+      'extension_count',
+      'cancellation_reason',
+    ].join(',')
+
+    const lines = [header]
+    for (const r of rows) {
+      lines.push([
+        csvCell(r.id),
+        csvCell(r.createdAt.toISOString()),
+        csvCell(r.status),
+        csvCell(r.userEmail),
+        csvCell(r.userDisplayName),
+        csvCell(r.distributorName),
+        csvCell(r.distributorSerial),
+        csvCell(r.itemTypeName),
+        csvCell(r.expiresAt.toISOString()),
+        csvCell(r.openedAt?.toISOString() ?? null),
+        csvCell(r.dueAt?.toISOString() ?? null),
+        csvCell(r.returnedAt?.toISOString() ?? null),
+        csvCell(r.extensionCount),
+        csvCell(r.cancellationReason),
+      ].join(','))
+    }
+
+    const csv = '﻿' + lines.join('\r\n')  // BOM UTF-8 + CRLF line endings RFC 4180
+
+    const filename = `reservations-${new Date().toISOString().slice(0, 10)}.csv`
+
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(csv)
   })
 }

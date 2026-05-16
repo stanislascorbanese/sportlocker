@@ -290,6 +290,27 @@ export type ReservationFilters = {
   limit?: number
 }
 
+export type ReservationExportFilters = {
+  status?: ReservationStatus
+  distributorId?: string
+}
+
+export async function fetchReservationsCsv(filters: ReservationExportFilters = {}): Promise<string> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/reservations/export.csv${qs ? `?${qs}` : ''}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return await res.text()
+}
+
 export async function fetchReservations(filters: ReservationFilters = {}): Promise<ReservationsPage> {
   const params = new URLSearchParams()
   if (filters.status) params.set('status', filters.status)
