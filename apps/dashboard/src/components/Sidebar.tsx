@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Wrench,
   Building2,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -21,6 +22,7 @@ const ITEMS: Item[] = [
   { href: '/map',          label: 'Carte',         icon: Map },
   { href: '/distributors', label: 'Distributeurs', icon: Server },
   { href: '/communes',     label: 'Communes',      icon: Building2 },
+  { href: '/users',        label: 'Utilisateurs',  icon: Users },
   { href: '/reservations', label: 'Réservations',  icon: CalendarClock },
   { href: '/maintenance',  label: 'Maintenance',   icon: Wrench },
 ]

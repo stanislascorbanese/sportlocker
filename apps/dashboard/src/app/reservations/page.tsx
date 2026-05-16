@@ -9,6 +9,7 @@ import {
 } from '../../lib/api'
 import { DEMO_RESERVATIONS } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
+import { ExportCsvButton } from './ExportCsvButton'
 import { cn } from '../../lib/cn'
 
 export const dynamic = 'force-dynamic'
@@ -114,7 +115,13 @@ export default async function ReservationsPage({
             {useDemo && ' · données fictives — branchez un token admin valide pour voir les vraies'}
           </p>
         </div>
-        <RefreshButton />
+        <div className="flex items-center gap-3">
+          <ExportCsvButton filters={{
+            ...(status ? { status } : {}),
+            ...(distributorId ? { distributorId } : {}),
+          }} />
+          <RefreshButton />
+        </div>
       </header>
 
       <form className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-navy-800 p-4">
