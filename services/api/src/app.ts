@@ -5,6 +5,7 @@ import sensible from '@fastify/sensible'
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod'
 
 import { env } from './config/env.js'
+import { Sentry } from './sentry.js'
 import { swaggerPlugin } from './plugins/swagger.js'
 import { authPlugin } from './plugins/auth.js'
 
@@ -44,10 +45,21 @@ export async function buildApp() {
   await app.register(adminMaintenanceRoutes,  { prefix: '/v1/admin/maintenance-tickets' })
   await app.register(adminStatsRoutes,        { prefix: '/v1/admin/stats' })
 
-  app.setErrorHandler((err, _req, reply) => {
+  // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
+  // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
+  if (env.SENTRY_DSN) {
+    Sentry.setupFastifyErrorHandler(app)
+  }
+
+  app.setErrorHandler((err, req, reply) => {
     app.log.error({ err }, 'unhandled error')
     if (err.validation) return reply.status(400).send({ error: 'validation_error', details: err.validation })
-    return reply.status(err.statusCode ?? 500).send({ error: err.message || 'internal_error' })
+    // 5xx → Sentry. 4xx → on log mais on n'inonde pas la télémétrie.
+    const status = err.statusCode ?? 500
+    if (status >= 500 && env.SENTRY_DSN) {
+      Sentry.captureException(err, { extra: { url: req.url, method: req.method } })
+    }
+    return reply.status(status).send({ error: err.message || 'internal_error' })
   })
 
   return app

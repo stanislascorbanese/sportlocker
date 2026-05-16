@@ -23,6 +23,11 @@ const EnvSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
   EXPO_ACCESS_TOKEN: z.string().optional(),
+
+  // Sentry — observability. Si SENTRY_DSN absent, le SDK reste no-op silencieux.
+  // Plan free : 5k errors + 10k perf events/mois.
+  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 })
 
 export type Env = z.infer<typeof EnvSchema>

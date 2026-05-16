@@ -1,5 +1,11 @@
 import 'dotenv/config'
 
+// Sentry doit être init AVANT tout autre import qui doit être instrumenté
+// (Fastify, postgres-js, ioredis, etc.). C'est pour ça qu'il vient juste
+// après dotenv et avant buildApp.
+import { initSentry } from './sentry.js'
+initSentry()
+
 import { buildApp } from './app.js'
 import { env } from './config/env.js'
 import { startQueues } from './queues/index.js'
