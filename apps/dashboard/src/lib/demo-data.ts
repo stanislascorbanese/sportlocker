@@ -1,0 +1,245 @@
+import type { MaintenanceTicket, Reservation } from './api'
+
+/**
+ * Données fictives affichées quand l'API admin renvoie 401 ou 0 résultats.
+ * Permet de voir le rendu des onglets Réservations / Maintenance avant
+ * d'avoir branché un token admin valide ou des données réelles.
+ *
+ * Tous les UUID respectent le format pour passer la validation Zod côté pages.
+ */
+
+function isoMinutesAgo(min: number): string {
+  return new Date(Date.now() - min * 60 * 1000).toISOString()
+}
+
+function isoMinutesFromNow(min: number): string {
+  return new Date(Date.now() + min * 60 * 1000).toISOString()
+}
+
+function isoHoursAgo(h: number): string {
+  return isoMinutesAgo(h * 60)
+}
+
+const DEMO_USERS = [
+  { id: '11111111-1111-1111-1111-111111111111', email: 'alice.martin@example.fr',  displayName: 'Alice Martin' },
+  { id: '22222222-2222-2222-2222-222222222222', email: 'paul.durand@example.fr',   displayName: 'Paul Durand' },
+  { id: '33333333-3333-3333-3333-333333333333', email: 'leila.benali@example.fr',  displayName: 'Leïla Benali' },
+  { id: '44444444-4444-4444-4444-444444444444', email: 'thomas.lefebvre@example.fr', displayName: 'Thomas Lefebvre' },
+  { id: '55555555-5555-5555-5555-555555555555', email: 'sophie.r@example.fr',      displayName: null },
+] as const
+
+const DEMO_DISTRIBUTORS = [
+  { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', name: 'Parc des Buttes-Chaumont', serialNumber: 'SL-PARIS-019' },
+  { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', name: 'Berges de Seine — Île Saint-Louis', serialNumber: 'SL-PARIS-024' },
+  { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', name: 'Place de la République', serialNumber: 'SL-PARIS-031' },
+  { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', name: 'Parc Montsouris', serialNumber: 'SL-PARIS-007' },
+] as const
+
+const DEMO_ITEMS = [
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', typeName: 'Ballon de basket' },
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', typeName: 'Raquette de tennis' },
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3', typeName: 'Frisbee' },
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', typeName: 'Ballon de foot' },
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb5', typeName: 'Boules de pétanque (set)' },
+] as const
+
+export const DEMO_RESERVATIONS: Reservation[] = [
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc01',
+    status: 'active',
+    createdAt: isoMinutesAgo(35),
+    expiresAt: isoMinutesAgo(20),
+    openedAt:  isoMinutesAgo(28),
+    returnedAt: null,
+    dueAt:     isoMinutesFromNow(180),
+    extensionCount: 0,
+    user: DEMO_USERS[0],
+    distributor: DEMO_DISTRIBUTORS[0],
+    item: DEMO_ITEMS[0],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc02',
+    status: 'pending',
+    createdAt: isoMinutesAgo(8),
+    expiresAt: isoMinutesFromNow(7),
+    openedAt:  null,
+    returnedAt: null,
+    dueAt:     null,
+    extensionCount: 0,
+    user: DEMO_USERS[1],
+    distributor: DEMO_DISTRIBUTORS[1],
+    item: DEMO_ITEMS[1],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc03',
+    status: 'overdue',
+    createdAt: isoHoursAgo(5),
+    expiresAt: isoHoursAgo(4),
+    openedAt:  isoHoursAgo(4),
+    returnedAt: null,
+    dueAt:     isoHoursAgo(1),
+    extensionCount: 2,
+    user: DEMO_USERS[2],
+    distributor: DEMO_DISTRIBUTORS[2],
+    item: DEMO_ITEMS[2],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc04',
+    status: 'returned',
+    createdAt: isoHoursAgo(3),
+    expiresAt: isoHoursAgo(2),
+    openedAt:  isoHoursAgo(2),
+    returnedAt: isoMinutesAgo(45),
+    dueAt:     isoMinutesFromNow(120),
+    extensionCount: 1,
+    user: DEMO_USERS[3],
+    distributor: DEMO_DISTRIBUTORS[0],
+    item: DEMO_ITEMS[3],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc05',
+    status: 'cancelled',
+    createdAt: isoHoursAgo(8),
+    expiresAt: isoHoursAgo(7),
+    openedAt:  null,
+    returnedAt: null,
+    dueAt:     null,
+    extensionCount: 0,
+    user: DEMO_USERS[4],
+    distributor: DEMO_DISTRIBUTORS[3],
+    item: DEMO_ITEMS[4],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc06',
+    status: 'returned',
+    createdAt: isoHoursAgo(26),
+    expiresAt: isoHoursAgo(25),
+    openedAt:  isoHoursAgo(25),
+    returnedAt: isoHoursAgo(22),
+    dueAt:     isoHoursAgo(21),
+    extensionCount: 0,
+    user: DEMO_USERS[0],
+    distributor: DEMO_DISTRIBUTORS[1],
+    item: DEMO_ITEMS[1],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc07',
+    status: 'expired',
+    createdAt: isoHoursAgo(48),
+    expiresAt: isoHoursAgo(47),
+    openedAt:  null,
+    returnedAt: null,
+    dueAt:     null,
+    extensionCount: 0,
+    user: DEMO_USERS[2],
+    distributor: DEMO_DISTRIBUTORS[2],
+    item: DEMO_ITEMS[2],
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccc08',
+    status: 'active',
+    createdAt: isoMinutesAgo(95),
+    expiresAt: isoMinutesAgo(80),
+    openedAt:  isoMinutesAgo(87),
+    returnedAt: null,
+    dueAt:     isoMinutesFromNow(60),
+    extensionCount: 0,
+    user: DEMO_USERS[3],
+    distributor: DEMO_DISTRIBUTORS[3],
+    item: DEMO_ITEMS[0],
+  },
+]
+
+export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd01',
+    status: 'open',
+    severity: 5,
+    title: 'Casier #3 bloqué — verrou ne s\'ouvre plus',
+    description: 'Trois retours utilisateur cette semaine. Probable rupture du solénoïde, intervention urgente requise.',
+    resolutionNote: null,
+    resolvedAt: null,
+    createdAt: isoHoursAgo(2),
+    updatedAt: isoHoursAgo(2),
+    distributor: DEMO_DISTRIBUTORS[0],
+    assignee: null,
+  },
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd02',
+    status: 'open',
+    severity: 3,
+    title: 'Lecteur QR encrassé',
+    description: 'Taux d\'échec de scan élevé observé via la télémétrie firmware (38% sur 24h).',
+    resolutionNote: null,
+    resolvedAt: null,
+    createdAt: isoHoursAgo(8),
+    updatedAt: isoHoursAgo(8),
+    distributor: DEMO_DISTRIBUTORS[2],
+    assignee: null,
+  },
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd03',
+    status: 'open',
+    severity: 2,
+    title: 'Étiquette d\'identification décollée',
+    description: 'Cosmétique. À recoller lors du prochain passage technicien.',
+    resolutionNote: null,
+    resolvedAt: null,
+    createdAt: isoHoursAgo(30),
+    updatedAt: isoHoursAgo(30),
+    distributor: DEMO_DISTRIBUTORS[1],
+    assignee: null,
+  },
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd04',
+    status: 'in_progress',
+    severity: 4,
+    title: 'Heartbeat manquant depuis 12h',
+    description: 'Distributeur silencieux. Probable problème réseau ou alimentation. Tech sur place.',
+    resolutionNote: null,
+    resolvedAt: null,
+    createdAt: isoHoursAgo(14),
+    updatedAt: isoHoursAgo(1),
+    distributor: DEMO_DISTRIBUTORS[3],
+    assignee: { id: '66666666-6666-6666-6666-666666666666', email: 'tech1@sportlocker.fr', displayName: 'Marc Tech' },
+  },
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd05',
+    status: 'in_progress',
+    severity: 3,
+    title: 'Calibration RFID dérive',
+    description: 'Faux-positifs détectés sur les items 4 et 7. Tag à reprogrammer.',
+    resolutionNote: null,
+    resolvedAt: null,
+    createdAt: isoHoursAgo(20),
+    updatedAt: isoHoursAgo(3),
+    distributor: DEMO_DISTRIBUTORS[0],
+    assignee: { id: '77777777-7777-7777-7777-777777777777', email: 'tech2@sportlocker.fr', displayName: 'Julie R.' },
+  },
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd06',
+    status: 'resolved',
+    severity: 4,
+    title: 'Panneau solaire encrassé — batterie à 22%',
+    description: 'Détecté via heartbeat. Tension chute en fin de journée.',
+    resolutionNote: 'Nettoyage panneau + ajustement angle. Charge nominale restaurée (96% le lendemain).',
+    resolvedAt: isoHoursAgo(50),
+    createdAt:  isoHoursAgo(72),
+    updatedAt:  isoHoursAgo(50),
+    distributor: DEMO_DISTRIBUTORS[2],
+    assignee: { id: '66666666-6666-6666-6666-666666666666', email: 'tech1@sportlocker.fr', displayName: 'Marc Tech' },
+  },
+  {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddd07',
+    status: 'wontfix',
+    severity: 1,
+    title: 'Bruit léger ventilation Raspberry Pi',
+    description: 'Signalé par riverain. Niveau sonore < 30dB à 1m. Pas d\'action prévue.',
+    resolutionNote: 'Niveau acceptable. Ticket fermé sans intervention.',
+    resolvedAt: isoHoursAgo(100),
+    createdAt:  isoHoursAgo(120),
+    updatedAt:  isoHoursAgo(100),
+    distributor: DEMO_DISTRIBUTORS[1],
+    assignee: null,
+  },
+]

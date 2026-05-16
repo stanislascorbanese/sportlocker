@@ -21,11 +21,15 @@ function fmtDate(iso: string): string {
   })
 }
 
-export function TicketCard({ ticket }: { ticket: MaintenanceTicket }) {
+export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket; demo?: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const transition = (next: MaintenanceStatus) => {
+    if (demo) {
+      alert('Mode démo — branchez un token admin valide pour modifier les tickets.')
+      return
+    }
     startTransition(() => {
       void (async () => {
         const res = await changeTicketStatusAction(ticket.id, next)

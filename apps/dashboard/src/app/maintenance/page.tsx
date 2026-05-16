@@ -1,4 +1,5 @@
 import { fetchMaintenanceTickets, type MaintenanceTicket } from '../../lib/api'
+import { DEMO_MAINTENANCE_TICKETS } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { TicketCard } from './TicketCard'
 
@@ -20,14 +21,17 @@ function bucket(t: MaintenanceTicket): ColumnKey {
 }
 
 export default async function MaintenancePage() {
-  let tickets: MaintenanceTicket[] = []
+  let realTickets: MaintenanceTicket[] = []
   let fetchError: string | null = null
 
   try {
-    tickets = await fetchMaintenanceTickets()
+    realTickets = await fetchMaintenanceTickets()
   } catch (err) {
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
+
+  const useDemo = fetchError !== null || realTickets.length === 0
+  const tickets = useDemo ? DEMO_MAINTENANCE_TICKETS : realTickets
 
   const grouped: Record<ColumnKey, MaintenanceTicket[]> = {
     open: [],
@@ -40,50 +44,56 @@ export default async function MaintenancePage() {
     <div className="space-y-6">
       <header className="flex items-end justify-between">
         <div>
-          <h2 className="font-display text-3xl">Tickets de maintenance</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-display text-3xl">Tickets de maintenance</h2>
+            {useDemo && (
+              <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                Démo
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-white/55">
             {tickets.length} ticket{tickets.length > 1 ? 's' : ''} ·{' '}
             <span className="text-rose-300">{grouped.open.length} ouvert{grouped.open.length > 1 ? 's' : ''}</span>
             {' · '}
             <span className="text-amber-300">{grouped.in_progress.length} en cours</span>
+            {useDemo && ' · données fictives'}
           </p>
         </div>
         <RefreshButton />
       </header>
 
       {fetchError && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
-          <p className="font-semibold">API injoignable</p>
-          <p className="mt-1 font-mono text-xs text-rose-300/80">{fetchError}</p>
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
+          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
+          <p className="mt-1 font-mono text-[11px] text-amber-300/70">{fetchError}</p>
         </div>
       )}
 
-      {!fetchError && (
-        <div className="grid gap-4 md:grid-cols-3">
-          {COLUMNS.map((col) => (
-            <section
-              key={col.key}
-              className={`rounded-xl border-t-2 ${col.accent} bg-navy-800/40 p-3`}
-            >
-              <header className="mb-3 flex items-baseline justify-between">
-                <h3 className="font-medium text-white">{col.label}</h3>
-                <span className="text-xs text-white/40">{grouped[col.key].length}</span>
-              </header>
-              <p className="mb-3 text-[11px] text-white/40">{col.description}</p>
+      <div className="grid gap-4 md:grid-cols-3">
+        {COLUMNS.map((col) => (
+          <section
+            key={col.key}
+            className={`rounded-xl border-t-2 ${col.accent} bg-navy-800/40 p-3`}
+          >
+            <header className="mb-3 flex items-baseline justify-between">
+              <h3 className="font-medium text-white">{col.label}</h3>
+              <span className="text-xs text-white/40">{grouped[col.key].length}</span>
+            </header>
+            <p className="mb-3 text-[11px] text-white/40">{col.description}</p>
 
-              <div className="space-y-2">
-                {grouped[col.key].length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-white/10 p-4 text-center text-xs text-white/30">
-                    aucun ticket
-                  </div>
-                ) : (
-                  grouped[col.key].map((t) => <TicketCard key={t.id} ticket={t} />)
-                )}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+            <div className="space-y-2">
+              {grouped[col.key].length === 0 ? (
+                <div className="rounded-lg border border-dashed border-white/10 p-4 text-center text-xs text-white/30">
+                  aucun ticket
+                </div>
+              ) : (
+                grouped[col.key].map((t) => <TicketCard key={t.id} ticket={t} demo={useDemo} />)
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   )
 }
