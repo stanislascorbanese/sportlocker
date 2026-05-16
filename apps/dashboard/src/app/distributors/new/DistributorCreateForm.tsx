@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { useFormState, useFormStatus } from 'react-dom'
 
+import type { Commune } from '../../../lib/api'
 import { createDistributorAction, type FormState } from '../_actions'
 import { cn } from '../../../lib/cn'
 
 const INITIAL: FormState = { status: 'idle' }
 
-export function DistributorCreateForm() {
+export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
   const [state, formAction] = useFormState(createDistributorAction, INITIAL)
 
   return (
@@ -29,15 +30,48 @@ export function DistributorCreateForm() {
         required
       />
 
-      <Field
-        name="communeId"
-        label="Commune (UUID)"
-        placeholder="76e317a8-616c-486c-87cb-73253f411d8a"
-        hint="UUID de la commune. Un endpoint /v1/communes arrivera plus tard."
-        error={state.fieldErrors?.['communeId']}
-        required
-        mono
-      />
+      {communes.length > 0 ? (
+        <label className="block">
+          <span className="block text-xs font-medium uppercase tracking-wide text-white/55">
+            Commune
+          </span>
+          <select
+            name="communeId"
+            required
+            defaultValue=""
+            className={cn(
+              'mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none transition',
+              'focus:border-emerald-400/60',
+              state.fieldErrors?.['communeId'] && 'border-rose-500/50',
+            )}
+          >
+            <option value="" disabled>Sélectionnez une commune…</option>
+            {communes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.inseeCode})
+              </option>
+            ))}
+          </select>
+          {state.fieldErrors?.['communeId'] && (
+            <span className="mt-1 block text-[11px] text-rose-300">{state.fieldErrors['communeId']}</span>
+          )}
+          <span className="mt-1 block text-[11px] text-white/40">
+            <Link href="/communes/new" className="text-emerald-300/80 hover:text-emerald-200">
+              + créer une nouvelle commune
+            </Link>
+          </span>
+        </label>
+      ) : (
+        <Field
+          name="communeId"
+          label="Commune (UUID)"
+          placeholder="76e317a8-616c-486c-87cb-73253f411d8a"
+          hint="Aucune commune chargée — saisir l'UUID directement."
+          error={state.fieldErrors?.['communeId']}
+          required
+          mono
+        />
+      )}
 
       <Field
         name="lockerCount"

@@ -15,6 +15,7 @@ import { reservationRoutes } from './routes/reservations.js'
 import { adminReservationRoutes } from './routes/admin-reservations.js'
 import { adminMaintenanceRoutes } from './routes/admin-maintenance.js'
 import { adminStatsRoutes } from './routes/admin-stats.js'
+import { adminCommuneRoutes } from './routes/admin-communes.js'
 import { authRoutes } from './routes/auth.js'
 import { itemTypeRoutes } from './routes/item-types.js'
 
@@ -44,6 +45,7 @@ export async function buildApp() {
   await app.register(adminReservationRoutes,  { prefix: '/v1/admin/reservations' })
   await app.register(adminMaintenanceRoutes,  { prefix: '/v1/admin/maintenance-tickets' })
   await app.register(adminStatsRoutes,        { prefix: '/v1/admin/stats' })
+  await app.register(adminCommuneRoutes,      { prefix: '/v1/admin/communes' })
 
   // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
   // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
