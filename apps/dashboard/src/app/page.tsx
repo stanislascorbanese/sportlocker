@@ -4,12 +4,19 @@ import {
   fetchDistributors,
   fetchMaintenanceTickets,
   fetchReservations,
+  fetchReservationsDaily,
+  type DailyPoint,
   type Distributor,
   type MaintenanceTicket,
   type Reservation,
 } from '../lib/api'
-import { DEMO_RESERVATIONS, DEMO_MAINTENANCE_TICKETS } from '../lib/demo-data'
+import {
+  DEMO_RESERVATIONS,
+  DEMO_MAINTENANCE_TICKETS,
+  demoReservationsDaily,
+} from '../lib/demo-data'
 import { RefreshButton } from '../components/RefreshButton'
+import { Sparkline } from '../components/Sparkline'
 import { StatCard } from '../components/StatCard'
 import { cn } from '../lib/cn'
 
@@ -37,6 +44,7 @@ type FetchResults = {
   activeReservations: Reservation[]
   overdueReservations: Reservation[]
   openTickets: MaintenanceTicket[]
+  dailySeries: DailyPoint[]
   hadError: boolean
 }
 
@@ -45,20 +53,22 @@ async function loadAll(): Promise<FetchResults> {
   let activeReservations: Reservation[] = []
   let overdueReservations: Reservation[] = []
   let openTickets: MaintenanceTicket[] = []
+  let dailySeries: DailyPoint[] = []
   let hadError = false
 
   const safe = async <T,>(p: Promise<T>, fallback: T): Promise<T> => {
     try { return await p } catch { hadError = true; return fallback }
   }
 
-  ;[distributors, activeReservations, overdueReservations, openTickets] = await Promise.all([
+  ;[distributors, activeReservations, overdueReservations, openTickets, dailySeries] = await Promise.all([
     safe(fetchDistributors(), []),
     safe(fetchReservations({ status: 'active', limit: 100 }).then((p) => p.items), []),
     safe(fetchReservations({ status: 'overdue', limit: 50 }).then((p) => p.items), []),
     safe(fetchMaintenanceTickets({ status: 'open' }), []),
+    safe(fetchReservationsDaily(7), []),
   ])
 
-  return { distributors, activeReservations, overdueReservations, openTickets, hadError }
+  return { distributors, activeReservations, overdueReservations, openTickets, dailySeries, hadError }
 }
 
 export default async function HomePage() {
@@ -80,6 +90,9 @@ export default async function HomePage() {
   const openTickets = useDemo
     ? DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
     : data.openTickets
+  const dailySeries = useDemo || data.dailySeries.length === 0
+    ? demoReservationsDaily(7)
+    : data.dailySeries
 
   // KPIs distributeurs (toujours via vraies données — la route est publique)
   const totalDistributors  = data.distributors.length
@@ -113,6 +126,17 @@ export default async function HomePage() {
         </div>
         <RefreshButton />
       </header>
+
+      {/* Tendance — sparkline réservations 7 jours */}
+      <section className="rounded-xl border border-white/10 bg-navy-800 p-5">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
+            Tendance · réservations
+          </h3>
+          <span className="text-[11px] text-white/40">7 derniers jours</span>
+        </div>
+        <Sparkline points={dailySeries} width={520} />
+      </section>
 
       {/* Bloc 1 — Parc */}
       <section className="space-y-3">
