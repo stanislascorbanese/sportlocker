@@ -26,6 +26,7 @@
     "@fastify/swagger":   "^8.14.0",
     "@fastify/swagger-ui": "^4.0.0",
     "@fastify/websocket": "^10.0.0",
+    "@sentry/node":       "^8.0.0",
     "bullmq":             "^5.4.0",
     "dotenv":             "^17.4.2",
     "drizzle-orm":        "^0.30.0",
