@@ -61,4 +61,129 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
 
     return { points: rows.map((r) => ({ date: r.date, count: r.count })) }
   })
+
+  /**
+   * GET /v1/admin/stats/dashboard?days=30 — agrégats pour la page Stats :
+   * daily series, répartition par statut, top distributeurs, top item types,
+   * heatmap jour-de-semaine × heure.
+   *
+   * Tout en parallèle (5 queries), 1 round-trip côté client.
+   */
+  app.get('/dashboard', {
+    onRequest: [app.authenticate],
+    schema: {
+      querystring: z.object({
+        days: z.coerce.number().int().min(7).max(180).default(30),
+      }),
+      response: {
+        200: z.object({
+          days: z.number().int(),
+          daily: z.array(DailyPoint),
+          byStatus: z.array(z.object({
+            status: z.enum(['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+            count: z.number().int().nonnegative(),
+          })),
+          topDistributors: z.array(z.object({
+            id: z.string().uuid(),
+            name: z.string(),
+            serialNumber: z.string(),
+            count: z.number().int().nonnegative(),
+          })),
+          topItemTypes: z.array(z.object({
+            id: z.string().uuid(),
+            name: z.string(),
+            count: z.number().int().nonnegative(),
+          })),
+          hourly: z.array(z.object({
+            dow: z.number().int().min(0).max(6),
+            hour: z.number().int().min(0).max(23),
+            count: z.number().int().nonnegative(),
+          })),
+        }),
+        401: ErrorDTO, 403: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    if (req.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    }
+
+    const { days } = req.query
+    const interval = sql.raw(`INTERVAL '${days} days'`)
+
+    const [dailyRows, statusRows, topDistRows, topItemRows, hourlyRows] = await Promise.all([
+      db.execute<{ date: string; count: number }>(sql`
+        WITH date_series AS (
+          SELECT generate_series(
+            (CURRENT_DATE - (${days - 1}::int * INTERVAL '1 day'))::date,
+            CURRENT_DATE,
+            INTERVAL '1 day'
+          )::date AS day
+        )
+        SELECT
+          to_char(ds.day, 'YYYY-MM-DD') AS date,
+          COALESCE(COUNT(r.id), 0)::int AS count
+        FROM date_series ds
+        LEFT JOIN reservations r
+          ON r.created_at >= ds.day
+          AND r.created_at < ds.day + INTERVAL '1 day'
+        GROUP BY ds.day
+        ORDER BY ds.day ASC
+      `),
+      db.execute<{ status: string; count: number }>(sql`
+        SELECT status::text AS status, COUNT(*)::int AS count
+        FROM reservations
+        WHERE created_at >= NOW() - ${interval}
+        GROUP BY status
+      `),
+      db.execute<{ id: string; name: string; serial_number: string; count: number }>(sql`
+        SELECT d.id, d.name, d.serial_number, COUNT(r.id)::int AS count
+        FROM distributors d
+        LEFT JOIN reservations r
+          ON r.distributor_id = d.id
+          AND r.created_at >= NOW() - ${interval}
+        GROUP BY d.id, d.name, d.serial_number
+        ORDER BY count DESC, d.name ASC
+        LIMIT 5
+      `),
+      db.execute<{ id: string; name: string; count: number }>(sql`
+        SELECT it.id, it.name, COUNT(r.id)::int AS count
+        FROM item_types it
+        LEFT JOIN items i ON i.item_type_id = it.id
+        LEFT JOIN reservations r
+          ON r.item_id = i.id
+          AND r.created_at >= NOW() - ${interval}
+        GROUP BY it.id, it.name
+        ORDER BY count DESC, it.name ASC
+        LIMIT 5
+      `),
+      db.execute<{ dow: number; hour: number; count: number }>(sql`
+        SELECT
+          EXTRACT(DOW FROM created_at)::int AS dow,
+          EXTRACT(HOUR FROM created_at)::int AS hour,
+          COUNT(*)::int AS count
+        FROM reservations
+        WHERE created_at >= NOW() - ${interval}
+        GROUP BY dow, hour
+      `),
+    ])
+
+    const ALL_STATUSES = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+    const byStatusMap = new Map(statusRows.map((r) => [r.status, r.count]))
+    const byStatus = ALL_STATUSES.map((status) => ({
+      status,
+      count: byStatusMap.get(status) ?? 0,
+    }))
+
+    return {
+      days,
+      daily: dailyRows.map((r) => ({ date: r.date, count: r.count })),
+      byStatus,
+      topDistributors: topDistRows.map((r) => ({
+        id: r.id, name: r.name, serialNumber: r.serial_number, count: r.count,
+      })),
+      topItemTypes: topItemRows.map((r) => ({ id: r.id, name: r.name, count: r.count })),
+      hourly: hourlyRows.map((r) => ({ dow: r.dow, hour: r.hour, count: r.count })),
+    }
+  })
 }

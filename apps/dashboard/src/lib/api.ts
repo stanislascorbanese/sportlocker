@@ -488,6 +488,46 @@ export type DailyPoint = z.infer<typeof DailyPoint>
 
 const DailySeries = z.object({ points: z.array(DailyPoint) })
 
+export const StatsDashboard = z.object({
+  days: z.number().int(),
+  daily: z.array(DailyPoint),
+  byStatus: z.array(z.object({
+    status: z.enum(RESERVATION_STATUSES),
+    count: z.number().int().nonnegative(),
+  })),
+  topDistributors: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    count: z.number().int().nonnegative(),
+  })),
+  topItemTypes: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    count: z.number().int().nonnegative(),
+  })),
+  hourly: z.array(z.object({
+    dow: z.number().int().min(0).max(6),
+    hour: z.number().int().min(0).max(23),
+    count: z.number().int().nonnegative(),
+  })),
+})
+
+export type StatsDashboard = z.infer<typeof StatsDashboard>
+
+export async function fetchStatsDashboard(days = 30): Promise<StatsDashboard> {
+  const res = await fetch(`${API_URL}/v1/admin/stats/dashboard?days=${days}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['stats'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return StatsDashboard.parse(await res.json())
+}
+
 export async function fetchReservationsDaily(days = 7): Promise<DailyPoint[]> {
   const res = await fetch(`${API_URL}/v1/admin/stats/reservations-daily?days=${days}`, {
     headers: { ...authHeaders() },
