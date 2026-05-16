@@ -225,6 +225,28 @@ export async function fetchReservations(filters: ReservationFilters = {}): Promi
   return ReservationsPage.parse(await res.json())
 }
 
+export const DailyPoint = z.object({
+  date:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  count: z.number().int().nonnegative(),
+})
+
+export type DailyPoint = z.infer<typeof DailyPoint>
+
+const DailySeries = z.object({ points: z.array(DailyPoint) })
+
+export async function fetchReservationsDaily(days = 7): Promise<DailyPoint[]> {
+  const res = await fetch(`${API_URL}/v1/admin/stats/reservations-daily?days=${days}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['stats'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return DailySeries.parse(await res.json()).points
+}
+
 export type MaintenanceFilters = {
   status?: MaintenanceStatus
   distributorId?: string

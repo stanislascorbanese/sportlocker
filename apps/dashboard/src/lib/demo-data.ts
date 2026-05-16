@@ -1,4 +1,4 @@
-import type { MaintenanceTicket, Reservation } from './api'
+import type { DailyPoint, MaintenanceTicket, Reservation } from './api'
 
 /**
  * Données fictives affichées quand l'API admin renvoie 401 ou 0 résultats.
@@ -18,6 +18,28 @@ function isoMinutesFromNow(min: number): string {
 
 function isoHoursAgo(h: number): string {
   return isoMinutesAgo(h * 60)
+}
+
+/** Série fictive pour le sparkline 7 jours. Profil "activité réaliste"
+ *  (creux le mercredi, pic le week-end). Les dates sont calculées à chaque rendu. */
+export function demoReservationsDaily(days = 7): DailyPoint[] {
+  // Profil cyclique d0..d6 (dimanche → samedi)
+  const profile = [22, 12, 14, 10, 18, 28, 31]
+  const out: DailyPoint[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setUTCHours(0, 0, 0, 0)
+    d.setUTCDate(d.getUTCDate() - i)
+    const dow = d.getUTCDay()
+    const base = profile[dow] ?? 15
+    // Légère variation déterministe basée sur le jour pour éviter le motif trop régulier
+    const jitter = ((d.getUTCDate() * 7) % 5) - 2
+    out.push({
+      date: d.toISOString().slice(0, 10),
+      count: Math.max(0, base + jitter),
+    })
+  }
+  return out
 }
 
 const DEMO_USERS = [

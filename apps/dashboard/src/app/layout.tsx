@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 
-import { NavLinks } from '../components/NavLinks'
+import { Sidebar } from '../components/Sidebar'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -13,15 +12,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body className="min-h-screen bg-navy-900 font-sans text-white antialiased">
-        <header className="border-b border-white/10 bg-navy-900/80 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-            <Link href="/" className="font-display text-xl tracking-tight">
-              SportLocker · <span className="text-emerald-400">ops</span>
-            </Link>
-            <NavLinks />
-          </div>
-        </header>
-        <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+        <div className="flex min-h-screen">
+          <Sidebar />
+          <main className="min-w-0 flex-1 px-8 py-8">{children}</main>
+        </div>
       </body>
     </html>
   )
