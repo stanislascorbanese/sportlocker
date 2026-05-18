@@ -19,7 +19,16 @@ export default {
         off: '#F2F5F8',
       },
       fontFamily: {
-        sans: ['"Inter Variable"', 'system-ui', 'sans-serif'],
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          'system-ui',
+          'sans-serif',
+        ],
       },
       fontSize: {
         'display-xl': ['clamp(2.4rem, 5vw, 4.2rem)', { lineHeight: '1.08', letterSpacing: '-0.02em' }],

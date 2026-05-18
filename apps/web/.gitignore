@@ -1,0 +1,5 @@
+# Astro generates a cache + types in .astro/
+.astro/
+
+# Build output
+dist/

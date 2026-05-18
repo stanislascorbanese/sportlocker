@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@fontsource-variable/inter/index.css';
-
 @layer base {
   html {
     scroll-behavior: smooth;
