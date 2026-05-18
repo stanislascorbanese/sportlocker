@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
+import { requireAdminOrOperator } from '../lib/commune-scope.js'
 
 const DailyQuery = z.object({
   days: z.coerce.number().int().min(1).max(90).default(7),
@@ -34,11 +35,11 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const { days } = req.query
+    const scopeCommune = auth.scope?.communeId ?? null
 
     const rows = await db.execute<{ date: string; count: number }>(sql`
       WITH date_series AS (
@@ -55,6 +56,12 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       LEFT JOIN reservations r
         ON r.created_at >= ds.day
         AND r.created_at < ds.day + INTERVAL '1 day'
+        AND (
+          ${scopeCommune}::uuid IS NULL
+          OR r.distributor_id IN (
+            SELECT id FROM distributors WHERE commune_id = ${scopeCommune}::uuid
+          )
+        )
       GROUP BY ds.day
       ORDER BY ds.day ASC
     `)
@@ -104,12 +111,16 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const { days } = req.query
     const interval = sql.raw(`INTERVAL '${days} days'`)
+    const scopeCommune = auth.scope?.communeId ?? null
+
+    // Filtre commune appliqué uniformément via une CTE `scoped_reservations`.
+    // Si scopeCommune est NULL (admin), la sous-requête prend tout.
+    // Sinon, on JOIN distributors pour restreindre.
 
     const [dailyRows, statusRows, topDistRows, topItemRows, hourlyRows] = await Promise.all([
       db.execute<{ date: string; count: number }>(sql`
@@ -127,14 +138,26 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
         LEFT JOIN reservations r
           ON r.created_at >= ds.day
           AND r.created_at < ds.day + INTERVAL '1 day'
+          AND (
+            ${scopeCommune}::uuid IS NULL
+            OR r.distributor_id IN (
+              SELECT id FROM distributors WHERE commune_id = ${scopeCommune}::uuid
+            )
+          )
         GROUP BY ds.day
         ORDER BY ds.day ASC
       `),
       db.execute<{ status: string; count: number }>(sql`
-        SELECT status::text AS status, COUNT(*)::int AS count
-        FROM reservations
-        WHERE created_at >= NOW() - ${interval}
-        GROUP BY status
+        SELECT r.status::text AS status, COUNT(*)::int AS count
+        FROM reservations r
+        WHERE r.created_at >= NOW() - ${interval}
+          AND (
+            ${scopeCommune}::uuid IS NULL
+            OR r.distributor_id IN (
+              SELECT id FROM distributors WHERE commune_id = ${scopeCommune}::uuid
+            )
+          )
+        GROUP BY r.status
       `),
       db.execute<{ id: string; name: string; serial_number: string; count: number }>(sql`
         SELECT d.id, d.name, d.serial_number, COUNT(r.id)::int AS count
@@ -142,6 +165,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
         LEFT JOIN reservations r
           ON r.distributor_id = d.id
           AND r.created_at >= NOW() - ${interval}
+        WHERE ${scopeCommune}::uuid IS NULL OR d.commune_id = ${scopeCommune}::uuid
         GROUP BY d.id, d.name, d.serial_number
         ORDER BY count DESC, d.name ASC
         LIMIT 5
@@ -153,17 +177,29 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
         LEFT JOIN reservations r
           ON r.item_id = i.id
           AND r.created_at >= NOW() - ${interval}
+          AND (
+            ${scopeCommune}::uuid IS NULL
+            OR r.distributor_id IN (
+              SELECT id FROM distributors WHERE commune_id = ${scopeCommune}::uuid
+            )
+          )
         GROUP BY it.id, it.name
         ORDER BY count DESC, it.name ASC
         LIMIT 5
       `),
       db.execute<{ dow: number; hour: number; count: number }>(sql`
         SELECT
-          EXTRACT(DOW FROM created_at)::int AS dow,
-          EXTRACT(HOUR FROM created_at)::int AS hour,
+          EXTRACT(DOW FROM r.created_at)::int AS dow,
+          EXTRACT(HOUR FROM r.created_at)::int AS hour,
           COUNT(*)::int AS count
-        FROM reservations
-        WHERE created_at >= NOW() - ${interval}
+        FROM reservations r
+        WHERE r.created_at >= NOW() - ${interval}
+          AND (
+            ${scopeCommune}::uuid IS NULL
+            OR r.distributor_id IN (
+              SELECT id FROM distributors WHERE commune_id = ${scopeCommune}::uuid
+            )
+          )
         GROUP BY dow, hour
       `),
     ])
