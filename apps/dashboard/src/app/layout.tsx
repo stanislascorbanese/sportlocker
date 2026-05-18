@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 
 import { Shell } from '../components/Shell'
 import { getSessionUser } from '../lib/session-server'
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   description: 'Pilotage des distributeurs IoT SportLocker',
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser()
   return (
     <html lang="fr">

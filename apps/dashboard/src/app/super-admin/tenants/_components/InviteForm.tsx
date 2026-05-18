@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useState } from 'react'
+import { useFormState, useFormStatus } from 'react-dom'
 
 import { createInviteAction, type InviteFormState } from '../_actions'
 
@@ -8,8 +9,21 @@ type CommuneOption = { id: string; name: string }
 
 const initialState: InviteFormState = { status: 'idle' }
 
+function SubmitButton() {
+  const { pending } = useFormStatus()
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="self-end rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? 'Envoi…' : 'Générer l’invitation'}
+    </button>
+  )
+}
+
 export function InviteForm({ communes }: { communes: CommuneOption[] }) {
-  const [state, formAction, pending] = useActionState(createInviteAction, initialState)
+  const [state, formAction] = useFormState(createInviteAction, initialState)
   const [copied, setCopied] = useState(false)
 
   async function copyInviteUrl() {
@@ -61,13 +75,7 @@ export function InviteForm({ communes }: { communes: CommuneOption[] }) {
           {fieldErrors.communeId && <p className="mt-1 text-[11px] text-red-300">{fieldErrors.communeId}</p>}
         </label>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-end rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {pending ? 'Envoi…' : 'Générer l’invitation'}
-        </button>
+        <SubmitButton />
       </form>
 
       {state.status === 'error' && (
