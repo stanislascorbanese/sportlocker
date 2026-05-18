@@ -310,6 +310,10 @@ export async function updateDistributor(
 export type ReservationFilters = {
   status?: ReservationStatus
   distributorId?: string
+  /** Date YYYY-MM-DD — borne basse inclusive */
+  from?: string
+  /** Date YYYY-MM-DD — borne haute inclusive (côté serveur : created_at < to+1j) */
+  to?: string
   cursor?: string
   limit?: number
 }
@@ -345,12 +349,16 @@ export async function forceCancelReservation(id: string, reason?: string): Promi
 export type ReservationExportFilters = {
   status?: ReservationStatus
   distributorId?: string
+  from?: string
+  to?: string
 }
 
 export async function fetchReservationsCsv(filters: ReservationExportFilters = {}): Promise<string> {
   const params = new URLSearchParams()
   if (filters.status) params.set('status', filters.status)
   if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to)   params.set('to', filters.to)
   const qs = params.toString()
   const res = await fetch(`${API_URL}/v1/admin/reservations/export.csv${qs ? `?${qs}` : ''}`, {
     headers: { ...authHeaders() },
@@ -367,6 +375,8 @@ export async function fetchReservations(filters: ReservationFilters = {}): Promi
   const params = new URLSearchParams()
   if (filters.status) params.set('status', filters.status)
   if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to)   params.set('to', filters.to)
   if (filters.cursor) params.set('cursor', filters.cursor)
   if (filters.limit) params.set('limit', String(filters.limit))
 
@@ -487,6 +497,46 @@ export const DailyPoint = z.object({
 export type DailyPoint = z.infer<typeof DailyPoint>
 
 const DailySeries = z.object({ points: z.array(DailyPoint) })
+
+export const StatsDashboard = z.object({
+  days: z.number().int(),
+  daily: z.array(DailyPoint),
+  byStatus: z.array(z.object({
+    status: z.enum(RESERVATION_STATUSES),
+    count: z.number().int().nonnegative(),
+  })),
+  topDistributors: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    count: z.number().int().nonnegative(),
+  })),
+  topItemTypes: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    count: z.number().int().nonnegative(),
+  })),
+  hourly: z.array(z.object({
+    dow: z.number().int().min(0).max(6),
+    hour: z.number().int().min(0).max(23),
+    count: z.number().int().nonnegative(),
+  })),
+})
+
+export type StatsDashboard = z.infer<typeof StatsDashboard>
+
+export async function fetchStatsDashboard(days = 30): Promise<StatsDashboard> {
+  const res = await fetch(`${API_URL}/v1/admin/stats/dashboard?days=${days}`, {
+    headers: { ...authHeaders() },
+    cache: 'no-store',
+    next: { tags: ['stats'] },
+  })
+  if (!res.ok) {
+    const detail = await safeErrorBody(res)
+    throw new ApiError(res.status, detail)
+  }
+  return StatsDashboard.parse(await res.json())
+}
 
 export async function fetchReservationsDaily(days = 7): Promise<DailyPoint[]> {
   const res = await fetch(`${API_URL}/v1/admin/stats/reservations-daily?days=${days}`, {

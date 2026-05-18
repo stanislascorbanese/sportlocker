@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import {
   distributors, itemTypes, items, lockerEvents, lockers, reservations, users,
 } from '../db/schema.js'
+import { requireAdminOrOperator } from '../lib/commune-scope.js'
 
 const RESERVATION_STATUS = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
 
@@ -54,9 +55,16 @@ const ReservationDetailDTO = ReservationAdminDTO.extend({
   events: z.array(ReservationEventDTO),
 })
 
+/** Date au format YYYY-MM-DD. Reçue côté UI date picker. */
+const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected_yyyy_mm_dd')
+
 const ListQuery = z.object({
   status: z.enum(RESERVATION_STATUS).optional(),
   distributorId: z.string().uuid().optional(),
+  /** Borne basse inclusive : created_at >= from 00:00:00 UTC */
+  from: DateOnly.optional(),
+  /** Borne haute exclusive : created_at < (to + 1 jour) UTC, i.e. inclusive sur la journée */
+  to: DateOnly.optional(),
   /** Cursor opaque : `<iso8601>_<uuid>` (createdAt + id). */
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -83,7 +91,21 @@ function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
 const ExportQuery = z.object({
   status:        z.enum(RESERVATION_STATUS).optional(),
   distributorId: z.string().uuid().optional(),
+  from:          DateOnly.optional(),
+  to:            DateOnly.optional(),
 })
+
+/** Borne basse : 00:00:00 UTC du jour `iso`. */
+function fromDate(iso: string): Date {
+  return new Date(`${iso}T00:00:00.000Z`)
+}
+
+/** Borne haute exclusive : 00:00:00 UTC du jour suivant (inclut le jour `iso`). */
+function toDateExclusive(iso: string): Date {
+  const d = new Date(`${iso}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d
+}
 
 /** Escape CSV cell selon RFC 4180 : guillemets doublés, champ entouré
  *  de guillemets si contient virgule / guillemet / retour ligne. */
@@ -116,15 +138,17 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
-    const { status, distributorId, cursor, limit } = req.query
+    const { status, distributorId, from, to, cursor, limit } = req.query
 
     const conditions = []
     if (status) conditions.push(eq(reservations.status, status))
     if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
+    if (from) conditions.push(gte(reservations.createdAt, fromDate(from)))
+    if (to)   conditions.push(lt(reservations.createdAt, toDateExclusive(to)))
+    if (auth.scope) conditions.push(eq(distributors.communeId, auth.scope.communeId))
     if (cursor) {
       const decoded = decodeCursor(cursor)
       if (!decoded) return reply.code(400).send({ error: 'invalid_cursor' })
@@ -197,15 +221,17 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       querystring: ExportQuery,
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
-    const { status, distributorId } = req.query
+    const { status, distributorId, from, to } = req.query
 
     const conditions = []
     if (status) conditions.push(eq(reservations.status, status))
     if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
+    if (from) conditions.push(gte(reservations.createdAt, fromDate(from)))
+    if (to)   conditions.push(lt(reservations.createdAt, toDateExclusive(to)))
+    if (auth.scope) conditions.push(eq(distributors.communeId, auth.scope.communeId))
 
     const rows = await db
       .select({
@@ -272,7 +298,15 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
 
     const csv = '﻿' + lines.join('\r\n')  // BOM UTF-8 + CRLF line endings RFC 4180
 
-    const filename = `reservations-${new Date().toISOString().slice(0, 10)}.csv`
+    // Le filename intègre la fenêtre demandée pour faciliter l'archivage côté commune.
+    const todayIso = new Date().toISOString().slice(0, 10)
+    const filename = from && to
+      ? `reservations-${from}_${to}.csv`
+      : from
+      ? `reservations-from-${from}.csv`
+      : to
+      ? `reservations-until-${to}.csv`
+      : `reservations-${todayIso}.csv`
 
     return reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -295,9 +329,12 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
+
+    const detailWhere = auth.scope
+      ? and(eq(reservations.id, req.params.id), eq(distributors.communeId, auth.scope.communeId))
+      : eq(reservations.id, req.params.id)
 
     const [r] = await db
       .select({
@@ -325,9 +362,11 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
       .innerJoin(items, eq(items.id, reservations.itemId))
       .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
-      .where(eq(reservations.id, req.params.id))
+      .where(detailWhere)
       .limit(1)
 
+    // Note : un operator hors scope reçoit 404 (pas 403) pour éviter de
+    // confirmer l'existence d'une réservation dont il ne peut pas voir.
     if (!r) return reply.code(404).send({ error: 'reservation_not_found' })
 
     const events = await db
@@ -386,20 +425,30 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const reason = req.body?.reason ?? 'admin_force_cancel'
     const now = new Date()
 
     const result = await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
-        .from(reservations)
-        .where(eq(reservations.id, req.params.id))
-        .for('update')
-        .limit(1)
+      // Pour un operator, on JOIN distributors pour vérifier le scope commune.
+      // Pour un admin (scope=null), on évite le JOIN inutile.
+      const baseQuery = auth.scope
+        ? tx
+            .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
+            .from(reservations)
+            .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+            .where(and(
+              eq(reservations.id, req.params.id),
+              eq(distributors.communeId, auth.scope.communeId),
+            ))
+        : tx
+            .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
+            .from(reservations)
+            .where(eq(reservations.id, req.params.id))
+
+      const [existing] = await baseQuery.for('update').limit(1)
 
       if (!existing) return { kind: 'not_found' as const }
 

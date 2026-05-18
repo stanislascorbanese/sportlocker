@@ -10,6 +10,7 @@ import {
   Wrench,
   Building2,
   Users,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -25,6 +26,7 @@ const ITEMS: Item[] = [
   { href: '/users',        label: 'Utilisateurs',  icon: Users },
   { href: '/reservations', label: 'Réservations',  icon: CalendarClock },
   { href: '/maintenance',  label: 'Maintenance',   icon: Wrench },
+  { href: '/stats',        label: 'Stats',         icon: BarChart3 },
 ]
 
 export function Sidebar() {

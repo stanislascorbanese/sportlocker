@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { communes, users } from '../db/schema.js'
+import { requireAdminOrOperator } from '../lib/commune-scope.js'
 
 const USER_ROLE = ['citizen', 'operator', 'admin'] as const
 
@@ -119,9 +120,8 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const { role, banned, q } = req.query
 
@@ -132,6 +132,9 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
       const pattern = `%${q}%`
       conditions.push(sql`(${users.email} ILIKE ${pattern} OR ${users.displayName} ILIKE ${pattern})`)
     }
+    // Operator : voit uniquement les citoyens rattachés à sa commune.
+    // Les autres operators/admins (sans commune_id ou avec autre commune) sont masqués.
+    if (auth.scope) conditions.push(eq(users.communeId, auth.scope.communeId))
 
     const rows = await db
       .select(baseSelect)
@@ -162,11 +165,28 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
       response: { 200: UserDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const body = req.body
+
+    // Sécurité : seul admin peut changer le rôle (élévation de privilège).
+    // Un operator peut bannir/débannir, ajuster trustScore, déclencher RGPD
+    // — pas promouvoir quelqu'un en operator/admin.
+    if (body.role !== undefined && auth.scope) {
+      return reply.code(403).send({ error: 'forbidden_role_change_admin_only' })
+    }
+
+    // Scope check : operator doit confirmer que l'user cible est bien dans sa commune.
+    if (auth.scope) {
+      const [check] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, req.params.id), eq(users.communeId, auth.scope.communeId)))
+        .limit(1)
+      if (!check) return reply.code(404).send({ error: 'user_not_found' })
+    }
+
     const update: Record<string, unknown> = { updatedAt: new Date() }
     if (body.role !== undefined) update['role'] = body.role
     if (body.isBanned !== undefined) update['isBanned'] = body.isBanned

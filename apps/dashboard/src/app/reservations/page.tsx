@@ -58,9 +58,13 @@ function fmtUser(r: Reservation): string {
 type SearchParams = {
   status?: string
   distributorId?: string
+  from?: string
+  to?: string
   cursor?: string
   detail?: string
 }
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function buildHref(
   params: SearchParams,
@@ -72,6 +76,8 @@ function buildHref(
   const qs = new URLSearchParams()
   if (merged.status) qs.set('status', merged.status)
   if (merged.distributorId) qs.set('distributorId', merged.distributorId)
+  if (merged.from) qs.set('from', merged.from)
+  if (merged.to) qs.set('to', merged.to)
   if (merged.cursor) qs.set('cursor', merged.cursor)
   if (merged.detail) qs.set('detail', merged.detail)
   const s = qs.toString()
@@ -90,10 +96,14 @@ export default async function ReservationsPage({
   const distributorId = params.distributorId && /^[0-9a-f-]{36}$/i.test(params.distributorId)
     ? params.distributorId
     : undefined
+  const from = params.from && DATE_RE.test(params.from) ? params.from : undefined
+  const to   = params.to   && DATE_RE.test(params.to)   ? params.to   : undefined
 
   const filters: Parameters<typeof fetchReservations>[0] = { limit: PAGE_SIZE }
   if (status) filters.status = status
   if (distributorId) filters.distributorId = distributorId
+  if (from) filters.from = from
+  if (to)   filters.to   = to
   if (params.cursor) filters.cursor = params.cursor
 
   let page: Awaited<ReturnType<typeof fetchReservations>> | null = null
@@ -110,13 +120,18 @@ export default async function ReservationsPage({
   }
 
   const realItems = page?.items ?? []
-  const noFilterActive = !status && !distributorId && !params.cursor
+  const noFilterActive = !status && !distributorId && !from && !to && !params.cursor
   // Bascule en démo si l'API a planté OU si la table est vide sans filtre.
   // Avec filtre, on respecte le vrai résultat même s'il est vide (sinon UX trompeuse).
   const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
 
   const items = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => (!status || r.status === status))
+    ? DEMO_RESERVATIONS.filter((r) => {
+        if (status && r.status !== status) return false
+        if (from && r.createdAt < `${from}T00:00:00`) return false
+        if (to && r.createdAt > `${to}T23:59:59.999Z`) return false
+        return true
+      })
     : realItems
 
   // Drawer detail
@@ -167,6 +182,8 @@ export default async function ReservationsPage({
           <ExportCsvButton filters={{
             ...(status ? { status } : {}),
             ...(distributorId ? { distributorId } : {}),
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
           }} />
           <RefreshButton />
         </div>
@@ -203,6 +220,28 @@ export default async function ReservationsPage({
           </select>
         </div>
 
+        <div className="flex flex-col gap-1">
+          <label htmlFor="from" className="text-[11px] uppercase tracking-wide text-white/50">Du</label>
+          <input
+            id="from"
+            name="from"
+            type="date"
+            defaultValue={from ?? ''}
+            className="rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="to" className="text-[11px] uppercase tracking-wide text-white/50">Au</label>
+          <input
+            id="to"
+            name="to"
+            type="date"
+            defaultValue={to ?? ''}
+            className="rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+          />
+        </div>
+
         <button
           type="submit"
           className="inline-flex items-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
@@ -210,7 +249,7 @@ export default async function ReservationsPage({
           Filtrer
         </button>
 
-        {(status || distributorId) && (
+        {(status || distributorId || from || to) && (
           <Link
             href="/reservations"
             className="text-xs text-white/50 underline-offset-2 hover:text-white/80 hover:underline"

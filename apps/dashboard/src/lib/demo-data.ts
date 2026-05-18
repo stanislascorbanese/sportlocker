@@ -1,6 +1,6 @@
 import type {
   AdminUser, Commune, DailyPoint, MaintenanceTicket, Reservation,
-  ReservationDetail, ReservationEvent,
+  ReservationDetail, ReservationEvent, StatsDashboard,
 } from './api'
 
 /**
@@ -43,6 +43,74 @@ export function demoReservationsDaily(days = 7): DailyPoint[] {
     })
   }
   return out
+}
+
+/** Dataset stats démo plausible : daily series sur N jours + tous les agrégats. */
+export function demoStatsDashboard(days = 30): StatsDashboard {
+  // Daily : profil cyclique (creux mercredi, pic week-end) avec jitter déterministe
+  const profile = [22, 12, 14, 10, 18, 28, 31]
+  const daily: DailyPoint[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setUTCHours(0, 0, 0, 0)
+    d.setUTCDate(d.getUTCDate() - i)
+    const dow = d.getUTCDay()
+    const base = profile[dow] ?? 15
+    const jitter = ((d.getUTCDate() * 7) % 5) - 2
+    daily.push({
+      date: d.toISOString().slice(0, 10),
+      count: Math.max(0, base + jitter),
+    })
+  }
+
+  const total = daily.reduce((a, p) => a + p.count, 0)
+  // Répartition réaliste : 60% returned, 18% active, 7% overdue, 8% cancelled, 4% expired, 3% pending
+  const byStatus = [
+    { status: 'returned'  as const, count: Math.round(total * 0.60) },
+    { status: 'active'    as const, count: Math.round(total * 0.18) },
+    { status: 'overdue'   as const, count: Math.round(total * 0.07) },
+    { status: 'cancelled' as const, count: Math.round(total * 0.08) },
+    { status: 'expired'   as const, count: Math.round(total * 0.04) },
+    { status: 'pending'   as const, count: Math.round(total * 0.03) },
+  ]
+
+  const topDistributors = [
+    { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', name: 'Parc des Buttes-Chaumont',         serialNumber: 'SL-PARIS-019', count: Math.round(total * 0.32) },
+    { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', name: 'Berges de Seine — Île Saint-Louis', serialNumber: 'SL-PARIS-024', count: Math.round(total * 0.28) },
+    { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', name: 'Place de la République',            serialNumber: 'SL-PARIS-031', count: Math.round(total * 0.22) },
+    { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', name: 'Parc Montsouris',                   serialNumber: 'SL-PARIS-007', count: Math.round(total * 0.18) },
+  ]
+
+  const topItemTypes = [
+    { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', name: 'Ballon de basket',         count: Math.round(total * 0.31) },
+    { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', name: 'Ballon de foot',           count: Math.round(total * 0.26) },
+    { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', name: 'Raquette de tennis',       count: Math.round(total * 0.21) },
+    { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb5', name: 'Boules de pétanque (set)', count: Math.round(total * 0.13) },
+    { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3', name: 'Frisbee',                  count: Math.round(total * 0.09) },
+  ]
+
+  // Heatmap : pic 17h-19h en semaine, pic 11h-13h et 15h-18h week-end
+  const hourly: StatsDashboard['hourly'] = []
+  for (let dow = 0; dow < 7; dow++) {
+    for (let hour = 0; hour < 24; hour++) {
+      let count = 0
+      const isWeekend = dow === 0 || dow === 6
+      if (hour >= 9 && hour <= 21) {
+        if (isWeekend) {
+          if (hour >= 11 && hour <= 13) count = 6 + (hour - 11)
+          else if (hour >= 15 && hour <= 18) count = 5 + Math.min(2, 18 - hour)
+          else count = 2
+        } else {
+          if (hour >= 17 && hour <= 19) count = 7 + (hour - 17)
+          else if (hour >= 12 && hour <= 13) count = 4
+          else count = hour < 12 ? 1 : 3
+        }
+      }
+      if (count > 0) hourly.push({ dow, hour, count })
+    }
+  }
+
+  return { days, daily, byStatus, topDistributors, topItemTypes, hourly }
 }
 
 /** Génère une timeline plausible pour une réservation démo selon son statut. */
