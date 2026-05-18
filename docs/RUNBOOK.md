@@ -166,15 +166,9 @@ rm /tmp/secret.txt
 2. Poser sur Railway → `@sportlocker/api` → Variables → édit `JWT_SESSION_SECRET`
 3. Apply → l'API redémarre
 4. ⚠️ Tous les JWT déjà émis deviennent invalides — les utilisateurs doivent se reconnecter
-5. Re-générer les tokens dérivés (ex: `DASHBOARD_ADMIN_TOKEN`) avec le nouveau secret
-
-### Forger un nouveau DASHBOARD_ADMIN_TOKEN
-```bash
-JWT_SESSION_SECRET="$(cat /tmp/jwt-session.txt)" node services/api/scripts/forge-admin-token.mjs > /tmp/token.txt 2>/dev/null
-code /tmp/token.txt
-# Copie → Railway → @sportlocker/dashboard → Variables → DASHBOARD_ADMIN_TOKEN → édit → Save
-rm /tmp/token.txt
-```
+5. ⚠️ Tous les `sessionToken` admin déjà émis deviennent invalides — les admins
+   devront se reconnecter via `dashboard.sportlocker.com/login` (échange
+   Firebase ID token → sessionToken).
 
 ### Tester l'API depuis le terminal
 ```bash
@@ -241,8 +235,8 @@ gh run view <run-id> --log   # logs détaillés d'un run échoué
 | `JWT_DEVICE_SECRET` | api, firmware | Signature JWT offline QR (min 32 chars) |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | api | JSON credentials Firebase Admin SDK |
 | `FIREBASE_PROJECT_ID` | api | ID projet Firebase |
-| `DASHBOARD_ADMIN_TOKEN` | dashboard | JWT admin pré-signé pour Server Actions |
 | `INTERNAL_API_URL` | dashboard | URL API (server-side fetch) |
+| `NEXT_PUBLIC_FIREBASE_*` | dashboard | Config Firebase Auth web (API_KEY, AUTH_DOMAIN, PROJECT_ID, APP_ID) |
 | `SENTRY_DSN` | api, dashboard, mobile, firmware | DSN Sentry par service |
 
 ---
