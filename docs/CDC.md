@@ -101,25 +101,30 @@ acteur multi-sport en libre-service 24/7 sur le marché B2B France.
 
 ## 4. Modèle commercial
 
-> **Pivot mai 2026** : la version initiale du CDC prévoyait un service
-> gratuit pour le citoyen. Le modèle a évolué vers un **marketplace 3-flux**
-> qui aligne mieux les intérêts (citoyen paye pour utiliser, tenant absorbe
-> le risque matériel, SportLocker prend abo + commission).
+> **Pivots successifs mai 2026** : le modèle a évolué en 3 itérations sur
+> quelques jours après tests/réflexion produit :
+> 1. V0 : service gratuit citoyen, revenu = abo tenant uniquement
+> 2. V1 : marketplace 5€/jour day pass + 25% commission
+> 3. **V2 actuel : marketplace slots courts (15min → 2h max), prix
+>    variable par item, configuré par tenant, + 25% commission**
+>
+> Ce CDC reflète V2.
 
 ### 4.1 Vue d'ensemble — 3 flux de revenu
 
 ```
-┌──────────────────┐    5€/jour location     ┌──────────────────┐
-│     CITOYEN      │ ─────────────────────▶  │      STRIPE      │
-│  (utilisateur)   │    + caution préauto    │   (Connect)      │
+┌──────────────────┐  paye slot 15/30/60/    ┌──────────────────┐
+│     CITOYEN      │  90/120min (var/item)   │      STRIPE      │
+│  (utilisateur)   │ ─────────────────────▶  │   (Connect)      │
+│                  │  + caution préauto      │                  │
 └──────────────────┘                          └──────────────────┘
                                                        │
-                                                       │ split
+                                                       │ split à chaque tx
                                        ┌───────────────┼───────────────┐
                                        ▼                               ▼
                               ┌───────────────────┐         ┌──────────────────┐
                               │   TENANT (75%)    │         │ SPORTLOCKER (25%)│
-                              │ commune / camping │         │  commission      │
+                              │ commune / camping │         │  application_fee │
                               │  / hôtel          │         │                  │
                               └───────────────────┘         └──────────────────┘
                                                                       ▲
@@ -139,25 +144,85 @@ acteur multi-sport en libre-service 24/7 sur le marché B2B France.
 | **Engagement** | 24 mois (campings/hôtels) / 36 mois (mairies) | Permet d'amortir le distributeur |
 | **Facturation** | Mensuelle, prélèvement SEPA via Stripe | Facture automatique générée |
 
-### 4.3 Revenu 2 — Location citoyen (forfait journée)
+### 4.3 Revenu 2 — Location citoyen (slots courts variables)
 
-**Modèle : forfait journée fixe**, peu importe le matos emprunté.
+**Modèle : 5 slots courts au choix, prix variable par item type, configuré
+par le tenant.**
 
-| Composant | Montant | Détails |
+#### Slots disponibles
+Le tenant active tout ou partie de ces 5 slots dans sa config :
+- 15 minutes
+- 30 minutes
+- 1 heure
+- 1 heure 30
+- **2 heures (maximum strict d'une session)**
+
+#### Prix
+Variable selon `(item_type × duration)`. Stocké dans la table `pricing_rules`
+de la DB. Le tenant configure dans son dashboard :
+
+```
+Ballon foot        : 0,50 €/15min  -  1 €/30min  -  2 €/1h  -  3 €/2h
+Raquette tennis    : 1 €/15min     -  2 €/30min  -  3,50 €/1h  -  6 €/2h
+Équipement plage   : 1 €/15min     -  2 €/30min  -  3 €/1h  -  5 €/2h
+```
+
+(prix exacts à finaliser, ce sont juste des exemples)
+
+#### Split commission
+
+| Composant | Pourcentage | Mécanisme |
 |---|---|---|
-| **Forfait journée citoyen** | 5 € TTC | Accès illimité à un item pour 24h, restitution au plus tard à l'heure d'emprunt + 24h |
-| **Commission SportLocker** | **25%** (1,25 €) | Prélevée automatiquement via Stripe Connect application_fee |
-| **Reversement tenant** | **75%** (3,75 €) | Versé en J+2 sur son compte Stripe Express |
+| **Commission SportLocker** | **25%** | `application_fee` Stripe Connect prélevée à chaque tx |
+| **Reversement tenant** | **75%** | Reversement automatique J+2 sur compte Stripe Express |
 
-**Pourquoi forfait journée plutôt qu'horaire** :
-- UX simple (1 prix, pas de calcul mental, pas de surprise au retour tardif)
-- Suffisamment dissuasif pour libérer le matos rapidement (vs gratuit où abus possibles)
-- Aligné avec les usages typiques (1 demi-journée plage, 1 après-midi de sport)
+#### Retard de retour (au-delà des 2h)
 
-**Pourquoi 25% de commission** :
-- Standard marketplaces B2C (Uber Eats 30%, Deliveroo 30%, Airbnb 15%)
-- Couvre frais Stripe Connect (1,4% + 0,25€ par transaction) + marge SportLocker
-- Compense partiellement l'abo bas pour rester compétitif vs achat one-shot
+| Composant | Montant | Note |
+|---|---|---|
+| **Pénalité forfaitaire retard** | **2 € flat** | Débitée à la 1ère minute de dépassement |
+| **Auto-renew par tranches de 15 min** | tarif item × 15min | Continue à débiter jusqu'au retour |
+
+→ Pas de capture caution automatique pour retard. La caution n'est capturée
+QUE si dégradation ou non-retour avéré (> 6h après l'expiration probablement).
+
+#### Templates par défaut (à l'install d'un nouveau tenant)
+
+3 templates pré-configurés pour démarrer rapidement (le tenant pick 1, peut
+customiser ensuite via dashboard) :
+
+1. **"Communal léger"** (mairies équipement grand public)
+   - Ballons / raquettes ping-pong / frisbees
+   - Tarifs : 0,50€/15min, 1€/30min, 2€/1h, 3€/2h
+
+2. **"Saisonnier camping/plage"**
+   - Raquettes plage, beach-tennis, équipement snorkel, frisbees
+   - Tarifs : 1€/15min, 2€/30min, 3€/1h, 5€/2h
+   - Slot 1h30 désactivé (peu pertinent côté plage)
+
+3. **"Hôtel premium"**
+   - Raquettes tennis pro, équipement pool, accessoires fitness haut de gamme
+   - Tarifs : 2€/15min, 4€/30min, 7€/1h, 12€/2h
+
+Les prix exacts seront affinés au fil des installations réelles. Templates
+modifiables en V1 quand le dashboard tarification custom sortira.
+
+#### Pourquoi ce modèle (vs précédentes itérations)
+
+**Vs day pass 5€/jour** :
+- Anti-monopolisation : avec day pass, un citoyen pouvait bloquer 1 item
+  toute la journée (gros frein rotation matos = perte revenu tenant)
+- Granularité : un usage "ballon 30min" ne devrait pas coûter 5€
+
+**Vs prix unique par item** (tarif horaire flat) :
+- Permet la pricing power au tenant (premium hôtel vs communal léger)
+- S'adapte aux contextes (camping en haute saison peut surfacturer)
+
+#### Pourquoi 25% de commission
+
+- Standard marketplaces B2C (Uber Eats 30%, Deliveroo 30%, Airbnb 15%, Doctolib 15%)
+- Couvre frais Stripe Connect (1,4% + 0,25€ par tx) + marge SportLocker
+- Permet d'avoir un abo SaaS attractif (350-500€/mois) sans amputer la marge
 
 ### 4.4 Revenu 3 (indirect) — Caution citoyen (préautorisation Stripe)
 
@@ -191,33 +256,58 @@ qui justifie l'abo mensuel SaaS pur (pas de "lease").
 
 ### 4.6 Calcul cible 12 mois
 
-Hypothèses prudentes :
+Hypothèses prudentes (modèle slots, panier moyen 2,50 €/location) :
 - 10 clients tenants signés
 - 4 distributeurs moyens par client = 40 distributeurs
 - Abo moyen 425 €/mois HT
-- 10 locations/jour/distributeur (mature)
-- 5 € forfait × 25% = 1,25 € commission/location
+- **15 locations/jour/distributeur** (mature — slots courts = plus de rotation
+  que day pass donc volume supérieur)
+- Panier moyen 2,50 € (mix entre 0,50€/15min ballon et 12€/2h hôtel pro)
+- Commission moyenne 2,50 × 25% = 0,625 €/location
 
 | Source | Calcul | Montant mensuel |
 |---|---|---|
 | MRR abos | 40 × 425 € | **17 000 € HT** |
-| Commission locations | 40 × 10 × 30 × 1,25 € | **15 000 € HT** |
-| **Total** | | **32 000 €/mois HT** |
+| Commission locations | 40 × 15 × 30 × 0,625 € | **11 250 € HT** |
+| **Total** | | **28 250 €/mois HT** |
 
-→ Le marketplace double potentiellement le revenu vs SaaS pur. Mais
-attention : la commission est variable, dépend du taux d'utilisation
-réel (qui mettra plusieurs mois à monter en charge).
+→ Slots courts génèrent un peu moins de commission par location qu'un day
+pass à 5€ (1,25€), mais la rotation matos plus rapide compense
+partiellement. À tester en réel.
 
 ### 4.7 Compte « Premium Citoyen » (post-MVP)
 
 À étudier en V2 : abonnement citoyen 5 €/mois donnant :
-- Forfait journée inclus (1 location/jour offerte)
+- 5 slots de 1h offerts par mois (ou équivalent)
 - Caution mutualisée sans plafond (SportLocker porte le risque, via assurance partenaire)
 - Réservations prioritaires haute saison
 - Historique étendu
 
 → Source de revenu B2C récurrente, augmente rétention citoyen, lisse
 les revenus de commission (fluctuants par nature).
+
+### 4.8 Schéma DB induit (à implémenter `[api]`)
+
+Nouvelle table `pricing_rules` à ajouter en migration `0006_pricing_rules.sql` :
+
+```sql
+CREATE TABLE pricing_rules (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        UUID NOT NULL REFERENCES communes(id) ON DELETE CASCADE,
+  item_type_id     UUID NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (15, 30, 60, 90, 120)),
+  price_cents      INTEGER NOT NULL CHECK (price_cents >= 0),
+  active           BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, item_type_id, duration_minutes)
+);
+```
+
+Et update `reservations` :
+- Ajouter `duration_minutes INTEGER NOT NULL`
+- Ajouter `price_cents INTEGER NOT NULL`
+- Ajouter `late_penalty_cents INTEGER NOT NULL DEFAULT 0`
+- Le `stripe_payment_intent_id` existe déjà (migration 0004)
 
 ---
 
