@@ -136,7 +136,7 @@ function zodToState(error: z.ZodError): FormState {
 
 function apiErrorToState(err: unknown): FormState {
   if (err instanceof ApiError) {
-    if (err.status === 401) return { status: 'error', message: 'Authentification requise (DASHBOARD_ADMIN_TOKEN absent/invalide).' }
+    if (err.status === 401) return { status: 'error', message: 'Session expirée. Reconnectez-vous.' }
     if (err.status === 403) return { status: 'error', message: 'Token sans rôle admin.' }
     if (err.status === 409) return { status: 'error', message: 'Code INSEE déjà utilisé.' }
     if (err.status === 404) return { status: 'error', message: 'Commune introuvable.' }
