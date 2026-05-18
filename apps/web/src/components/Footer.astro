@@ -1,0 +1,65 @@
+---
+import { SITE } from '@/data/site'
+const year = new Date().getFullYear()
+---
+
+<footer class="bg-navy-900 border-t border-white/10 pt-16 pb-8">
+  <div class="container-x">
+    <div class="grid gap-10 md:grid-cols-[2fr_1fr_1fr_1fr] mb-12">
+      <div>
+        <a href="/" class="flex items-center gap-2.5 mb-5">
+          <span
+            class="w-[30px] h-[30px] bg-brand-500 rounded grid place-items-center font-extrabold text-[0.85rem] text-white"
+            >SL</span
+          >
+          <span class="font-extrabold text-[1.05rem] text-white">
+            Sport<span class="text-brand-500">Locker</span>
+          </span>
+        </a>
+        <p class="text-sm text-white/40 leading-relaxed max-w-[280px] font-light">
+          Distributeurs IoT de matériel sportif en libre-service.
+          Une infrastructure clé en main pour vos sites.
+        </p>
+      </div>
+
+      <div>
+        <div class="text-xs font-bold uppercase tracking-[0.06em] text-white mb-4">
+          Solution
+        </div>
+        <ul class="flex flex-col gap-2.5 list-none">
+          <li><a href="/comment-ca-marche" class="link-quiet text-sm">Comment ça marche</a></li>
+          <li><a href="/mairies" class="link-quiet text-sm">Pour les mairies</a></li>
+          <li><a href="/campings" class="link-quiet text-sm">Pour les campings</a></li>
+          <li><a href="/tarifs" class="link-quiet text-sm">Tarifs</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="text-xs font-bold uppercase tracking-[0.06em] text-white mb-4">
+          Société
+        </div>
+        <ul class="flex flex-col gap-2.5 list-none">
+          <li><a href="/contact" class="link-quiet text-sm">Contact</a></li>
+          <li>
+            <a href={`mailto:${SITE.email}`} class="link-quiet text-sm">{SITE.email}</a>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="text-xs font-bold uppercase tracking-[0.06em] text-white mb-4">
+          Légal
+        </div>
+        <ul class="flex flex-col gap-2.5 list-none">
+          <li><a href="/mentions-legales" class="link-quiet text-sm">Mentions légales</a></li>
+          <li><a href="/confidentialite" class="link-quiet text-sm">Confidentialité</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap justify-between items-center gap-3 pt-8 border-t border-white/10">
+      <div class="text-xs text-white/30">© {year} {SITE.legalName} — Tous droits réservés</div>
+      <div class="text-xs text-white/30">Fait en France</div>
+    </div>
+  </div>
+</footer>
