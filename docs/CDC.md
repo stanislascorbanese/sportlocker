@@ -408,6 +408,30 @@ Pour traçabilité, les choix structurants validés en session de cadrage :
 | Q11 | Marque | SportLocker (option A) au MVP, co-branding (C) en V2 |
 | Q12 | Langues | FR par défaut, EN/ES/IT progressivement post-MVP |
 | Q13 | Support N1 | Le tenant (mairie / camping) en frontline, escalation vers SportLocker N2 |
+| Q14 | Domaine custom | À acheter : `sportlocker.fr` (Cloudflare Registrar). Sous-domaines : `www.` (vitrine), `app.` (dashboard client), `api.` (backend) |
+| Q15 | Onboarding admin tenant | Email d'invitation magique : Stanislas crée le tenant via super-admin + génère un lien d'invitation que l'admin client clique pour choisir son mot de passe |
+| Q16 | Authentification admin | Firebase Auth (cohérence avec mobile citoyen, 1 seul fournisseur d'identité) |
+
+### Chantier "Multi-tenant production-ready" (mai 2026)
+
+Décisions opérationnelles induites pour rendre le dashboard utilisable
+par de vrais clients :
+
+- Table `users` étendue avec `role` (citizen / admin / super_admin) et
+  `commune_id` (nullable, set pour les admins)
+- Nouvelle table `admin_invites` (token one-time, expires_at, accepted_at)
+- Nouvelles routes API :
+    - `POST /v1/admin/auth/login` (échange Firebase ID token contre JWT session)
+    - `POST /v1/admin/invites` (super_admin only, génère token+URL)
+    - `POST /v1/admin/invites/accept` (accepte, crée user, retourne JWT)
+- Toutes les routes `/v1/admin/*` scopées par `commune_id = req.user.commune_id`
+  (super_admin bypass le scoping)
+- Dashboard :
+    - Page `/login` (Firebase Auth web SDK)
+    - Page `/accept-invite?token=xxx`
+    - Middleware Next.js redirect /login si pas de session
+    - Page `/super-admin/tenants` pour Stanislas (invite clients)
+- Suppression du `DASHBOARD_ADMIN_TOKEN` hardcodé (MVP shortcut)
 
 ---
 
