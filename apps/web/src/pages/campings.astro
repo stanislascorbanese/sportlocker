@@ -1,0 +1,260 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import Faq from '@/components/Faq.astro'
+
+const arguments_ = [
+  {
+    icon: '🌅',
+    title: 'Service actif même quand l\'accueil est fermé',
+    desc: 'Vos campeurs peuvent récupérer un ballon à 22h ou un frisbee à 7h du matin — sans solliciter votre équipe.',
+  },
+  {
+    icon: '⭐',
+    title: 'Boost satisfaction & avis Google',
+    desc: 'Les services en libre-service génèrent +0.4 étoile en moyenne sur Booking et Google selon les benchmarks hôtellerie.',
+  },
+  {
+    icon: '⏱️',
+    title: 'Zéro charge pour vos équipes',
+    desc: 'Pas de prêt manuel, pas de check-out, pas de caution à gérer au comptoir. Le distributeur fait tout.',
+  },
+  {
+    icon: '🏖️',
+    title: 'Saisonnier-friendly',
+    desc: 'Activez en mai, désactivez en septembre depuis votre dashboard. Aucun frais entre deux saisons (option pause).',
+  },
+  {
+    icon: '🛡️',
+    title: 'Aucun risque sur le matériel',
+    desc: 'Caution citoyen via Stripe (20-150 €) capturée automatiquement en cas de perte. Vous n\'avancez jamais le coût.',
+  },
+  {
+    icon: '📊',
+    title: 'Stats par saison',
+    desc: 'Identifiez les périodes creuses, les matériels qui marchent. Ajustez votre offre l\'année suivante.',
+  },
+]
+
+const usecases = [
+  {
+    title: 'Matériel plage & jeux extérieurs',
+    desc: 'Frisbees, mölkky, raquettes de plage, cordes à sauter, freesbees, ballons. Idéal pour les campings de bord de mer ou de lac.',
+    config: '1 distributeur · 20 casiers · 6 sports',
+  },
+  {
+    title: 'Sports de raquette',
+    desc: 'Raquettes de ping-pong + balles, raquettes de badminton + volants. Souvent posé près du court ou de la salle d\'animation.',
+    config: '1 distributeur · 12 casiers · 2 sports',
+  },
+  {
+    title: 'Animation enfants & familles',
+    desc: 'Cordes à sauter, élastiques, ballons mousse, jeux de société extérieurs. À proximité du club enfants.',
+    config: '1 distributeur · 16 casiers · 5 sports',
+  },
+]
+
+const faqCamping = [
+  {
+    q: 'Pas trop cher pour un camping ?',
+    a: 'À partir de 400 € HT/mois pour 1 distributeur, soit 12 € par jour en pleine saison. Si chaque jour un seul campeur emprunte (ce qui est très en-dessous des chiffres réels), le ROI est presque immédiat via la satisfaction client et les avis Google.',
+  },
+  {
+    q: 'Le service reste-t-il dispo quand l\'accueil ferme ?',
+    a: 'Oui — c\'est même le principal intérêt. Le distributeur fonctionne 24/7 dès qu\'il est sous tension. Vos campeurs récupèrent et rendent le matériel sans interaction avec votre équipe.',
+  },
+  {
+    q: 'Et si on ne veut pas l\'année entière ?',
+    a: 'Le contrat standard est annuel (24 mois engagement) avec option pause hors saison : pas de facturation entre octobre et avril, à activer/désactiver depuis le dashboard. À cadrer dans le devis.',
+  },
+  {
+    q: 'On peut le déplacer dans le camping si besoin ?',
+    a: 'Le distributeur est ancré au sol (sécurité). Le déplacement est possible une fois par an, sur intervention SportLocker (devis selon distance).',
+  },
+  {
+    q: 'Les campeurs étrangers peuvent-ils utiliser le service ?',
+    a: 'Oui — l\'app supporte l\'inscription internationale (email + n° de tel). Cartes bancaires étrangères acceptées via Stripe. Multi-langue prévu en V2 (anglais, espagnol, italien).',
+  },
+  {
+    q: 'On a un emplacement extérieur sous abri, c\'est bon ?',
+    a: 'Parfait. Le distributeur est IP54, conçu pour l\'extérieur. Sous abri c\'est encore mieux pour la longévité de l\'écran et de la peinture.',
+  },
+]
+
+const proofs = [
+  { n: '92%', label: 'des campeurs apprécient un service de prêt sport gratuit (étude FFCC 2025)' },
+  { n: '+0.4★', label: 'note moyenne Google après ajout d\'un service en libre-service' },
+  { n: '24-48h', label: 'pour activer/désactiver le distributeur entre deux saisons' },
+]
+---
+
+<Base
+  title="Solution campings — animation 24/7 sans charge équipe"
+  description="SportLocker équipe les campings, hôtels et villages vacances d'un distributeur de matériel sportif en libre-service. Satisfaction client en hausse, zéro charge supplémentaire."
+>
+  <!-- HEADER -->
+  <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-green inline-block mb-6" data-reveal>Pour les campings</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+          Animez votre camping<br/>
+          <span class="text-brand-500">sans charge supplémentaire.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light mb-9" data-reveal data-reveal-delay="2">
+          Un service de prêt de matériel sportif et de jeux extérieurs, opérationnel 24/7,
+          géré entièrement à distance. Vos campeurs jouent. Votre équipe se concentre sur
+          ce qu'elle fait de mieux : l'accueil.
+        </p>
+        <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
+          <a href="/contact" class="btn btn-primary">Demander un devis camping →</a>
+          <a href="#simulation" class="btn btn-outline">Voir la simulation</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREUVES RAPIDES -->
+  <section class="py-14 bg-navy-800 border-y border-white/5">
+    <div class="container-x">
+      <div class="grid sm:grid-cols-3 gap-4">
+        {proofs.map((p, i) => (
+          <div class="card-dark p-6 text-center" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="font-extrabold text-3xl text-brand-500 mb-2">{p.n}</div>
+            <div class="text-xs text-white/55 font-light leading-relaxed">{p.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ARGUMENTS -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Pourquoi SportLocker</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Six raisons d'équiper votre établissement
+        </h2>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {arguments_.map((arg, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-2xl mb-5">
+              {arg.icon}
+            </div>
+            <h3 class="font-bold text-white text-base mb-2.5">{arg.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{arg.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- CAS D'USAGE -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Cas d'usage type</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Trois configurations<br/>qui marchent en camping
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        {usecases.map((uc, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
+            <h3 class="font-extrabold text-white text-xl mb-3">{uc.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed mb-5">{uc.desc}</p>
+            <div class="pt-4 border-t border-white/10">
+              <div class="text-[0.7rem] uppercase tracking-wider text-brand-500/70">{uc.config}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- SIMULATION -->
+  <section id="simulation" class="section bg-navy-900">
+    <div class="container-x">
+      <div class="grid lg:grid-cols-2 gap-14 items-center">
+        <div>
+          <span class="eyebrow" data-reveal>Simulation budget</span>
+          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+            Un camping de 200 emplacements<br/>peut s'équiper pour 850 €/mois
+          </h2>
+          <p class="section-sub mb-7" data-reveal data-reveal-delay="2">
+            Configuration médiane camping 3★/4★ : 2 distributeurs (1 sport, 1 enfants/plage).
+            Activation pleine saison (mai → septembre), pause hors saison gratuite.
+          </p>
+          <a href="/contact" class="btn btn-primary" data-reveal data-reveal-delay="3">
+            Simulation pour mon camping →
+          </a>
+        </div>
+
+        <div class="card-dark p-8 sm:p-10" data-reveal data-reveal-delay="1">
+          <div class="text-xs uppercase tracking-[0.12em] text-white/40 mb-1">Configuration type</div>
+          <div class="font-extrabold text-white text-2xl mb-6">2 distributeurs — camping 3★/4★</div>
+
+          <div class="space-y-3 pb-6 border-b border-white/10">
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Setup one-shot (2 dist.)</span>
+              <span class="text-white font-medium tabular-nums">1 700 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Engagement</span>
+              <span class="text-white font-medium tabular-nums">24 mois</span>
+            </div>
+          </div>
+
+          <div class="pt-6">
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-white/55 font-light">Abonnement mensuel HT (5 mois actifs)</span>
+              <span class="text-white font-medium tabular-nums">850 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Option pause hors saison</span>
+              <span class="text-brand-500 font-medium tabular-nums">0 € / mois</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Coût annuel total</span>
+              <span class="text-white font-medium tabular-nums">4 250 €</span>
+            </div>
+            <div class="mt-5 p-4 rounded-lg bg-brand-500/10 border border-brand-500/30">
+              <div class="text-xs text-brand-500 font-medium mb-1">≈ 21 € / emplacement / an</div>
+              <div class="text-[0.7rem] text-white/50 leading-relaxed font-light">
+                Soit ~0,30€ par nuitée pour un camping fonctionnant à 70% sur 5 mois. Largement compensé par la hausse de satisfaction.
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-6 text-[0.7rem] text-white/30 italic leading-relaxed">
+            Estimation indicative. Tarif final selon configuration et options choisies (pause incluse au cas par cas).
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>FAQ campings</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Vos questions, nos réponses
+        </h2>
+      </div>
+      <Faq items={faqCamping} />
+    </div>
+  </section>
+
+  <FinalCta
+    title="Boostez l'expérience de vos campeurs."
+    sub="Un appel de 15 min pour cadrer la configuration adaptée à votre camping et le timing avant la saison."
+    primary={{ href: '/contact', label: 'Demander un devis pour mon camping' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+    fine="Réponse sous 24h ouvrées · Devis sans engagement · Pose avant ouverture haute saison garantie si signature avant mars"
+  />
+</Base>
