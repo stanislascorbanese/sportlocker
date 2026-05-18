@@ -8,7 +8,11 @@ import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
 
 const LoginBody = z.object({
-  firebaseIdToken: z.string().min(20),
+  // Validation laxiste à dessein : on accepte tout string non-vide et on
+  // laisse le handler verifyFirebaseToken renvoyer 401 invalid_id_token
+  // pour les tokens malformés / mal signés / expirés. Sinon un token trop
+  // court ressort en 400 validation_error qui ne respecte pas le contrat.
+  firebaseIdToken: z.string().min(1),
 })
 
 const SessionUser = z.object({
