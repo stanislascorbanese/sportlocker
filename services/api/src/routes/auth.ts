@@ -14,7 +14,7 @@ const UserDTO = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   displayName: z.string().nullable(),
-  role: z.enum(['citizen', 'operator', 'admin']),
+  role: z.enum(['citizen', 'operator', 'admin', 'super_admin']),
   trustScore: z.number().int(),
   communeId: z.string().uuid().nullable(),
 })

@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { communes, distributors } from '../db/schema.js'
+import { requireAdminScope, requireSuperAdmin } from '../lib/commune-scope.js'
 
 const CommuneDTO = z.object({
   id: z.string().uuid(),
@@ -122,15 +123,21 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
 
-    const rows = await db
-      .select(baseSelect)
-      .from(communes)
-      .orderBy(asc(communes.name))
-      .limit(500)
+    // Admin scoped : ne voit que sa propre commune.
+    const rows = auth.scope
+      ? await db
+          .select(baseSelect)
+          .from(communes)
+          .where(eq(communes.id, auth.scope.communeId))
+          .limit(1)
+      : await db
+          .select(baseSelect)
+          .from(communes)
+          .orderBy(asc(communes.name))
+          .limit(500)
 
     return { items: rows.map(rowToDto) }
   })
@@ -145,8 +152,12 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
       response: { 200: CommuneDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
+
+    // Admin scoped : 404 si pas sa commune.
+    if (auth.scope && req.params.id !== auth.scope.communeId) {
+      return reply.code(404).send({ error: 'commune_not_found' })
     }
 
     const [row] = await db
@@ -169,9 +180,8 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
       response: { 201: CommuneDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 409: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    // Création de tenant = action système, super_admin uniquement.
+    if (!requireSuperAdmin(req, reply)) return
 
     const body = req.body
     try {
@@ -225,8 +235,12 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
       response: { 200: CommuneDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
+
+    // Admin scoped : ne peut modifier QUE sa propre commune.
+    if (auth.scope && req.params.id !== auth.scope.communeId) {
+      return reply.code(404).send({ error: 'commune_not_found' })
     }
 
     const body = req.body

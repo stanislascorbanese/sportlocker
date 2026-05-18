@@ -15,7 +15,12 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";     -- recherche textuelle
 
 -- ─── ENUMS ────────────────────────────────────────────────────────────────
 
-CREATE TYPE user_role AS ENUM ('citizen', 'operator', 'admin');
+-- Sémantique multi-tenant :
+--   citizen     : utilisateur app mobile
+--   admin       : responsable d'une commune (scoping commune_id obligatoire)
+--   super_admin : équipe SportLocker (bypass scoping, voit tous les tenants)
+--   operator    : DEPRECATED (migration 0004) — conservé pour compat enum
+CREATE TYPE user_role AS ENUM ('citizen', 'operator', 'admin', 'super_admin');
 
 CREATE TYPE distributor_status AS ENUM (
   'online',         -- heartbeat reçu < 5 min
@@ -97,8 +102,26 @@ CREATE TABLE users (
 CREATE INDEX idx_users_firebase    ON users(firebase_uid);
 CREATE INDEX idx_users_email       ON users(email);
 CREATE INDEX idx_users_role        ON users(role);
+CREATE INDEX idx_users_commune_id  ON users(commune_id);
 CREATE INDEX idx_users_gdpr_delete ON users(gdpr_delete_requested_at)
   WHERE gdpr_delete_requested_at IS NOT NULL;
+
+-- ─── admin_invites — onboarding magique tenant ─────────────────────────────
+--  Un super_admin émet un invite avec email + commune_id ; l'admin tenant
+--  clique le lien (token one-time), s'authentifie via Firebase, et son user
+--  est créé avec role='admin' + commune_id. Voir migration 0004.
+
+CREATE TABLE admin_invites (
+  token        TEXT PRIMARY KEY,
+  email        VARCHAR(180) NOT NULL,
+  commune_id   UUID NOT NULL REFERENCES communes(id) ON DELETE CASCADE,
+  expires_at   TIMESTAMPTZ NOT NULL,
+  accepted_at  TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_invites_email      ON admin_invites(email);
+CREATE INDEX idx_admin_invites_commune_id ON admin_invites(commune_id);
 
 -- ─── 3. distributors ───────────────────────────────────────────────────────
 

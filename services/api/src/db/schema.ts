@@ -13,7 +13,11 @@ import { relations, sql } from 'drizzle-orm'
 
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
-export const userRole = pgEnum('user_role', ['citizen', 'operator', 'admin'])
+// citizen : utilisateur app mobile
+// admin : responsable d'une commune (scoping commune_id obligatoire — cf. migration 0004)
+// super_admin : équipe SportLocker (bypass scoping)
+// operator : DEPRECATED (migration 0004) — conservé pour compat enum Postgres
+export const userRole = pgEnum('user_role', ['citizen', 'operator', 'admin', 'super_admin'])
 export const distributorStatus = pgEnum('distributor_status', [
   'online', 'offline', 'maintenance', 'decommissioned',
 ])
@@ -73,6 +77,19 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byRole: index('idx_users_role').on(t.role),
+  byCommune: index('idx_users_commune_id').on(t.communeId),
+}))
+
+export const adminInvites = pgTable('admin_invites', {
+  token: text('token').primaryKey(),
+  email: varchar('email', { length: 180 }).notNull(),
+  communeId: uuid('commune_id').notNull().references(() => communes.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byEmail: index('idx_admin_invites_email').on(t.email),
+  byCommune: index('idx_admin_invites_commune_id').on(t.communeId),
 }))
 
 export const distributors = pgTable('distributors', {
@@ -242,6 +259,10 @@ export const notificationLogs = pgTable('notification_logs', {
 export const usersRelations = relations(users, ({ one, many }) => ({
   commune: one(communes, { fields: [users.communeId], references: [communes.id] }),
   reservations: many(reservations),
+}))
+
+export const adminInvitesRelations = relations(adminInvites, ({ one }) => ({
+  commune: one(communes, { fields: [adminInvites.communeId], references: [communes.id] }),
 }))
 
 export const distributorsRelations = relations(distributors, ({ one, many }) => ({
