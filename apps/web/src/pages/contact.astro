@@ -103,18 +103,26 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
               <legend class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-3">
                 Type d'établissement <span class="text-brand-500">*</span>
               </legend>
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {['Mairie', 'Camping', 'Hôtel', 'Autre'].map((label, i) => (
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" data-segment-group>
+                {(
+                  [
+                    { label: 'Mairie', slug: 'mairie' },
+                    { label: 'Camping', slug: 'camping' },
+                    { label: 'Hôtel', slug: 'hotel' },
+                    { label: 'Autre', slug: 'autre' },
+                  ] as const
+                ).map((opt, i) => (
                   <label class="relative cursor-pointer">
                     <input
                       required={i === 0}
                       type="radio"
                       name="type"
-                      value={label}
+                      value={opt.label}
+                      data-segment={opt.slug}
                       class="peer sr-only"
                     />
                     <div class="px-3 py-3 text-center text-sm bg-black/20 border border-white/10 rounded-lg text-white/65 hover:border-white/30 peer-checked:border-brand-500 peer-checked:bg-brand-500/10 peer-checked:text-white transition-colors">
-                      {label}
+                      {opt.label}
                     </div>
                   </label>
                 ))}
@@ -216,6 +224,17 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
 
 <script>
   type FormStatus = 'success' | 'error' | 'loading'
+
+  // Prefill du segment "type d'établissement" depuis ?type=mairie|camping|hotel|autre
+  // Pratique pour les CTAs landings (/contact?type=mairie depuis /mairies, etc).
+  const params = new URLSearchParams(window.location.search)
+  const typeParam = params.get('type')?.toLowerCase()
+  if (typeParam) {
+    const target = document.querySelector<HTMLInputElement>(
+      `input[name="type"][data-segment="${typeParam}"]`,
+    )
+    if (target) target.checked = true
+  }
 
   const form = document.getElementById('contact-form') as HTMLFormElement | null
   const status = document.getElementById('form-status') as HTMLDivElement | null

@@ -9,9 +9,9 @@ const problems = [
     n: '34%',
     label: 'des pratiquants renoncent à une session par manque de matériel',
   },
-  { n: '8%', label: 'des communes proposent un prêt de matos au guichet' },
+  { n: '8%', label: 'des sites proposent un prêt de matos au guichet' },
   { n: '0€', label: 'de budget exploitation après la construction du terrain' },
-  { n: '24/7', label: 'à couvrir — pas avec un agent municipal' },
+  { n: '24/7', label: 'à couvrir — impossible avec un agent à plein temps' },
 ]
 
 const pillars = [
@@ -26,32 +26,42 @@ const pillars = [
     desc: 'Maintenance, hotline, mises à jour : tout est inclus dans l\'abonnement. Vous ne gérez rien.',
   },
   {
-    icon: '📊',
-    title: 'Données d\'usage en temps réel',
-    desc: 'Tableau de bord opérateur : fréquentation, items les plus loués, pic horaire, alertes.',
+    icon: '💸',
+    title: 'Revenu locations partagé',
+    desc: 'Vos usagers paient 5 € la journée. Vous gardez 75 %, SportLocker prend 25 % de commission.',
   },
 ]
 
-const segments = [
+const useCases = [
   {
     href: '/mairies',
-    icon: '🏛️',
-    title: 'Pour les mairies',
-    desc: 'Service citoyen 24/7 sur vos parcs et bases sportives. Image dynamique, OPEX maîtrisé, conformité achat public.',
+    icon: '🏟️',
+    tag: 'Stades municipaux',
+    title: 'Parcs et city stades',
+    desc: 'Ballons foot/basket, raquettes et frisbees pour les familles, les clubs amateurs et le sport scolaire hors temps école.',
     cta: 'Solution mairies',
   },
   {
     href: '/campings',
-    icon: '⛺',
-    title: 'Pour les campings',
-    desc: 'Animation autonome hors horaires accueil. Plus de satisfaction client, zéro charge supplémentaire pour vos équipes.',
-    cta: 'Solution campings',
+    icon: '🏖️',
+    tag: 'Plages publiques & campings',
+    title: 'Bord de mer & sites côtiers',
+    desc: 'Raquettes de plage, balles, équipement snorkel, ping-pong outdoor. Service actif 24/7 pour vos campeurs et la fréquentation locale.',
+    cta: 'Solution campings & plages',
+  },
+  {
+    href: '/hotels',
+    icon: '✨',
+    tag: 'Complexes hôteliers',
+    title: 'Hôtels 3★ / 4★ / 5★',
+    desc: 'Matériel premium (raquettes Wilson, équipement pool de marque) pour différencier l\'expérience client et booster les avis Booking.',
+    cta: 'Solution hôtels',
   },
 ]
 
 const citoyenSteps = [
   { n: '01', title: 'Je trouve un casier', desc: 'L\'app affiche les distributeurs proches avec le stock en temps réel.' },
-  { n: '02', title: 'Je réserve sur l\'app', desc: 'Sélection du matériel, caution affichée transparente, validation Apple/Google Pay.' },
+  { n: '02', title: 'Je paie 5 € la journée', desc: 'Forfait simple, caution préautorisée sur la CB (libérée si retour OK). Apple Pay / Google Pay.' },
   { n: '03', title: 'J\'ouvre avec mon QR', desc: 'Scan devant le casier, ouverture en moins d\'une seconde. Fonctionne sans réseau.' },
 ]
 
@@ -59,7 +69,7 @@ const clientSteps = [
   { n: '01', title: 'Devis personnalisé', desc: 'Visite ou call de 15 min, étude du site, devis sous 48h.' },
   { n: '02', title: 'Visite technique', desc: 'Repérage des emplacements, alimentation électrique, signalétique.' },
   { n: '03', title: 'Installation clé en main', desc: 'Pose, configuration, formation du responsable de site.' },
-  { n: '04', title: 'Lancement', desc: 'Mise en service, communication usagers, suivi à 30 / 60 / 90 jours.' },
+  { n: '04', title: 'Lancement', desc: 'Communication usagers, suivi 30/60/90 jours, reversement automatique J+2 via Stripe Connect.' },
 ]
 
 const competitors = [
@@ -75,59 +85,59 @@ const competitors = [
   },
   {
     name: 'Locations municipales classiques',
-    model: 'Manuel, accueil mairie aux horaires d\'ouverture',
-    diff: 'SportLocker = automatisé, scalable, gratuit pour le citoyen.',
+    model: 'Manuel, accueil aux horaires d\'ouverture',
+    diff: 'SportLocker = automatisé, scalable, revenu partagé.',
   },
 ]
 
 const faq = [
   {
-    q: 'Combien ça coûte pour ma commune / mon site ?',
-    a: 'À partir de 400 € HT/mois par distributeur, tout inclus (matériel sportif, maintenance, support, mises à jour). Plus de détails sur la page tarifs ou demandez un devis personnalisé.',
+    q: 'Combien ça coûte pour mon site ?',
+    a: 'Abonnement à partir de 400 € HT / mois / distributeur, tout inclus (matériel, maintenance, support, mises à jour). En parallèle, vos usagers paient 5 € la journée par location et vous gardez 75 % de ce montant. Voir la page tarifs pour la simulation détaillée.',
   },
   {
     q: 'Qui paie le matériel sportif (ballons, raquettes, etc.) ?',
-    a: 'C\'est compris dans l\'abonnement mensuel. Nous fournissons et renouvelons le matériel selon votre besoin, sans frais additionnels.',
+    a: 'Le matériel initial et son renouvellement sont compris dans l\'abonnement SaaS. Vous restez en charge du remplacement matériel usé par vétusté normale, ce qui est financé par votre part des locations.',
   },
   {
     q: 'Et si un usager casse ou ne rend pas le matériel ?',
-    a: 'Le citoyen verse une caution Stripe au moment de l\'emprunt (de 20 à 150 €). Elle est capturée automatiquement en cas de perte ou dégradation. Vous n\'avez aucun risque financier sur le matériel.',
+    a: 'L\'usager pose une caution Stripe préautorisée au moment de l\'emprunt (30 à 150 € selon l\'item). En cas de dégradation ou de non-retour, vous capturez la caution depuis votre dashboard. Pour un risque > 150 € il existe un mandat SEPA in-app sur le citoyen.',
   },
   {
-    q: 'Le service est-il gratuit pour mes usagers ?',
-    a: 'Oui, totalement. Le citoyen ne paie que la caution de sécurité, qui lui est remboursée à 100 % si le matériel est rendu en bon état.',
+    q: 'Le service est-il payant pour mes usagers ?',
+    a: 'Oui — modèle marketplace. L\'inscription à l\'app et la consultation des distributeurs sont gratuites. Chaque location est facturée 5 € TTC forfait journée. Vous récupérez 75 % (3,75 €), SportLocker prend 25 % de commission.',
+  },
+  {
+    q: 'Comment je récupère ma part des locations ?',
+    a: 'Reversement automatique en J+2 sur votre compte bancaire via Stripe Connect Express. Suivi en temps réel depuis votre dashboard SportLocker.',
   },
   {
     q: 'Quel est le délai de mise en service ?',
     a: 'De la signature à la mise en service : 4 à 6 semaines en moyenne. Cela inclut la fabrication, l\'installation et la formation.',
-  },
-  {
-    q: 'Que se passe-t-il s\'il n\'y a pas de réseau au moment du scan ?',
-    a: 'Le QR code est signé localement par l\'app (JWT HS256). Le casier le valide hors-ligne pendant 24h grâce à son cache embarqué. L\'ouverture fonctionne même sans 4G.',
   },
 ]
 ---
 
 <Base
   title="Distributeurs de matériel sportif en libre-service 24/7"
-  description="SportLocker installe des distributeurs IoT de matériel sportif sur vos sites. Solution clé en main pour mairies, campings et hôtels. Gratuit pour les usagers, sans personnel à mobiliser."
+  description="SportLocker installe des distributeurs IoT de matériel sportif sur vos sites. Marketplace 3-flux : abonnement SaaS, location citoyen 5€/jour, vous gardez 75%. Solution clé en main pour mairies, campings et hôtels."
 >
   <Hero
-    tag="Premier réseau en France · 2026"
+    tag="Premier réseau marketplace en France · 2026"
     title="Le sport en libre-service,"
-    highlight="24/7, pour vos administrés."
-    desc="SportLocker installe des distributeurs connectés sur vos terrains publics, campings et hôtels. Vos usagers empruntent ballon, raquette ou corde à sauter en 30 secondes — 24h/24, sans agent, sans guichet."
+    highlight="24/7, sur vos sites."
+    desc="SportLocker installe des distributeurs connectés sur vos terrains publics, plages, campings et hôtels. Vos usagers paient 5 € la journée pour emprunter ballon, raquette ou matos plage en 30 secondes. Vous gardez 75 % du chiffre, SportLocker prend l'opérationnel."
     primary={{ href: '/contact', label: 'Demander un devis' }}
     secondary={{ href: '/comment-ca-marche', label: 'Voir comment ça marche' }}
   >
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 mt-16 pt-10 border-t border-white/10 max-w-2xl" data-reveal data-reveal-delay="4">
       <div>
-        <div class="font-extrabold text-3xl text-white">300<span class="text-brand-500">k</span></div>
-        <div class="text-xs text-white/45 mt-1">Terrains publics<br/>en France</div>
+        <div class="font-extrabold text-3xl text-white">5<span class="text-brand-500">€</span></div>
+        <div class="text-xs text-white/45 mt-1">Forfait journée<br/>côté usager</div>
       </div>
       <div>
-        <div class="font-extrabold text-3xl text-white">95<span class="text-brand-500">%</span></div>
-        <div class="text-xs text-white/45 mt-1">Sans matériel<br/>disponible sur place</div>
+        <div class="font-extrabold text-3xl text-white">75<span class="text-brand-500">%</span></div>
+        <div class="text-xs text-white/45 mt-1">Reversement<br/>au tenant (J+2)</div>
       </div>
       <div>
         <div class="font-extrabold text-3xl text-white">0</div>
@@ -150,9 +160,9 @@ const faq = [
             Vos terrains sont là.<br/>Le matériel n'y est pas.
           </h2>
           <p class="section-sub" data-reveal data-reveal-delay="2">
-            La France a investi des milliards dans des équipements sportifs de proximité.
-            Mais sans ballon, sans raquette, sans corde à sauter, ils restent sous-utilisés.
-            Et personne n'a le budget pour mettre un agent dédié 7j/7.
+            Stades publics, plages, campings, hôtels — tous ces sites ont des terrains, des courts,
+            des piscines. Mais sans matériel disponible, ils restent sous-utilisés. Et personne
+            n'a le budget pour mettre un agent dédié 7j/7.
           </p>
         </div>
         <div class="grid grid-cols-2 gap-3" data-reveal data-reveal-delay="3">
@@ -173,10 +183,10 @@ const faq = [
       <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Notre réponse</span>
         <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
-          Une infrastructure prête à l'emploi
+          Une infrastructure marketplace<br/>prête à l'emploi
         </h2>
         <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Trois piliers pour transformer vos sites en services sportifs autonomes.
+          Trois piliers pour transformer vos sites en services sportifs autonomes et rentables.
         </p>
       </div>
       <div class="grid md:grid-cols-3 gap-5">
@@ -193,26 +203,30 @@ const faq = [
     </div>
   </section>
 
-  <!-- POUR QUI -->
+  <!-- 3 USE CASES PREMIUM -->
   <section class="section bg-navy-800">
     <div class="container-x">
       <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Pour qui</span>
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Conçu pour deux mondes,<br/>une même promesse.
+          Trois segments,<br/>trois configurations dédiées.
         </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Chaque type de site a sa landing avec arguments métier, cas d'usage et simulation budget.
+        </p>
       </div>
-      <div class="grid md:grid-cols-2 gap-5">
-        {segments.map((s, i) => (
+      <div class="grid md:grid-cols-3 gap-5">
+        {useCases.map((s, i) => (
           <a
             href={s.href}
-            class="card-dark p-10 hover:border-brand-500/40 hover:bg-white/[0.06] transition-all group"
+            class="card-dark p-8 sm:p-10 hover:border-brand-500/40 hover:bg-white/[0.06] transition-all group"
             data-reveal
             data-reveal-delay={String(i + 1)}
           >
-            <div class="text-5xl mb-5">{s.icon}</div>
-            <h3 class="font-extrabold text-2xl text-white mb-3">{s.title}</h3>
-            <p class="text-white/60 mb-6 font-light leading-relaxed">{s.desc}</p>
+            <div class="text-4xl mb-5">{s.icon}</div>
+            <div class="text-[0.65rem] uppercase tracking-[0.14em] text-brand-500/80 mb-2">{s.tag}</div>
+            <h3 class="font-extrabold text-xl text-white mb-3">{s.title}</h3>
+            <p class="text-sm text-white/60 mb-6 font-light leading-relaxed">{s.desc}</p>
             <span class="inline-flex items-center gap-2 text-brand-500 font-medium text-sm group-hover:gap-3 transition-all">
               {s.cta} <span>→</span>
             </span>
@@ -276,11 +290,12 @@ const faq = [
       <div class="card-dark p-10 sm:p-14 max-w-4xl mx-auto text-center">
         <span class="eyebrow" data-reveal>Tarification</span>
         <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
-          À partir de <span class="text-brand-500">400 € / mois</span> par distributeur
+          À partir de <span class="text-brand-500">400 € / mois</span> par distributeur<br/>
+          <span class="text-base font-medium text-white/55">+ 75 % des locations citoyens reversés à J+2</span>
         </h2>
         <p class="section-sub mx-auto mb-8 text-center" data-reveal data-reveal-delay="2">
-          Tout inclus : matériel sportif renouvelé, maintenance, hotline N2, mises à jour OTA.
-          Setup one-shot dès 850 € selon configuration.
+          Abonnement SaaS tout inclus (matériel, maintenance, hotline, OTA) plus marketplace
+          3-flux : vos usagers paient 5 € la journée, vous gardez la majorité.
         </p>
         <div class="flex items-center justify-center gap-3 flex-wrap">
           <a href="/tarifs" class="btn btn-primary">Calculer mon budget →</a>

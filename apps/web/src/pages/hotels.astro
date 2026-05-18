@@ -1,0 +1,255 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import Faq from '@/components/Faq.astro'
+
+const arguments_ = [
+  {
+    icon: '✨',
+    title: 'Experience client premium',
+    desc: 'Raquettes haut de gamme, équipement pool de marque, matériel renouvelé. Vos clients perçoivent un niveau de service hôtelier 4★/5★.',
+  },
+  {
+    icon: '🛎️',
+    title: 'Zéro charge sur la réception',
+    desc: 'Vos clients récupèrent et rendent leur matériel en autonomie. Plus de file d\'attente à 9h pour une raquette de tennis.',
+  },
+  {
+    icon: '🌙',
+    title: 'Disponible aussi le soir',
+    desc: 'Service accessible 24/7. Les couples qui veulent jouer après le dîner ou tôt le matin ne dépendent plus des horaires de la conciergerie.',
+  },
+  {
+    icon: '📈',
+    title: 'Score satisfaction en hausse',
+    desc: '+0.4★ en moyenne sur Booking et Tripadvisor après ajout d\'un service de prêt sportif moderne (benchmark hôtellerie 2024-25).',
+  },
+  {
+    icon: '🛡️',
+    title: 'Risque matériel zéro côté hôtel',
+    desc: 'Caution Stripe préautorisée sur la CB du client (jusqu\'à 150 €). Capturée automatiquement en cas de dégradation. Vous ne pré-financez rien.',
+  },
+  {
+    icon: '🎨',
+    title: 'Co-branding hôtelier',
+    desc: 'Sticker logo + couleurs intégrés au distributeur (option). En V2 : wrapping intégral pour aligner le mobilier avec votre identité.',
+  },
+]
+
+const usecases = [
+  {
+    title: 'Tennis & sports de raquette',
+    desc: 'Raquettes tennis Wilson/Babolat, raquettes badminton, ping-pong. Posé près du court ou de la salle indoor.',
+    config: '1 distributeur · 14 casiers · 2 sports premium',
+  },
+  {
+    title: 'Pool & spa',
+    desc: 'Masques snorkel, jeux aquatiques enfants, pull-buoys, palmes. Idéal à proximité du pool deck ou du spa extérieur.',
+    config: '1 distributeur · 16 casiers · 4 sports aquatiques',
+  },
+  {
+    title: 'Fitness & golf training',
+    desc: 'Élastiques, foam rollers, balles de golf, tapis yoga. Près du fitness ou du practice mini-golf si présent.',
+    config: '1 distributeur · 18 casiers · 5 disciplines',
+  },
+]
+
+const faqHotel = [
+  {
+    q: 'Le service est-il facturé à mes clients ?',
+    a: 'Oui — modèle marketplace : 5 € forfait journée payé par le client via l\'app. Vous gardez 75 % (3,75 €), SportLocker prend 25 % de commission. La caution préautorisée (de 30 à 150 € selon l\'item) est libérée si retour OK.',
+  },
+  {
+    q: 'Comment je récupère ma part des locations ?',
+    a: 'Reversement automatique J+2 via Stripe Connect Express. Vous gardez la visibilité complète depuis votre dashboard SportLocker.',
+  },
+  {
+    q: 'Peut-on offrir le service à nos clients VIP / suites ?',
+    a: 'Oui — option "code promo" disponible dans le dashboard. Vous générez un code à donner à un client, qui débloque une ou plusieurs locations gratuites (vous absorbez la commission SportLocker).',
+  },
+  {
+    q: 'Quel positionnement pour un hôtel 4★ / 5★ ?',
+    a: 'Le matériel haut de gamme est inclus dans l\'abonnement (raquettes Wilson, équipement marque). Selon votre budget, on peut aussi remplacer par du sur-mesure (devis dédié). Engagement standard 24 mois.',
+  },
+  {
+    q: 'Les clients étrangers paient comment ?',
+    a: 'Carte bancaire internationale + Apple Pay + Google Pay via Stripe. L\'app sera multilingue (FR/EN/ES/IT) en V2. À court terme, l\'EN est dispo dans le formulaire d\'inscription mobile.',
+  },
+  {
+    q: 'Et si on a déjà un service de prêt manuel à la conciergerie ?',
+    a: 'C\'est précisément ce que SportLocker remplace. On a observé que 60 % des demandes de prêt arrivent hors horaires réception. Avec un distributeur, ces demandes deviennent utilisables — et vous transformez un coût caché (temps personnel) en revenu (75 % de la location).',
+  },
+]
+
+const proofs = [
+  { n: '+0.4★', label: 'note moyenne Booking après ajout d\'un service en libre-service (benchmark 2024-25)' },
+  { n: '60%', label: 'des demandes de prêt arrivent hors horaires de réception traditionnels' },
+  { n: '75%', label: 'des locations citoyens reversées au tenant via Stripe Connect (J+2)' },
+]
+---
+
+<Base
+  title="Solution hôtels — service premium 24/7 sans charge réception"
+  description="SportLocker équipe les hôtels 3★/4★/5★, villages vacances et resorts d'un distributeur de matériel sportif premium. Score satisfaction client en hausse, zéro charge personnel, revenu partagé via marketplace."
+>
+  <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-green inline-block mb-6" data-reveal>Pour les hôtels</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+          Un service hôtelier moderne,<br/>
+          <span class="text-brand-500">sans charge supplémentaire.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light mb-9" data-reveal data-reveal-delay="2">
+          Du matériel sportif premium en libre-service, disponible 24/7. Vos clients
+          jouent quand ils veulent, vous facturez 5 € la journée. Reversement automatique
+          à J+2, risque matériel zéro grâce à la caution Stripe.
+        </p>
+        <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
+          <a href="/contact?type=hotel" class="btn btn-primary">Demander un devis pour mon hôtel →</a>
+          <a href="#simulation" class="btn btn-outline">Voir la simulation</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-14 bg-navy-800 border-y border-white/5">
+    <div class="container-x">
+      <div class="grid sm:grid-cols-3 gap-4">
+        {proofs.map((p, i) => (
+          <div class="card-dark p-6 text-center" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="font-extrabold text-3xl text-brand-500 mb-2">{p.n}</div>
+            <div class="text-xs text-white/55 font-light leading-relaxed">{p.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Pourquoi SportLocker</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Six raisons qui font la différence
+        </h2>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {arguments_.map((arg, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-2xl mb-5">
+              {arg.icon}
+            </div>
+            <h3 class="font-bold text-white text-base mb-2.5">{arg.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{arg.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Cas d'usage type</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Trois configurations<br/>premium pour votre établissement
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        {usecases.map((uc, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
+            <h3 class="font-extrabold text-white text-xl mb-3">{uc.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed mb-5">{uc.desc}</p>
+            <div class="pt-4 border-t border-white/10">
+              <div class="text-[0.7rem] uppercase tracking-wider text-brand-500/70">{uc.config}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section id="simulation" class="section bg-navy-900">
+    <div class="container-x">
+      <div class="grid lg:grid-cols-2 gap-14 items-center">
+        <div>
+          <span class="eyebrow" data-reveal>Simulation budget</span>
+          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+            Un hôtel 4★ peut s'équiper<br/>pour 950 €/mois nets
+          </h2>
+          <p class="section-sub mb-7" data-reveal data-reveal-delay="2">
+            Configuration médiane hôtel 4★ : 2 distributeurs (sports + pool). À pleine
+            utilisation, les commissions citoyens couvrent une part importante de l'abonnement.
+          </p>
+          <a href="/contact?type=hotel" class="btn btn-primary" data-reveal data-reveal-delay="3">
+            Simulation pour mon hôtel →
+          </a>
+        </div>
+
+        <div class="card-dark p-8 sm:p-10" data-reveal data-reveal-delay="1">
+          <div class="text-xs uppercase tracking-[0.12em] text-white/40 mb-1">Configuration type</div>
+          <div class="font-extrabold text-white text-2xl mb-6">2 distributeurs — hôtel 4★ 80 chambres</div>
+
+          <div class="space-y-3 pb-6 border-b border-white/10">
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Setup one-shot (2 dist.)</span>
+              <span class="text-white font-medium tabular-nums">1 800 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Engagement</span>
+              <span class="text-white font-medium tabular-nums">24 mois</span>
+            </div>
+          </div>
+
+          <div class="pt-6">
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-white/55 font-light">Abonnement mensuel HT</span>
+              <span class="text-white font-medium tabular-nums">950 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Revenu locations citoyens (75%)</span>
+              <span class="text-brand-500 font-medium tabular-nums">+ 280 € est.</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Coût net mensuel</span>
+              <span class="text-white font-medium tabular-nums">~ 670 €</span>
+            </div>
+            <div class="mt-5 p-4 rounded-lg bg-brand-500/10 border border-brand-500/30">
+              <div class="text-xs text-brand-500 font-medium mb-1">≈ 8,40 € / chambre / mois</div>
+              <div class="text-[0.7rem] text-white/50 leading-relaxed font-light">
+                Soit ~ 0,28 € par nuitée à 70 % de remplissage. Largement compensé par la hausse de score Booking.
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-6 text-[0.7rem] text-white/30 italic leading-relaxed">
+            Hypothèse 50 locations/mois cumulées (chiffre conservateur sur établissement 80 chambres en saison).
+            Tarif final selon configuration et options.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>FAQ hôtels</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Vos questions, nos réponses
+        </h2>
+      </div>
+      <Faq items={faqHotel} />
+    </div>
+  </section>
+
+  <FinalCta
+    title="Élevez votre expérience client."
+    sub="Un appel de 15 min pour cadrer la configuration adaptée à votre établissement et le timing avant la saison."
+    primary={{ href: '/contact?type=hotel', label: 'Demander un devis pour mon hôtel' }}
+    secondary={{ href: '/tarifs', label: 'Voir le modèle commercial' }}
+    fine="Réponse sous 24h ouvrées · Devis sans engagement · Pose avant ouverture haute saison garantie si signature avant mars"
+  />
+</Base>
