@@ -10,22 +10,23 @@ declare module 'fastify' {
   }
 }
 
+/**
+ * Sémantique multi-tenant (cf. migration 0004) :
+ *   - citizen     : utilisateur app mobile
+ *   - admin       : responsable d'une commune — communeId obligatoire dans le JWT
+ *   - super_admin : équipe SportLocker — bypass scoping, communeId optionnel
+ *   - operator    : DEPRECATED, conservé pour compat enum Postgres
+ */
 declare module '@fastify/jwt' {
   interface FastifyJWT {
     payload: {
       sub: string
-      role: 'citizen' | 'operator' | 'admin'
-      /**
-       * Commune assignée pour les operators (scope white-label).
-       * - admin : undefined (voit toutes les communes)
-       * - operator : UUID de la commune dont il est responsable
-       * - citizen : undefined
-       */
+      role: 'citizen' | 'operator' | 'admin' | 'super_admin'
       communeId?: string
     }
     user: {
       sub: string
-      role: 'citizen' | 'operator' | 'admin'
+      role: 'citizen' | 'operator' | 'admin' | 'super_admin'
       communeId?: string
     }
   }

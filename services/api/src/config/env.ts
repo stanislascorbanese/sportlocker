@@ -24,6 +24,10 @@ const EnvSchema = z.object({
 
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
+  // Base URL utilisée pour construire les inviteUrl envoyés aux admins tenant.
+  // Ex : https://app.sportlocker.fr → inviteUrl = https://app.sportlocker.fr/accept-invite?token=...
+  DASHBOARD_INVITE_BASE_URL: z.string().url().default('http://localhost:3001'),
+
   // Sentry — observability. Si SENTRY_DSN absent, le SDK reste no-op silencieux.
   // Plan free : 5k errors + 10k perf events/mois.
   SENTRY_DSN: z.string().url().optional(),
