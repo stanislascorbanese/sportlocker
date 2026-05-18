@@ -24,7 +24,7 @@ export async function changeTicketStatusAction(
     await updateMaintenanceTicket(id, { status: nextStatus })
   } catch (err) {
     if (err instanceof ApiError) {
-      if (err.status === 401) return { ok: false, error: 'Authentification requise (DASHBOARD_ADMIN_TOKEN).' }
+      if (err.status === 401) return { ok: false, error: 'Session expirée. Reconnectez-vous.' }
       if (err.status === 403) return { ok: false, error: 'Token sans rôle admin.' }
       if (err.status === 404) return { ok: false, error: 'Ticket introuvable.' }
       return { ok: false, error: `API ${err.status}: ${err.detail}` }

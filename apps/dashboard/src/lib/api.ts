@@ -1,4 +1,8 @@
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { z } from 'zod'
+
+import { SESSION_COOKIE } from './session'
 
 export const Distributor = z.object({
   id: z.string().uuid(),
@@ -239,37 +243,58 @@ const ListMaintenance  = z.object({ items: z.array(MaintenanceTicket) })
 
 const API_URL = process.env.INTERNAL_API_URL ?? 'http://localhost:3000'
 
-/** Header `Authorization: Bearer <token>` quand un token admin est dispo. */
-function authHeaders(): Record<string, string> {
-  const token = process.env.DASHBOARD_ADMIN_TOKEN
+/**
+ * Header `Authorization: Bearer <sessionToken>` lu depuis le cookie httpOnly
+ * posé par /api/session après login Firebase. Toujours appelé côté server.
+ */
+async function authHeaders(): Promise<Record<string, string>> {
+  const jar = await cookies()
+  const token = jar.get(SESSION_COOKIE)?.value
   return token ? { authorization: `Bearer ${token}` } : {}
+}
+
+/**
+ * Gestion centralisée des réponses non-OK :
+ *   401 → cookie expiré/invalide → redirect /login (throw NEXT_REDIRECT).
+ *   autres → ApiError(status, detail).
+ */
+async function throwApiError(res: Response, fromPath = ''): Promise<never> {
+  if (res.status === 401) {
+    const url = fromPath ? `/login?redirect=${encodeURIComponent(fromPath)}` : '/login'
+    redirect(url)
+  }
+  const detail = await safeErrorBody(res)
+  throw new ApiError(res.status, detail)
 }
 
 export async function fetchDistributors(): Promise<Distributor[]> {
   const res = await fetch(`${API_URL}/v1/distributors`, {
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['distributors'] },
   })
-  if (!res.ok) throw new Error(`API ${res.status} on /v1/distributors`)
+  if (!res.ok) await throwApiError(res)
   return ListDistributors.parse(await res.json()).items
 }
 
 export async function fetchDistributor(id: string): Promise<DistributorDetail> {
   const res = await fetch(`${API_URL}/v1/distributors/${id}`, {
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['distributors', `distributor:${id}`] },
   })
-  if (res.status === 404) throw new Error('distributor_not_found')
-  if (!res.ok) throw new Error(`API ${res.status} on /v1/distributors/${id}`)
+  if (res.status === 404) throw new ApiError(404, 'distributor_not_found')
+  if (!res.ok) await throwApiError(res)
   return DistributorDetail.parse(await res.json())
 }
 
 export async function fetchItemTypes(): Promise<ItemType[]> {
   const res = await fetch(`${API_URL}/v1/item-types`, {
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['item-types'] },
   })
-  if (!res.ok) throw new Error(`API ${res.status} on /v1/item-types`)
+  if (!res.ok) await throwApiError(res)
   return ListItemTypes.parse(await res.json()).items
 }
 
@@ -278,14 +303,11 @@ export async function createDistributor(input: DistributorCreateInput): Promise<
   const body = DistributorCreateInput.parse(input)
   const res = await fetch(`${API_URL}/v1/distributors`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return Distributor.parse(await res.json())
 }
 
@@ -296,14 +318,11 @@ export async function updateDistributor(
   const body = DistributorUpdateInput.parse(input)
   const res = await fetch(`${API_URL}/v1/distributors/${id}`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return Distributor.parse(await res.json())
 }
 
@@ -320,29 +339,23 @@ export type ReservationFilters = {
 
 export async function fetchReservationDetail(id: string): Promise<ReservationDetail> {
   const res = await fetch(`${API_URL}/v1/admin/reservations/${id}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['reservations', `reservation:${id}`] },
   })
   if (res.status === 404) throw new ApiError(404, 'reservation_not_found')
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return ReservationDetail.parse(await res.json())
 }
 
 export async function forceCancelReservation(id: string, reason?: string): Promise<ReservationDetail> {
   const res = await fetch(`${API_URL}/v1/admin/reservations/${id}/force-cancel`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(reason ? { reason } : {}),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return ReservationDetail.parse(await res.json())
 }
 
@@ -361,13 +374,10 @@ export async function fetchReservationsCsv(filters: ReservationExportFilters = {
   if (filters.to)   params.set('to', filters.to)
   const qs = params.toString()
   const res = await fetch(`${API_URL}/v1/admin/reservations/export.csv${qs ? `?${qs}` : ''}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return await res.text()
 }
 
@@ -382,41 +392,32 @@ export async function fetchReservations(filters: ReservationFilters = {}): Promi
 
   const qs = params.toString()
   const res = await fetch(`${API_URL}/v1/admin/reservations${qs ? `?${qs}` : ''}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['reservations'] },
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return ReservationsPage.parse(await res.json())
 }
 
 export async function fetchCommunes(): Promise<Commune[]> {
   const res = await fetch(`${API_URL}/v1/admin/communes`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['communes'] },
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return ListCommunes.parse(await res.json()).items
 }
 
 export async function fetchCommune(id: string): Promise<Commune> {
   const res = await fetch(`${API_URL}/v1/admin/communes/${id}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['communes', `commune:${id}`] },
   })
   if (res.status === 404) throw new ApiError(404, 'commune_not_found')
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return Commune.parse(await res.json())
 }
 
@@ -424,14 +425,11 @@ export async function createCommune(input: CommuneCreateInput): Promise<Commune>
   const body = CommuneCreateInput.parse(input)
   const res = await fetch(`${API_URL}/v1/admin/communes`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return Commune.parse(await res.json())
 }
 
@@ -439,14 +437,11 @@ export async function updateCommune(id: string, input: CommuneUpdateInput): Prom
   const body = CommuneUpdateInput.parse(input)
   const res = await fetch(`${API_URL}/v1/admin/communes/${id}`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return Commune.parse(await res.json())
 }
 
@@ -463,14 +458,11 @@ export async function fetchUsers(filters: UserFilters = {}): Promise<AdminUser[]
   if (filters.q) params.set('q', filters.q)
   const qs = params.toString()
   const res = await fetch(`${API_URL}/v1/admin/users${qs ? `?${qs}` : ''}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['users'] },
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return ListUsers.parse(await res.json()).items
 }
 
@@ -478,14 +470,11 @@ export async function updateUser(id: string, input: UserUpdateInput): Promise<Ad
   const body = UserUpdateInput.parse(input)
   const res = await fetch(`${API_URL}/v1/admin/users/${id}`, {
     method: 'PATCH',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return AdminUser.parse(await res.json())
 }
 
@@ -527,27 +516,21 @@ export type StatsDashboard = z.infer<typeof StatsDashboard>
 
 export async function fetchStatsDashboard(days = 30): Promise<StatsDashboard> {
   const res = await fetch(`${API_URL}/v1/admin/stats/dashboard?days=${days}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['stats'] },
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return StatsDashboard.parse(await res.json())
 }
 
 export async function fetchReservationsDaily(days = 7): Promise<DailyPoint[]> {
   const res = await fetch(`${API_URL}/v1/admin/stats/reservations-daily?days=${days}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['stats'] },
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return DailySeries.parse(await res.json()).points
 }
 
@@ -563,14 +546,11 @@ export async function fetchMaintenanceTickets(filters: MaintenanceFilters = {}):
 
   const qs = params.toString()
   const res = await fetch(`${API_URL}/v1/admin/maintenance-tickets${qs ? `?${qs}` : ''}`, {
-    headers: { ...authHeaders() },
+    headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['maintenance'] },
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return ListMaintenance.parse(await res.json()).items
 }
 
@@ -590,15 +570,38 @@ export async function updateMaintenanceTicket(
   const body = MaintenanceUpdateInput.parse(input)
   const res = await fetch(`${API_URL}/v1/admin/maintenance-tickets/${id}`, {
     method: 'PATCH',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    const detail = await safeErrorBody(res)
-    throw new ApiError(res.status, detail)
-  }
+  if (!res.ok) await throwApiError(res)
   return MaintenanceTicket.parse(await res.json())
+}
+
+export const Invite = z.object({
+  token: z.string().min(20),
+  inviteUrl: z.string().url(),
+})
+
+export type Invite = z.infer<typeof Invite>
+
+export const InviteCreateInput = z.object({
+  email:     z.string().email().max(180),
+  communeId: z.string().uuid(),
+})
+
+export type InviteCreateInput = z.infer<typeof InviteCreateInput>
+
+export async function createInvite(input: InviteCreateInput): Promise<Invite> {
+  const body = InviteCreateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/invites`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return Invite.parse(await res.json())
 }
 
 export class ApiError extends Error {
