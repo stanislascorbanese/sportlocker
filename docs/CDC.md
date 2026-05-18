@@ -94,58 +94,130 @@ acteur multi-sport en libre-service 24/7 sur le marché B2B France.
   - Réserver puis ouvrir un casier en 30 secondes (QR code scan)
   - Comprendre la caution avant de payer (transparence)
   - Récupérer sa caution automatiquement après retour en bon état
-- **NE doit PAS** : payer pour le service lui-même (gratuit), gérer un
-  compte par tenant (single account suffit)
+- **NE doit PAS** : avoir à créer un compte par tenant (single account
+  suffit), comprendre ou interagir avec la mécanique SportLocker ↔ tenant
 
 ---
 
 ## 4. Modèle commercial
 
-### 4.1 Pricing SaaS (côté client / tenant)
+> **Pivot mai 2026** : la version initiale du CDC prévoyait un service
+> gratuit pour le citoyen. Le modèle a évolué vers un **marketplace 3-flux**
+> qui aligne mieux les intérêts (citoyen paye pour utiliser, tenant absorbe
+> le risque matériel, SportLocker prend abo + commission).
+
+### 4.1 Vue d'ensemble — 3 flux de revenu
+
+```
+┌──────────────────┐    5€/jour location     ┌──────────────────┐
+│     CITOYEN      │ ─────────────────────▶  │      STRIPE      │
+│  (utilisateur)   │    + caution préauto    │   (Connect)      │
+└──────────────────┘                          └──────────────────┘
+                                                       │
+                                                       │ split
+                                       ┌───────────────┼───────────────┐
+                                       ▼                               ▼
+                              ┌───────────────────┐         ┌──────────────────┐
+                              │   TENANT (75%)    │         │ SPORTLOCKER (25%)│
+                              │ commune / camping │         │  commission      │
+                              │  / hôtel          │         │                  │
+                              └───────────────────┘         └──────────────────┘
+                                                                      ▲
+                                                                      │
+                              ┌───────────────────┐                   │
+                              │   TENANT          │  abo 350-500€/mois│
+                              │  paye abo SaaS    │ ──────────────────┘
+                              └───────────────────┘
+```
+
+### 4.2 Revenu 1 — Abonnement SaaS (tenant → SportLocker)
 
 | Composant | Montant indicatif | Détails |
 |---|---|---|
 | **Abonnement mensuel par distributeur** | 350-500 € HT | Tout inclus : matériel sportif, maintenance, logiciel, hotline N2, mises à jour OTA |
 | **Setup fee one-shot** | 500-1 000 € HT | Déplacement, installation, formation admin, configuration initiale |
-| **Engagement** | 24 mois (campings) / 36 mois (mairies) | Permet d'amortir le distributeur |
+| **Engagement** | 24 mois (campings/hôtels) / 36 mois (mairies) | Permet d'amortir le distributeur |
 | **Facturation** | Mensuelle, prélèvement SEPA via Stripe | Facture automatique générée |
 
-**Calcul cible** : 10 clients × 4 distributeurs moyens × 425 €/mois = **17 000 €/mois de MRR** à 12 mois.
+### 4.3 Revenu 2 — Location citoyen (forfait journée)
 
-### 4.2 Caution citoyen
+**Modèle : forfait journée fixe**, peu importe le matos emprunté.
 
-**Variable selon l'item** (autorisation Stripe sur CB ou Apple/Google Pay).
-
-| Item type | Caution affichée | Logique |
+| Composant | Montant | Détails |
 |---|---|---|
-| Ballon foot / basket | 30 € | Couvre coût de remplacement |
-| Raquette tennis / badminton | 80 € | idem |
-| Frisbee, équipement léger | 20 € | idem |
-| Équipement « pro » (matériel valeur > 150 €) | **plafonnée à 150 €** | Au-delà, signature mandat SEPA in-app pour la différence en cas de non-retour |
+| **Forfait journée citoyen** | 5 € TTC | Accès illimité à un item pour 24h, restitution au plus tard à l'heure d'emprunt + 24h |
+| **Commission SportLocker** | **25%** (1,25 €) | Prélevée automatiquement via Stripe Connect application_fee |
+| **Reversement tenant** | **75%** (3,75 €) | Versé en J+2 sur son compte Stripe Express |
 
-**Pourquoi plafond 150 €** : éviter les refus banque sur cartes plafonnées
-(le client perd la vente). Le risque résiduel au-delà de 150 € est couvert
-par engagement contractuel citoyen (mandat SEPA) puis par le tenant en
-dernier ressort.
+**Pourquoi forfait journée plutôt qu'horaire** :
+- UX simple (1 prix, pas de calcul mental, pas de surprise au retour tardif)
+- Suffisamment dissuasif pour libérer le matos rapidement (vs gratuit où abus possibles)
+- Aligné avec les usages typiques (1 demi-journée plage, 1 après-midi de sport)
 
-### 4.3 Qui paie quoi en cas de problème
+**Pourquoi 25% de commission** :
+- Standard marketplaces B2C (Uber Eats 30%, Deliveroo 30%, Airbnb 15%)
+- Couvre frais Stripe Connect (1,4% + 0,25€ par transaction) + marge SportLocker
+- Compense partiellement l'abo bas pour rester compétitif vs achat one-shot
+
+### 4.4 Revenu 3 (indirect) — Caution citoyen (préautorisation Stripe)
+
+La caution n'est PAS un revenu — c'est un mécanisme de **dissuasion + couverture risque** pour le tenant.
+
+**Variable selon l'item** (autorisation Stripe sur CB ou Apple/Google Pay) :
+
+| Item type | Caution préautorisée | Capturée vers |
+|---|---|---|
+| Ballon foot / basket / frisbee | 30 € | Compte tenant si dégradation |
+| Raquette tennis / badminton / ping-pong | 80 € | idem |
+| Équipement plage (raquettes plage, masque snorkel) | 50 € | idem |
+| Équipement « pro » (matériel valeur > 150 €) | **plafond 150 €** | idem + mandat SEPA in-app pour différence |
+
+**Important** : la caution **n'est jamais débitée si retour OK** — c'est juste une préautorisation (hold) sur la CB. Capturée par le **tenant** si dégradation/vol confirmé.
+
+### 4.5 Qui paie quoi en cas de problème
 
 | Scénario | Qui paie |
 |---|---|
-| Retour matériel intact | Personne, caution remboursée 100% |
-| Dégradation légère (rayure, déchirure mineure) | Caution capturée (couvre la réparation) |
-| Perte / vol citoyen | Caution capturée + relance SEPA pour différence si > 150 € |
-| Vandalisme tiers (distributeur cassé hors emprunt) | **Tenant** (mairie/camping), couvert par son assurance ou son budget |
-| Bug technique SportLocker (locker pas ouvert mais débité) | **SportLocker** rembourse intégralement |
+| Retour matériel intact | Personne ; caution préauto **libérée** ; commission SportLocker conservée |
+| Dégradation légère | Tenant **capture** la caution (partielle ou totale selon barème) |
+| Perte / vol citoyen | Tenant capture caution + relance SEPA pour différence si > 150 € |
+| Vandalisme tiers (distributeur cassé hors emprunt) | **Tenant** (assurance ou budget) |
+| Remplacement matériel usé (vétusté normale) | **Tenant** (assumé dans son budget d'exploitation) |
+| Bug technique SportLocker (locker pas ouvert mais débité) | **SportLocker** rembourse intégralement (forfait + libère caution) |
 
-### 4.4 Compte « Premium Citoyen » (post-MVP)
+**Important** : SportLocker ne porte AUCUN risque matériel — le tenant assume
+remplacement, vandalisme, vétusté, perte non-couverte par caution. C'est ce
+qui justifie l'abo mensuel SaaS pur (pas de "lease").
 
-À étudier en V2 : abonnement citoyen 3-5 €/mois donnant :
-- Caution mutualisée sans plafond
-- Réservations prioritaires en haute saison
+### 4.6 Calcul cible 12 mois
+
+Hypothèses prudentes :
+- 10 clients tenants signés
+- 4 distributeurs moyens par client = 40 distributeurs
+- Abo moyen 425 €/mois HT
+- 10 locations/jour/distributeur (mature)
+- 5 € forfait × 25% = 1,25 € commission/location
+
+| Source | Calcul | Montant mensuel |
+|---|---|---|
+| MRR abos | 40 × 425 € | **17 000 € HT** |
+| Commission locations | 40 × 10 × 30 × 1,25 € | **15 000 € HT** |
+| **Total** | | **32 000 €/mois HT** |
+
+→ Le marketplace double potentiellement le revenu vs SaaS pur. Mais
+attention : la commission est variable, dépend du taux d'utilisation
+réel (qui mettra plusieurs mois à monter en charge).
+
+### 4.7 Compte « Premium Citoyen » (post-MVP)
+
+À étudier en V2 : abonnement citoyen 5 €/mois donnant :
+- Forfait journée inclus (1 location/jour offerte)
+- Caution mutualisée sans plafond (SportLocker porte le risque, via assurance partenaire)
+- Réservations prioritaires haute saison
 - Historique étendu
 
-→ Source de revenus secondaire B2C, augmente rétention.
+→ Source de revenu B2C récurrente, augmente rétention citoyen, lisse
+les revenus de commission (fluctuants par nature).
 
 ---
 
