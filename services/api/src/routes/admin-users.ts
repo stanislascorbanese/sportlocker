@@ -5,9 +5,9 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { communes, users } from '../db/schema.js'
-import { requireAdminOrOperator } from '../lib/commune-scope.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
-const USER_ROLE = ['citizen', 'operator', 'admin'] as const
+const USER_ROLE = ['citizen', 'operator', 'admin', 'super_admin'] as const
 
 const UserDTO = z.object({
   id: z.string().uuid(),
@@ -120,7 +120,7 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { role, banned, q } = req.query
@@ -165,16 +165,16 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
       response: { 200: UserDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const body = req.body
 
-    // Sécurité : seul admin peut changer le rôle (élévation de privilège).
-    // Un operator peut bannir/débannir, ajuster trustScore, déclencher RGPD
-    // — pas promouvoir quelqu'un en operator/admin.
+    // Sécurité : seul super_admin peut changer le rôle (élévation de privilège).
+    // Un admin scoped peut bannir/débannir, ajuster trustScore, déclencher RGPD
+    // — pas promouvoir quelqu'un en admin/super_admin.
     if (body.role !== undefined && auth.scope) {
-      return reply.code(403).send({ error: 'forbidden_role_change_admin_only' })
+      return reply.code(403).send({ error: 'forbidden_role_change_super_admin_only' })
     }
 
     // Scope check : operator doit confirmer que l'user cible est bien dans sa commune.

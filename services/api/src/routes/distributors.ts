@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { distributors, lockers } from '../db/schema.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
 const DistributorDTO = z.object({
   id: z.string().uuid(),
@@ -234,11 +235,15 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
 
     const body = req.body
+
+    // Admin scoped : ne peut créer que dans sa propre commune.
+    if (auth.scope && body.communeId !== auth.scope.communeId) {
+      return reply.code(403).send({ error: 'forbidden_cross_commune' })
+    }
 
     try {
       const created = await db.transaction(async (tx) => {
@@ -306,8 +311,19 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
+
+    // Admin scoped : 404 si le distributeur n'existe pas OU n'est pas dans sa commune.
+    if (auth.scope) {
+      const [check] = await db
+        .select({ communeId: distributors.communeId })
+        .from(distributors)
+        .where(eq(distributors.id, req.params.id))
+        .limit(1)
+      if (!check || check.communeId !== auth.scope.communeId) {
+        return reply.code(404).send({ error: 'distributor_not_found' })
+      }
     }
 
     const body = req.body

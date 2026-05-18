@@ -18,6 +18,8 @@ import { adminStatsRoutes } from './routes/admin-stats.js'
 import { adminCommuneRoutes } from './routes/admin-communes.js'
 import { adminUserRoutes } from './routes/admin-users.js'
 import { authRoutes } from './routes/auth.js'
+import { adminAuthRoutes } from './routes/admin-auth.js'
+import { adminInviteRoutes } from './routes/admin-invites.js'
 import { itemTypeRoutes } from './routes/item-types.js'
 
 export async function buildApp() {
@@ -43,6 +45,8 @@ export async function buildApp() {
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
+  await app.register(adminAuthRoutes,         { prefix: '/v1/admin/auth' })
+  await app.register(adminInviteRoutes,       { prefix: '/v1/admin/invites' })
   await app.register(adminReservationRoutes,  { prefix: '/v1/admin/reservations' })
   await app.register(adminMaintenanceRoutes,  { prefix: '/v1/admin/maintenance-tickets' })
   await app.register(adminStatsRoutes,        { prefix: '/v1/admin/stats' })

@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
-import { requireAdminOrOperator } from '../lib/commune-scope.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
 const DailyQuery = z.object({
   days: z.coerce.number().int().min(1).max(90).default(7),
@@ -35,7 +35,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { days } = req.query
@@ -111,7 +111,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { days } = req.query

@@ -7,7 +7,7 @@ import { db } from '../db/client.js'
 import {
   distributors, itemTypes, items, lockerEvents, lockers, reservations, users,
 } from '../db/schema.js'
-import { requireAdminOrOperator } from '../lib/commune-scope.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
 const RESERVATION_STATUS = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
 
@@ -138,7 +138,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { status, distributorId, from, to, cursor, limit } = req.query
@@ -221,7 +221,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       querystring: ExportQuery,
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { status, distributorId, from, to } = req.query
@@ -329,7 +329,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const detailWhere = auth.scope
@@ -425,7 +425,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const reason = req.body?.reason ?? 'admin_force_cancel'

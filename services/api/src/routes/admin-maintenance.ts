@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { distributors, maintenanceTickets, users } from '../db/schema.js'
-import { requireAdminOrOperator } from '../lib/commune-scope.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
 const MAINTENANCE_STATUS = ['open', 'in_progress', 'resolved', 'wontfix'] as const
 
@@ -120,7 +120,7 @@ export async function adminMaintenanceRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { status, distributorId } = req.query
@@ -159,7 +159,7 @@ export async function adminMaintenanceRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     // Pour un operator scopé, on vérifie d'abord que le ticket appartient
