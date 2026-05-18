@@ -310,6 +310,10 @@ export async function updateDistributor(
 export type ReservationFilters = {
   status?: ReservationStatus
   distributorId?: string
+  /** Date YYYY-MM-DD — borne basse inclusive */
+  from?: string
+  /** Date YYYY-MM-DD — borne haute inclusive (côté serveur : created_at < to+1j) */
+  to?: string
   cursor?: string
   limit?: number
 }
@@ -345,12 +349,16 @@ export async function forceCancelReservation(id: string, reason?: string): Promi
 export type ReservationExportFilters = {
   status?: ReservationStatus
   distributorId?: string
+  from?: string
+  to?: string
 }
 
 export async function fetchReservationsCsv(filters: ReservationExportFilters = {}): Promise<string> {
   const params = new URLSearchParams()
   if (filters.status) params.set('status', filters.status)
   if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to)   params.set('to', filters.to)
   const qs = params.toString()
   const res = await fetch(`${API_URL}/v1/admin/reservations/export.csv${qs ? `?${qs}` : ''}`, {
     headers: { ...authHeaders() },
@@ -367,6 +375,8 @@ export async function fetchReservations(filters: ReservationFilters = {}): Promi
   const params = new URLSearchParams()
   if (filters.status) params.set('status', filters.status)
   if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to)   params.set('to', filters.to)
   if (filters.cursor) params.set('cursor', filters.cursor)
   if (filters.limit) params.set('limit', String(filters.limit))
 

@@ -48,7 +48,15 @@ export type CsvResult =
 export async function exportReservationsCsvAction(
   filters: ReservationExportFilters,
 ): Promise<CsvResult> {
-  const filename = `reservations-${new Date().toISOString().slice(0, 10)}.csv`
+  // Filename qui reflète la fenêtre choisie (utile pour archivage côté commune).
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const filename = filters.from && filters.to
+    ? `reservations-${filters.from}_${filters.to}.csv`
+    : filters.from
+    ? `reservations-from-${filters.from}.csv`
+    : filters.to
+    ? `reservations-until-${filters.to}.csv`
+    : `reservations-${todayIso}.csv`
 
   try {
     const csv = await fetchReservationsCsv(filters)
@@ -77,6 +85,8 @@ function demoCsv(filters: ReservationExportFilters): string {
   const filtered = DEMO_RESERVATIONS.filter((r) => {
     if (filters.status && r.status !== filters.status) return false
     if (filters.distributorId && r.distributor.id !== filters.distributorId) return false
+    if (filters.from && r.createdAt < `${filters.from}T00:00:00`) return false
+    if (filters.to && r.createdAt > `${filters.to}T23:59:59.999Z`) return false
     return true
   })
 

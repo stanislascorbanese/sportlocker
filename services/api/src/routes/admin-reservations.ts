@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
@@ -54,9 +54,16 @@ const ReservationDetailDTO = ReservationAdminDTO.extend({
   events: z.array(ReservationEventDTO),
 })
 
+/** Date au format YYYY-MM-DD. Reçue côté UI date picker. */
+const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected_yyyy_mm_dd')
+
 const ListQuery = z.object({
   status: z.enum(RESERVATION_STATUS).optional(),
   distributorId: z.string().uuid().optional(),
+  /** Borne basse inclusive : created_at >= from 00:00:00 UTC */
+  from: DateOnly.optional(),
+  /** Borne haute exclusive : created_at < (to + 1 jour) UTC, i.e. inclusive sur la journée */
+  to: DateOnly.optional(),
   /** Cursor opaque : `<iso8601>_<uuid>` (createdAt + id). */
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -83,7 +90,21 @@ function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
 const ExportQuery = z.object({
   status:        z.enum(RESERVATION_STATUS).optional(),
   distributorId: z.string().uuid().optional(),
+  from:          DateOnly.optional(),
+  to:            DateOnly.optional(),
 })
+
+/** Borne basse : 00:00:00 UTC du jour `iso`. */
+function fromDate(iso: string): Date {
+  return new Date(`${iso}T00:00:00.000Z`)
+}
+
+/** Borne haute exclusive : 00:00:00 UTC du jour suivant (inclut le jour `iso`). */
+function toDateExclusive(iso: string): Date {
+  const d = new Date(`${iso}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d
+}
 
 /** Escape CSV cell selon RFC 4180 : guillemets doublés, champ entouré
  *  de guillemets si contient virgule / guillemet / retour ligne. */
@@ -120,11 +141,13 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       return reply.code(403).send({ error: 'forbidden_admin_required' })
     }
 
-    const { status, distributorId, cursor, limit } = req.query
+    const { status, distributorId, from, to, cursor, limit } = req.query
 
     const conditions = []
     if (status) conditions.push(eq(reservations.status, status))
     if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
+    if (from) conditions.push(gte(reservations.createdAt, fromDate(from)))
+    if (to)   conditions.push(lt(reservations.createdAt, toDateExclusive(to)))
     if (cursor) {
       const decoded = decodeCursor(cursor)
       if (!decoded) return reply.code(400).send({ error: 'invalid_cursor' })
@@ -201,11 +224,13 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       return reply.code(403).send({ error: 'forbidden_admin_required' })
     }
 
-    const { status, distributorId } = req.query
+    const { status, distributorId, from, to } = req.query
 
     const conditions = []
     if (status) conditions.push(eq(reservations.status, status))
     if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
+    if (from) conditions.push(gte(reservations.createdAt, fromDate(from)))
+    if (to)   conditions.push(lt(reservations.createdAt, toDateExclusive(to)))
 
     const rows = await db
       .select({
@@ -272,7 +297,15 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
 
     const csv = '﻿' + lines.join('\r\n')  // BOM UTF-8 + CRLF line endings RFC 4180
 
-    const filename = `reservations-${new Date().toISOString().slice(0, 10)}.csv`
+    // Le filename intègre la fenêtre demandée pour faciliter l'archivage côté commune.
+    const todayIso = new Date().toISOString().slice(0, 10)
+    const filename = from && to
+      ? `reservations-${from}_${to}.csv`
+      : from
+      ? `reservations-from-${from}.csv`
+      : to
+      ? `reservations-until-${to}.csv`
+      : `reservations-${todayIso}.csv`
 
     return reply
       .header('Content-Type', 'text/csv; charset=utf-8')
