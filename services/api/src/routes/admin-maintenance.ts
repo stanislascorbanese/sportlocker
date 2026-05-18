@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { distributors, maintenanceTickets, users } from '../db/schema.js'
+import { requireAdminOrOperator } from '../lib/commune-scope.js'
 
 const MAINTENANCE_STATUS = ['open', 'in_progress', 'resolved', 'wontfix'] as const
 
@@ -119,15 +120,15 @@ export async function adminMaintenanceRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const { status, distributorId } = req.query
 
     const conditions = []
     if (status) conditions.push(eq(maintenanceTickets.status, status))
     if (distributorId) conditions.push(eq(maintenanceTickets.distributorId, distributorId))
+    if (auth.scope) conditions.push(eq(distributors.communeId, auth.scope.communeId))
 
     const rows = await db
       .select(baseSelect)
@@ -158,8 +159,22 @@ export async function adminMaintenanceRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
+
+    // Pour un operator scopé, on vérifie d'abord que le ticket appartient
+    // bien à sa commune. Sinon 404 (cohérent avec /reservations/:id).
+    if (auth.scope) {
+      const [check] = await db
+        .select({ id: maintenanceTickets.id })
+        .from(maintenanceTickets)
+        .innerJoin(distributors, eq(distributors.id, maintenanceTickets.distributorId))
+        .where(and(
+          eq(maintenanceTickets.id, req.params.id),
+          eq(distributors.communeId, auth.scope.communeId),
+        ))
+        .limit(1)
+      if (!check) return reply.code(404).send({ error: 'ticket_not_found' })
     }
 
     const body = req.body

@@ -12,8 +12,22 @@ declare module 'fastify' {
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { sub: string; role: 'citizen' | 'operator' | 'admin' }
-    user: { sub: string; role: 'citizen' | 'operator' | 'admin' }
+    payload: {
+      sub: string
+      role: 'citizen' | 'operator' | 'admin'
+      /**
+       * Commune assignée pour les operators (scope white-label).
+       * - admin : undefined (voit toutes les communes)
+       * - operator : UUID de la commune dont il est responsable
+       * - citizen : undefined
+       */
+      communeId?: string
+    }
+    user: {
+      sub: string
+      role: 'citizen' | 'operator' | 'admin'
+      communeId?: string
+    }
   }
 }
 

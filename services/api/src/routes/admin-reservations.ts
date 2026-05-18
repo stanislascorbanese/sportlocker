@@ -7,6 +7,7 @@ import { db } from '../db/client.js'
 import {
   distributors, itemTypes, items, lockerEvents, lockers, reservations, users,
 } from '../db/schema.js'
+import { requireAdminOrOperator } from '../lib/commune-scope.js'
 
 const RESERVATION_STATUS = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
 
@@ -137,9 +138,8 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const { status, distributorId, from, to, cursor, limit } = req.query
 
@@ -148,6 +148,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
     if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
     if (from) conditions.push(gte(reservations.createdAt, fromDate(from)))
     if (to)   conditions.push(lt(reservations.createdAt, toDateExclusive(to)))
+    if (auth.scope) conditions.push(eq(distributors.communeId, auth.scope.communeId))
     if (cursor) {
       const decoded = decodeCursor(cursor)
       if (!decoded) return reply.code(400).send({ error: 'invalid_cursor' })
@@ -220,9 +221,8 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       querystring: ExportQuery,
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const { status, distributorId, from, to } = req.query
 
@@ -231,6 +231,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
     if (distributorId) conditions.push(eq(reservations.distributorId, distributorId))
     if (from) conditions.push(gte(reservations.createdAt, fromDate(from)))
     if (to)   conditions.push(lt(reservations.createdAt, toDateExclusive(to)))
+    if (auth.scope) conditions.push(eq(distributors.communeId, auth.scope.communeId))
 
     const rows = await db
       .select({
@@ -328,9 +329,12 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
+
+    const detailWhere = auth.scope
+      ? and(eq(reservations.id, req.params.id), eq(distributors.communeId, auth.scope.communeId))
+      : eq(reservations.id, req.params.id)
 
     const [r] = await db
       .select({
@@ -358,9 +362,11 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
       .innerJoin(items, eq(items.id, reservations.itemId))
       .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
-      .where(eq(reservations.id, req.params.id))
+      .where(detailWhere)
       .limit(1)
 
+    // Note : un operator hors scope reçoit 404 (pas 403) pour éviter de
+    // confirmer l'existence d'une réservation dont il ne peut pas voir.
     if (!r) return reply.code(404).send({ error: 'reservation_not_found' })
 
     const events = await db
@@ -419,20 +425,30 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
 
     const reason = req.body?.reason ?? 'admin_force_cancel'
     const now = new Date()
 
     const result = await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
-        .from(reservations)
-        .where(eq(reservations.id, req.params.id))
-        .for('update')
-        .limit(1)
+      // Pour un operator, on JOIN distributors pour vérifier le scope commune.
+      // Pour un admin (scope=null), on évite le JOIN inutile.
+      const baseQuery = auth.scope
+        ? tx
+            .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
+            .from(reservations)
+            .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+            .where(and(
+              eq(reservations.id, req.params.id),
+              eq(distributors.communeId, auth.scope.communeId),
+            ))
+        : tx
+            .select({ id: reservations.id, status: reservations.status, lockerId: reservations.lockerId })
+            .from(reservations)
+            .where(eq(reservations.id, req.params.id))
+
+      const [existing] = await baseQuery.for('update').limit(1)
 
       if (!existing) return { kind: 'not_found' as const }
 
