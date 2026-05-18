@@ -1,28 +1,35 @@
 import { useMemo, useState } from 'react'
-import { PRICING, type TenantSegment } from '@/data/site'
+import { MARKETPLACE, PRICING, type TenantSegment } from '@/data/site'
 
 const segments: { value: TenantSegment; label: string }[] = [
   { value: 'mairie', label: 'Mairie' },
   { value: 'camping', label: 'Camping' },
-  { value: 'autre', label: 'Hôtel / autre' },
+  { value: 'hotel', label: 'Hôtel' },
 ]
 
 const formatEur = (n: number): string =>
   new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n) + ' €'
 
+// Hypothèse conservatrice pour la projection revenu locations
+const LOCATIONS_PER_DIST_PER_DAY = 10
+
 export default function PriceCalculator(): JSX.Element {
   const [segment, setSegment] = useState<TenantSegment>('mairie')
   const [count, setCount] = useState<number>(4)
 
-  const { monthly, setup, commit, annual } = useMemo(() => {
+  const { monthly, setup, commit, annual, locationsRevenueMonthly, netMonthly } = useMemo(() => {
     const cfg = PRICING[segment]
     const m = cfg.monthlyPerDist * count
     const s = cfg.setupPerDist * count
+    const tenantSharePerLoc = MARKETPLACE.citoyenForfait * MARKETPLACE.tenantShareRate
+    const locRevMonthly = count * LOCATIONS_PER_DIST_PER_DAY * 30 * tenantSharePerLoc
     return {
       monthly: m,
       setup: s,
       commit: cfg.commitMonths,
       annual: m * 12,
+      locationsRevenueMonthly: locRevMonthly,
+      netMonthly: m - locRevMonthly,
     }
   }, [segment, count])
 
@@ -86,8 +93,8 @@ export default function PriceCalculator(): JSX.Element {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-5">
-          <div className="text-xs uppercase tracking-[0.12em] text-brand-500 mb-2">
+        <div className="bg-white/5 border border-white/10 rounded-lg p-5">
+          <div className="text-xs uppercase tracking-[0.12em] text-white/40 mb-2">
             Abonnement mensuel HT
           </div>
           <div className="font-extrabold text-3xl text-white tabular-nums">
@@ -110,18 +117,36 @@ export default function PriceCalculator(): JSX.Element {
         </div>
       </div>
 
+      <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-5 mb-6">
+        <div className="text-xs uppercase tracking-[0.12em] text-brand-500 mb-2">
+          Revenu locations citoyens (votre part 75 %)
+        </div>
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <div className="font-extrabold text-3xl text-white tabular-nums">
+            ≈ {formatEur(locationsRevenueMonthly)}
+            <span className="text-base text-white/55 font-medium"> / mois</span>
+          </div>
+        </div>
+        <div className="text-xs text-white/55 mt-2 leading-relaxed font-light">
+          Hypothèse : {LOCATIONS_PER_DIST_PER_DAY} locations/jour/distributeur à 5 € forfait,
+          dont 75 % reversés (J+2 via Stripe Connect). Coût net mensuel après reversement :
+          <strong className="text-white font-medium"> {netMonthly > 0 ? formatEur(netMonthly) : '0 € (location couvre l\'abo)'}</strong>.
+        </div>
+      </div>
+
       <ul className="space-y-2 text-sm text-white/55 mb-6">
         <li>· Engagement {commit} mois</li>
-        <li>· Matériel sportif inclus, renouvellement compris</li>
+        <li>· Matériel sportif inclus, renouvellement initial compris</li>
         <li>· Maintenance, mises à jour OTA et hotline N2 incluses</li>
-        <li>· Aucun coût citoyen — le service est gratuit pour vos usagers</li>
+        <li>· Compte Stripe Connect Express créé à la mise en service</li>
       </ul>
 
       <a href="/contact" className="btn btn-primary w-full">
         Recevoir un devis personnalisé →
       </a>
       <p className="text-[0.7rem] text-white/30 text-center mt-3 italic">
-        Estimations indicatives. Tarif final selon configuration, distance et options.
+        Estimations indicatives. Revenu locations dépend du taux d'utilisation réel, qui prend
+        plusieurs mois à monter en charge. Tarif final selon configuration et options.
       </p>
     </div>
   )
