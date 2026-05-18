@@ -273,7 +273,9 @@ describe('POST /v1/admin/auth/login', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/v1/admin/auth/login',
-      payload: { firebaseIdToken: 'only.two-segments' },
+      // 2 segments seulement (pas 3) → indécodable comme JWT, mais ≥ 20 chars
+      // pour passer la validation Zod min(20).
+      payload: { firebaseIdToken: 'aaaaaaaaaa.bbbbbbbbbbb' },
     })
     expect(res.statusCode).toBe(401)
     expect(res.json().error).toBe('invalid_id_token')
