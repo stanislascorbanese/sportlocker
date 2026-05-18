@@ -578,6 +578,32 @@ export async function updateMaintenanceTicket(
   return MaintenanceTicket.parse(await res.json())
 }
 
+export const Invite = z.object({
+  token: z.string().min(20),
+  inviteUrl: z.string().url(),
+})
+
+export type Invite = z.infer<typeof Invite>
+
+export const InviteCreateInput = z.object({
+  email:     z.string().email().max(180),
+  communeId: z.string().uuid(),
+})
+
+export type InviteCreateInput = z.infer<typeof InviteCreateInput>
+
+export async function createInvite(input: InviteCreateInput): Promise<Invite> {
+  const body = InviteCreateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/invites`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return Invite.parse(await res.json())
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
     super(`API ${status}: ${detail}`)
