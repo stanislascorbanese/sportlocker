@@ -1,0 +1,67 @@
+---
+import Base from '@/layouts/Base.astro'
+import { SITE } from '@/data/site'
+---
+
+<Base
+  title="Mentions légales"
+  description="Mentions légales du site SportLocker."
+  noindex={true}
+>
+  <section class="pt-32 pb-20 sm:pt-40">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow">Mentions légales</span>
+      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Mentions légales</h1>
+
+      <div class="prose-invert text-white/70 font-light leading-relaxed space-y-7">
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Éditeur du site</h2>
+          <p>
+            {SITE.legalName}, société en cours d'immatriculation au RCS.<br/>
+            Siège social : adresse en cours de domiciliation.<br/>
+            Contact : <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline">{SITE.email}</a>
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Directeur de publication</h2>
+          <p>Stanislas Corbanèse, fondateur.</p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Hébergement</h2>
+          <p>
+            Railway Corp., 2261 Market Street #4382, San Francisco, CA 94114, USA.<br/>
+            <a href="https://railway.com" target="_blank" rel="noopener noreferrer" class="text-brand-500 hover:underline">railway.com</a>
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Propriété intellectuelle</h2>
+          <p>
+            L'ensemble des contenus de ce site (textes, images, code source) est la
+            propriété exclusive de {SITE.legalName}, sauf mention contraire.
+            Toute reproduction non autorisée est interdite.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Cookies</h2>
+          <p>
+            Ce site n'utilise aucun cookie de mesure d'audience ou de traçage publicitaire.
+            Seuls les cookies techniques strictement nécessaires au fonctionnement du formulaire
+            de contact peuvent être déposés.
+          </p>
+        </div>
+
+        <p class="text-xs text-white/40 pt-6">Document mis à jour pour la version v0.2 du site (mai 2026).</p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .prose-invert a {
+    transition: color 0.2s;
+  }
+</style>

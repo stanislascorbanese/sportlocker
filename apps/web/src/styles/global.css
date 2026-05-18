@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-navy-900 text-white font-sans;
+  }
+  ::selection {
+    @apply bg-brand-500/30 text-white;
+  }
+}
+
+@layer components {
+  .container-x {
+    @apply w-full max-w-container mx-auto px-6 sm:px-8;
+  }
+  .eyebrow {
+    @apply uppercase tracking-[0.14em] text-xs text-brand-500 font-medium;
+  }
+  .tag {
+    @apply inline-block uppercase tracking-[0.1em] text-[0.7rem] px-3.5 py-1.5 rounded-full border;
+  }
+  .tag-green {
+    @apply bg-brand-500/10 text-brand-500 border-brand-500/30;
+  }
+  .tag-white {
+    @apply bg-white/10 text-white/70 border-white/15;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-7 py-3.5 font-medium text-[0.95rem] transition-all whitespace-nowrap;
+  }
+  .btn-primary {
+    @apply bg-brand-500 text-white hover:bg-brand-600 hover:-translate-y-0.5;
+  }
+  .btn-outline {
+    @apply bg-transparent text-white border border-white/25 hover:border-white/60 hover:bg-white/5;
+  }
+  .btn-white {
+    @apply bg-white text-brand-700 hover:bg-white/90 font-semibold;
+  }
+  .btn-sm {
+    @apply px-5 py-2.5 text-sm;
+  }
+
+  .card-dark {
+    @apply bg-white/[0.04] border border-white/10 rounded-xl;
+  }
+  .card-light {
+    @apply bg-white border border-black/5 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)];
+  }
+
+  .section {
+    @apply py-24 sm:py-28;
+  }
+  .section-title {
+    @apply font-sans font-extrabold text-display-lg text-white tracking-tight;
+  }
+  .section-title-light {
+    @apply font-sans font-extrabold text-display-lg text-ink tracking-tight;
+  }
+  .section-sub {
+    @apply text-[1.05rem] leading-relaxed text-white/60 max-w-xl;
+  }
+  .section-sub-light {
+    @apply text-[1.05rem] leading-relaxed text-muted max-w-xl;
+  }
+
+  .link-quiet {
+    @apply text-white/60 hover:text-white transition-colors;
+  }
+}

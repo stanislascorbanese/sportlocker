@@ -1,0 +1,33 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "**/*.@(html)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
+      ]
+    },
+    {
+      "source": "_astro/**",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "**/*.@(svg|woff2|woff|png|jpg|jpeg|webp)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/mairies", "destination": "/mairies/index.html" },
+    { "source": "/campings", "destination": "/campings/index.html" },
+    { "source": "/tarifs", "destination": "/tarifs/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
+    { "source": "/comment-ca-marche", "destination": "/comment-ca-marche/index.html" },
+    { "source": "/mentions-legales", "destination": "/mentions-legales/index.html" },
+    { "source": "/confidentialite", "destination": "/confidentialite/index.html" }
+  ]
+}

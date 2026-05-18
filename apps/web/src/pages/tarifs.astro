@@ -1,0 +1,173 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import Faq from '@/components/Faq.astro'
+import PriceCalculator from '@/components/PriceCalculator.tsx'
+
+const included = [
+  {
+    icon: '⚽',
+    title: 'Matériel sportif fourni et renouvelé',
+    desc: 'Ballons, raquettes, frisbees, cordes, etc. Sélection adaptée à votre site. Remplacement inclus sans frais.',
+  },
+  {
+    icon: '🔒',
+    title: 'Distributeur antivandal IP54',
+    desc: 'Acier inox 2 mm, plage -10°C à +60°C. Garantie matérielle pendant toute la durée de l\'abonnement.',
+  },
+  {
+    icon: '📡',
+    title: 'Connectivité 4G M2M',
+    desc: 'SIM data illimitée incluse, gestion réseau transparente. Aucune ligne à souscrire de votre côté.',
+  },
+  {
+    icon: '🛠️',
+    title: 'Maintenance + hotline N2',
+    desc: 'Monitoring 24/7, intervention sur site sous 72h en cas de panne, mises à jour OTA automatiques.',
+  },
+  {
+    icon: '📊',
+    title: 'Dashboard temps réel',
+    desc: 'Vision live de votre flotte, stats d\'usage, gestion réservations abusives, exports comptables.',
+  },
+  {
+    icon: '🎓',
+    title: 'Formation + documentation',
+    desc: '1h de formation admin à la mise en service. Documentation opérationnelle PDF + accès base de connaissances.',
+  },
+]
+
+const notIncluded = [
+  'Travaux de génie civil (ancrage spécifique, dalle béton, arrivée électrique > 5m)',
+  'Wrapping personnalisé du distributeur (sticker logo simple inclus)',
+  'Caution citoyen (assumée par le citoyen, remboursée si retour en bon état)',
+  'Frais de transport hors Île-de-France au-delà de 200km (devis sur mesure)',
+]
+
+const faqTarifs = [
+  {
+    q: 'Pourquoi un engagement de 24 / 36 mois ?',
+    a: 'Le distributeur coûte 6 à 9 k€ à fabriquer. Pour vous proposer un prix mensuel raisonnable et sans gros CAPEX upfront, on amortit sur la durée. L\'engagement nous permet d\'absorber ce coût.',
+  },
+  {
+    q: 'Qui paie la caution citoyen ?',
+    a: 'Le citoyen, exclusivement. Au moment de l\'emprunt, sa CB est pré-autorisée (20 à 150 € selon l\'item). La caution est remboursée à 100% si le matériel revient en bon état. Capturée en cas de perte ou casse — vous ne portez aucun risque financier.',
+  },
+  {
+    q: 'Le matériel est-il à nous à la fin de l\'engagement ?',
+    a: 'Non. SportLocker reste propriétaire du distributeur (pour pouvoir intervenir, remplacer, monitorer). À la fin du contrat, on peut soit le retirer, soit renouveler. Option de rachat possible à l\'expiration sur devis.',
+  },
+  {
+    q: 'Y a-t-il une remise pour les déploiements multi-sites ?',
+    a: 'Oui — au-delà de 5 distributeurs simultanément, dégressivité tarifaire négociable. À partir de 10, on peut aussi inclure un module de stats avancées et un service account manager dédié.',
+  },
+  {
+    q: 'Comment se passe la facturation ?',
+    a: 'Facture mensuelle générée le 1er, prélèvement SEPA automatique J+10. Pour les collectivités, virement administratif possible avec mandat émis dans les délais légaux.',
+  },
+  {
+    q: 'Si on arrête en cours d\'engagement ?',
+    a: 'Indemnité de résiliation = 50% des mensualités restantes (clause standard SaaS). Dérogations possibles si la cessation est due à un défaut imputable à SportLocker (panne récurrente non résolue, etc.).',
+  },
+]
+---
+
+<Base
+  title="Tarifs — abonnement mensuel par distributeur"
+  description="SportLocker : abonnement SaaS tout inclus à partir de 400 € HT/mois par distributeur. Setup one-shot dès 850 €. Engagement 24 ou 36 mois. Calculateur de budget interactif."
+>
+  <!-- HEADER -->
+  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-green inline-block mb-6" data-reveal>Tarifs</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+          Un modèle simple :<br/>
+          <span class="text-brand-500">abonnement SaaS tout inclus.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light" data-reveal data-reveal-delay="2">
+          Pas de surprise. Pas de coût caché. Un setup one-shot, une mensualité fixe par distributeur,
+          tout est compris dedans — du matériel sportif aux mises à jour logicielles.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CALCULATEUR -->
+  <section class="py-12 sm:py-16 bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-10">
+        <span class="eyebrow" data-reveal>Calculateur</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Estimez votre budget
+        </h2>
+      </div>
+      <div data-reveal data-reveal-delay="2">
+        <PriceCalculator client:load />
+      </div>
+    </div>
+  </section>
+
+  <!-- INCLUS -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Ce qui est inclus</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Tout. Vraiment tout.
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          L'abonnement mensuel couvre l'ensemble du service. Aucun renouvellement matériel,
+          aucune intervention, aucune mise à jour à payer en plus.
+        </p>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
+        {included.map((it, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-2xl mb-5">
+              {it.icon}
+            </div>
+            <h3 class="font-bold text-white text-base mb-2.5">{it.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{it.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div class="card-dark p-7 sm:p-9 max-w-3xl mx-auto" data-reveal>
+        <div class="text-xs uppercase tracking-[0.12em] text-white/40 mb-4">
+          Ce qui n'est PAS inclus
+        </div>
+        <ul class="space-y-3">
+          {notIncluded.map((item) => (
+            <li class="flex items-start gap-3 text-sm text-white/65 font-light">
+              <span class="text-white/30 mt-0.5 shrink-0">·</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>Questions fréquentes</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Tout ce qu'on nous demande<br/>sur le pricing
+        </h2>
+      </div>
+      <Faq items={faqTarifs} />
+    </div>
+  </section>
+
+  <FinalCta
+    title="Un devis chiffré sous 48h."
+    sub="Donnez-nous votre configuration cible (nb distributeurs, type de site, options) et on revient avec un devis ferme."
+    primary={{ href: '/contact', label: 'Demander un devis détaillé' }}
+    secondary={{ href: '/comment-ca-marche', label: 'Voir le parcours d\'installation' }}
+  />
+</Base>

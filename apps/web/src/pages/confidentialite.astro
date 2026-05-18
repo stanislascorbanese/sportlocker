@@ -1,0 +1,74 @@
+---
+import Base from '@/layouts/Base.astro'
+import { SITE } from '@/data/site'
+---
+
+<Base
+  title="Politique de confidentialité"
+  description="Politique de confidentialité et traitement des données personnelles SportLocker."
+  noindex={true}
+>
+  <section class="pt-32 pb-20 sm:pt-40">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow">Confidentialité</span>
+      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Politique de confidentialité</h1>
+
+      <div class="text-white/70 font-light leading-relaxed space-y-7">
+        <p class="text-white/55 italic">Dernière mise à jour : mai 2026.</p>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Responsable de traitement</h2>
+          <p>
+            {SITE.legalName}.
+            Contact DPO : <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline">{SITE.email}</a>
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Données collectées via le formulaire</h2>
+          <p>
+            Lors d'une demande de devis, nous collectons : nom de l'organisation, localité,
+            type d'établissement, nombre estimé de distributeurs, email professionnel, numéro
+            de téléphone, et message libre. Ces données sont strictement utilisées pour
+            répondre à votre demande commerciale.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Sous-traitants</h2>
+          <ul class="list-disc list-inside space-y-1.5">
+            <li><strong class="text-white/85">Web3Forms</strong> — transmission du formulaire vers notre email professionnel</li>
+            <li><strong class="text-white/85">Railway</strong> — hébergement du site (USA, Privacy Shield)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Durée de conservation</h2>
+          <p>
+            Les demandes de devis sont conservées 3 ans à compter de notre dernier échange,
+            au titre de la prospection commerciale (CNIL recommandation B2B).
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Vos droits</h2>
+          <p>
+            Vous disposez à tout moment d'un droit d'accès, de rectification, d'effacement
+            et de portabilité de vos données. Pour exercer ces droits, écrivez à
+            <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline ml-1">{SITE.email}</a>.
+            Vous pouvez également introduire une réclamation auprès de la CNIL.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Cookies & traceurs</h2>
+          <p>
+            Ce site n'utilise aucun cookie de mesure d'audience, de profilage ou de
+            traçage publicitaire. Aucun consentement n'est requis pour le simple
+            affichage des pages.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
