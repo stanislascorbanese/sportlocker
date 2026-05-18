@@ -1,0 +1,328 @@
+---
+import Base from '@/layouts/Base.astro'
+import Hero from '@/components/Hero.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import Faq from '@/components/Faq.astro'
+
+const problems = [
+  {
+    n: '34%',
+    label: 'des pratiquants renoncent à une session par manque de matériel',
+  },
+  { n: '8%', label: 'des communes proposent un prêt de matos au guichet' },
+  { n: '0€', label: 'de budget exploitation après la construction du terrain' },
+  { n: '24/7', label: 'à couvrir — pas avec un agent municipal' },
+]
+
+const pillars = [
+  {
+    icon: '🔓',
+    title: 'Libre-service 24/7',
+    desc: 'Vos usagers empruntent en 30 secondes, à toute heure, sans gardien ni accueil dédié.',
+  },
+  {
+    icon: '🛠️',
+    title: 'Zéro personnel à mobiliser',
+    desc: 'Maintenance, hotline, mises à jour : tout est inclus dans l\'abonnement. Vous ne gérez rien.',
+  },
+  {
+    icon: '📊',
+    title: 'Données d\'usage en temps réel',
+    desc: 'Tableau de bord opérateur : fréquentation, items les plus loués, pic horaire, alertes.',
+  },
+]
+
+const segments = [
+  {
+    href: '/mairies',
+    icon: '🏛️',
+    title: 'Pour les mairies',
+    desc: 'Service citoyen 24/7 sur vos parcs et bases sportives. Image dynamique, OPEX maîtrisé, conformité achat public.',
+    cta: 'Solution mairies',
+  },
+  {
+    href: '/campings',
+    icon: '⛺',
+    title: 'Pour les campings',
+    desc: 'Animation autonome hors horaires accueil. Plus de satisfaction client, zéro charge supplémentaire pour vos équipes.',
+    cta: 'Solution campings',
+  },
+]
+
+const citoyenSteps = [
+  { n: '01', title: 'Je trouve un casier', desc: 'L\'app affiche les distributeurs proches avec le stock en temps réel.' },
+  { n: '02', title: 'Je réserve sur l\'app', desc: 'Sélection du matériel, caution affichée transparente, validation Apple/Google Pay.' },
+  { n: '03', title: 'J\'ouvre avec mon QR', desc: 'Scan devant le casier, ouverture en moins d\'une seconde. Fonctionne sans réseau.' },
+]
+
+const clientSteps = [
+  { n: '01', title: 'Devis personnalisé', desc: 'Visite ou call de 15 min, étude du site, devis sous 48h.' },
+  { n: '02', title: 'Visite technique', desc: 'Repérage des emplacements, alimentation électrique, signalétique.' },
+  { n: '03', title: 'Installation clé en main', desc: 'Pose, configuration, formation du responsable de site.' },
+  { n: '04', title: 'Lancement', desc: 'Mise en service, communication usagers, suivi à 30 / 60 / 90 jours.' },
+]
+
+const competitors = [
+  {
+    name: 'Decathlon Rent',
+    model: 'Location en magasin, horaires limités',
+    diff: 'SportLocker = 24/7, sans personnel, sur vos terrains.',
+  },
+  {
+    name: 'Equip (paddle libre-service)',
+    model: 'Niche paddle, marché local',
+    diff: 'SportLocker = catalogue multi-sport, déploiement national.',
+  },
+  {
+    name: 'Locations municipales classiques',
+    model: 'Manuel, accueil mairie aux horaires d\'ouverture',
+    diff: 'SportLocker = automatisé, scalable, gratuit pour le citoyen.',
+  },
+]
+
+const faq = [
+  {
+    q: 'Combien ça coûte pour ma commune / mon site ?',
+    a: 'À partir de 400 € HT/mois par distributeur, tout inclus (matériel sportif, maintenance, support, mises à jour). Plus de détails sur la page tarifs ou demandez un devis personnalisé.',
+  },
+  {
+    q: 'Qui paie le matériel sportif (ballons, raquettes, etc.) ?',
+    a: 'C\'est compris dans l\'abonnement mensuel. Nous fournissons et renouvelons le matériel selon votre besoin, sans frais additionnels.',
+  },
+  {
+    q: 'Et si un usager casse ou ne rend pas le matériel ?',
+    a: 'Le citoyen verse une caution Stripe au moment de l\'emprunt (de 20 à 150 €). Elle est capturée automatiquement en cas de perte ou dégradation. Vous n\'avez aucun risque financier sur le matériel.',
+  },
+  {
+    q: 'Le service est-il gratuit pour mes usagers ?',
+    a: 'Oui, totalement. Le citoyen ne paie que la caution de sécurité, qui lui est remboursée à 100 % si le matériel est rendu en bon état.',
+  },
+  {
+    q: 'Quel est le délai de mise en service ?',
+    a: 'De la signature à la mise en service : 4 à 6 semaines en moyenne. Cela inclut la fabrication, l\'installation et la formation.',
+  },
+  {
+    q: 'Que se passe-t-il s\'il n\'y a pas de réseau au moment du scan ?',
+    a: 'Le QR code est signé localement par l\'app (JWT HS256). Le casier le valide hors-ligne pendant 24h grâce à son cache embarqué. L\'ouverture fonctionne même sans 4G.',
+  },
+]
+---
+
+<Base
+  title="Distributeurs de matériel sportif en libre-service 24/7"
+  description="SportLocker installe des distributeurs IoT de matériel sportif sur vos sites. Solution clé en main pour mairies, campings et hôtels. Gratuit pour les usagers, sans personnel à mobiliser."
+>
+  <Hero
+    tag="Premier réseau en France · 2026"
+    title="Le sport en libre-service,"
+    highlight="24/7, pour vos administrés."
+    desc="SportLocker installe des distributeurs connectés sur vos terrains publics, campings et hôtels. Vos usagers empruntent ballon, raquette ou corde à sauter en 30 secondes — 24h/24, sans agent, sans guichet."
+    primary={{ href: '/contact', label: 'Demander un devis' }}
+    secondary={{ href: '/comment-ca-marche', label: 'Voir comment ça marche' }}
+  >
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 mt-16 pt-10 border-t border-white/10 max-w-2xl" data-reveal data-reveal-delay="4">
+      <div>
+        <div class="font-extrabold text-3xl text-white">300<span class="text-brand-500">k</span></div>
+        <div class="text-xs text-white/45 mt-1">Terrains publics<br/>en France</div>
+      </div>
+      <div>
+        <div class="font-extrabold text-3xl text-white">95<span class="text-brand-500">%</span></div>
+        <div class="text-xs text-white/45 mt-1">Sans matériel<br/>disponible sur place</div>
+      </div>
+      <div>
+        <div class="font-extrabold text-3xl text-white">0</div>
+        <div class="text-xs text-white/45 mt-1">Concurrent direct<br/>identifié en France</div>
+      </div>
+      <div>
+        <div class="font-extrabold text-3xl text-white">30<span class="text-brand-500">s</span></div>
+        <div class="text-xs text-white/45 mt-1">Pour emprunter<br/>du matériel</div>
+      </div>
+    </div>
+  </Hero>
+
+  <!-- PROBLÈME -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="grid lg:grid-cols-2 gap-14 items-center">
+        <div>
+          <span class="eyebrow" data-reveal>Le constat</span>
+          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+            Vos terrains sont là.<br/>Le matériel n'y est pas.
+          </h2>
+          <p class="section-sub" data-reveal data-reveal-delay="2">
+            La France a investi des milliards dans des équipements sportifs de proximité.
+            Mais sans ballon, sans raquette, sans corde à sauter, ils restent sous-utilisés.
+            Et personne n'a le budget pour mettre un agent dédié 7j/7.
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-3" data-reveal data-reveal-delay="3">
+          {problems.map((p) => (
+            <div class="card-dark p-5">
+              <div class="font-extrabold text-3xl text-brand-500">{p.n}</div>
+              <div class="text-xs text-white/50 mt-1.5 font-light leading-relaxed">{p.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOLUTION 3 PILIERS -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Notre réponse</span>
+        <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
+          Une infrastructure prête à l'emploi
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Trois piliers pour transformer vos sites en services sportifs autonomes.
+        </p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        {pillars.map((p, i) => (
+          <div class="card-dark p-8 hover:border-brand-500/30 transition-colors" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-2xl mb-5">
+              {p.icon}
+            </div>
+            <h3 class="font-extrabold text-lg text-white mb-3">{p.title}</h3>
+            <p class="text-sm text-white/55 leading-relaxed font-light">{p.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- POUR QUI -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Pour qui</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Conçu pour deux mondes,<br/>une même promesse.
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-2 gap-5">
+        {segments.map((s, i) => (
+          <a
+            href={s.href}
+            class="card-dark p-10 hover:border-brand-500/40 hover:bg-white/[0.06] transition-all group"
+            data-reveal
+            data-reveal-delay={String(i + 1)}
+          >
+            <div class="text-5xl mb-5">{s.icon}</div>
+            <h3 class="font-extrabold text-2xl text-white mb-3">{s.title}</h3>
+            <p class="text-white/60 mb-6 font-light leading-relaxed">{s.desc}</p>
+            <span class="inline-flex items-center gap-2 text-brand-500 font-medium text-sm group-hover:gap-3 transition-all">
+              {s.cta} <span>→</span>
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENT ÇA MARCHE TEASER -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Comment ça marche</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          De zéro à la pratique<br/>en 30 secondes.
+        </h2>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-10">
+        <div data-reveal>
+          <div class="text-xs uppercase tracking-[0.14em] text-white/40 mb-5">Côté usager</div>
+          <ol class="space-y-4">
+            {citoyenSteps.map((s) => (
+              <li class="card-dark p-5 flex gap-4">
+                <div class="font-extrabold text-2xl text-brand-500/40 leading-none w-10 shrink-0">{s.n}</div>
+                <div>
+                  <div class="font-bold text-white mb-1">{s.title}</div>
+                  <div class="text-sm text-white/50 font-light">{s.desc}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div data-reveal data-reveal-delay="1">
+          <div class="text-xs uppercase tracking-[0.14em] text-white/40 mb-5">Côté établissement</div>
+          <ol class="space-y-4">
+            {clientSteps.map((s) => (
+              <li class="card-dark p-5 flex gap-4">
+                <div class="font-extrabold text-2xl text-brand-500/40 leading-none w-10 shrink-0">{s.n}</div>
+                <div>
+                  <div class="font-bold text-white mb-1">{s.title}</div>
+                  <div class="text-sm text-white/50 font-light">{s.desc}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      <div class="text-center mt-12">
+        <a href="/comment-ca-marche" class="btn btn-outline">Voir le détail complet →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING TEASER -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="card-dark p-10 sm:p-14 max-w-4xl mx-auto text-center">
+        <span class="eyebrow" data-reveal>Tarification</span>
+        <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+          À partir de <span class="text-brand-500">400 € / mois</span> par distributeur
+        </h2>
+        <p class="section-sub mx-auto mb-8 text-center" data-reveal data-reveal-delay="2">
+          Tout inclus : matériel sportif renouvelé, maintenance, hotline N2, mises à jour OTA.
+          Setup one-shot dès 850 € selon configuration.
+        </p>
+        <div class="flex items-center justify-center gap-3 flex-wrap">
+          <a href="/tarifs" class="btn btn-primary">Calculer mon budget →</a>
+          <a href="/contact" class="btn btn-outline">Demander un devis</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONCURRENCE -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Différenciation</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Aucun équivalent<br/>multi-sport 24/7 en France.
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        {competitors.map((c, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="font-extrabold text-white mb-2">{c.name}</div>
+            <div class="text-xs text-white/40 uppercase tracking-wider mb-4">{c.model}</div>
+            <div class="text-sm text-brand-500 font-light leading-relaxed">{c.diff}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>Questions fréquentes</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Les questions qu'on nous pose le plus
+        </h2>
+      </div>
+      <Faq items={faq} />
+    </div>
+  </section>
+
+  <FinalCta />
+</Base>
