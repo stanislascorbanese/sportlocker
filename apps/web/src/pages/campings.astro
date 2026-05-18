@@ -27,7 +27,7 @@ const arguments_ = [
   {
     icon: '🛡️',
     title: 'Aucun risque sur le matériel',
-    desc: 'Caution citoyen via Stripe (20-150 €) capturée automatiquement en cas de perte. Vous n\'avancez jamais le coût.',
+    desc: 'Caution citoyen via Stripe (30 à 150 € selon l\'item) capturée par vous en cas de dégradation. Vous n\'avancez jamais le coût matériel sur un cas d\'usage normal.',
   },
   {
     icon: '📊',
@@ -57,7 +57,7 @@ const usecases = [
 const faqCamping = [
   {
     q: 'Pas trop cher pour un camping ?',
-    a: 'À partir de 400 € HT/mois pour 1 distributeur, soit 12 € par jour en pleine saison. Si chaque jour un seul campeur emprunte (ce qui est très en-dessous des chiffres réels), le ROI est presque immédiat via la satisfaction client et les avis Google.',
+    a: 'Abonnement à partir de 400 € HT/mois par distributeur. En contrepartie, les locations citoyens (5 € forfait journée) vous reversent 75 % à J+2 via Stripe Connect. Sur un distributeur mature, le revenu locations couvre 50 à 70 % de l\'abonnement — sans compter le boost de satisfaction client et d\'avis Google.',
   },
   {
     q: 'Le service reste-t-il dispo quand l\'accueil ferme ?',
@@ -82,7 +82,7 @@ const faqCamping = [
 ]
 
 const proofs = [
-  { n: '92%', label: 'des campeurs apprécient un service de prêt sport gratuit (étude FFCC 2025)' },
+  { n: '92%', label: 'des campeurs apprécient un service de prêt sport sur place (étude FFCC 2025)' },
   { n: '+0.4★', label: 'note moyenne Google après ajout d\'un service en libre-service' },
   { n: '24-48h', label: 'pour activer/désactiver le distributeur entre deux saisons' },
 ]
@@ -108,7 +108,7 @@ const proofs = [
           ce qu'elle fait de mieux : l'accueil.
         </p>
         <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
-          <a href="/contact" class="btn btn-primary">Demander un devis camping →</a>
+          <a href="/contact?type=camping" class="btn btn-primary">Demander un devis camping →</a>
           <a href="#simulation" class="btn btn-outline">Voir la simulation</a>
         </div>
       </div>
@@ -188,7 +188,7 @@ const proofs = [
             Configuration médiane camping 3★/4★ : 2 distributeurs (1 sport, 1 enfants/plage).
             Activation pleine saison (mai → septembre), pause hors saison gratuite.
           </p>
-          <a href="/contact" class="btn btn-primary" data-reveal data-reveal-delay="3">
+          <a href="/contact?type=camping" class="btn btn-primary" data-reveal data-reveal-delay="3">
             Simulation pour mon camping →
           </a>
         </div>
@@ -218,13 +218,17 @@ const proofs = [
               <span class="text-brand-500 font-medium tabular-nums">0 € / mois</span>
             </div>
             <div class="flex justify-between text-sm">
-              <span class="text-white/55 font-light">Coût annuel total</span>
-              <span class="text-white font-medium tabular-nums">4 250 €</span>
+              <span class="text-white/55 font-light">Revenu locations citoyens (75% × 5 mois)</span>
+              <span class="text-brand-500 font-medium tabular-nums">+ 1 125 € est.</span>
+            </div>
+            <div class="flex justify-between text-sm pt-2 border-t border-white/5">
+              <span class="text-white/85 font-medium">Coût annuel net</span>
+              <span class="text-white font-medium tabular-nums">~ 3 125 €</span>
             </div>
             <div class="mt-5 p-4 rounded-lg bg-brand-500/10 border border-brand-500/30">
-              <div class="text-xs text-brand-500 font-medium mb-1">≈ 21 € / emplacement / an</div>
+              <div class="text-xs text-brand-500 font-medium mb-1">≈ 15 € / emplacement / an net</div>
               <div class="text-[0.7rem] text-white/50 leading-relaxed font-light">
-                Soit ~0,30€ par nuitée pour un camping fonctionnant à 70% sur 5 mois. Largement compensé par la hausse de satisfaction.
+                Soit ~0,22€ par nuitée pour un camping fonctionnant à 70% sur 5 mois. Largement compensé par la hausse de satisfaction.
               </div>
             </div>
           </div>
@@ -253,7 +257,7 @@ const proofs = [
   <FinalCta
     title="Boostez l'expérience de vos campeurs."
     sub="Un appel de 15 min pour cadrer la configuration adaptée à votre camping et le timing avant la saison."
-    primary={{ href: '/contact', label: 'Demander un devis pour mon camping' }}
+    primary={{ href: '/contact?type=camping', label: 'Demander un devis pour mon camping' }}
     secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
     fine="Réponse sous 24h ouvrées · Devis sans engagement · Pose avant ouverture haute saison garantie si signature avant mars"
   />

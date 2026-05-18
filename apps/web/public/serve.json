@@ -24,6 +24,7 @@
   "rewrites": [
     { "source": "/mairies", "destination": "/mairies/index.html" },
     { "source": "/campings", "destination": "/campings/index.html" },
+    { "source": "/hotels", "destination": "/hotels/index.html" },
     { "source": "/tarifs", "destination": "/tarifs/index.html" },
     { "source": "/contact", "destination": "/contact/index.html" },
     { "source": "/comment-ca-marche", "destination": "/comment-ca-marche/index.html" },
