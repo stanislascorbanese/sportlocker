@@ -8,13 +8,22 @@ import { redis } from '../redis/client.js'
 export async function healthRoutes(app: FastifyInstance) {
   app.get('/', {
     schema: {
+      tags: ['Health'],
+      summary: 'Liveness probe',
+      description: 'Renvoie 200 si le process tourne. Utilisé par l\'orchestrateur (ECS task health check).',
       response: {
         200: z.object({ status: z.literal('ok'), uptime: z.number() }),
       },
     },
   }, async () => ({ status: 'ok' as const, uptime: process.uptime() }))
 
-  app.get('/ready', async (_req, reply) => {
+  app.get('/ready', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Readiness probe (DB + Redis)',
+      description: 'Vérifie que la DB répond à un `SELECT 1` et que Redis ping → PONG. 503 si une dépendance est down.',
+    },
+  }, async (_req, reply) => {
     try {
       await db.execute(sql`SELECT 1`)
       const pong = await redis.ping()

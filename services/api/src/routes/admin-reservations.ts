@@ -128,11 +128,18 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
   app.get('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Réservations'],
+      summary: 'Liste paginée des réservations (admin)',
+      description: 'Tri DESC createdAt + id (tiebreaker). Pagination cursor opaque `<iso8601>_<uuid>`. '
+        + 'Admin scopé : ne voit que les distributeurs de sa commune. Super_admin : toutes.\n\n'
+        + '**Exemple** : `GET /v1/admin/reservations?status=active&distributorId=…&limit=20`\n\n'
+        + '**Filtres** : `status`, `distributorId`, `from`/`to` (YYYY-MM-DD, fenêtre sur created_at).',
+      security: [{ bearerAuth: [] }],
       querystring: ListQuery,
       response: {
         200: z.object({
           items: z.array(ReservationAdminDTO),
-          nextCursor: z.string().nullable(),
+          nextCursor: z.string().nullable().describe('Cursor à passer en query `cursor=...` pour la page suivante. Null si fin.'),
         }),
         401: ErrorDTO, 403: ErrorDTO,
       },
@@ -218,6 +225,14 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
   app.get('/export.csv', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Réservations'],
+      summary: 'Export CSV des réservations',
+      description: '**Réponse non-JSON** : `Content-Type: text/csv; charset=utf-8` avec BOM UTF-8 + CRLF (RFC 4180). '
+        + 'Limite dure 10 000 lignes. Mêmes filtres que la liste (status, distributorId, from, to) mais pas de pagination. '
+        + 'Le filename intègre la fenêtre demandée : `reservations-2026-05-01_2026-05-19.csv`.\n\n'
+        + 'Colonnes : id, created_at, status, user_email, user_name, distributor_name, distributor_serial, '
+        + 'item_type, expires_at, opened_at, due_at, returned_at, extension_count, cancellation_reason.',
+      security: [{ bearerAuth: [] }],
       querystring: ExportQuery,
     },
   }, async (req, reply) => {
@@ -322,6 +337,11 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
   app.get('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Réservations'],
+      summary: 'Détail réservation + timeline événements',
+      description: 'Renvoie la réservation enrichie (user, distributeur, item) + sa timeline `locker_events` '
+        + '(tri ASC). Pour le drawer admin. Un admin scopé hors commune reçoit 404 (pas 403).',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       response: {
         200: ReservationDetailDTO,
@@ -417,8 +437,21 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
   app.post('/:id/force-cancel', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Réservations'],
+      summary: 'Annulation forcée (admin)',
+      description: 'Diffère de `POST /v1/reservations/:id/cancel` (user-facing) :\n'
+        + '- accepte `pending` ET `active` (le user-facing n\'accepte que `pending`)\n'
+        + '- libère le casier (state=idle)\n'
+        + '- inscrit un `locker_event` avec source=`admin`\n'
+        + '- `cancellation_reason` = body.reason (sinon `admin_force_cancel`)\n\n'
+        + '**Erreurs** : 404 `reservation_not_found` · 409 `reservation_already_terminal` (cancelled/expired/returned).\n\n'
+        + '**Exemple body** : `{ "reason": "user_signaled_lost_phone" }`',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
-      body: z.object({ reason: z.string().min(4).max(500).optional() }).optional(),
+      body: z.object({
+        reason: z.string().min(4).max(500).optional()
+          .describe('Raison de l\'annulation (loggée dans cancellation_reason + metadata event)'),
+      }).optional(),
       response: {
         200: ReservationDetailDTO,
         401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO, 409: ErrorDTO,
