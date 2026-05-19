@@ -1,5 +1,5 @@
 import type {
-  AdminUser, Commune, DailyPoint, MaintenanceTicket, Reservation,
+  AdminUser, AuditEvent, Commune, DailyPoint, MaintenanceTicket, Reservation,
   ReservationDetail, ReservationEvent, StatsDashboard,
 } from './api'
 
@@ -591,3 +591,83 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
     assignee: null,
   },
 ]
+
+// ─── Audit / Activité ────────────────────────────────────────────────────────
+
+/** Distributeurs étendus avec un communeId pour les events d'audit démo. */
+const DEMO_AUDIT_DISTRIBUTORS = [
+  { ...DEMO_DISTRIBUTORS[0], communeId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01' },
+  { ...DEMO_DISTRIBUTORS[1], communeId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01' },
+  { ...DEMO_DISTRIBUTORS[2], communeId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01' },
+  { ...DEMO_DISTRIBUTORS[3], communeId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee02' },
+] as const
+
+const DEMO_LOCKERS = [
+  { id: '99999999-0000-0000-0000-000000000001', position: 1 },
+  { id: '99999999-0000-0000-0000-000000000002', position: 2 },
+  { id: '99999999-0000-0000-0000-000000000003', position: 3 },
+  { id: '99999999-0000-0000-0000-000000000004', position: 4 },
+  { id: '99999999-0000-0000-0000-000000000005', position: 5 },
+  { id: '99999999-0000-0000-0000-000000000006', position: 6 },
+] as const
+
+/**
+ * Stream d'audit fictif — ~15 events plausibles couvrant la majorité des
+ * scénarios attendus (cycle nominal réservation/ouverture/retour, plus
+ * un cancelled source='admin' significatif pour la RGPD, une extension,
+ * un fault et une maintenance). Tri DESC createdAt (plus récent en premier).
+ */
+export function demoAuditEvents(): AuditEvent[] {
+  let counter = 0
+  const event = (
+    minutesAgo: number,
+    eventType: AuditEvent['eventType'],
+    source: AuditEvent['source'],
+    distributorIdx: 0 | 1 | 2 | 3,
+    lockerIdx: 0 | 1 | 2 | 3 | 4 | 5,
+    metadata: Record<string, unknown> = {},
+    userEmail: string | null = null,
+  ): AuditEvent => {
+    counter += 1
+    const dist = DEMO_AUDIT_DISTRIBUTORS[distributorIdx]
+    const lock = DEMO_LOCKERS[lockerIdx]
+    return {
+      id: `eeeeeeee-0000-0000-0000-${counter.toString().padStart(12, '0')}`,
+      eventType,
+      source,
+      metadata,
+      createdAt: isoMinutesAgo(minutesAgo),
+      locker: { id: lock.id, position: lock.position },
+      distributor: {
+        id: dist.id,
+        name: dist.name,
+        serialNumber: dist.serialNumber,
+        communeId: dist.communeId,
+      },
+      reservation: userEmail
+        ? {
+            id: `cccccccc-cccc-cccc-cccc-${counter.toString().padStart(12, '0')}`,
+            userEmail,
+          }
+        : null,
+    }
+  }
+
+  return [
+    event(2,    'reserved',    'api',      0, 0, { itemTypeId: 'bbb...basket' },                'alice.martin@example.fr'),
+    event(7,    'opened',      'firmware', 1, 1, { rssi: -62, latencyMs: 145 },                  'paul.durand@example.fr'),
+    event(15,   'returned',    'firmware', 0, 0, { onTime: true, durationMin: 47 },              'alice.martin@example.fr'),
+    event(28,   'extended',    'api',      2, 2, { extensionCount: 1, addedMinutes: 60 },        'leila.benali@example.fr'),
+    event(42,   'cancelled',   'admin',    3, 3, { reason: 'admin_force_cancel', operator: 'stanislas@sportlocker.fr' }, 'thomas.lefebvre@example.fr'),
+    event(55,   'opened',      'firmware', 1, 4, { rssi: -71 },                                  'sophie.r@example.fr'),
+    event(70,   'returned',    'firmware', 1, 4, { onTime: true, durationMin: 33 },              'sophie.r@example.fr'),
+    event(95,   'fault',       'firmware', 2, 5, { code: 'SOLENOID_TIMEOUT', attempts: 3 },      null),
+    event(110,  'reserved',    'api',      0, 1, { itemTypeId: 'bbb...tennis' },                 'paul.durand@example.fr'),
+    event(125,  'maintenance', 'admin',    2, 5, { ticketId: 'dddddddd-...-d01', severity: 5 },  null),
+    event(150,  'expired',     'system',   3, 3, { afterMinutes: 15 },                           'leila.benali@example.fr'),
+    event(180,  'opened',      'firmware', 0, 0, { rssi: -58 },                                  'thomas.lefebvre@example.fr'),
+    event(220,  'cancelled',   'api',      3, 3, { reason: 'user_cancel' },                      'alice.martin@example.fr'),
+    event(280,  'returned',    'firmware', 0, 0, { onTime: false, lateMinutes: 12 },             'thomas.lefebvre@example.fr'),
+    event(360,  'reserved',    'api',      2, 2, { itemTypeId: 'bbb...frisbee' },                'leila.benali@example.fr'),
+  ]
+}
