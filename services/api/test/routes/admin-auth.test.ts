@@ -280,6 +280,252 @@ describe('POST /v1/admin/auth/login', () => {
     expect(res.statusCode).toBe(401)
     expect(res.json().error).toBe('invalid_id_token')
   })
+
+  it('admin sans communeId → 200 + JWT sans communeId (bug potentiel : le code ne refuse pas)', async () => {
+    // Cas non protégé par admin-auth.ts : un user role=admin mais communeId=NULL
+    // passe la validation et reçoit un JWT session SANS communeId, ce qui
+    // peut bypass le scoping commune sur d'autres routes. À surveiller.
+    const u = await seedUser({
+      role: 'admin',
+      email: 'orphan-admin@test.local',
+      firebaseUid: 'fb-orphan-admin',
+      // pas de communeId
+    })
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-orphan-admin',
+      email: 'orphan-admin@test.local',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: 'a'.repeat(30) },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.user.id).toBe(u.id)
+    expect(body.user.role).toBe('admin')
+    expect(body.user.communeId).toBeNull()
+
+    const decoded = app.jwt.verify(body.sessionToken) as {
+      sub: string
+      role: string
+      communeId?: string
+    }
+    expect(decoded.communeId).toBeUndefined()
+  })
+
+  it('user role=operator (DEPRECATED) → 401 not_an_admin', async () => {
+    const communeId = await seedCommune('CommuneOp')
+    await seedUser({
+      role: 'operator',
+      email: 'op@test.local',
+      firebaseUid: 'fb-operator',
+      communeId,
+    })
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-operator',
+      email: 'op@test.local',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error).toBe('not_an_admin')
+  })
+
+  it('réponse 200 contient bien { sessionToken, user{id,email,role,communeId} }', async () => {
+    const communeId = await seedCommune('CompletShape')
+    const u = await seedUser({
+      role: 'admin',
+      email: 'shape@test.local',
+      firebaseUid: 'fb-shape',
+      communeId,
+    })
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-shape',
+      email: 'shape@test.local',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(Object.keys(body).sort()).toEqual(['sessionToken', 'user'])
+    expect(Object.keys(body.user).sort()).toEqual(['communeId', 'email', 'id', 'role'])
+    expect(body.user.id).toBe(u.id)
+    expect(body.user.email).toBe('shape@test.local')
+    expect(body.user.role).toBe('admin')
+    expect(body.user.communeId).toBe(communeId)
+    expect(typeof body.sessionToken).toBe('string')
+    expect(body.sessionToken.split('.')).toHaveLength(3)
+  })
+
+  it('Firebase secure échoue + JWT décodable + NODE_ENV=test → fallback unsafe accepte', async () => {
+    // Quand verifyIdToken rejette, le code essaie decodeFirebaseTokenUnsafe
+    // tant que NODE_ENV !== 'production'. On forge un JWT base64url valide
+    // avec sub correspondant à un admin DB → login accepté.
+    const communeId = await seedCommune('Fallback')
+    const u = await seedUser({
+      role: 'admin',
+      email: 'fallback@test.local',
+      firebaseUid: 'fb-fallback-dev',
+      communeId,
+    })
+
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({
+      sub: 'fb-fallback-dev',
+      email: 'fallback@test.local',
+    })).toString('base64url')
+    const forgedToken = `${header}.${payload}.sigsigsigsigsigsig`
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('bad signature'),
+    )
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: forgedToken },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.user.id).toBe(u.id)
+    expect(body.user.communeId).toBe(communeId)
+  })
+
+  it('Firebase secure échoue + NODE_ENV=production → pas de fallback → 401', async () => {
+    // On force temporairement env.NODE_ENV='production' pour vérifier que
+    // le fallback decodeFirebaseTokenUnsafe est désactivé en prod.
+    const { env } = await import('../../src/config/env.js')
+    const previousEnv = env.NODE_ENV
+    ;(env as { NODE_ENV: string }).NODE_ENV = 'production'
+
+    try {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({
+        sub: 'fb-prod-attacker',
+        email: 'attacker@evil.com',
+      })).toString('base64url')
+      const forgedToken = `${header}.${payload}.sig`
+
+      const firebase = (await import('firebase-admin')).default
+      ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('bad signature'),
+      )
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/admin/auth/login',
+        payload: { firebaseIdToken: forgedToken },
+      })
+      expect(res.statusCode).toBe(401)
+      expect(res.json().error).toBe('invalid_id_token')
+    } finally {
+      ;(env as { NODE_ENV: string }).NODE_ENV = previousEnv
+    }
+  })
+
+  it('JWT décodable mais payload sans sub → 401 invalid_id_token', async () => {
+    // decodeFirebaseTokenUnsafe exige typeof sub === 'string'. Sans sub →
+    // retourne null → 401.
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({
+      email: 'no-sub@test.local',
+    })).toString('base64url')
+    const forgedToken = `${header}.${payload}.sig`
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('bad signature'),
+    )
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: forgedToken },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error).toBe('invalid_id_token')
+  })
+
+  it('Firebase rejette (token expiré côté Firebase) + token non décodable → 401', async () => {
+    // Simule un cas réel : Firebase rejette pour token expiré (auth/id-token-expired)
+    // et le payload n'est pas un JWT valide → 401.
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      Object.assign(new Error('Firebase ID token has expired'), { code: 'auth/id-token-expired' }),
+    )
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: 'not-a-jwt-just-padding-to-pass-min20' },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error).toBe('invalid_id_token')
+  })
+
+  it('BUG POTENTIEL : admin avec gdpr_deleted_at non null → le code accepte (devrait refuser)', async () => {
+    // admin-auth.ts ne vérifie PAS users.gdpr_deleted_at. Un user supprimé
+    // RGPD peut toujours se reconnecter. Test documente le comportement
+    // actuel — à corriger dans un PR séparé.
+    const communeId = await seedCommune('GdprBug')
+    const u = await seedUser({
+      role: 'admin',
+      email: 'gdpr@test.local',
+      firebaseUid: 'fb-gdpr-deleted',
+      communeId,
+    })
+    await pgSql`UPDATE users SET gdpr_deleted_at = NOW() WHERE id = ${u.id}`
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-gdpr-deleted',
+      email: 'gdpr@test.local',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: 'a'.repeat(30) },
+    })
+    // Comportement actuel : 200. Idéalement → 401 user_deleted.
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('body sans firebaseIdToken → 400 validation_error', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('firebaseIdToken trop court (< 20 chars) → 400 validation_error', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/auth/login',
+      payload: { firebaseIdToken: 'short' },
+    })
+    expect(res.statusCode).toBe(400)
+  })
 })
 
 describe('POST /v1/admin/invites', () => {
@@ -449,6 +695,158 @@ describe('POST /v1/admin/invites/accept', () => {
     })
     expect(res.statusCode).toBe(404)
     expect(res.json().error).toBe('invite_not_found')
+  })
+
+  it('Firebase verify échoue + token indécodable → 401 invalid_id_token', async () => {
+    const communeId = await seedCommune('FbFail')
+    const token = await createInvite(communeId, 'fbfail@test.local')
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('bad signature'),
+    )
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      // 2 segments → indécodable JWT, ≥ 20 chars pour passer Zod
+      payload: { token, firebaseIdToken: 'aaaaaaaaaa.bbbbbbbbbbb' },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error).toBe('invalid_id_token')
+  })
+
+  it('Firebase claims sans email → 400 missing_email_claim', async () => {
+    const communeId = await seedCommune('NoEmail')
+    const token = await createInvite(communeId, 'noemail@test.local')
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-no-email',
+      // pas d'email — Firebase peut omettre si pas vérifié ou compte téléphone
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      payload: { token, firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('missing_email_claim')
+  })
+
+  it('email mismatch invite vs claims Firebase → 200 (tolérance documentée)', async () => {
+    // Comportement documenté dans admin-invites.ts : Firebase est source de
+    // vérité pour l'identité, l'email de l'invite est juste l'adresse
+    // destination du lien. On accepte donc le mismatch.
+    const communeId = await seedCommune('Mismatch')
+    const token = await createInvite(communeId, 'invited@expected.fr')
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-different-account',
+      email: 'actually-using@different.fr',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      payload: { token, firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    // User créé avec l'email Firebase, pas celui de l'invite
+    expect(body.user.email).toBe('actually-using@different.fr')
+    expect(body.user.communeId).toBe(communeId)
+    expect(body.user.role).toBe('admin')
+  })
+
+  it('user existant role=citizen accepte invite → promu admin', async () => {
+    const communeId = await seedCommune('Promo')
+    const existing = await seedUser({
+      role: 'citizen',
+      email: 'citoyen-promu@test.local',
+      firebaseUid: 'fb-citizen-promo',
+    })
+    const token = await createInvite(communeId, 'citoyen-promu@test.local')
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-citizen-promo',
+      email: 'citoyen-promu@test.local',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      payload: { token, firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.user.id).toBe(existing.id)
+    expect(body.user.role).toBe('admin')
+    expect(body.user.communeId).toBe(communeId)
+
+    const rows = await pgSql`SELECT role, commune_id FROM users WHERE id = ${existing.id}`
+    expect(rows[0]!.role).toBe('admin')
+    expect(rows[0]!.commune_id).toBe(communeId)
+
+    const invites = await pgSql`SELECT accepted_at FROM admin_invites WHERE token = ${token}`
+    expect(invites[0]!.accepted_at).not.toBeNull()
+  })
+
+  it('user existant role=super_admin accepte invite → reste super_admin (pas dégradé)', async () => {
+    // Garantie de sécurité explicite : un super_admin qui accepterait par
+    // erreur un invite admin ne doit pas être rétrogradé.
+    const communeId = await seedCommune('NoDowngrade')
+    const existing = await seedUser({
+      role: 'super_admin',
+      email: 'su@sportlocker.fr',
+      firebaseUid: 'fb-su-existing',
+    })
+    const token = await createInvite(communeId, 'su@sportlocker.fr')
+
+    const firebase = (await import('firebase-admin')).default
+    ;(firebase.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'fb-su-existing',
+      email: 'su@sportlocker.fr',
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      payload: { token, firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.user.id).toBe(existing.id)
+    expect(body.user.role).toBe('super_admin')
+    // communeId du user est cependant mis à jour par le upsert (cf. set:{communeId})
+    expect(body.user.communeId).toBe(communeId)
+
+    const rows = await pgSql`SELECT role FROM users WHERE id = ${existing.id}`
+    expect(rows[0]!.role).toBe('super_admin')
+
+    const invites = await pgSql`SELECT accepted_at FROM admin_invites WHERE token = ${token}`
+    expect(invites[0]!.accepted_at).not.toBeNull()
+  })
+
+  it('body sans token → 400 validation_error', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      payload: { firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('token trop court (< 20 chars) → 400 validation_error', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/accept',
+      payload: { token: 'short', firebaseIdToken: 'a'.repeat(30) },
+    })
+    expect(res.statusCode).toBe(400)
   })
 })
 
