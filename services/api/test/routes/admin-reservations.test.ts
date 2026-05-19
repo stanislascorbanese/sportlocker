@@ -546,6 +546,7 @@ describe('POST /v1/admin/reservations/:id/force-cancel', () => {
       method: 'POST',
       url: `/v1/admin/reservations/${reservationId}/force-cancel`,
       headers: { authorization: authHeader(su.id, 'super_admin') },
+      payload: {},
     })
     expect(res.statusCode).toBe(200)
     const body = res.json() as { cancellationReason: string }
@@ -562,6 +563,7 @@ describe('POST /v1/admin/reservations/:id/force-cancel', () => {
       method: 'POST',
       url: `/v1/admin/reservations/${reservationId}/force-cancel`,
       headers: { authorization: authHeader(su.id, 'super_admin') },
+      payload: {},
     })
     expect(res.statusCode).toBe(409)
     expect((res.json() as { error: string }).error).toBe('reservation_already_terminal')
@@ -577,6 +579,7 @@ describe('POST /v1/admin/reservations/:id/force-cancel', () => {
       method: 'POST',
       url: `/v1/admin/reservations/${reservationId}/force-cancel`,
       headers: { authorization: authHeader(su.id, 'super_admin') },
+      payload: {},
     })
     expect(res.statusCode).toBe(409)
   })
