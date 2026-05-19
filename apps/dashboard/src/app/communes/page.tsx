@@ -55,10 +55,10 @@ export default async function CommunesPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Communes</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Communes</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
@@ -75,7 +75,7 @@ export default async function CommunesPage() {
             {useDemo && ' · données fictives'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <RefreshButton />
           <Link
             href="/communes/new"
@@ -93,8 +93,8 @@ export default async function CommunesPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+        <table className="w-full min-w-[960px] text-sm">
           <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
             <tr>
               <th className="px-4 py-3 font-medium">Commune</th>

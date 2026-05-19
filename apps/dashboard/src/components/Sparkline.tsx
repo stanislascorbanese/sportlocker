@@ -7,7 +7,14 @@ const BAR_AREA = SVG_HEIGHT - LABEL_HEIGHT
 
 const WEEKDAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S']
 
-/** Bar chart compact, 1 barre par jour. SVG inline — pas de dépendance. */
+/**
+ * Bar chart compact, 1 barre par jour. SVG inline — pas de dépendance.
+ *
+ * `width` est ici interprété comme le viewBox interne (largeur "design") :
+ * en pratique l'SVG s'étire pour remplir son conteneur jusqu'à `width` max,
+ * via `max-w-full` + `preserveAspectRatio`. Sur mobile, on shrink — sur
+ * desktop on garde la taille nominale.
+ */
 export function Sparkline({
   points,
   width = 360,
@@ -31,12 +38,16 @@ export function Sparkline({
       <div className="mb-2 flex items-baseline gap-3">
         <span className="font-display text-2xl tabular-nums text-white">{total}</span>
         <span className="text-xs text-white/55">
-          réservations · 7 jours · moy. {avg.toFixed(1)}/j
+          réservations · {n} jour{n > 1 ? 's' : ''} · moy. {avg.toFixed(1)}/j
         </span>
       </div>
       <svg
-        width={width}
+        viewBox={`0 0 ${width} ${SVG_HEIGHT}`}
+        preserveAspectRatio="none"
+        width="100%"
         height={SVG_HEIGHT}
+        style={{ maxWidth: `${width}px` }}
+        className="block h-16 w-full"
         role="img"
         aria-label={`Réservations par jour: ${points.map((p) => `${p.date} ${p.count}`).join(', ')}`}
       >

@@ -197,12 +197,12 @@ export default async function MePage() {
   return (
     <div className="space-y-8">
       {/* ─── Header ─── */}
-      <header className="flex items-start gap-5">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-2xl font-semibold text-emerald-200 ring-1 ring-emerald-500/30">
+      <header className="flex items-start gap-4 sm:gap-5">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-xl font-semibold text-emerald-200 ring-1 ring-emerald-500/30 sm:h-20 sm:w-20 sm:text-2xl">
           {initials(displayName, user.email)}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-3xl tracking-tight">
+          <h1 className="break-words font-display text-2xl tracking-tight sm:text-3xl">
             {displayName ?? user.email}
           </h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-white/55">
@@ -315,9 +315,9 @@ async function AdminTenantSection() {
           )}
         </div>
         <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
-          <div className="flex items-start justify-between gap-4 border-b border-white/5 px-5 py-4">
-            <div>
-              <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-4 border-b border-white/5 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <h3 className="font-display text-xl text-white">{commune.name}</h3>
                 <span className={cn(
                   'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
@@ -331,7 +331,7 @@ async function AdminTenantSection() {
                 {commune.region} · département {commune.department} · CP {commune.postalCode}
               </p>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <p className="text-[10px] uppercase tracking-wider text-white/40">Fee mensuel</p>
               <p className="mt-0.5 font-display text-2xl text-emerald-300 tabular-nums">
                 {fmtEuros(commune.monthlyFeeCents)}
@@ -339,7 +339,7 @@ async function AdminTenantSection() {
             </div>
           </div>
 
-          <dl className="grid gap-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
             <Field label="Code INSEE" value={<span className="font-mono">{commune.inseeCode}</span>} />
             <Field
               label="Population"

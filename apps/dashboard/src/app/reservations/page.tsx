@@ -162,10 +162,10 @@ export default async function ReservationsPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Réservations</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Réservations</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
@@ -178,7 +178,7 @@ export default async function ReservationsPage({
             {useDemo && ' · données fictives — branchez un token admin valide pour voir les vraies'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <ExportCsvButton filters={{
             ...(status ? { status } : {}),
             ...(distributorId ? { distributorId } : {}),
@@ -189,8 +189,8 @@ export default async function ReservationsPage({
         </div>
       </header>
 
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-navy-800 p-4">
-        <div className="flex flex-col gap-1">
+      <form className="grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-navy-800 p-4 sm:flex sm:flex-wrap sm:items-end">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="status" className="text-[11px] uppercase tracking-wide text-white/50">Statut</label>
           <select
             id="status"
@@ -205,7 +205,7 @@ export default async function ReservationsPage({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="distributorId" className="text-[11px] uppercase tracking-wide text-white/50">Distributeur</label>
           <select
             id="distributorId"
@@ -220,7 +220,7 @@ export default async function ReservationsPage({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="from" className="text-[11px] uppercase tracking-wide text-white/50">Du</label>
           <input
             id="from"
@@ -231,7 +231,7 @@ export default async function ReservationsPage({
           />
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="to" className="text-[11px] uppercase tracking-wide text-white/50">Au</label>
           <input
             id="to"
@@ -273,8 +273,8 @@ export default async function ReservationsPage({
       )}
 
       {items.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
               <tr>
                 <th className="px-4 py-3 font-medium">Créée le</th>
