@@ -11,14 +11,32 @@
  * Convention : chaque migration DOIT être idempotente (CREATE/ADD ... IF NOT EXISTS,
  * ALTER TYPE ... ADD VALUE IF NOT EXISTS) afin de ne pas péter sur ré-application.
  *
- * Les migrations sont appliquées SANS wrapping transactionnel — certaines
- * commandes (ALTER TYPE ADD VALUE) ne peuvent pas vivre dans une transaction.
- * À chaque migration de fournir son propre BEGIN/COMMIT si l'atomicité est requise.
+ * EXÉCUTION DES STATEMENTS — roundtrips séparés (cf. parseStatements ci-dessous)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Postgres groupe en transaction implicite tous les statements envoyés dans
+ * un même Simple Query (`sql.unsafe(text)` du driver postgres-js). Or certaines
+ * commandes DDL ne peuvent pas vivre dans une transaction où on tente d'utiliser
+ * leur effet (ex: ALTER TYPE ADD VALUE puis UPDATE qui s'en sert → erreur
+ * "unsafe use of new value of enum type"). Cf. incident migration 0004 → 0005.
+ *
+ * Pour contourner ça, on splitte chaque fichier sur les `;` *de fin de statement*
+ * (en évitant les `;` à l'intérieur des strings / dollar-quotes / commentaires)
+ * et on envoie chaque statement en roundtrip séparé. Chaque statement est donc
+ * sa propre transaction implicite — pas de groupement.
+ *
+ * Si une migration a besoin d'atomicité multi-statement, elle peut placer
+ * un BEGIN; ... COMMIT; explicite (ces statements seront eux aussi envoyés
+ * en roundtrips séparés, et Postgres ouvrira la vraie transaction).
+ *
+ * Fallback : variable d'env `MIGRATE_LEGACY_BATCH=1` pour revenir à l'ancien
+ * comportement (un seul `sql.unsafe()` par fichier) — utile en cas de doute.
  */
 import postgres from 'postgres'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { parseStatements } from './sql-split.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -49,6 +67,8 @@ if (!url) {
   process.exit(1)
 }
 
+const LEGACY_BATCH = process.env.MIGRATE_LEGACY_BATCH === '1'
+
 const sql = postgres(url, {
   max: 1,
   onnotice: () => undefined,
@@ -74,9 +94,47 @@ async function recordApplied(filename) {
   `
 }
 
-async function applyRaw(filename, sqlText) {
-  console.log(`[migrate] applying ${filename}…`)
+/**
+ * Exécute le contenu d'un fichier en envoyant chaque statement
+ * (au sens du parseur SQL maison) dans un roundtrip séparé.
+ *
+ * En cas d'échec : log clair (numéro de statement + extrait des 120 premiers
+ * caractères pour aider à localiser sans tout déverser) puis throw.
+ */
+async function applySplit(filename, sqlText) {
+  const statements = parseStatements(sqlText)
+  console.log(`[migrate] applying ${filename}… (${statements.length} statement${statements.length > 1 ? 's' : ''})`)
+
+  for (let i = 0; i < statements.length; i++) {
+    const stmt = statements[i]
+    try {
+      await sql.unsafe(stmt)
+    } catch (err) {
+      const excerpt = stmt.replace(/\s+/g, ' ').trim().slice(0, 120)
+      console.error(
+        `[migrate] FAILED statement #${i + 1}/${statements.length} of ${filename}: ${err.message}\n` +
+        `         excerpt: ${excerpt}${stmt.length > 120 ? '…' : ''}`,
+      )
+      throw err
+    }
+  }
+}
+
+/**
+ * Ancien comportement (batch single-statement) — utilisé si MIGRATE_LEGACY_BATCH=1.
+ * À garder pour pouvoir rollback rapidement en prod si le parseur a un bug.
+ */
+async function applyBatch(filename, sqlText) {
+  console.log(`[migrate] applying ${filename}… (legacy batch mode)`)
   await sql.unsafe(sqlText)
+}
+
+async function applyRaw(filename, sqlText) {
+  if (LEGACY_BATCH) {
+    await applyBatch(filename, sqlText)
+  } else {
+    await applySplit(filename, sqlText)
+  }
   await recordApplied(filename)
 }
 
@@ -92,7 +150,23 @@ async function main() {
   if (fresh) {
     console.log('[migrate] empty DB detected, applying schema.sql…')
     const text = readFileSync(SCHEMA_PATH, 'utf8')
-    await sql.unsafe(text)
+    if (LEGACY_BATCH) {
+      await sql.unsafe(text)
+    } else {
+      const statements = parseStatements(text)
+      for (let i = 0; i < statements.length; i++) {
+        try {
+          await sql.unsafe(statements[i])
+        } catch (err) {
+          const excerpt = statements[i].replace(/\s+/g, ' ').trim().slice(0, 120)
+          console.error(
+            `[migrate] FAILED schema.sql statement #${i + 1}/${statements.length}: ${err.message}\n` +
+            `         excerpt: ${excerpt}${statements[i].length > 120 ? '…' : ''}`,
+          )
+          throw err
+        }
+      }
+    }
   }
 
   // Table de tracking (idempotent)
