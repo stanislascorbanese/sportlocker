@@ -102,13 +102,27 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
 
       <div className="mt-auto px-3 py-3">
         {user && (
-          <div className="mb-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-            <p className="truncate text-xs text-white/80" title={user.email}>{user.email}</p>
+          <Link
+            href="/me"
+            className={cn(
+              'mb-2 block rounded-lg border px-3 py-2 transition',
+              pathname === '/me'
+                ? 'border-emerald-500/30 bg-emerald-500/10'
+                : 'border-white/5 bg-white/[0.02] hover:border-emerald-500/20 hover:bg-emerald-500/5',
+            )}
+            title="Voir mon compte"
+          >
+            <p className={cn(
+              'truncate text-xs',
+              pathname === '/me' ? 'text-white' : 'text-white/80',
+            )}>
+              {user.email}
+            </p>
             <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/40">
               {roleLabel(user.role)}
               {user.communeId && user.role !== 'super_admin' ? ' · 1 commune' : ''}
             </p>
-          </div>
+          </Link>
         )}
         <button
           type="button"
