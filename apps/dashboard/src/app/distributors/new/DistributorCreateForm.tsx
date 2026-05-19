@@ -1,19 +1,61 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import type { Commune } from '../../../lib/api'
 import { createDistributorAction, type FormState } from '../_actions'
 import { cn } from '../../../lib/cn'
+import { AddressAutocomplete, type AddressAutofill } from '../AddressAutocomplete'
 
 const INITIAL: FormState = { status: 'idle' }
 
 export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
   const [state, formAction] = useFormState(createDistributorAction, INITIAL)
 
+  // Champs contrôlés pour permettre l'auto-remplissage via AddressAutocomplete.
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [addressLine, setAddressLine] = useState('')
+  const [communeId, setCommuneId] = useState('')
+  const [autoCommuneNotice, setAutoCommuneNotice] = useState<string | null>(null)
+
+  function handleAddressSelect(a: AddressAutofill) {
+    setLatitude(a.latitude)
+    setLongitude(a.longitude)
+    setAddressLine(a.label)
+    // Tente de matcher le code INSEE BAN avec une commune en BDD pour
+    // pré-sélectionner le dropdown. Si pas trouvée → notice incitant à la
+    // créer (sinon l'utilisateur sélectionnera manuellement).
+    const matched = communes.find((c) => c.inseeCode === a.cityCode)
+    if (matched) {
+      setCommuneId(matched.id)
+      setAutoCommuneNotice(`✓ Commune détectée : ${matched.name} (INSEE ${matched.inseeCode})`)
+    } else {
+      setAutoCommuneNotice(
+        `⚠️ Aucune commune en BDD pour INSEE ${a.cityCode}. Crée-la d'abord ou sélectionne manuellement.`,
+      )
+    }
+  }
+
   return (
     <form action={formAction} className="space-y-5">
+      <AddressAutocomplete onSelect={handleAddressSelect} />
+
+      {/* Adresse postale persistée en BDD. Rendue contrôlée pour pouvoir
+          être remplie automatiquement par AddressAutocomplete tout en
+          permettant à l'utilisateur de la modifier manuellement. */}
+      <Field
+        name="addressLine"
+        label="Adresse postale"
+        placeholder="10 rue de la Mairie, 75011 Paris"
+        value={addressLine}
+        onChange={(e) => setAddressLine(e.target.value)}
+        error={state.fieldErrors?.['addressLine']}
+        hint="Auto-remplie depuis la recherche d'adresse ci-dessus, modifiable"
+      />
+
       <Field
         name="serialNumber"
         label="Numéro de série"
@@ -38,7 +80,11 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           <select
             name="communeId"
             required
-            defaultValue=""
+            value={communeId}
+            onChange={(e) => {
+              setCommuneId(e.target.value)
+              setAutoCommuneNotice(null)
+            }}
             className={cn(
               'mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none transition',
               'focus:border-emerald-400/60',
@@ -54,6 +100,16 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           </select>
           {state.fieldErrors?.['communeId'] && (
             <span className="mt-1 block text-[11px] text-rose-300">{state.fieldErrors['communeId']}</span>
+          )}
+          {autoCommuneNotice && !state.fieldErrors?.['communeId'] && (
+            <span
+              className={cn(
+                'mt-1 block text-[11px]',
+                autoCommuneNotice.startsWith('✓') ? 'text-emerald-300' : 'text-amber-300',
+              )}
+            >
+              {autoCommuneNotice}
+            </span>
           )}
           <span className="mt-1 block text-[11px] text-white/40">
             <Link href="/communes/new" className="text-emerald-300/80 hover:text-emerald-200">
@@ -91,6 +147,8 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           type="number"
           step="0.000001"
           placeholder="48.8581"
+          value={latitude}
+          onChange={(e) => setLatitude(e.target.value)}
           error={state.fieldErrors?.['latitude']}
         />
         <Field
@@ -99,6 +157,8 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           type="number"
           step="0.000001"
           placeholder="2.347"
+          value={longitude}
+          onChange={(e) => setLongitude(e.target.value)}
           error={state.fieldErrors?.['longitude']}
         />
       </div>
