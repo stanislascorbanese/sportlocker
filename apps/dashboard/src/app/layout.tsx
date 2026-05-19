@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
 import { Shell } from '../components/Shell'
-import { getLang } from '../lib/lang'
+import { getLang } from '../lib/lang-server'
 import { getSessionUser } from '../lib/session-server'
 import './globals.css'
 
