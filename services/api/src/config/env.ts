@@ -42,4 +42,24 @@ if (!parsed.success) {
   process.exit(1)
 }
 
-export const env: Env = parsed.data
+const env: Env = parsed.data
+
+// Garde-fou : si on est en prod et que DASHBOARD_INVITE_BASE_URL pointe sur
+// localhost, refuser le boot. Sinon les invitations envoyées aux mairies
+// auront un lien `http://localhost:3001/accept-invite?...` injouable depuis
+// leur navigateur — ce qui est exactement ce qui s'est passé avant ce fix.
+//
+// En dev/test on accepte localhost (c'est le cas nominal).
+if (env.NODE_ENV === 'production') {
+  const url = env.DASHBOARD_INVITE_BASE_URL
+  if (url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0')) {
+    console.error(
+      `[boot] DASHBOARD_INVITE_BASE_URL="${url}" est un loopback alors que NODE_ENV=production. ` +
+      `Les invitations admin tenant généreront des liens injouables. ` +
+      `Pose la vraie URL publique du dashboard (ex: https://app.sportlocker.fr) sur Railway → @sportlocker/api → Variables.`,
+    )
+    process.exit(1)
+  }
+}
+
+export { env }
