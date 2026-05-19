@@ -68,11 +68,16 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
   return (
     <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-white/10 bg-navy-900/80 backdrop-blur">
       <div className="px-5 py-5">
-        <Link href="/" className="font-display text-lg tracking-tight">
-          SportLocker
-          <span className="ml-1 text-emerald-400">· ops</span>
+        <Link href="/" className="flex items-center gap-2" aria-label="SportLocker — accueil">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-mark.png" alt="" className="h-7 w-7 shrink-0" width={28} height={28} />
+          <span className="font-display text-lg tracking-tight">
+            <span className="text-white">Sport</span>
+            <span className="text-brand-500">Locker</span>
+            <span className="ml-1 text-emerald-400">· ops</span>
+          </span>
         </Link>
-        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/30">Console opérateur</p>
+        <p className="mt-0.5 pl-9 text-[10px] uppercase tracking-wider text-white/30">Console opérateur</p>
       </div>
 
       <nav className="mt-2 flex flex-col gap-0.5 px-3">
