@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { setLangAction } from '../app/_actions/lang'
@@ -14,14 +14,17 @@ import { cn } from '../lib/cn'
  */
 export function LanguageSelector({ current }: { current: Lang }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [pending, setPending] = useState(false)
 
-  function onPick(lang: Lang) {
+  async function onPick(lang: Lang) {
     if (lang === current || pending) return
-    startTransition(async () => {
+    setPending(true)
+    try {
       await setLangAction(lang)
       router.refresh()
-    })
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
