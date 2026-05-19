@@ -1,19 +1,46 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import type { Commune } from '../../../lib/api'
 import { createDistributorAction, type FormState } from '../_actions'
 import { cn } from '../../../lib/cn'
+import { AddressAutocomplete, type AddressAutofill } from '../AddressAutocomplete'
 
 const INITIAL: FormState = { status: 'idle' }
 
 export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
   const [state, formAction] = useFormState(createDistributorAction, INITIAL)
+  const [communeId, setCommuneId] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [autofillNotice, setAutofillNotice] = useState<string | null>(null)
+
+  function onAddressSelect(a: AddressAutofill) {
+    setLatitude(a.latitude.toFixed(6))
+    setLongitude(a.longitude.toFixed(6))
+    const match = communes.find((c) => c.inseeCode === a.citycode)
+    if (match) {
+      setCommuneId(match.id)
+      setAutofillNotice(`Commune ${match.name} sélectionnée automatiquement (INSEE ${a.citycode}).`)
+    } else if (a.citycode) {
+      setAutofillNotice(
+        `Commune INSEE ${a.citycode} (${a.city}) absente de la liste — créez-la d'abord ou sélectionnez-la manuellement.`,
+      )
+    } else {
+      setAutofillNotice(null)
+    }
+  }
 
   return (
     <form action={formAction} className="space-y-5">
+      <AddressAutocomplete onSelect={onAddressSelect} />
+      {autofillNotice && (
+        <p className="text-[11px] text-emerald-200/80">{autofillNotice}</p>
+      )}
+
       <Field
         name="serialNumber"
         label="Numéro de série"
@@ -38,7 +65,8 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           <select
             name="communeId"
             required
-            defaultValue=""
+            value={communeId}
+            onChange={(e) => setCommuneId(e.target.value)}
             className={cn(
               'mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none transition',
               'focus:border-emerald-400/60',
@@ -91,6 +119,8 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           type="number"
           step="0.000001"
           placeholder="48.8581"
+          value={latitude}
+          onChange={(e) => setLatitude(e.currentTarget.value)}
           error={state.fieldErrors?.['latitude']}
         />
         <Field
@@ -99,9 +129,14 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           type="number"
           step="0.000001"
           placeholder="2.347"
+          value={longitude}
+          onChange={(e) => setLongitude(e.currentTarget.value)}
           error={state.fieldErrors?.['longitude']}
         />
       </div>
+      <p className="-mt-3 text-[11px] text-white/40">
+        Remplis automatiquement par l&apos;adresse — éditable pour ajuster finement.
+      </p>
 
       {state.status === 'error' && state.message && (
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
