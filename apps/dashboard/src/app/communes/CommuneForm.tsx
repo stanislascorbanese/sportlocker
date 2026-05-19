@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import { cn } from '../../lib/cn'
 import { createCommuneAction, updateCommuneAction, type FormState } from './_actions'
+import { CommuneAutocomplete, type CommuneAutofill } from './CommuneAutocomplete'
 
 const INITIAL: FormState = { status: 'idle' }
 
@@ -40,14 +42,37 @@ export function CommuneForm({
   const v = initial ?? {}
   const monthlyFeeEuros = v.monthlyFeeCents != null ? (v.monthlyFeeCents / 100).toString() : ''
 
+  // État contrôlé pour les 6 champs administratifs auto-remplissables via
+  // CommuneAutocomplete. Les champs contrat/contact restent uncontrolled
+  // (defaultValue) car pas concernés par l'auto-remplissage.
+  const [fields, setFields] = useState({
+    inseeCode: v.inseeCode ?? '',
+    postalCode: v.postalCode ?? '',
+    name: v.name ?? '',
+    department: v.department ?? '',
+    region: v.region ?? '',
+    population: v.population != null ? String(v.population) : '',
+  })
+
+  function setField<K extends keyof typeof fields>(key: K, value: string) {
+    setFields((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function applyAutofill(c: CommuneAutofill) {
+    setFields(c)
+  }
+
   return (
     <form action={formAction} className="space-y-5">
+      {mode === 'create' && <CommuneAutocomplete onSelect={applyAutofill} />}
+
       <div className="grid grid-cols-2 gap-4">
         <Field
           name="inseeCode"
           label="Code INSEE"
           placeholder="75111"
-          defaultValue={v.inseeCode ?? ''}
+          value={fields.inseeCode}
+          onChange={(e) => setField('inseeCode', e.target.value)}
           error={state.fieldErrors?.['inseeCode']}
           required
           readOnly={mode === 'edit'}
@@ -58,7 +83,8 @@ export function CommuneForm({
           name="postalCode"
           label="Code postal"
           placeholder="75011"
-          defaultValue={v.postalCode ?? ''}
+          value={fields.postalCode}
+          onChange={(e) => setField('postalCode', e.target.value)}
           error={state.fieldErrors?.['postalCode']}
           required
         />
@@ -68,7 +94,8 @@ export function CommuneForm({
         name="name"
         label="Nom"
         placeholder="Paris 11e"
-        defaultValue={v.name ?? ''}
+        value={fields.name}
+        onChange={(e) => setField('name', e.target.value)}
         error={state.fieldErrors?.['name']}
         required
       />
@@ -78,7 +105,8 @@ export function CommuneForm({
           name="department"
           label="Département"
           placeholder="75"
-          defaultValue={v.department ?? ''}
+          value={fields.department}
+          onChange={(e) => setField('department', e.target.value)}
           error={state.fieldErrors?.['department']}
           required
         />
@@ -87,7 +115,8 @@ export function CommuneForm({
             name="region"
             label="Région"
             placeholder="Île-de-France"
-            defaultValue={v.region ?? ''}
+            value={fields.region}
+            onChange={(e) => setField('region', e.target.value)}
             error={state.fieldErrors?.['region']}
             required
           />
@@ -99,7 +128,8 @@ export function CommuneForm({
         label="Population (optionnel)"
         type="number"
         placeholder="147017"
-        defaultValue={v.population ?? ''}
+        value={fields.population}
+        onChange={(e) => setField('population', e.target.value)}
         error={state.fieldErrors?.['population']}
       />
 
