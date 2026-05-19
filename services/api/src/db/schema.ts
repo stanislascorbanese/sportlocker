@@ -184,6 +184,16 @@ export const reservations = pgTable('reservations', {
   byStatus: index('idx_reservations_status').on(t.status),
   byExpires: index('idx_reservations_expires').on(t.expiresAt),
   byDueAt: index('idx_reservations_due_at').on(t.dueAt),
+  // ─── Index de perf ajoutés en 0006_performance_indexes.sql ───
+  // L'ordre DESC réel est appliqué dans la migration SQL (CREATE INDEX ... DESC).
+  // Drizzle 0.30 ne supporte pas l'ordre per-colonne, on déclare ici juste pour
+  // que `drizzle-kit generate` ne propose pas de re-créer l'index manquant.
+  // Pagination cursor admin (created_at DESC, id DESC tiebreaker).
+  byCreatedId: index('idx_reservations_created_id').on(t.createdAt, t.id),
+  // Listing admin filtré par status, tri created_at DESC.
+  byStatusCreated: index('idx_reservations_status_created').on(t.status, t.createdAt),
+  // Stats dashboard agrégats par distributeur sur fenêtre temporelle.
+  byDistributorCreated: index('idx_reservations_distributor_created').on(t.distributorId, t.createdAt),
 }))
 
 export const reviews = pgTable('reviews', {
@@ -232,7 +242,15 @@ export const maintenanceTickets = pgTable('maintenance_tickets', {
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => ({
+  // ─── Index de perf ajoutés en 0006_performance_indexes.sql ───
+  // L'ordre DESC est appliqué dans la migration SQL côté DDL.
+  // Listing admin (ORDER BY severity DESC, created_at DESC).
+  bySeverityCreated: index('idx_maintenance_severity_created').on(t.severity, t.createdAt),
+  // Listing filtré par status + tri (severity, created_at).
+  byStatusSeverityCreated: index('idx_maintenance_status_severity_created')
+    .on(t.status, t.severity, t.createdAt),
+}))
 
 export const pushTokens = pgTable('push_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
