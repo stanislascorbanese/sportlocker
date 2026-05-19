@@ -163,13 +163,13 @@ export async function TenantHome({ communeId }: { communeId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Header personnalisé tenant */}
-      <header className="overflow-hidden rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-navy-800 to-navy-800 p-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
+      {/* Header personnalisé tenant — gradient emerald = signature visuelle */}
+      <header className="overflow-hidden rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-navy-800 to-navy-800 p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-2xl">👋</span>
-              <h1 className="font-display text-3xl">
+              <h1 className="font-display text-2xl sm:text-3xl">
                 Bonjour, <span className="text-emerald-300">{commune.name}</span>
               </h1>
               {useDemo && (

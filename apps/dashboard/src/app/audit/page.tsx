@@ -146,10 +146,10 @@ export default async function AuditPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Audit / Activité</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Audit / Activité</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
@@ -165,8 +165,8 @@ export default async function AuditPage({
         <RefreshButton />
       </header>
 
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-navy-800 p-4">
-        <div className="flex flex-col gap-1">
+      <form className="grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-navy-800 p-4 sm:flex sm:flex-wrap sm:items-end">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="eventType" className="text-[11px] uppercase tracking-wide text-white/50">Type</label>
           <select
             id="eventType"
@@ -181,7 +181,7 @@ export default async function AuditPage({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="source" className="text-[11px] uppercase tracking-wide text-white/50">Source</label>
           <select
             id="source"
@@ -196,7 +196,7 @@ export default async function AuditPage({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="distributorId" className="text-[11px] uppercase tracking-wide text-white/50">Distributeur</label>
           <select
             id="distributorId"
@@ -211,7 +211,7 @@ export default async function AuditPage({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="from" className="text-[11px] uppercase tracking-wide text-white/50">Du</label>
           <input
             id="from"
@@ -222,7 +222,7 @@ export default async function AuditPage({
           />
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="to" className="text-[11px] uppercase tracking-wide text-white/50">Au</label>
           <input
             id="to"
@@ -264,7 +264,7 @@ export default async function AuditPage({
       )}
 
       {items.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-6">
+        <div className="rounded-xl border border-white/10 bg-navy-800 p-4 sm:p-6">
           <ol className="space-y-4 border-l-2 border-white/10 pl-5">
             {items.map((e) => {
               const style = EVENT_STYLE[e.eventType]

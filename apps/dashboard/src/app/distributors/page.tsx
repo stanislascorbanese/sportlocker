@@ -37,16 +37,16 @@ export default async function DistributorsListPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-end justify-between">
-        <div>
-          <h2 className="font-display text-3xl">Parc de distributeurs</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="font-display text-2xl sm:text-3xl">Parc de distributeurs</h2>
           <p className="mt-1 text-sm text-white/55">
             {distributors.length} distributeur{distributors.length > 1 ? 's' : ''} ·{' '}
             <span className="text-emerald-300">{online} online</span> ·{' '}
             {totalIdle} / {totalLockers} casiers libres
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <RefreshButton />
           <Link
             href="/distributors/new"
@@ -74,8 +74,8 @@ export default async function DistributorsListPage() {
       )}
 
       {distributors.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
               <tr>
                 <th className="px-4 py-3 font-medium">Distributeur</th>

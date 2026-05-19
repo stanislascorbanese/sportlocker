@@ -67,10 +67,10 @@ export default async function UsersPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Utilisateurs</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Utilisateurs</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
@@ -91,8 +91,8 @@ export default async function UsersPage({
         <RefreshButton />
       </header>
 
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-navy-800 p-4">
-        <div className="flex flex-col gap-1">
+      <form className="grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-navy-800 p-4 sm:flex sm:flex-wrap sm:items-end">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="q" className="text-[11px] uppercase tracking-wide text-white/50">Recherche</label>
           <input
             id="q"
@@ -103,7 +103,7 @@ export default async function UsersPage({
             className="min-w-[220px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white placeholder:text-white/30"
           />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="role" className="text-[11px] uppercase tracking-wide text-white/50">Rôle</label>
           <select
             id="role"
@@ -115,7 +115,7 @@ export default async function UsersPage({
             {USER_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="banned" className="text-[11px] uppercase tracking-wide text-white/50">État</label>
           <select
             id="banned"
@@ -153,8 +153,8 @@ export default async function UsersPage({
           Aucun utilisateur pour ces filtres.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
               <tr>
                 <th className="px-4 py-3 font-medium">Utilisateur</th>

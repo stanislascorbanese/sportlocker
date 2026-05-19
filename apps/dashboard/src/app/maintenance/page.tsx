@@ -42,10 +42,10 @@ export default async function MaintenancePage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Tickets de maintenance</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Tickets de maintenance</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
