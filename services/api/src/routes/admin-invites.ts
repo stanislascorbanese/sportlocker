@@ -11,22 +11,25 @@ import { requireSuperAdmin } from '../lib/commune-scope.js'
 import { verifyFirebaseToken } from './admin-auth.js'
 
 const CreateInviteBody = z.object({
-  email: z.string().email().max(180),
-  communeId: z.string().uuid(),
-  expiresInHours: z.number().int().min(1).max(720).default(72),
+  email: z.string().email().max(180)
+    .describe('Adresse email destinataire de l\'invite (indicative, l\'identité réelle vient de Firebase à l\'acceptation)'),
+  communeId: z.string().uuid().describe('Tenant que l\'admin invité pourra administrer'),
+  expiresInHours: z.number().int().min(1).max(720).default(72)
+    .describe('TTL du token d\'invite en heures (défaut 72h, max 30 jours)'),
 })
 
 const CreateInviteResponse = z.object({
-  token: z.string(),
-  inviteUrl: z.string().url(),
+  token: z.string().describe('Token one-time base64url (~43 chars). Non récupérable après création.'),
+  inviteUrl: z.string().url().describe('URL d\'acceptation construite avec DASHBOARD_INVITE_BASE_URL'),
   email: z.string().email(),
   communeId: z.string().uuid(),
   expiresAt: z.string().datetime(),
 })
 
 const AcceptInviteBody = z.object({
-  token: z.string().min(20).max(120),
-  firebaseIdToken: z.string().min(20),
+  token: z.string().min(20).max(120).describe('Token reçu dans l\'inviteUrl (param `?token=`)'),
+  firebaseIdToken: z.string().min(20)
+    .describe('Firebase ID token de l\'admin qui accepte. L\'email du token devient l\'email du user créé.'),
 })
 
 const SessionUser = z.object({
@@ -37,7 +40,7 @@ const SessionUser = z.object({
 })
 
 const AcceptInviteResponse = z.object({
-  sessionToken: z.string(),
+  sessionToken: z.string().describe('JWT de session prêt à l\'emploi — pas besoin de re-login'),
   user: SessionUser,
 })
 
@@ -60,6 +63,14 @@ export async function adminInviteRoutes(rawApp: FastifyInstance) {
   app.post('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Invites'],
+      summary: 'Crée une invitation admin (super_admin only)',
+      description: 'Génère un token cryptographique + `inviteUrl` à envoyer manuellement par email à l\'admin tenant. '
+        + 'Le token n\'est PAS récupérable après création — il faut le copier au moment de la création.\n\n'
+        + '**Exemple body** : `{ "email": "marie@bordeaux.fr", "communeId": "9f0…", "expiresInHours": 168 }`\n\n'
+        + '**Exemple réponse** : `{ "token":"…", "inviteUrl":"https://app.sportlocker.fr/accept-invite?token=…", '
+        + '"expiresAt":"2026-05-26T14:00:00.000Z" }`',
+      security: [{ bearerAuth: [] }],
       body: CreateInviteBody,
       response: {
         201: CreateInviteResponse,
@@ -113,6 +124,15 @@ export async function adminInviteRoutes(rawApp: FastifyInstance) {
    */
   app.post('/accept', {
     schema: {
+      tags: ['Admin — Invites'],
+      summary: 'Accepte une invitation et crée la session',
+      description: 'Vérifie : token existe + non expiré + non déjà accepté + Firebase ID token valide. '
+        + 'Upsert user en DB avec `role=admin` + `commune_id` du invite, marque l\'invite consommé, '
+        + 'renvoie un sessionToken prêt à l\'emploi.\n\n'
+        + 'Tolère email mismatch (Firebase est source de vérité). Pas d\'auth Bearer requise (le token invite '
+        + 'est le secret).\n\n'
+        + '**Erreurs** : 404 `invite_not_found` · 409 `invite_already_accepted` · 410 `invite_expired` · '
+        + '401 `invalid_id_token` · 400 `missing_email_claim`.',
       body: AcceptInviteBody,
       response: {
         200: AcceptInviteResponse,
@@ -212,6 +232,7 @@ export async function adminInviteRoutes(rawApp: FastifyInstance) {
 
     const sessionToken = app.jwt.sign({
       sub: created.id,
+      email: created.email,
       role: created.role,
       ...(created.communeId ? { communeId: created.communeId } : {}),
     })

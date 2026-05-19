@@ -8,18 +8,20 @@ import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
 
 const LoginBody = z.object({
-  firebaseIdToken: z.string().min(20),
+  firebaseIdToken: z.string().min(20)
+    .describe('Firebase ID token obtenu côté dashboard (firebase-auth-web). JWT à 3 segments.'),
 })
 
 const SessionUser = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
-  role: z.enum(['admin', 'super_admin']),
-  communeId: z.string().uuid().nullable(),
+  role: z.enum(['admin', 'super_admin'])
+    .describe('`admin` = scopé à une commune. `super_admin` = équipe SportLocker, cross-tenant.'),
+  communeId: z.string().uuid().nullable().describe('Tenant pour `admin`. Null pour `super_admin`.'),
 })
 
 const LoginResponse = z.object({
-  sessionToken: z.string(),
+  sessionToken: z.string().describe('JWT de session SportLocker (HS256, TTL 7 jours). À renvoyer en Bearer.'),
   user: SessionUser,
 })
 
@@ -101,6 +103,13 @@ export async function adminAuthRoutes(rawApp: FastifyInstance) {
    */
   app.post('/login', {
     schema: {
+      tags: ['Auth admin'],
+      summary: 'Login admin (échange Firebase ID token)',
+      description: 'Vérifie le Firebase ID token et émet un JWT de session. Le user DOIT déjà exister en DB '
+        + 'avec `role ∈ {admin, super_admin}`. Pas d\'auto-création : passe par le flow `/v1/admin/invites/accept` '
+        + 'ou par `pnpm bootstrap-super-admin`.\n\n'
+        + '**Erreurs** : 401 `invalid_id_token` · 401 `admin_user_not_found` · 401 `not_an_admin` · 401 `user_banned`.\n\n'
+        + '**Exemple body** : `{ "firebaseIdToken": "eyJhbGc..." }`',
       body: LoginBody,
       response: {
         200: LoginResponse,
@@ -121,6 +130,7 @@ export async function adminAuthRoutes(rawApp: FastifyInstance) {
         role: users.role,
         communeId: users.communeId,
         isBanned: users.isBanned,
+        gdprDeletedAt: users.gdprDeletedAt,
       })
       .from(users)
       .where(eq(users.firebaseUid, claims.sub))
@@ -135,9 +145,26 @@ export async function adminAuthRoutes(rawApp: FastifyInstance) {
     if (u.isBanned) {
       return reply.code(401).send({ error: 'user_banned' })
     }
+    // RGPD : un user soft-deleted (gdpr_deleted_at posé par le cron de
+    // nettoyage 30j) ne peut plus se reconnecter, même s'il a un compte
+    // Firebase encore actif. Le cron suppose que toute session admin
+    // future serait illégitime sur des données anonymisées.
+    if (u.gdprDeletedAt !== null) {
+      return reply.code(401).send({ error: 'user_deleted' })
+    }
+    // Multi-tenant : un admin (par opposition à super_admin) DOIT avoir
+    // une commune assignée, sinon il pourrait se logger et émettre un JWT
+    // sans communeId → bypass de tout le scoping commune côté
+    // requireAdminScope (qui renvoie scope=null si pas de communeId).
+    // Fail-safe : on refuse au login plutôt que de risquer une fuite
+    // cross-tenant en aval.
+    if (u.role === 'admin' && !u.communeId) {
+      return reply.code(401).send({ error: 'admin_missing_commune' })
+    }
 
     const sessionToken = app.jwt.sign({
       sub: u.id,
+      email: u.email,
       role: u.role,
       ...(u.communeId ? { communeId: u.communeId } : {}),
     })

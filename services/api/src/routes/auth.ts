@@ -7,7 +7,8 @@ import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
 
 const RegisterBody = z.object({
-  idToken: z.string().min(20),
+  idToken: z.string().min(20)
+    .describe('Firebase ID token obtenu côté app mobile (firebase-auth). JWT à 3 segments.'),
 })
 
 const UserDTO = z.object({
@@ -15,12 +16,12 @@ const UserDTO = z.object({
   email: z.string().email(),
   displayName: z.string().nullable(),
   role: z.enum(['citizen', 'operator', 'admin', 'super_admin']),
-  trustScore: z.number().int(),
+  trustScore: z.number().int().describe('Score de confiance 0..100. Démarre à 50.'),
   communeId: z.string().uuid().nullable(),
 })
 
 const RegisterResponse = z.object({
-  sessionToken: z.string(),
+  sessionToken: z.string().describe('JWT de session SportLocker (HS256, TTL 7 jours)'),
   user: UserDTO,
 })
 
@@ -88,6 +89,13 @@ export async function authRoutes(rawApp: FastifyInstance) {
    */
   app.post('/register', {
     schema: {
+      tags: ['Citoyens — Auth'],
+      summary: 'Échange un Firebase ID token contre une session citoyen',
+      description: 'Vérifie le Firebase ID token et upsert le user (création ou rafraîchissement). '
+        + 'Émet un JWT de session SportLocker (HS256, TTL 7 jours) à utiliser en `Authorization: Bearer`.\n\n'
+        + 'En production : vérification cryptographique via firebase-admin (requiert FIREBASE_*). '
+        + 'En dev sans firebase configuré : décodage sans vérif signature avec log warning.\n\n'
+        + '**Exemple body** : `{ "idToken": "eyJhbGc..." }`',
       body: RegisterBody,
       response: {
         201: RegisterResponse,
@@ -139,7 +147,7 @@ export async function authRoutes(rawApp: FastifyInstance) {
       })
       .returning()
 
-    const sessionToken = app.jwt.sign({ sub: u!.id, role: u!.role })
+    const sessionToken = app.jwt.sign({ sub: u!.id, email: u!.email, role: u!.role })
 
     return reply.code(201).send({
       sessionToken,

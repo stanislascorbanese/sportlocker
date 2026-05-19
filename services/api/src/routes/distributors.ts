@@ -8,37 +8,40 @@ import { distributors, lockers } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 
 const DistributorDTO = z.object({
-  id: z.string().uuid(),
-  serialNumber: z.string(),
-  name: z.string(),
-  status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
-  communeId: z.string().uuid(),
-  lockerCount: z.number().int().positive(),
-  idleLockers: z.number().int().min(0),
-  latitude: z.number().nullable(),
-  longitude: z.number().nullable(),
+  id: z.string().uuid().describe('UUID v4 du distributeur'),
+  serialNumber: z.string().describe('Numéro de série physique gravé sur la borne, unique'),
+  name: z.string().describe('Nom affiché côté UI (ex: "Stade Léo Lagrange")'),
+  status: z.enum(['online', 'offline', 'maintenance', 'decommissioned'])
+    .describe('État opérationnel synthétique. `online` = heartbeat récent. `decommissioned` = retiré du parc.'),
+  communeId: z.string().uuid().describe('Tenant (commune) propriétaire du distributeur'),
+  lockerCount: z.number().int().positive().describe('Nombre total de casiers physiques (1..64)'),
+  idleLockers: z.number().int().min(0).describe('Nombre de casiers actuellement disponibles (state=idle)'),
+  latitude: z.number().nullable().describe('Latitude WGS84. Null tant que la borne n\'a pas été géocodée.'),
+  longitude: z.number().nullable().describe('Longitude WGS84. Null tant que la borne n\'a pas été géocodée.'),
   /** Pas encore tracé en DB (pas de colonne battery_percent sur heartbeats). */
-  batteryPercent: z.number().int().min(0).max(100).nullable(),
-  lastSeenAt: z.string().datetime().nullable(),
+  batteryPercent: z.number().int().min(0).max(100).nullable()
+    .describe('Niveau batterie 0..100. Toujours null tant que le firmware ne le pousse pas.'),
+  lastSeenAt: z.string().datetime().nullable()
+    .describe('Dernier heartbeat MQTT reçu. Null = jamais vu en ligne.'),
 })
 
 const NearbyDistributorDTO = DistributorDTO.extend({
-  distanceKm: z.number().min(0),
+  distanceKm: z.number().min(0).describe('Distance Haversine depuis (lat,lng) du query, en km'),
 })
 
 const NearbyQuery = z.object({
-  lat:       z.coerce.number().min(-90).max(90),
-  lng:       z.coerce.number().min(-180).max(180),
-  radius_km: z.coerce.number().positive().max(500).default(5),
+  lat:       z.coerce.number().min(-90).max(90).describe('Latitude WGS84 du point de référence'),
+  lng:       z.coerce.number().min(-180).max(180).describe('Longitude WGS84 du point de référence'),
+  radius_km: z.coerce.number().positive().max(500).default(5).describe('Rayon de recherche en km (défaut 5, max 500)'),
 })
 
 const CreateDistributorBody = z.object({
-  serialNumber: z.string().min(3).max(40),
-  communeId:    z.string().uuid(),
-  name:         z.string().min(1).max(120),
+  serialNumber: z.string().min(3).max(40).describe('Numéro de série gravé (unique, doit matcher le firmware)'),
+  communeId:    z.string().uuid().describe('Tenant propriétaire (admin scopé = doit matcher son communeId)'),
+  name:         z.string().min(1).max(120).describe('Nom d\'affichage'),
   latitude:     z.number().min(-90).max(90).nullable().optional(),
   longitude:    z.number().min(-180).max(180).nullable().optional(),
-  lockerCount:  z.number().int().min(1).max(64),
+  lockerCount:  z.number().int().min(1).max(64).describe('Nombre de casiers physiques à créer (state=idle)'),
 })
 
 const UpdateDistributorBody = z.object({
@@ -60,7 +63,13 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
    * et le compte de casiers idle (sous-requête COUNT).
    */
   app.get('/', {
-    schema: { response: { 200: z.object({ items: z.array(DistributorDTO) }) } },
+    schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Liste paginée du parc de distributeurs',
+      description: 'Renvoie jusqu\'à 200 distributeurs avec leur géolocalisation et le nombre de casiers disponibles. '
+        + 'Route publique (pas d\'auth). Pour la recherche par proximité, préférer `GET /nearby`.',
+      response: { 200: z.object({ items: z.array(DistributorDTO) }) },
+    },
   }, async () => {
     const idleCount = sql<number>`(
       SELECT COUNT(*)::int FROM lockers
@@ -110,6 +119,12 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
    */
   app.get('/nearby', {
     schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Distributeurs autour d\'un point (haversine SQL)',
+      description: 'Route publique consommée par la carte de l\'app mobile.\n\n'
+        + '**Exemple** : `GET /v1/distributors/nearby?lat=48.8566&lng=2.3522&radius_km=2` renvoie '
+        + 'les distributeurs dans un rayon de 2km autour du centre de Paris, triés par distance croissante. '
+        + 'Limite dure 100 résultats. Postgres vanilla (pas d\'extension earthdistance/postgis).',
       querystring: NearbyQuery,
       response: { 200: z.object({ items: z.array(NearbyDistributorDTO) }) },
     },
@@ -178,14 +193,20 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
    */
   app.get('/:id', {
     schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Détail d\'un distributeur + casiers',
+      description: 'Renvoie le distributeur et la liste de ses casiers (position, state, item courant). '
+        + 'Public (pas d\'auth). Utilisé par l\'écran "détail borne" de l\'app mobile.',
       params: z.object({ id: z.string().uuid() }),
       response: {
         200: DistributorDTO.extend({
           lockers: z.array(z.object({
             id: z.string().uuid(),
-            position: z.number().int(),
-            state: z.enum(['idle', 'reserved', 'active', 'returning', 'fault']),
-            currentItemId: z.string().uuid().nullable(),
+            position: z.number().int().describe('Index physique du casier dans la borne (0..N-1)'),
+            state: z.enum(['idle', 'reserved', 'active', 'returning', 'fault'])
+              .describe('État machine du casier (cf. règles métier)'),
+            currentItemId: z.string().uuid().nullable()
+              .describe('Item physiquement présent dans le casier, null si vide'),
           })),
         }),
         404: ErrorDTO,
@@ -228,6 +249,12 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
   app.post('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Crée un distributeur + ses casiers (admin)',
+      description: 'Admin ou super_admin. Crée le distributeur et N casiers (state=idle) dans une transaction. '
+        + 'Un admin scopé ne peut créer que dans sa propre commune (`communeId` doit matcher le scope).\n\n'
+        + 'Erreurs : 409 `serial_number_conflict` si serialNumber déjà pris · 404 `commune_not_found` si FK invalide.',
+      security: [{ bearerAuth: [] }],
       body: CreateDistributorBody,
       response: {
         201: DistributorDTO,
@@ -303,6 +330,11 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
   app.put('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Mise à jour partielle d\'un distributeur (admin)',
+      description: 'Modifie name / status / latitude / longitude. `lockerCount` non modifiable '
+        + '(structure physique). Admin scopé : 404 si le distributeur n\'est pas dans sa commune.',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       body: UpdateDistributorBody,
       response: {

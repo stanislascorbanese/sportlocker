@@ -249,6 +249,14 @@ CREATE INDEX idx_reservations_expires     ON reservations(expires_at)
   WHERE status IN ('pending', 'active');
 CREATE INDEX idx_reservations_distributor ON reservations(distributor_id);
 CREATE INDEX idx_reservations_created     ON reservations(created_at DESC);
+-- Pagination cursor admin : ORDER BY (created_at DESC, id DESC) + tiebreaker.
+CREATE INDEX idx_reservations_created_id  ON reservations(created_at DESC, id DESC);
+-- Liste admin filtrée par status, triée created_at DESC.
+CREATE INDEX idx_reservations_status_created
+  ON reservations(status, created_at DESC);
+-- Stats dashboard scopées commune (distributor_id IN ... AND created_at >= ...).
+CREATE INDEX idx_reservations_distributor_created
+  ON reservations(distributor_id, created_at DESC);
 
 -- ─── 9. reviews ────────────────────────────────────────────────────────────
 
@@ -319,6 +327,12 @@ CREATE TABLE maintenance_tickets (
 
 CREATE INDEX idx_maintenance_distributor ON maintenance_tickets(distributor_id);
 CREATE INDEX idx_maintenance_status      ON maintenance_tickets(status);
+-- Listing admin tickets : ORDER BY severity DESC, created_at DESC.
+CREATE INDEX idx_maintenance_severity_created
+  ON maintenance_tickets(severity DESC, created_at DESC);
+-- Listing filtré par status + tri (severity, created_at).
+CREATE INDEX idx_maintenance_status_severity_created
+  ON maintenance_tickets(status, severity DESC, created_at DESC);
 
 -- ─── 13. push_tokens ───────────────────────────────────────────────────────
 

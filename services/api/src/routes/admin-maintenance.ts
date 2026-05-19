@@ -113,6 +113,11 @@ export async function adminMaintenanceRoutes(rawApp: FastifyInstance) {
   app.get('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Maintenance'],
+      summary: 'Liste des tickets de maintenance',
+      description: 'Tri par sévérité DESC puis createdAt DESC. Limite 500. Filtres : `status`, `distributorId`. '
+        + 'Admin scopé : tickets de sa commune uniquement.',
+      security: [{ bearerAuth: [] }],
       querystring: ListQuery,
       response: {
         200: z.object({ items: z.array(TicketDTO) }),
@@ -151,6 +156,11 @@ export async function adminMaintenanceRoutes(rawApp: FastifyInstance) {
   app.patch('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Maintenance'],
+      summary: 'Met à jour un ticket (status, assignee, severity, note)',
+      description: 'Side effect : `status=resolved` pose `resolvedAt=NOW()`. Retour vers open/in_progress/wontfix '
+        + 'remet `resolvedAt=null`. Admin scopé : 404 si ticket hors commune.',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       body: UpdateBody,
       response: {
