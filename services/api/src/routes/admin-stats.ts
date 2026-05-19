@@ -28,6 +28,11 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
   app.get('/reservations-daily', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Stats'],
+      summary: 'Comptage réservations par jour',
+      description: 'Série temporelle des créations sur les `days` derniers jours, jours à zéro inclus '
+        + '(`generate_series`). Tous statuts confondus (pending/active/returned/overdue/cancelled/expired).',
+      security: [{ bearerAuth: [] }],
       querystring: DailyQuery,
       response: {
         200: z.object({ points: z.array(DailyPoint) }),
@@ -79,8 +84,19 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
   app.get('/dashboard', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Stats'],
+      summary: 'Agrégats KPI page Stats du dashboard',
+      description: '5 queries en parallèle, 1 round-trip côté client :\n'
+        + '- `daily` : série temporelle des créations (jours à zéro inclus)\n'
+        + '- `byStatus` : répartition par statut (tous les 6 statuts renvoyés, même à 0)\n'
+        + '- `topDistributors` : top 5 distributeurs par volume\n'
+        + '- `topItemTypes` : top 5 types d\'objets empruntés\n'
+        + '- `hourly` : heatmap jour-de-semaine × heure (dow=0=dimanche, 6=samedi)\n\n'
+        + 'Admin scopé : agrégats restreints à sa commune. Super_admin : tout le parc.',
+      security: [{ bearerAuth: [] }],
       querystring: z.object({
-        days: z.coerce.number().int().min(7).max(180).default(30),
+        days: z.coerce.number().int().min(7).max(180).default(30)
+          .describe('Fenêtre d\'analyse en jours (7..180, défaut 30)'),
       }),
       response: {
         200: z.object({

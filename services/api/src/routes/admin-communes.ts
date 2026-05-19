@@ -117,6 +117,10 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.get('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Liste des communes (tenants)',
+      description: 'Admin scopé : voit uniquement sa propre commune (filtré). Super_admin : tout le parc (max 500).',
+      security: [{ bearerAuth: [] }],
       response: {
         200: z.object({ items: z.array(CommuneDTO) }),
         401: ErrorDTO, 403: ErrorDTO,
@@ -148,6 +152,10 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.get('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Détail d\'une commune',
+      description: 'Admin scopé : 404 si ce n\'est pas sa commune (pas 403, pour ne pas divulguer l\'existence).',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       response: { 200: CommuneDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
@@ -176,6 +184,11 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.post('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Crée une commune (super_admin only)',
+      description: 'Création d\'un tenant = action système réservée à super_admin. '
+        + '409 `insee_code_conflict` si code INSEE déjà pris.',
+      security: [{ bearerAuth: [] }],
       body: CreateBody,
       response: { 201: CommuneDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 409: ErrorDTO },
     },
@@ -230,6 +243,10 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.put('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Mise à jour partielle d\'une commune',
+      description: 'Admin scopé : ne peut modifier QUE sa propre commune. `inseeCode` non modifiable (identité administrative).',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       body: UpdateBody,
       response: { 200: CommuneDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },

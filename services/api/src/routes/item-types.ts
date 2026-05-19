@@ -31,6 +31,10 @@ export async function itemTypeRoutes(rawApp: FastifyInstance) {
    */
   app.get('/', {
     schema: {
+      tags: ['Citoyens — Item types'],
+      summary: 'Catalogue paginé des types d\'objets',
+      description: 'Public (pas d\'auth). Appelé par l\'app mobile au démarrage pour peupler le filtre de la carte. '
+        + 'Inclut caution en cents et durée d\'emprunt max en minutes.',
       querystring: ListQuery,
       response: {
         200: z.object({

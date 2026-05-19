@@ -8,18 +8,20 @@ import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
 
 const LoginBody = z.object({
-  firebaseIdToken: z.string().min(20),
+  firebaseIdToken: z.string().min(20)
+    .describe('Firebase ID token obtenu côté dashboard (firebase-auth-web). JWT à 3 segments.'),
 })
 
 const SessionUser = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
-  role: z.enum(['admin', 'super_admin']),
-  communeId: z.string().uuid().nullable(),
+  role: z.enum(['admin', 'super_admin'])
+    .describe('`admin` = scopé à une commune. `super_admin` = équipe SportLocker, cross-tenant.'),
+  communeId: z.string().uuid().nullable().describe('Tenant pour `admin`. Null pour `super_admin`.'),
 })
 
 const LoginResponse = z.object({
-  sessionToken: z.string(),
+  sessionToken: z.string().describe('JWT de session SportLocker (HS256, TTL 7 jours). À renvoyer en Bearer.'),
   user: SessionUser,
 })
 
@@ -101,6 +103,13 @@ export async function adminAuthRoutes(rawApp: FastifyInstance) {
    */
   app.post('/login', {
     schema: {
+      tags: ['Auth admin'],
+      summary: 'Login admin (échange Firebase ID token)',
+      description: 'Vérifie le Firebase ID token et émet un JWT de session. Le user DOIT déjà exister en DB '
+        + 'avec `role ∈ {admin, super_admin}`. Pas d\'auto-création : passe par le flow `/v1/admin/invites/accept` '
+        + 'ou par `pnpm bootstrap-super-admin`.\n\n'
+        + '**Erreurs** : 401 `invalid_id_token` · 401 `admin_user_not_found` · 401 `not_an_admin` · 401 `user_banned`.\n\n'
+        + '**Exemple body** : `{ "firebaseIdToken": "eyJhbGc..." }`',
       body: LoginBody,
       response: {
         200: LoginResponse,
