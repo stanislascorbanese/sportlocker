@@ -5,7 +5,7 @@ import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
-import { getMapStrings, type MapStrings } from '../../lib/map-i18n'
+import { getMapStrings, getMapTiles, type MapStrings, type MapTiles } from '../../lib/map-i18n'
 import type { LeafletMap } from '../../lib/leaflet-types'
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
@@ -23,10 +23,12 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
   const mapRef = useRef<LeafletMap | null>(null)
   const [leafletReady, setLeafletReady] = useState(false)
   const [strings, setStrings] = useState<MapStrings>(() => getMapStrings('fr'))
+  const [tiles, setTiles] = useState<MapTiles>(() => getMapTiles('fr'))
 
   // Détecte la langue côté client (document.documentElement.lang)
   useEffect(() => {
     setStrings(getMapStrings())
+    setTiles(getMapTiles())
   }, [])
 
   const geo = distributors.filter(
@@ -47,10 +49,10 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
     // Contrôles zoom avec libellés localisés
     new L.Control.Zoom({ zoomInTitle: strings.zoomIn, zoomOutTitle: strings.zoomOut }).addTo(map)
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
+    L.tileLayer(tiles.url, {
+      attribution: tiles.attribution,
+      subdomains: tiles.subdomains,
+      maxZoom: tiles.maxZoom,
     }).addTo(map)
 
     if (points.length > 0) {
@@ -88,7 +90,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       map.remove()
       mapRef.current = null
     }
-  }, [leafletReady, geo, strings])
+  }, [leafletReady, geo, strings, tiles])
 
   const missingCoords = distributors.length - geo.length
 

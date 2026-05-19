@@ -3,7 +3,7 @@
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 
-import { getMapStrings } from '../../lib/map-i18n'
+import { getMapStrings, getMapTiles } from '../../lib/map-i18n'
 import type { LeafletMap, LeafletMarker } from '../../lib/leaflet-types'
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
@@ -39,6 +39,7 @@ export function MapPicker({
   const onChangeRef = useRef(onChange)
   const [ready, setReady] = useState(false)
   const [strings] = useState(() => getMapStrings())
+  const [tiles] = useState(() => getMapTiles())
 
   // Garde onChange à jour sans recréer la carte
   useEffect(() => {
@@ -62,10 +63,10 @@ export function MapPicker({
     map.setView(hasInitial ? [lat, lng] : DEFAULT_CENTER, hasInitial ? PICKED_ZOOM : DEFAULT_ZOOM)
     mapRef.current = map
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
+    L.tileLayer(tiles.url, {
+      attribution: tiles.attribution,
+      subdomains: tiles.subdomains,
+      maxZoom: tiles.maxZoom,
     }).addTo(map)
 
     if (hasInitial) {

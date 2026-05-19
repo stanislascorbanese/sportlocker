@@ -25,6 +25,37 @@ export type MapStrings = {
   pickerPlaceholder: string
 }
 
+export type MapTiles = {
+  url: string
+  subdomains: string
+  maxZoom: number
+  attribution: string
+}
+
+/**
+ * Choix du serveur de tuiles selon la langue. CARTO Voyager anglicise les
+ * toponymes (Brittany, Greater East…) — pour le français, on utilise OSM
+ * France qui conserve les noms locaux ("Bretagne", "Grand Est").
+ */
+const TILES: Record<MapLang, MapTiles> = {
+  fr: {
+    url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    subdomains: 'abc',
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://www.openstreetmap.fr/">OpenStreetMap France</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  en: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: 'abcd',
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+}
+
+export function getMapTiles(lang: MapLang = detectMapLang()): MapTiles {
+  return TILES[lang]
+}
+
 const STRINGS: Record<MapLang, MapStrings> = {
   fr: {
     loading: 'Chargement de la carte…',
