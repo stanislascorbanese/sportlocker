@@ -139,7 +139,7 @@ export async function authRoutes(rawApp: FastifyInstance) {
       })
       .returning()
 
-    const sessionToken = app.jwt.sign({ sub: u!.id, role: u!.role })
+    const sessionToken = app.jwt.sign({ sub: u!.id, email: u!.email, role: u!.role })
 
     return reply.code(201).send({
       sessionToken,

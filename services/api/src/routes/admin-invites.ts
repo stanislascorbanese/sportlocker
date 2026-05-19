@@ -212,6 +212,7 @@ export async function adminInviteRoutes(rawApp: FastifyInstance) {
 
     const sessionToken = app.jwt.sign({
       sub: created.id,
+      email: created.email,
       role: created.role,
       ...(created.communeId ? { communeId: created.communeId } : {}),
     })

@@ -21,11 +21,13 @@ declare module '@fastify/jwt' {
   interface FastifyJWT {
     payload: {
       sub: string
+      email: string
       role: 'citizen' | 'operator' | 'admin' | 'super_admin'
       communeId?: string
     }
     user: {
       sub: string
+      email: string
       role: 'citizen' | 'operator' | 'admin' | 'super_admin'
       communeId?: string
     }
