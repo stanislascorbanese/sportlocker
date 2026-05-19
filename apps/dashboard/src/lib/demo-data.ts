@@ -1,6 +1,7 @@
 import type {
-  AdminUser, AuditEvent, Commune, DailyPoint, MaintenanceTicket, Reservation,
-  ReservationDetail, ReservationEvent, StatsDashboard,
+  AdminUser, AuditEvent, Commune, DailyPoint, Item, ItemTypeAdmin,
+  MaintenanceTicket, Reservation, ReservationDetail, ReservationEvent,
+  StatsDashboard,
 } from './api'
 
 /**
@@ -383,7 +384,9 @@ const DEMO_DISTRIBUTORS = [
   { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', name: 'Parc Montsouris', serialNumber: 'SL-PARIS-007' },
 ] as const
 
-const DEMO_ITEMS = [
+// Snapshot ultra-léger pour les réservations démo (juste id + typeName).
+// Renommé pour ne pas collisionner avec DEMO_ITEMS (articles physiques complets).
+const DEMO_RESERVATION_ITEMS = [
   { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', typeName: 'Ballon de basket' },
   { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', typeName: 'Raquette de tennis' },
   { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3', typeName: 'Frisbee' },
@@ -403,7 +406,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 0,
     user: DEMO_USERS[0],
     distributor: DEMO_DISTRIBUTORS[0],
-    item: DEMO_ITEMS[0],
+    item: DEMO_RESERVATION_ITEMS[0],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc02',
@@ -416,7 +419,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 0,
     user: DEMO_USERS[1],
     distributor: DEMO_DISTRIBUTORS[1],
-    item: DEMO_ITEMS[1],
+    item: DEMO_RESERVATION_ITEMS[1],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc03',
@@ -429,7 +432,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 2,
     user: DEMO_USERS[2],
     distributor: DEMO_DISTRIBUTORS[2],
-    item: DEMO_ITEMS[2],
+    item: DEMO_RESERVATION_ITEMS[2],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc04',
@@ -442,7 +445,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 1,
     user: DEMO_USERS[3],
     distributor: DEMO_DISTRIBUTORS[0],
-    item: DEMO_ITEMS[3],
+    item: DEMO_RESERVATION_ITEMS[3],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc05',
@@ -455,7 +458,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 0,
     user: DEMO_USERS[4],
     distributor: DEMO_DISTRIBUTORS[3],
-    item: DEMO_ITEMS[4],
+    item: DEMO_RESERVATION_ITEMS[4],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc06',
@@ -468,7 +471,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 0,
     user: DEMO_USERS[0],
     distributor: DEMO_DISTRIBUTORS[1],
-    item: DEMO_ITEMS[1],
+    item: DEMO_RESERVATION_ITEMS[1],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc07',
@@ -481,7 +484,7 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 0,
     user: DEMO_USERS[2],
     distributor: DEMO_DISTRIBUTORS[2],
-    item: DEMO_ITEMS[2],
+    item: DEMO_RESERVATION_ITEMS[2],
   },
   {
     id: 'cccccccc-cccc-cccc-cccc-cccccccccc08',
@@ -494,7 +497,213 @@ export const DEMO_RESERVATIONS: Reservation[] = [
     extensionCount: 0,
     user: DEMO_USERS[3],
     distributor: DEMO_DISTRIBUTORS[3],
-    item: DEMO_ITEMS[0],
+    item: DEMO_RESERVATION_ITEMS[0],
+  },
+]
+
+export const DEMO_ITEM_TYPES: ItemTypeAdmin[] = [
+  {
+    id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
+    slug: 'ballon-basket',
+    name: 'Ballon de basket',
+    category: 'ballon',
+    description: 'Ballon de basket taille 7, mousse haute densité. Convient indoor et outdoor.',
+    imageUrl: null,
+    cautionCents: 20_00,
+    maxDurationMinutes: 240,
+    activeItemCount: 24,
+    totalReservations: 412,
+    createdAt: isoHoursAgo(24 * 240),
+  },
+  {
+    id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2',
+    slug: 'raquette-tennis',
+    name: 'Raquette de tennis',
+    category: 'raquette',
+    description: 'Raquette adulte taille standard, cordage poly. Fournie sans balles.',
+    imageUrl: null,
+    cautionCents: 35_00,
+    maxDurationMinutes: 180,
+    activeItemCount: 18,
+    totalReservations: 287,
+    createdAt: isoHoursAgo(24 * 230),
+  },
+  {
+    id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3',
+    slug: 'frisbee',
+    name: 'Frisbee',
+    category: 'accessoire',
+    description: 'Disque ultimate 175g, plastique souple.',
+    imageUrl: null,
+    cautionCents: 10_00,
+    maxDurationMinutes: 120,
+    activeItemCount: 12,
+    totalReservations: 121,
+    createdAt: isoHoursAgo(24 * 180),
+  },
+  {
+    id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4',
+    slug: 'ballon-foot',
+    name: 'Ballon de foot',
+    category: 'ballon',
+    description: 'Ballon taille 5, cuir synthétique, gonflé à 0.8 bar.',
+    imageUrl: null,
+    cautionCents: 20_00,
+    maxDurationMinutes: 240,
+    activeItemCount: 30,
+    totalReservations: 358,
+    createdAt: isoHoursAgo(24 * 210),
+  },
+  {
+    id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb5',
+    slug: 'petanque-set',
+    name: 'Boules de pétanque (set)',
+    category: 'autre',
+    description: 'Set de 6 boules acier + cochonnet, dans sa sacoche.',
+    imageUrl: null,
+    cautionCents: 50_00,
+    maxDurationMinutes: 180,
+    activeItemCount: 8,
+    totalReservations: 92,
+    createdAt: isoHoursAgo(24 * 160),
+  },
+]
+
+const DEMO_LOCKER_REFS = [
+  { id: 'a1111111-1111-1111-1111-111111111111', position: 0, distributor: DEMO_DISTRIBUTORS[0] },
+  { id: 'a1111111-1111-1111-1111-111111111112', position: 1, distributor: DEMO_DISTRIBUTORS[0] },
+  { id: 'a2222222-2222-2222-2222-222222222221', position: 0, distributor: DEMO_DISTRIBUTORS[1] },
+  { id: 'a2222222-2222-2222-2222-222222222222', position: 1, distributor: DEMO_DISTRIBUTORS[1] },
+  { id: 'a3333333-3333-3333-3333-333333333331', position: 0, distributor: DEMO_DISTRIBUTORS[2] },
+  { id: 'a4444444-4444-4444-4444-444444444441', position: 0, distributor: DEMO_DISTRIBUTORS[3] },
+] as const
+
+const DEMO_COMMUNE_ID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01'
+
+export const DEMO_ITEMS: Item[] = [
+  {
+    id: 'c0bbbbbb-1111-1111-1111-aaaaaaaaaaa1',
+    rfidTag: 'RFID-BB-0001',
+    condition: 'new',
+    totalLoans: 12,
+    lastInspectedAt: isoHoursAgo(24 * 3),
+    createdAt: isoHoursAgo(24 * 60),
+    itemType: { id: DEMO_ITEM_TYPES[0]!.id, slug: DEMO_ITEM_TYPES[0]!.slug, name: DEMO_ITEM_TYPES[0]!.name, category: DEMO_ITEM_TYPES[0]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[0].id, position: DEMO_LOCKER_REFS[0].position,
+      distributor: { ...DEMO_LOCKER_REFS[0].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-1111-1111-1111-aaaaaaaaaaa2',
+    rfidTag: 'RFID-BB-0002',
+    condition: 'good',
+    totalLoans: 47,
+    lastInspectedAt: isoHoursAgo(24 * 7),
+    createdAt: isoHoursAgo(24 * 120),
+    itemType: { id: DEMO_ITEM_TYPES[0]!.id, slug: DEMO_ITEM_TYPES[0]!.slug, name: DEMO_ITEM_TYPES[0]!.name, category: DEMO_ITEM_TYPES[0]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[1].id, position: DEMO_LOCKER_REFS[1].position,
+      distributor: { ...DEMO_LOCKER_REFS[1].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-2222-2222-2222-aaaaaaaaaaa1',
+    rfidTag: 'RFID-TN-0001',
+    condition: 'worn',
+    totalLoans: 89,
+    lastInspectedAt: isoHoursAgo(24 * 14),
+    createdAt: isoHoursAgo(24 * 200),
+    itemType: { id: DEMO_ITEM_TYPES[1]!.id, slug: DEMO_ITEM_TYPES[1]!.slug, name: DEMO_ITEM_TYPES[1]!.name, category: DEMO_ITEM_TYPES[1]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[2].id, position: DEMO_LOCKER_REFS[2].position,
+      distributor: { ...DEMO_LOCKER_REFS[2].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-2222-2222-2222-aaaaaaaaaaa2',
+    rfidTag: 'RFID-TN-0002',
+    condition: 'damaged',
+    totalLoans: 56,
+    lastInspectedAt: isoHoursAgo(24 * 2),
+    createdAt: isoHoursAgo(24 * 180),
+    itemType: { id: DEMO_ITEM_TYPES[1]!.id, slug: DEMO_ITEM_TYPES[1]!.slug, name: DEMO_ITEM_TYPES[1]!.name, category: DEMO_ITEM_TYPES[1]!.category },
+    currentLocker: null,
+  },
+  {
+    id: 'c0bbbbbb-3333-3333-3333-aaaaaaaaaaa1',
+    rfidTag: 'RFID-FR-0001',
+    condition: 'new',
+    totalLoans: 4,
+    lastInspectedAt: null,
+    createdAt: isoHoursAgo(24 * 20),
+    itemType: { id: DEMO_ITEM_TYPES[2]!.id, slug: DEMO_ITEM_TYPES[2]!.slug, name: DEMO_ITEM_TYPES[2]!.name, category: DEMO_ITEM_TYPES[2]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[3].id, position: DEMO_LOCKER_REFS[3].position,
+      distributor: { ...DEMO_LOCKER_REFS[3].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-4444-4444-4444-aaaaaaaaaaa1',
+    rfidTag: 'RFID-FB-0001',
+    condition: 'good',
+    totalLoans: 31,
+    lastInspectedAt: isoHoursAgo(24 * 5),
+    createdAt: isoHoursAgo(24 * 95),
+    itemType: { id: DEMO_ITEM_TYPES[3]!.id, slug: DEMO_ITEM_TYPES[3]!.slug, name: DEMO_ITEM_TYPES[3]!.name, category: DEMO_ITEM_TYPES[3]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[4].id, position: DEMO_LOCKER_REFS[4].position,
+      distributor: { ...DEMO_LOCKER_REFS[4].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-4444-4444-4444-aaaaaaaaaaa2',
+    rfidTag: 'RFID-FB-0002',
+    condition: 'good',
+    totalLoans: 22,
+    lastInspectedAt: isoHoursAgo(24 * 11),
+    createdAt: isoHoursAgo(24 * 90),
+    itemType: { id: DEMO_ITEM_TYPES[3]!.id, slug: DEMO_ITEM_TYPES[3]!.slug, name: DEMO_ITEM_TYPES[3]!.name, category: DEMO_ITEM_TYPES[3]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[5].id, position: DEMO_LOCKER_REFS[5].position,
+      distributor: { ...DEMO_LOCKER_REFS[5].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-4444-4444-4444-aaaaaaaaaaa3',
+    rfidTag: 'RFID-FB-0003',
+    condition: 'lost',
+    totalLoans: 8,
+    lastInspectedAt: isoHoursAgo(24 * 60),
+    createdAt: isoHoursAgo(24 * 150),
+    itemType: { id: DEMO_ITEM_TYPES[3]!.id, slug: DEMO_ITEM_TYPES[3]!.slug, name: DEMO_ITEM_TYPES[3]!.name, category: DEMO_ITEM_TYPES[3]!.category },
+    currentLocker: null,
+  },
+  {
+    id: 'c0bbbbbb-5555-5555-5555-aaaaaaaaaaa1',
+    rfidTag: 'RFID-PE-0001',
+    condition: 'good',
+    totalLoans: 17,
+    lastInspectedAt: isoHoursAgo(24 * 9),
+    createdAt: isoHoursAgo(24 * 70),
+    itemType: { id: DEMO_ITEM_TYPES[4]!.id, slug: DEMO_ITEM_TYPES[4]!.slug, name: DEMO_ITEM_TYPES[4]!.name, category: DEMO_ITEM_TYPES[4]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[0].id, position: DEMO_LOCKER_REFS[0].position,
+      distributor: { ...DEMO_LOCKER_REFS[0].distributor, communeId: DEMO_COMMUNE_ID },
+    },
+  },
+  {
+    id: 'c0bbbbbb-5555-5555-5555-aaaaaaaaaaa2',
+    rfidTag: 'RFID-PE-0002',
+    condition: 'new',
+    totalLoans: 0,
+    lastInspectedAt: null,
+    createdAt: isoHoursAgo(24 * 4),
+    itemType: { id: DEMO_ITEM_TYPES[4]!.id, slug: DEMO_ITEM_TYPES[4]!.slug, name: DEMO_ITEM_TYPES[4]!.name, category: DEMO_ITEM_TYPES[4]!.category },
+    currentLocker: {
+      id: DEMO_LOCKER_REFS[2].id, position: DEMO_LOCKER_REFS[2].position,
+      distributor: { ...DEMO_LOCKER_REFS[2].distributor, communeId: DEMO_COMMUNE_ID },
+    },
   },
 ]
 
