@@ -121,6 +121,7 @@ export async function adminAuthRoutes(rawApp: FastifyInstance) {
         role: users.role,
         communeId: users.communeId,
         isBanned: users.isBanned,
+        gdprDeletedAt: users.gdprDeletedAt,
       })
       .from(users)
       .where(eq(users.firebaseUid, claims.sub))
@@ -134,6 +135,22 @@ export async function adminAuthRoutes(rawApp: FastifyInstance) {
     }
     if (u.isBanned) {
       return reply.code(401).send({ error: 'user_banned' })
+    }
+    // RGPD : un user soft-deleted (gdpr_deleted_at posé par le cron de
+    // nettoyage 30j) ne peut plus se reconnecter, même s'il a un compte
+    // Firebase encore actif. Le cron suppose que toute session admin
+    // future serait illégitime sur des données anonymisées.
+    if (u.gdprDeletedAt !== null) {
+      return reply.code(401).send({ error: 'user_deleted' })
+    }
+    // Multi-tenant : un admin (par opposition à super_admin) DOIT avoir
+    // une commune assignée, sinon il pourrait se logger et émettre un JWT
+    // sans communeId → bypass de tout le scoping commune côté
+    // requireAdminScope (qui renvoie scope=null si pas de communeId).
+    // Fail-safe : on refuse au login plutôt que de risquer une fuite
+    // cross-tenant en aval.
+    if (u.role === 'admin' && !u.communeId) {
+      return reply.code(401).send({ error: 'admin_missing_commune' })
     }
 
     const sessionToken = app.jwt.sign({
