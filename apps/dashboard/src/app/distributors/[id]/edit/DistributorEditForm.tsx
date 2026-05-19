@@ -8,6 +8,7 @@ import { updateDistributorAction, type FormState } from '../../_actions'
 import { cn } from '../../../../lib/cn'
 import type { DistributorDetail } from '../../../../lib/api'
 import { AddressAutocomplete, type AddressAutofill } from '../../AddressAutocomplete'
+import { MapPicker } from '../../MapPicker'
 
 const INITIAL: FormState = { status: 'idle' }
 
@@ -61,6 +62,15 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
       <AddressAutocomplete
         onSelect={onAddressSelect}
         hint="Repositionner le distributeur via une adresse"
+      />
+
+      <MapPicker
+        latitude={latitude}
+        longitude={longitude}
+        onChange={(lat, lng) => {
+          setLatitude(lat.toFixed(6))
+          setLongitude(lng.toFixed(6))
+        }}
       />
 
       <div className="grid grid-cols-2 gap-4">

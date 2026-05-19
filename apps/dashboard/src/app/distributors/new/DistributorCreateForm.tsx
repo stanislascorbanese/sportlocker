@@ -8,6 +8,7 @@ import type { Commune } from '../../../lib/api'
 import { createDistributorAction, type FormState } from '../_actions'
 import { cn } from '../../../lib/cn'
 import { AddressAutocomplete, type AddressAutofill } from '../AddressAutocomplete'
+import { MapPicker } from '../MapPicker'
 
 const INITIAL: FormState = { status: 'idle' }
 
@@ -112,6 +113,15 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
         required
       />
 
+      <MapPicker
+        latitude={latitude}
+        longitude={longitude}
+        onChange={(lat, lng) => {
+          setLatitude(lat.toFixed(6))
+          setLongitude(lng.toFixed(6))
+        }}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <Field
           name="latitude"
@@ -134,9 +144,6 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
           error={state.fieldErrors?.['longitude']}
         />
       </div>
-      <p className="-mt-3 text-[11px] text-white/40">
-        Remplis automatiquement par l&apos;adresse — éditable pour ajuster finement.
-      </p>
 
       {state.status === 'error' && state.message && (
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
