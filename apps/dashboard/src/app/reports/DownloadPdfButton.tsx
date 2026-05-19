@@ -1,7 +1,7 @@
 'use client'
 
 import { Download, Loader2 } from 'lucide-react'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 
 import { generateReportAction, type ReportFilters } from './_actions'
 
@@ -19,11 +19,10 @@ type State =
  */
 export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
   const [state, setState] = useState<State>({ kind: 'idle' })
-  const [pending, startTransition] = useTransition()
 
   function onClick() {
     setState({ kind: 'loading' })
-    startTransition(async () => {
+    void (async () => {
       try {
         const res = await generateReportAction(filters)
         if (!res.ok) {
@@ -38,10 +37,10 @@ export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
           message: err instanceof Error ? err.message : 'Erreur inconnue',
         })
       }
-    })
+    })()
   }
 
-  const busy = pending || state.kind === 'loading'
+  const busy = state.kind === 'loading'
 
   return (
     <div className="flex flex-col items-end gap-1">
