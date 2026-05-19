@@ -4,7 +4,10 @@ import Link from 'next/link'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import { cn } from '../../lib/cn'
-import { ITEM_CONDITIONS, type ItemCondition } from '../../lib/api'
+// Important : importer depuis api-enums (client-safe), PAS depuis ../../lib/api
+// qui embarquerait next/headers côté client et casserait le build Next.js.
+// cf. apps/dashboard/src/lib/api-enums.ts pour le contexte.
+import { ITEM_CONDITIONS, type ItemCondition } from '../../lib/api-enums'
 import {
   createItemAction,
   updateItemAction,

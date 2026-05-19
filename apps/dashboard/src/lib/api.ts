@@ -75,8 +75,13 @@ export const ItemTypeUpdateInput = z.object({
 
 export type ItemTypeUpdateInput = z.infer<typeof ItemTypeUpdateInput>
 
-export const ITEM_CONDITIONS = ['new', 'good', 'worn', 'damaged', 'lost'] as const
-export type ItemCondition = typeof ITEM_CONDITIONS[number]
+// Import + ré-export depuis api-enums (module client-safe sans next/headers).
+// Le module séparé est nécessaire pour que les client components puissent
+// importer ITEM_CONDITIONS sans embarquer tout lib/api.ts (qui contient
+// `cookies` de next/headers) — sinon le build Next.js casse.
+// cf. apps/dashboard/src/lib/api-enums.ts
+import { ITEM_CONDITIONS, type ItemCondition } from './api-enums'
+export { ITEM_CONDITIONS, type ItemCondition }
 
 export const Item = z.object({
   id: z.string().uuid(),
