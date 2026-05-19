@@ -15,6 +15,7 @@ import {
   Package,
   BarChart3,
   Activity,
+  FileText,
   ShieldCheck,
   LogOut,
   type LucideIcon,
@@ -36,6 +37,7 @@ const COMMON_ITEMS: Item[] = [
   { href: '/reservations', label: 'Réservations',  icon: CalendarClock },
   { href: '/maintenance',  label: 'Maintenance',   icon: Wrench },
   { href: '/stats',        label: 'Stats',         icon: BarChart3 },
+  { href: '/reports',      label: 'Rapports',      icon: FileText },
   { href: '/audit',        label: 'Audit',         icon: Activity },
 ]
 
