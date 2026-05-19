@@ -14,6 +14,7 @@ export const Distributor = z.object({
   idleLockers: z.number().int().nonnegative(),
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
+  addressLine: z.string().max(200).nullable(),
   batteryPercent: z.number().int().min(0).max(100).nullable(),
   lastSeenAt: z.string().datetime().nullable(),
 })
@@ -50,16 +51,18 @@ export const DistributorCreateInput = z.object({
   name:         z.string().min(1).max(120),
   latitude:     z.number().min(-90).max(90).nullable().optional(),
   longitude:    z.number().min(-180).max(180).nullable().optional(),
+  addressLine:  z.string().max(200).nullable().optional(),
   lockerCount:  z.number().int().min(1).max(64),
 })
 
 export type DistributorCreateInput = z.infer<typeof DistributorCreateInput>
 
 export const DistributorUpdateInput = z.object({
-  name:      z.string().min(1).max(120).optional(),
-  status:    z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
-  latitude:  z.number().min(-90).max(90).nullable().optional(),
-  longitude: z.number().min(-180).max(180).nullable().optional(),
+  name:        z.string().min(1).max(120).optional(),
+  status:      z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
+  latitude:    z.number().min(-90).max(90).nullable().optional(),
+  longitude:   z.number().min(-180).max(180).nullable().optional(),
+  addressLine: z.string().max(200).nullable().optional(),
 }).refine((d) => Object.keys(d).length > 0, { message: 'at_least_one_field_required' })
 
 export type DistributorUpdateInput = z.infer<typeof DistributorUpdateInput>

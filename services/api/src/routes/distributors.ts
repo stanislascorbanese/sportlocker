@@ -17,6 +17,8 @@ const DistributorDTO = z.object({
   idleLockers: z.number().int().min(0),
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
+  /** Adresse postale formatée (typiquement label BAN), null si non renseignée. */
+  addressLine: z.string().max(200).nullable(),
   /** Pas encore tracé en DB (pas de colonne battery_percent sur heartbeats). */
   batteryPercent: z.number().int().min(0).max(100).nullable(),
   lastSeenAt: z.string().datetime().nullable(),
@@ -38,14 +40,16 @@ const CreateDistributorBody = z.object({
   name:         z.string().min(1).max(120),
   latitude:     z.number().min(-90).max(90).nullable().optional(),
   longitude:    z.number().min(-180).max(180).nullable().optional(),
+  addressLine:  z.string().max(200).nullable().optional(),
   lockerCount:  z.number().int().min(1).max(64),
 })
 
 const UpdateDistributorBody = z.object({
-  name:      z.string().min(1).max(120).optional(),
-  status:    z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
-  latitude:  z.number().min(-90).max(90).nullable().optional(),
-  longitude: z.number().min(-180).max(180).nullable().optional(),
+  name:        z.string().min(1).max(120).optional(),
+  status:      z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
+  latitude:    z.number().min(-90).max(90).nullable().optional(),
+  longitude:   z.number().min(-180).max(180).nullable().optional(),
+  addressLine: z.string().max(200).nullable().optional(),
 }).refine((d) => Object.keys(d).length > 0, {
   message: 'at_least_one_field_required',
 })
@@ -78,6 +82,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         lockerCount: distributors.lockerCount,
         latitude: distributors.latitude,
         longitude: distributors.longitude,
+        addressLine: distributors.addressLine,
         lastSeenAt: distributors.lastSeenAt,
         idleLockers: idleCount,
       })
@@ -95,6 +100,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         idleLockers: d.idleLockers,
         latitude: d.latitude,
         longitude: d.longitude,
+        addressLine: d.addressLine,
         batteryPercent: null,
         lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
       })),
@@ -142,6 +148,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         lockerCount: distributors.lockerCount,
         latitude: distributors.latitude,
         longitude: distributors.longitude,
+        addressLine: distributors.addressLine,
         lastSeenAt: distributors.lastSeenAt,
         idleLockers: idleCount,
         distanceKm: distanceExpr.as('distance_km'),
@@ -166,6 +173,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         idleLockers: d.idleLockers,
         latitude: d.latitude,
         longitude: d.longitude,
+        addressLine: d.addressLine,
         batteryPercent: null,
         lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
         distanceKm: d.distanceKm,
@@ -215,6 +223,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
       idleLockers,
       latitude: d.latitude,
       longitude: d.longitude,
+      addressLine: d.addressLine,
       batteryPercent: null,
       lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
       lockers: lockerRows,
@@ -255,6 +264,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
             name:         body.name,
             latitude:     body.latitude ?? null,
             longitude:    body.longitude ?? null,
+            addressLine:  body.addressLine ?? null,
             lockerCount:  body.lockerCount,
           })
           .returning()
@@ -279,6 +289,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         idleLockers: created.lockerCount,
         latitude: created.latitude,
         longitude: created.longitude,
+        addressLine: created.addressLine,
         batteryPercent: null,
         lastSeenAt: created.lastSeenAt?.toISOString() ?? null,
       })
@@ -328,10 +339,11 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
 
     const body = req.body
     const update: Record<string, unknown> = { updatedAt: new Date() }
-    if (body.name !== undefined)      update['name'] = body.name
-    if (body.status !== undefined)    update['status'] = body.status
-    if (body.latitude !== undefined)  update['latitude'] = body.latitude
-    if (body.longitude !== undefined) update['longitude'] = body.longitude
+    if (body.name !== undefined)        update['name'] = body.name
+    if (body.status !== undefined)      update['status'] = body.status
+    if (body.latitude !== undefined)    update['latitude'] = body.latitude
+    if (body.longitude !== undefined)   update['longitude'] = body.longitude
+    if (body.addressLine !== undefined) update['addressLine'] = body.addressLine
 
     const [updated] = await db
       .update(distributors)
@@ -356,6 +368,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
       idleLockers: idle?.count ?? 0,
       latitude: updated.latitude,
       longitude: updated.longitude,
+      addressLine: updated.addressLine,
       batteryPercent: null,
       lastSeenAt: updated.lastSeenAt?.toISOString() ?? null,
     }

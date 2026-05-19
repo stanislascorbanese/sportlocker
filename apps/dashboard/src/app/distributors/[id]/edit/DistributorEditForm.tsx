@@ -49,6 +49,14 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
         )}
       </label>
 
+      <Field
+        name="addressLine"
+        label="Adresse postale"
+        placeholder="10 rue de la Mairie, 75011 Paris"
+        defaultValue={distributor.addressLine ?? ''}
+        error={state.fieldErrors?.['addressLine']}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <Field
           name="latitude"
