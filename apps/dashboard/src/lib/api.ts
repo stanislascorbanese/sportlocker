@@ -578,6 +578,69 @@ export async function updateMaintenanceTicket(
   return MaintenanceTicket.parse(await res.json())
 }
 
+// ─── Audit / Activité (locker_events stream) ────────────────────────────────
+
+export const AuditEvent = z.object({
+  id:        z.string().uuid(),
+  eventType: z.enum(LOCKER_EVENT_TYPES),
+  source:    z.string(),
+  metadata:  z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+  locker: z.object({
+    id:       z.string().uuid(),
+    position: z.number().int(),
+  }),
+  distributor: z.object({
+    id:           z.string().uuid(),
+    name:         z.string(),
+    serialNumber: z.string(),
+    communeId:    z.string().uuid(),
+  }),
+  reservation: z.object({
+    id:        z.string().uuid(),
+    userEmail: z.string(),
+  }).nullable(),
+})
+
+export type AuditEvent = z.infer<typeof AuditEvent>
+
+export const AuditEventsPage = z.object({
+  items: z.array(AuditEvent),
+  nextCursor: z.string().nullable(),
+})
+
+export type AuditEventsPage = z.infer<typeof AuditEventsPage>
+
+export type AuditFilters = {
+  from?: string
+  to?: string
+  eventType?: LockerEventType
+  source?: string
+  distributorId?: string
+  cursor?: string
+  limit?: number
+}
+
+export async function fetchAuditEvents(filters: AuditFilters = {}): Promise<AuditEventsPage> {
+  const params = new URLSearchParams()
+  if (filters.from)          params.set('from', filters.from)
+  if (filters.to)            params.set('to', filters.to)
+  if (filters.eventType)     params.set('eventType', filters.eventType)
+  if (filters.source)        params.set('source', filters.source)
+  if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.cursor)        params.set('cursor', filters.cursor)
+  if (filters.limit)         params.set('limit', String(filters.limit))
+
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/audit/recent${qs ? `?${qs}` : ''}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['audit'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return AuditEventsPage.parse(await res.json())
+}
+
 export const Invite = z.object({
   token: z.string().min(20),
   inviteUrl: z.string().url(),
