@@ -281,11 +281,11 @@ describe('POST /v1/admin/auth/login', () => {
     expect(res.json().error).toBe('invalid_id_token')
   })
 
-  it('admin sans communeId → 200 + JWT sans communeId (bug potentiel : le code ne refuse pas)', async () => {
-    // Cas non protégé par admin-auth.ts : un user role=admin mais communeId=NULL
-    // passe la validation et reçoit un JWT session SANS communeId, ce qui
-    // peut bypass le scoping commune sur d'autres routes. À surveiller.
-    const u = await seedUser({
+  it('admin sans communeId → 401 admin_missing_commune (fix sécurité multi-tenant)', async () => {
+    // Garde-fou anti bypass scope multi-tenant : un user role=admin avec
+    // communeId NULL recevait avant un JWT sans communeId et bypass
+    // requireAdminScope (fallback scope=null). Fix : login refusé.
+    await seedUser({
       role: 'admin',
       email: 'orphan-admin@test.local',
       firebaseUid: 'fb-orphan-admin',
@@ -304,18 +304,8 @@ describe('POST /v1/admin/auth/login', () => {
       payload: { firebaseIdToken: 'a'.repeat(30) },
     })
 
-    expect(res.statusCode).toBe(200)
-    const body = res.json()
-    expect(body.user.id).toBe(u.id)
-    expect(body.user.role).toBe('admin')
-    expect(body.user.communeId).toBeNull()
-
-    const decoded = app.jwt.verify(body.sessionToken) as {
-      sub: string
-      role: string
-      communeId?: string
-    }
-    expect(decoded.communeId).toBeUndefined()
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error).toBe('admin_missing_commune')
   })
 
   it('user role=operator (DEPRECATED) → 401 not_an_admin', async () => {
@@ -481,10 +471,10 @@ describe('POST /v1/admin/auth/login', () => {
     expect(res.json().error).toBe('invalid_id_token')
   })
 
-  it('BUG POTENTIEL : admin avec gdpr_deleted_at non null → le code accepte (devrait refuser)', async () => {
-    // admin-auth.ts ne vérifie PAS users.gdpr_deleted_at. Un user supprimé
-    // RGPD peut toujours se reconnecter. Test documente le comportement
-    // actuel — à corriger dans un PR séparé.
+  it('admin avec gdpr_deleted_at non null → 401 user_deleted (RGPD)', async () => {
+    // Un user dont les données ont été anonymisées par le cron RGPD
+    // (gdpr_deleted_at posé 30j après la demande) ne peut plus se
+    // reconnecter même si son compte Firebase est encore actif.
     const communeId = await seedCommune('GdprBug')
     const u = await seedUser({
       role: 'admin',
@@ -505,8 +495,8 @@ describe('POST /v1/admin/auth/login', () => {
       url: '/v1/admin/auth/login',
       payload: { firebaseIdToken: 'a'.repeat(30) },
     })
-    // Comportement actuel : 200. Idéalement → 401 user_deleted.
-    expect(res.statusCode).toBe(200)
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error).toBe('user_deleted')
   })
 
   it('body sans firebaseIdToken → 400 validation_error', async () => {
