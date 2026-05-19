@@ -15,10 +15,12 @@ import {
   DEMO_MAINTENANCE_TICKETS,
   demoReservationsDaily,
 } from '../lib/demo-data'
+import { getSessionUser } from '../lib/session-server'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
 import { StatCard } from '../components/StatCard'
 import { cn } from '../lib/cn'
+import { TenantHome } from './_TenantHome'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Accueil · SportLocker ops' }
@@ -72,6 +74,14 @@ async function loadAll(): Promise<FetchResults> {
 }
 
 export default async function HomePage() {
+  // Dispatch role-based : un admin tenant (role=admin avec communeId) voit
+  // une home dédiée centrée sur sa commune. Un super_admin garde la vue
+  // parc globale ci-dessous.
+  const user = await getSessionUser()
+  if (user?.role === 'admin' && user.communeId) {
+    return <TenantHome communeId={user.communeId} />
+  }
+
   const data = await loadAll()
 
   // Mode démo si l'API admin a planté OU si tout est vide (table neuve)
