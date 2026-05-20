@@ -8,6 +8,7 @@ import type { Distributor } from '../../lib/api'
 import { useLang } from '../../lib/lang-client'
 import { getMapStrings, getMapTiles } from '../../lib/map-i18n'
 import type { LeafletMap } from '../../lib/leaflet-types'
+import { MapSearch, type MapSearchTarget } from './MapSearch'
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 const LEAFLET_CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
@@ -23,6 +24,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const [leafletReady, setLeafletReady] = useState(false)
+  const [viewTarget, setViewTarget] = useState<MapSearchTarget | null>(null)
   const lang = useLang()
   const strings = useMemo(() => getMapStrings(lang), [lang])
   const tiles = useMemo(() => getMapTiles(lang), [lang])
@@ -88,6 +90,12 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
     }
   }, [leafletReady, geo, strings, tiles])
 
+  // Recentrage déclenché par la barre de recherche.
+  useEffect(() => {
+    if (!viewTarget || !mapRef.current) return
+    mapRef.current.setView([viewTarget.lat, viewTarget.lng], viewTarget.zoom)
+  }, [viewTarget])
+
   const missingCoords = distributors.length - geo.length
 
   return (
@@ -99,17 +107,20 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
         onLoad={() => setLeafletReady(true)}
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-white/60">
-        <Legend color={STATUS_COLOR.online} label={strings.status.online} />
-        <Legend color={STATUS_COLOR.maintenance} label={strings.status.maintenance} />
-        <Legend color={STATUS_COLOR.offline} label={strings.status.offline} />
-        <Legend color={STATUS_COLOR.decommissioned} label={strings.status.decommissioned} />
-        {missingCoords > 0 && (
-          <span className="text-amber-300/80">
-            {missingCoords === 1 ? strings.missingCoordsOne : strings.missingCoordsMany(missingCoords)}{' '}
-            <Link href="/distributors" className="underline">{strings.fillIn}</Link>
-          </span>
-        )}
+      <div className="mb-4 space-y-3">
+        <MapSearch onSelect={setViewTarget} />
+        <div className="flex flex-wrap items-center gap-4 text-xs text-white/60">
+          <Legend color={STATUS_COLOR.online} label={strings.status.online} />
+          <Legend color={STATUS_COLOR.maintenance} label={strings.status.maintenance} />
+          <Legend color={STATUS_COLOR.offline} label={strings.status.offline} />
+          <Legend color={STATUS_COLOR.decommissioned} label={strings.status.decommissioned} />
+          {missingCoords > 0 && (
+            <span className="text-amber-300/80">
+              {missingCoords === 1 ? strings.missingCoordsOne : strings.missingCoordsMany(missingCoords)}{' '}
+              <Link href="/distributors" className="underline">{strings.fillIn}</Link>
+            </span>
+          )}
+        </div>
       </div>
 
       <div
