@@ -137,6 +137,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
         idleLockers: idx === 2 ? 8 : 8 - (idx + 2),
         latitude: null,
         longitude: null,
+        addressLine: null,
         batteryPercent: null,
         lastSeenAt: new Date(Date.now() - (idx + 1) * 60_000).toISOString(),
       }))

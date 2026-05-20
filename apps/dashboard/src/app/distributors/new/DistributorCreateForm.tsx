@@ -17,11 +17,15 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
   const [communeId, setCommuneId] = useState('')
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
+  // Adresse postale persistée en BDD. Auto-remplie depuis AddressAutocomplete
+  // (label BAN) mais éditable manuellement par l'utilisateur.
+  const [addressLine, setAddressLine] = useState('')
   const [autofillNotice, setAutofillNotice] = useState<string | null>(null)
 
   function onAddressSelect(a: AddressAutofill) {
     setLatitude(a.latitude.toFixed(6))
     setLongitude(a.longitude.toFixed(6))
+    setAddressLine(a.label)
     const match = communes.find((c) => c.inseeCode === a.citycode)
     if (match) {
       setCommuneId(match.id)
@@ -41,6 +45,16 @@ export function DistributorCreateForm({ communes }: { communes: Commune[] }) {
       {autofillNotice && (
         <p className="text-[11px] text-emerald-200/80">{autofillNotice}</p>
       )}
+
+      <Field
+        name="addressLine"
+        label="Adresse postale"
+        placeholder="10 rue de la Mairie, 75011 Paris"
+        value={addressLine}
+        onChange={(e) => setAddressLine(e.currentTarget.value)}
+        error={state.fieldErrors?.['addressLine']}
+        hint="Auto-remplie depuis la recherche d'adresse, modifiable"
+      />
 
       <Field
         name="serialNumber"

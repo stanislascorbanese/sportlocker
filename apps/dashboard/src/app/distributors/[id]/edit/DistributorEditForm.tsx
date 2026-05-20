@@ -19,10 +19,15 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
   const [state, formAction] = useFormState(action, INITIAL)
   const [latitude, setLatitude] = useState(distributor.latitude != null ? String(distributor.latitude) : '')
   const [longitude, setLongitude] = useState(distributor.longitude != null ? String(distributor.longitude) : '')
+  // Adresse postale persistée en BDD (colonne address_line). Pré-remplie
+  // depuis le distributeur existant, auto-mise à jour si l'utilisateur
+  // sélectionne une nouvelle adresse via AddressAutocomplete.
+  const [addressLine, setAddressLine] = useState(distributor.addressLine ?? '')
 
   function onAddressSelect(a: AddressAutofill) {
     setLatitude(a.latitude.toFixed(6))
     setLongitude(a.longitude.toFixed(6))
+    setAddressLine(a.label)
   }
 
   return (
@@ -62,6 +67,15 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
       <AddressAutocomplete
         onSelect={onAddressSelect}
         hint="Repositionner le distributeur via une adresse"
+      />
+
+      <Field
+        name="addressLine"
+        label="Adresse postale"
+        placeholder="10 rue de la Mairie, 75011 Paris"
+        value={addressLine}
+        onChange={(e) => setAddressLine(e.currentTarget.value)}
+        error={state.fieldErrors?.['addressLine']}
       />
 
       <MapPicker
