@@ -78,3 +78,62 @@ export const subsidyRate = (population: number): number => {
 
 // Hypothèse de charge mature d'un distributeur (CDC §6.2 — modèle financier)
 export const LOCATIONS_PER_DIST_PER_DAY = 10
+
+export interface SimulationResult {
+  annualSubscription: number
+  setupOneShot: number
+  annualLocationRevenueMature: number
+  subsidyAmount: number
+  subsidyRatePct: number
+  yearOneBudget: number
+  yearOnePerUnit: number
+  steadyAnnualBalance: number
+  steadySurplus: number
+  paybackMonths: number | null
+}
+
+// Source unique de vérité du modèle financier — partagée entre le simulateur full
+// (page /tarifs) et la version compacte (home). Toute évolution du barème doit
+// passer ici pour rester cohérente entre les deux vues.
+export function computeSimulation(
+  segment: TenantSegment,
+  size: number,
+  count: number,
+): SimulationResult {
+  const cfg = PRICING[segment]
+  const annualSubscription = cfg.monthlyPerDist * count * 12
+  const setupOneShot = cfg.setupPerDist * count
+  const tenantSharePerLoc = MARKETPLACE.citoyenForfait * MARKETPLACE.tenantShareRate
+  const annualLocationRevenueMature = count * LOCATIONS_PER_DIST_PER_DAY * 365 * tenantSharePerLoc
+
+  const rate = segment === 'mairie' ? subsidyRate(size) : 0
+  const subsidyAmount = rate * (annualSubscription + setupOneShot)
+
+  const yearOneBudget = Math.max(0, annualSubscription + setupOneShot - subsidyAmount)
+  const yearOnePerUnit = size > 0 ? yearOneBudget / size : 0
+
+  const steadyAnnualBalance = annualSubscription - annualLocationRevenueMature
+  const steadySurplus = Math.max(0, -steadyAnnualBalance)
+
+  const monthlyRevenueMature = annualLocationRevenueMature / 12
+  const monthlyCost = cfg.monthlyPerDist * count
+  const monthlyNetMature = monthlyRevenueMature - monthlyCost
+  let paybackMonths: number | null = null
+  if (monthlyNetMature > 0) {
+    const upfrontNet = setupOneShot - subsidyAmount
+    paybackMonths = upfrontNet > 0 ? Math.ceil(upfrontNet / monthlyNetMature) : 0
+  }
+
+  return {
+    annualSubscription,
+    setupOneShot,
+    annualLocationRevenueMature,
+    subsidyAmount,
+    subsidyRatePct: Math.round(rate * 100),
+    yearOneBudget,
+    yearOnePerUnit,
+    steadyAnnualBalance,
+    steadySurplus,
+    paybackMonths,
+  }
+}

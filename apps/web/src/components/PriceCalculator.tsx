@@ -1,13 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   LOCATIONS_PER_DIST_PER_DAY,
-  MARKETPLACE,
   PRICING,
   SIZING,
+  computeSimulation,
   recommendDistributors,
-  subsidyRate,
   type TenantSegment,
 } from '@/data/site'
+
+// Pré-remplissage depuis les query params — utilisé quand on arrive depuis le
+// MiniSimulator de la home (?type=mairie&size=12000#simulateur).
+function readInitialState(): { segment: TenantSegment; size: number } {
+  const fallback = { segment: 'mairie' as TenantSegment, size: SIZING.mairie.defaultSize }
+  if (typeof window === 'undefined') return fallback
+  const params = new URLSearchParams(window.location.search)
+  const t = params.get('type')
+  const segment: TenantSegment =
+    t === 'mairie' || t === 'camping' || t === 'hotel' ? t : 'mairie'
+  const cfg = SIZING[segment]
+  const parsed = parseInt(params.get('size') ?? '', 10)
+  const size = Number.isFinite(parsed)
+    ? Math.min(cfg.maxSize, Math.max(cfg.minSize, parsed))
+    : cfg.defaultSize
+  return { segment, size }
+}
 
 const segments: { value: TenantSegment; label: string; emoji: string }[] = [
   { value: 'mairie', label: 'Mairie', emoji: '🏛️' },
@@ -32,13 +48,20 @@ const formatPerUnit = (n: number): string => formatEur(n, n >= 10 ? 0 : 1)
 const formatInt = (n: number): string => new Intl.NumberFormat('fr-FR').format(n)
 
 export default function PriceCalculator(): JSX.Element {
-  const [segment, setSegment] = useState<TenantSegment>('mairie')
-  const [size, setSize] = useState<number>(SIZING.mairie.defaultSize)
-  const [count, setCount] = useState<number>(recommendDistributors('mairie', SIZING.mairie.defaultSize))
+  const initial = useMemo(readInitialState, [])
+  const [segment, setSegment] = useState<TenantSegment>(initial.segment)
+  const [size, setSize] = useState<number>(initial.size)
+  const [count, setCount] = useState<number>(recommendDistributors(initial.segment, initial.size))
   const [countOverridden, setCountOverridden] = useState(false)
 
-  // Quand on change de segment, on reprend la taille par défaut + recompute la reco.
+  // On préserve l'état initial venu de l'URL — l'effect de reset ne s'applique
+  // qu'aux changements de segment ultérieurs (clic utilisateur).
+  const isFirstSegmentRun = useRef(true)
   useEffect(() => {
+    if (isFirstSegmentRun.current) {
+      isFirstSegmentRun.current = false
+      return
+    }
     const cfg = SIZING[segment]
     setSize(cfg.defaultSize)
     setCount(recommendDistributors(segment, cfg.defaultSize))
@@ -53,51 +76,7 @@ export default function PriceCalculator(): JSX.Element {
   const cfg = PRICING[segment]
   const sizing = SIZING[segment]
 
-  const result = useMemo(() => {
-    const annualSubscription = cfg.monthlyPerDist * count * 12
-    const setupOneShot = cfg.setupPerDist * count
-    const tenantSharePerLoc = MARKETPLACE.citoyenForfait * MARKETPLACE.tenantShareRate
-    const annualLocationRevenueMature = count * LOCATIONS_PER_DIST_PER_DAY * 365 * tenantSharePerLoc
-
-    // Subventions ANS/DETR/DSIL : taux dégressif avec la population — uniquement les mairies
-    // sont éligibles. S'applique à (abo année 1 + setup one-shot) côté CAPEX/OPEX startup.
-    const rate = segment === 'mairie' ? subsidyRate(size) : 0
-    const subsidyAmount = rate * (annualSubscription + setupOneShot)
-
-    // Année 1 = budget à voter au conseil. On NE compte PAS encore les locations citoyens
-    // car le ramp-up d'usage prend 12 à 18 mois (CDC §6.2). C'est ce que les communes
-    // doivent provisionner concrètement.
-    const yearOneBudget = Math.max(0, annualSubscription + setupOneShot - subsidyAmount)
-    const yearOnePerUnit = size > 0 ? yearOneBudget / size : 0
-
-    // Croisière (année 2+) = abo annuel net du revenu locations à pleine charge.
-    // Si négatif, les locations dépassent l'abo : surplus reversé sur le compte tenant.
-    const steadyAnnualBalance = annualSubscription - annualLocationRevenueMature
-    const steadySurplus = Math.max(0, -steadyAnnualBalance)
-
-    // Payback : combien de mois pour que les locations matures couvrent (setup − subvention) ?
-    const monthlyRevenueMature = annualLocationRevenueMature / 12
-    const monthlyCost = cfg.monthlyPerDist * count
-    const monthlyNetMature = monthlyRevenueMature - monthlyCost
-    let paybackMonths: number | null = null
-    if (monthlyNetMature > 0) {
-      const upfrontNet = setupOneShot - subsidyAmount
-      paybackMonths = upfrontNet > 0 ? Math.ceil(upfrontNet / monthlyNetMature) : 0
-    }
-
-    return {
-      annualSubscription,
-      setupOneShot,
-      annualLocationRevenueMature,
-      subsidyAmount,
-      subsidyRatePct: Math.round(rate * 100),
-      yearOneBudget,
-      yearOnePerUnit,
-      steadyAnnualBalance,
-      steadySurplus,
-      paybackMonths,
-    }
-  }, [segment, size, count, cfg])
+  const result = useMemo(() => computeSimulation(segment, size, count), [segment, size, count])
 
   const handleCountChange = (next: number): void => {
     setCountOverridden(true)
