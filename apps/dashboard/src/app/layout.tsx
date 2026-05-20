@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
 import { Shell } from '../components/Shell'
+import { LangProvider } from '../lib/lang-client'
 import { getLang } from '../lib/lang-server'
 import { getSessionUser } from '../lib/session-server'
 import './globals.css'
@@ -16,7 +17,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang={lang}>
       <body className="min-h-screen bg-navy-900 font-sans text-white antialiased">
-        <Shell user={user} lang={lang}>{children}</Shell>
+        <LangProvider initial={lang}>
+          <Shell user={user}>{children}</Shell>
+        </LangProvider>
       </body>
     </html>
   )

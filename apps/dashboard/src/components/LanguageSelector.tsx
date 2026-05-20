@@ -1,9 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-
-import { setLangAction } from '../app/_actions/lang'
+import { setClientLang, useLang } from '../lib/lang-client'
 import { LANG_LABELS, SUPPORTED_LANGS, type Lang } from '../lib/lang'
 import { cn } from '../lib/cn'
 
@@ -12,19 +9,12 @@ import { cn } from '../lib/cn'
  * affecte les libellés de la carte ; les autres pages restent en français
  * tant qu'elles n'ont pas été traduites.
  */
-export function LanguageSelector({ current }: { current: Lang }) {
-  const router = useRouter()
-  const [pending, setPending] = useState(false)
+export function LanguageSelector() {
+  const current = useLang()
 
-  async function onPick(lang: Lang) {
-    if (lang === current || pending) return
-    setPending(true)
-    try {
-      await setLangAction(lang)
-      router.refresh()
-    } finally {
-      setPending(false)
-    }
+  function onPick(lang: Lang) {
+    if (lang === current) return
+    setClientLang(lang)
   }
 
   return (
@@ -42,11 +32,10 @@ export function LanguageSelector({ current }: { current: Lang }) {
             type="button"
             role="radio"
             aria-checked={active}
-            disabled={pending}
             onClick={() => onPick(lang)}
             title={native}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-[11px] transition disabled:opacity-50',
+              'flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-[11px] transition',
               active
                 ? 'bg-emerald-500/15 text-emerald-200'
                 : 'text-white/55 hover:bg-white/[0.04] hover:text-white',
