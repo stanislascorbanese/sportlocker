@@ -5,6 +5,7 @@ import { env } from '../config/env.js'
 import { runExpireReservations } from './expire-reservations.js'
 import { runDetectOverdue } from './detect-overdue.js'
 import { runHeartbeatWatchdog } from './heartbeat-watchdog.js'
+import { runRgpdAnonymize } from './rgpd-anonymize.js'
 
 // On passe des RedisOptions plutôt qu'une instance IORedis : BullMQ duplique
 // la connexion par consumer (Queue/Worker) en propageant les options. Sinon
@@ -28,11 +29,13 @@ export const queues = {
   expireReservations: new Queue('expire-reservations', { connection }),
   detectOverdue: new Queue('detect-overdue', { connection }),
   heartbeatWatchdog: new Queue('heartbeat-watchdog', { connection }),
+  rgpdAnonymize: new Queue('rgpd-anonymize', { connection }),
 } as const
 
 queues.expireReservations.on('error', swallow)
 queues.detectOverdue.on('error', swallow)
 queues.heartbeatWatchdog.on('error', swallow)
+queues.rgpdAnonymize.on('error', swallow)
 
 /**
  * Démarre les workers et programme les jobs récurrents.
@@ -40,12 +43,14 @@ queues.heartbeatWatchdog.on('error', swallow)
  *   - expire-reservations : 2 min
  *   - detect-overdue      : 1 min
  *   - heartbeat-watchdog  : 3 min
+ *   - rgpd-anonymize      : 1 jour (3h UTC ~ 4h Paris, hors heures de pointe)
  */
 export function startQueues(log: FastifyBaseLogger): void {
   const workers = [
     new Worker('expire-reservations', async () => runExpireReservations(log), { connection }),
     new Worker('detect-overdue', async () => runDetectOverdue(log), { connection }),
     new Worker('heartbeat-watchdog', async () => runHeartbeatWatchdog(log), { connection }),
+    new Worker('rgpd-anonymize', async () => runRgpdAnonymize(log), { connection }),
   ]
   workers.forEach((w) => w.on('error', swallow))
 
@@ -61,6 +66,13 @@ export function startQueues(log: FastifyBaseLogger): void {
   })
   void queues.heartbeatWatchdog.add('cron', {}, {
     repeat: { every: 3 * 60 * 1000 },
+    removeOnComplete: true,
+    removeOnFail: 100,
+  })
+  // RGPD : tourne tous les jours à 03:00 UTC. Pattern cron BullMQ standard.
+  // Tunable via RGPD_ANONYMIZE_AFTER_DAYS (cf. rgpd-anonymize.ts).
+  void queues.rgpdAnonymize.add('cron', {}, {
+    repeat: { pattern: '0 3 * * *' },
     removeOnComplete: true,
     removeOnFail: 100,
   })
