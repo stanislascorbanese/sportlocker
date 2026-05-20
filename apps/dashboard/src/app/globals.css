@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Atténue les tuiles cartographiques (claires) sans toucher aux markers,
+ * popups, ou contrôles Leaflet — pour qu'elles cohabitent avec le thème
+ * navy du dashboard sans être éblouissantes. Garde les couleurs naturelles
+ * (eau bleue, parcs verts).
+ */
+.map-tiles-dimmed .leaflet-tile {
+  filter: brightness(0.78) contrast(1.05) saturate(0.95);
+}

@@ -1,19 +1,24 @@
 'use client'
 
+import { LocateFixed } from 'lucide-react'
 import Link from 'next/link'
 import Script from 'next/script'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
+import { cn } from '../../lib/cn'
 import { useLang } from '../../lib/lang-client'
-import { getMapStrings, getMapTiles } from '../../lib/map-i18n'
+import { getMapStrings, getMapTiles, TILES_NEED_DIMMING } from '../../lib/map-i18n'
 import type { LeafletMap } from '../../lib/leaflet-types'
 import { MapSearch, type MapSearchTarget } from './MapSearch'
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 const LEAFLET_CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
 
-const STATUS_COLOR: Record<Distributor['status'], string> = {
+type Status = Distributor['status']
+const ALL_STATUSES: Status[] = ['online', 'maintenance', 'offline', 'decommissioned']
+
+const STATUS_COLOR: Record<Status, string> = {
   online:         '#34d399',
   offline:        '#fb7185',
   maintenance:    '#fbbf24',
@@ -25,26 +30,47 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
   const mapRef = useRef<LeafletMap | null>(null)
   const [leafletReady, setLeafletReady] = useState(false)
   const [viewTarget, setViewTarget] = useState<MapSearchTarget | null>(null)
+  const [visibleStatuses, setVisibleStatuses] = useState<Set<Status>>(() => new Set(ALL_STATUSES))
   const lang = useLang()
   const strings = useMemo(() => getMapStrings(lang), [lang])
   const tiles = useMemo(() => getMapTiles(lang), [lang])
 
-  const geo = distributors.filter(
-    (d): d is Distributor & { latitude: number; longitude: number } =>
-      d.latitude !== null && d.longitude !== null,
+  const allGeo = useMemo(
+    () =>
+      distributors.filter(
+        (d): d is Distributor & { latitude: number; longitude: number } =>
+          d.latitude !== null && d.longitude !== null,
+      ),
+    [distributors],
   )
+
+  const visibleGeo = useMemo(
+    () => allGeo.filter((d) => visibleStatuses.has(d.status)),
+    [allGeo, visibleStatuses],
+  )
+
+  const fitAll = useCallback(() => {
+    const map = mapRef.current
+    const L = window.L
+    if (!map || !L) return
+    if (visibleGeo.length === 0) {
+      map.setView([46.7, 2.5], 6)
+      return
+    }
+    const points: Array<[number, number]> = visibleGeo.map((d) => [d.latitude, d.longitude])
+    map.fitBounds(L.latLngBounds(points), { padding: [40, 40] })
+  }, [visibleGeo])
 
   useEffect(() => {
     if (!leafletReady || !containerRef.current || mapRef.current) return
     const L = window.L
     if (!L) return
 
-    const points: Array<[number, number]> = geo.map((d) => [d.latitude, d.longitude])
+    const points: Array<[number, number]> = visibleGeo.map((d) => [d.latitude, d.longitude])
 
     const map = L.map(containerRef.current, { zoomControl: false })
     mapRef.current = map
 
-    // Contrôles zoom avec libellés localisés
     new L.Control.Zoom({ zoomInTitle: strings.zoomIn, zoomOutTitle: strings.zoomOut }).addTo(map)
 
     L.tileLayer(tiles.url, {
@@ -59,7 +85,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       map.setView([46.7, 2.5], 6)
     }
 
-    for (const d of geo) {
+    for (const d of visibleGeo) {
       const color = STATUS_COLOR[d.status]
       const popup = `
         <div style="font-family: system-ui; min-width: 180px">
@@ -88,7 +114,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       map.remove()
       mapRef.current = null
     }
-  }, [leafletReady, geo, strings, tiles])
+  }, [leafletReady, visibleGeo, strings, tiles])
 
   // Recentrage déclenché par la barre de recherche.
   useEffect(() => {
@@ -96,7 +122,20 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
     mapRef.current.setView([viewTarget.lat, viewTarget.lng], viewTarget.zoom)
   }, [viewTarget])
 
-  const missingCoords = distributors.length - geo.length
+  function toggleStatus(s: Status) {
+    setVisibleStatuses((prev) => {
+      const next = new Set(prev)
+      if (next.has(s)) {
+        // Empêche de tout désactiver — au moins un statut reste visible.
+        if (next.size > 1) next.delete(s)
+      } else {
+        next.add(s)
+      }
+      return next
+    })
+  }
+
+  const missingCoords = distributors.length - allGeo.length
 
   return (
     <>
@@ -108,14 +147,30 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       />
 
       <div className="mb-4 space-y-3">
-        <MapSearch onSelect={setViewTarget} />
-        <div className="flex flex-wrap items-center gap-4 text-xs text-white/60">
-          <Legend color={STATUS_COLOR.online} label={strings.status.online} />
-          <Legend color={STATUS_COLOR.maintenance} label={strings.status.maintenance} />
-          <Legend color={STATUS_COLOR.offline} label={strings.status.offline} />
-          <Legend color={STATUS_COLOR.decommissioned} label={strings.status.decommissioned} />
+        <MapSearch distributors={allGeo} onSelect={setViewTarget} />
+        <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+          {ALL_STATUSES.map((s) => (
+            <LegendToggle
+              key={s}
+              color={STATUS_COLOR[s]}
+              label={strings.status[s]}
+              active={visibleStatuses.has(s)}
+              count={allGeo.filter((d) => d.status === s).length}
+              onClick={() => toggleStatus(s)}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={fitAll}
+            disabled={visibleGeo.length === 0}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-white/70 transition hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200 disabled:opacity-40"
+            title="Recentrer la carte sur tous les distributeurs visibles"
+          >
+            <LocateFixed className="h-3 w-3" />
+            Tout afficher
+          </button>
           {missingCoords > 0 && (
-            <span className="text-amber-300/80">
+            <span className="basis-full text-amber-300/80">
               {missingCoords === 1 ? strings.missingCoordsOne : strings.missingCoordsMany(missingCoords)}{' '}
               <Link href="/distributors" className="underline">{strings.fillIn}</Link>
             </span>
@@ -125,7 +180,10 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
 
       <div
         ref={containerRef}
-        className="h-[70vh] w-full overflow-hidden rounded-xl border border-white/10 bg-navy-800"
+        className={cn(
+          'h-[70vh] w-full overflow-hidden rounded-xl border border-white/10 bg-navy-800',
+          TILES_NEED_DIMMING && 'map-tiles-dimmed',
+        )}
         aria-label="Carte des distributeurs"
       >
         {!leafletReady && (
@@ -138,15 +196,39 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
   )
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+function LegendToggle({
+  color,
+  label,
+  active,
+  count,
+  onClick,
+}: {
+  color: string
+  label: string
+  active: boolean
+  count: number
+  onClick: () => void
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 transition',
+        active
+          ? 'border-white/15 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]'
+          : 'border-white/5 bg-transparent text-white/30 hover:text-white/50',
+      )}
+      title={active ? `Masquer "${label}"` : `Afficher "${label}"`}
+    >
       <span
-        className="inline-block h-2.5 w-2.5 rounded-full"
+        className={cn('inline-block h-2.5 w-2.5 rounded-full transition', !active && 'opacity-40')}
         style={{ backgroundColor: color }}
       />
-      {label}
-    </span>
+      <span>{label}</span>
+      <span className="text-[10px] text-white/40">{count}</span>
+    </button>
   )
 }
 

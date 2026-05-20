@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+import type { Distributor } from '../../lib/api'
 import { cn } from '../../lib/cn'
+
+type LocatedDistributor = Distributor & { latitude: number; longitude: number }
 
 /**
  * Barre de recherche unifiée région / département / commune au-dessus de
@@ -19,7 +22,7 @@ import { cn } from '../../lib/cn'
  * Le parent recentre la carte Leaflet via setView().
  */
 
-type Kind = 'region' | 'departement' | 'commune'
+type Kind = 'distributor' | 'region' | 'departement' | 'commune'
 
 type GeoEntity = {
   nom: string
@@ -37,18 +40,21 @@ type Result = {
 }
 
 const ZOOM_BY_KIND: Record<Kind, number> = {
+  distributor: 16,
   region:      7,
   departement: 9,
   commune:     12,
 }
 
 const KIND_LABEL: Record<Kind, string> = {
+  distributor: 'Distributeur',
   region:      'Région',
   departement: 'Département',
   commune:     'Commune',
 }
 
 const KIND_COLOR: Record<Kind, string> = {
+  distributor: 'bg-amber-500/20 text-amber-200',
   region:      'bg-violet-500/20 text-violet-200',
   departement: 'bg-sky-500/20 text-sky-200',
   commune:     'bg-emerald-500/20 text-emerald-200',
@@ -61,7 +67,13 @@ export type MapSearchTarget = {
   label: string
 }
 
-export function MapSearch({ onSelect }: { onSelect: (t: MapSearchTarget) => void }) {
+export function MapSearch({
+  distributors = [],
+  onSelect,
+}: {
+  distributors?: LocatedDistributor[]
+  onSelect: (t: MapSearchTarget) => void
+}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Result[]>([])
   const [loading, setLoading] = useState(false)
@@ -80,6 +92,9 @@ export function MapSearch({ onSelect }: { onSelect: (t: MapSearchTarget) => void
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
+        // Recherche locale dans les distributeurs (instantanée, hors réseau)
+        const distributorMatches = searchDistributors(q, distributors)
+
         const enc = encodeURIComponent(q)
         const [regions, departements, communes] = await Promise.all([
           fetchEntities(`https://geo.api.gouv.fr/regions?nom=${enc}&fields=nom,code`, 'region'),
@@ -89,10 +104,9 @@ export function MapSearch({ onSelect }: { onSelect: (t: MapSearchTarget) => void
             'commune',
           ),
         ])
-        // Régions et départements ne renvoient pas `centre` par défaut → on
-        // les récupère via un second hit avec geometry=centre.
         const enriched = await enrichCenters(regions.concat(departements))
-        setResults([...enriched, ...communes])
+        // Ordre : distributeurs > régions/dép > communes (du plus spécifique au moins)
+        setResults([...distributorMatches, ...enriched, ...communes])
         setActiveIndex(0)
       } catch {
         setResults([])
@@ -146,7 +160,7 @@ export function MapSearch({ onSelect }: { onSelect: (t: MapSearchTarget) => void
         onKeyDown={onKeyDown}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="🔎 Région · département · commune (ex. Bretagne, 44, Nantes…)"
+        placeholder="🔎 Distributeur · région · département · commune (ex. SL-MAIRIE, Bretagne, 44, Nantes…)"
         className={cn(
           'w-full rounded-lg border border-white/15 bg-navy-800/80 px-4 py-2.5 text-sm text-white outline-none transition',
           'placeholder:text-white/40 focus:border-emerald-400/60',
@@ -269,4 +283,28 @@ async function enrichCenters(items: Result[]): Promise<Result[]> {
     }),
   )
   return items.filter((r) => r.lat !== 0 || r.lng !== 0)
+}
+
+/**
+ * Recherche locale dans les distributeurs — match sur `serialNumber` ou
+ * `name` (insensible à la casse, fuzzy substring). Plafonné à 5 résultats
+ * pour ne pas noyer la liste.
+ */
+function searchDistributors(q: string, distributors: LocatedDistributor[]): Result[] {
+  const needle = q.toLowerCase()
+  return distributors
+    .filter(
+      (d) =>
+        d.serialNumber.toLowerCase().includes(needle) ||
+        d.name.toLowerCase().includes(needle),
+    )
+    .slice(0, 5)
+    .map((d) => ({
+      kind: 'distributor' as const,
+      label: d.name,
+      code: d.serialNumber,
+      lat: d.latitude,
+      lng: d.longitude,
+      zoom: ZOOM_BY_KIND.distributor,
+    }))
 }
