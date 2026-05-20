@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
+import { buildSegmentSchemas } from '@/data/site'
 
 const arguments_ = [
   {
@@ -89,8 +90,10 @@ const proofs = [
 ---
 
 <Base
-  title="Solution hôtels — service premium 24/7 sans charge réception"
-  description="SportLocker équipe les hôtels 3★/4★/5★, villages vacances et resorts d'un distributeur de matériel sportif premium. Score satisfaction client en hausse, zéro charge personnel, revenu partagé via marketplace."
+  title="Distributeurs de matériel sportif pour hôtels 3★ / 4★ / 5★"
+  description="Service premium 24/7 sans charge réception : matériel sportif (Wilson, équipement piscine) en libre-service pour vos clients. À partir de 475 € HT/mois/dist, score Booking en hausse, revenu partagé 75 % via marketplace."
+  ogImage="/og/hotels.svg"
+  extraJsonLd={buildSegmentSchemas('hotel')}
 >
   <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
     <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
@@ -108,7 +111,7 @@ const proofs = [
         </p>
         <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
           <a href="/contact?type=hotel" class="btn btn-primary">Demander un devis pour mon hôtel →</a>
-          <a href="#simulation" class="btn btn-outline">Voir la simulation</a>
+          <a href="/tarifs?type=hotel#simulateur" class="btn btn-outline">Estimer mon budget →</a>
         </div>
       </div>
     </div>
@@ -183,7 +186,7 @@ const proofs = [
             Configuration médiane hôtel 4★ : 2 distributeurs (sports + pool). À pleine
             utilisation, les commissions citoyens couvrent une part importante de l'abonnement.
           </p>
-          <a href="/contact?type=hotel" class="btn btn-primary" data-reveal data-reveal-delay="3">
+          <a href="/tarifs?type=hotel#simulateur" class="btn btn-primary" data-reveal data-reveal-delay="3">
             Simulation pour mon hôtel →
           </a>
         </div>

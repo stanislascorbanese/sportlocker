@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
+import { buildSegmentSchemas } from '@/data/site'
 
 const arguments_ = [
   {
@@ -89,8 +90,10 @@ const proofs = [
 ---
 
 <Base
-  title="Solution campings — animation 24/7 sans charge équipe"
-  description="SportLocker équipe les campings, hôtels et villages vacances d'un distributeur de matériel sportif en libre-service. Satisfaction client en hausse, zéro charge supplémentaire."
+  title="Distributeurs de matériel sportif pour campings & plages"
+  description="Animation 24/7 sans charge équipe : distributeurs de raquettes plage, snorkel, ping-pong en libre-service pour vos campeurs. À partir de 400 € HT/mois/dist, vous gardez 75 % des revenus locations citoyens."
+  ogImage="/og/campings.svg"
+  extraJsonLd={buildSegmentSchemas('camping')}
 >
   <!-- HEADER -->
   <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
@@ -109,7 +112,7 @@ const proofs = [
         </p>
         <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
           <a href="/contact?type=camping" class="btn btn-primary">Demander un devis camping →</a>
-          <a href="#simulation" class="btn btn-outline">Voir la simulation</a>
+          <a href="/tarifs?type=camping#simulateur" class="btn btn-outline">Estimer mon budget →</a>
         </div>
       </div>
     </div>
@@ -188,7 +191,7 @@ const proofs = [
             Configuration médiane camping 3★/4★ : 2 distributeurs (1 sport, 1 enfants/plage).
             Activation pleine saison (mai → septembre), pause hors saison gratuite.
           </p>
-          <a href="/contact?type=camping" class="btn btn-primary" data-reveal data-reveal-delay="3">
+          <a href="/tarifs?type=camping#simulateur" class="btn btn-primary" data-reveal data-reveal-delay="3">
             Simulation pour mon camping →
           </a>
         </div>
