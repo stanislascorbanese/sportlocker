@@ -1,8 +1,9 @@
 ---
 import Base from '@/layouts/Base.astro'
 import Hero from '@/components/Hero.astro'
-import FinalCta from '@/components/FinalCta.astro'
+import ContactForm from '@/components/ContactForm.astro'
 import Faq from '@/components/Faq.astro'
+import { SITE } from '@/data/site'
 
 const problems = [
   {
@@ -127,7 +128,7 @@ const faq = [
     title="Le sport en libre-service,"
     highlight="24/7, sur vos sites."
     desc="SportLocker installe des distributeurs connectés sur vos terrains publics, plages, campings et hôtels. Vos usagers paient 5 € la journée pour emprunter ballon, raquette ou matos plage en 30 secondes. Vous gardez 75 % du chiffre, SportLocker prend l'opérationnel."
-    primary={{ href: '/contact', label: 'Demander un devis' }}
+    primary={{ href: '#contact', label: 'Demander un devis' }}
     secondary={{ href: '#comment-ca-marche', label: 'Voir comment ça marche' }}
   >
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 mt-16 pt-10 border-t border-white/10 max-w-2xl" data-reveal data-reveal-delay="4">
@@ -299,7 +300,7 @@ const faq = [
         </p>
         <div class="flex items-center justify-center gap-3 flex-wrap">
           <a href="/tarifs" class="btn btn-primary">Calculer mon budget →</a>
-          <a href="/contact" class="btn btn-outline">Demander un devis</a>
+          <a href="#contact" class="btn btn-outline">Demander un devis</a>
         </div>
       </div>
     </div>
@@ -339,5 +340,49 @@ const faq = [
     </div>
   </section>
 
-  <FinalCta secondary={{ href: '#comment-ca-marche', label: 'Voir comment ça marche' }} />
+  <!-- CONTACT -->
+  <section id="contact" class="section bg-navy-900 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="grid lg:grid-cols-[1fr_1.4fr] gap-12 lg:gap-16 items-start">
+        <div class="lg:sticky lg:top-32">
+          <span class="tag tag-brand inline-block mb-6" data-reveal>Demander un devis</span>
+          <h2 class="font-extrabold text-display-lg text-white mb-5" data-reveal data-reveal-delay="1">
+            Vos terrains méritent<br/>
+            <span class="text-brand-500">du matériel.</span>
+          </h2>
+          <p class="text-white/65 leading-relaxed font-light mb-9" data-reveal data-reveal-delay="2">
+            15 minutes pour voir si SportLocker a du sens pour votre site.
+            Aucun engagement au-delà de la conversation. Réponse sous 24h ouvrées.
+          </p>
+
+          <div class="space-y-5 text-sm" data-reveal data-reveal-delay="3">
+            <div class="flex gap-3 items-start">
+              <span class="text-brand-500 mt-0.5 text-base">⏱</span>
+              <div>
+                <div class="font-medium text-white mb-0.5">Réponse sous 24h ouvrées</div>
+                <div class="text-white/50 font-light">Par email + appel court si pertinent.</div>
+              </div>
+            </div>
+            <div class="flex gap-3 items-start">
+              <span class="text-brand-500 mt-0.5 text-base">📋</span>
+              <div>
+                <div class="font-medium text-white mb-0.5">Devis sans engagement</div>
+                <div class="text-white/50 font-light">Aucune obligation, aucune relance pénible.</div>
+              </div>
+            </div>
+            <div class="flex gap-3 items-start">
+              <span class="text-brand-500 mt-0.5 text-base">✉</span>
+              <div>
+                <div class="font-medium text-white mb-0.5">Préférez l'email direct ?</div>
+                <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline font-medium">{SITE.email}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ContactForm />
+      </div>
+    </div>
+  </section>
 </Base>
