@@ -6,6 +6,7 @@ import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-
 
 import { env } from './config/env.js'
 import { Sentry } from './sentry.js'
+import { makeCorsOriginHandler, parseCorsAllowedOrigins } from './lib/cors.js'
 import { swaggerPlugin } from './plugins/swagger.js'
 import { authPlugin } from './plugins/auth.js'
 import { mqttSubscriberPlugin } from './plugins/mqtt-subscriber.js'
@@ -46,7 +47,10 @@ export async function buildApp() {
   app.setSerializerCompiler(serializerCompiler)
 
   await app.register(helmet, { contentSecurityPolicy: false })
-  await app.register(cors, { origin: true, credentials: true })
+  await app.register(cors, {
+    origin: makeCorsOriginHandler(parseCorsAllowedOrigins(env.CORS_ALLOWED_ORIGINS)),
+    credentials: true,
+  })
   await app.register(sensible)
 
   await app.register(swaggerPlugin)

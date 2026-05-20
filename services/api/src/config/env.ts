@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseCorsAllowedOrigins, validateProductionAllowedOrigins } from '../lib/cors.js'
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -81,6 +82,12 @@ const EnvSchema = z.object({
   // Plan free : 5k errors + 10k perf events/mois.
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+
+  // CORS — whitelist explicite des Origin acceptés (CSV). Voir docs/SECURITY.md §9 item #4.
+  // En dev, autorise dashboard (:3001) + citizen (:3002). En prod, doit lister les
+  // vraies URLs publiques (ex: https://app.sportlocker.fr,https://espace.sportlocker.fr).
+  // Les requêtes sans header Origin (mobile native, curl) sont toujours autorisées.
+  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3001,http://localhost:3002'),
 })
 
 export type Env = z.infer<typeof EnvSchema>
@@ -117,6 +124,20 @@ if (env.NODE_ENV === 'production') {
       `[boot] CITIZEN_APP_BASE_URL="${env.CITIZEN_APP_BASE_URL}" est un loopback alors que NODE_ENV=production. ` +
       `Les liens de connexion magic-link citoyens ramèneraient vers localhost (injouables). ` +
       `Pose la vraie URL publique de la PWA (ex: https://app.sportlocker.fr) sur Railway → @sportlocker/api → Variables.`,
+    )
+    process.exit(1)
+  }
+
+  // Même logique que ci-dessus mais pour la whitelist CORS : si elle est vide
+  // ou ne contient que du loopback en prod, l'API serait soit ouverte aux quatre
+  // vents, soit injoignable depuis le vrai dashboard. On crash bruyamment au boot.
+  const allowed = parseCorsAllowedOrigins(env.CORS_ALLOWED_ORIGINS)
+  const reasons = validateProductionAllowedOrigins(allowed)
+  if (reasons.length > 0) {
+    console.error(
+      `[boot] CORS_ALLOWED_ORIGINS="${env.CORS_ALLOWED_ORIGINS}" invalide en production (${reasons.join(', ')}). ` +
+      `Pose la liste des Origin publiques (ex: https://app.sportlocker.fr,https://espace.sportlocker.fr) ` +
+      `sur Railway → @sportlocker/api → Variables.`,
     )
     process.exit(1)
   }
