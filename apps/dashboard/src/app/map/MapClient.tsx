@@ -25,12 +25,58 @@ const STATUS_COLOR: Record<Status, string> = {
   decommissioned: '#a1a1aa',
 }
 
+const STORAGE_KEY_STATUSES = 'sportlocker-map-statuses'
+const STORAGE_KEY_VIEW = 'sportlocker-map-view'
+
+type SavedView = { lat: number; lng: number; zoom: number }
+
+function readVisibleStatuses(): Set<Status> {
+  if (typeof window === 'undefined') return new Set(ALL_STATUSES)
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_STATUSES)
+    if (!raw) return new Set(ALL_STATUSES)
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set(ALL_STATUSES)
+    const filtered = parsed.filter((s): s is Status => ALL_STATUSES.includes(s as Status))
+    return filtered.length > 0 ? new Set(filtered) : new Set(ALL_STATUSES)
+  } catch {
+    return new Set(ALL_STATUSES)
+  }
+}
+
+function readSavedView(): SavedView | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_VIEW)
+    if (!raw) return null
+    const v = JSON.parse(raw) as Partial<SavedView>
+    if (typeof v.lat !== 'number' || typeof v.lng !== 'number' || typeof v.zoom !== 'number') return null
+    return { lat: v.lat, lng: v.lng, zoom: v.zoom }
+  } catch {
+    return null
+  }
+}
+
+function writeJSON(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // quota/disabled — pas critique pour des préférences UI
+  }
+}
+
 export function MapClient({ distributors }: { distributors: Distributor[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const [leafletReady, setLeafletReady] = useState(false)
   const [viewTarget, setViewTarget] = useState<MapSearchTarget | null>(null)
-  const [visibleStatuses, setVisibleStatuses] = useState<Set<Status>>(() => new Set(ALL_STATUSES))
+  const [visibleStatuses, setVisibleStatuses] = useState<Set<Status>>(readVisibleStatuses)
+
+  // Sync préférence statuts → localStorage à chaque changement
+  useEffect(() => {
+    writeJSON(STORAGE_KEY_STATUSES, Array.from(visibleStatuses))
+  }, [visibleStatuses])
   const lang = useLang()
   const strings = useMemo(() => getMapStrings(lang), [lang])
   const tiles = useMemo(() => getMapTiles(lang), [lang])
@@ -79,11 +125,21 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       maxZoom: tiles.maxZoom,
     }).addTo(map)
 
-    if (points.length > 0) {
+    // Restauration de la dernière vue persistée, sinon fitBounds, sinon France entière
+    const saved = readSavedView()
+    if (saved) {
+      map.setView([saved.lat, saved.lng], saved.zoom)
+    } else if (points.length > 0) {
       map.fitBounds(L.latLngBounds(points), { padding: [40, 40] })
     } else {
       map.setView([46.7, 2.5], 6)
     }
+
+    // Sauvegarde la vue à chaque pan/zoom (Leaflet emit moveend pour les deux)
+    map.on('moveend', () => {
+      const c = map.getCenter()
+      writeJSON(STORAGE_KEY_VIEW, { lat: c.lat, lng: c.lng, zoom: map.getZoom() })
+    })
 
     for (const d of visibleGeo) {
       const color = STATUS_COLOR[d.status]
