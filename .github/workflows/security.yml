@@ -59,24 +59,17 @@ jobs:
   # non patchée pendant 30j est inacceptable pour un service traitant des
   # données citoyens.
   #
-  # ⚠ MODE SOFT TEMPORAIRE (state : 2026-05-20, run 26162254600) :
-  # Au moment du livrage de ce workflow, le monorepo a 25 vulns ≥ high :
-  #   - 3 critical sur fast-jwt (JWT auth bypass, algo confusion, cache
-  #     confusion — touche directement l'auth firmware et session admin)
-  #   - 22 high sur fast-uri (host confusion) et @xmldom/xmldom (DoS,
-  #     XML injection — pull via apps/mobile probablement)
-  # Plutôt que de bloquer toutes les PRs du monorepo en attendant le fix,
-  # ce job est en `continue-on-error: true` : il REMONTE l'info (rouge dans
-  # l'UI) sans bloquer. Le filet `secrets` et `audit-python` reste hard.
-  # Le passage en hard se fera dans la PR follow-up qui ajoute les
-  # pnpm.overrides pour forcer fast-jwt/fast-uri/xmldom aux versions
-  # patchées (cf. docs/SECURITY.md §9 — pas de date silencieuse, item
-  # tracké jusqu'au "done").
+  # Job HARD : fail la PR si une vuln ≥ high apparaît, hors GHSAs explicitement
+  # tracées dans docs/SECURITY.md (items #14, #15 — chantiers de migration
+  # majors séparés). pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc
+  # le filtrage se fait ici via jq.
+  #
+  # Pour ajouter une exception : la mettre dans `IGNORED_GHSAS` ci-dessous ET
+  # créer un item dans docs/SECURITY.md §9 — pas de date silencieuse.
   audit-node:
     name: audit deps (node)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true  # ← retirer dans la PR qui ajoute pnpm.overrides
 
     steps:
       - name: Checkout
@@ -95,8 +88,39 @@ jobs:
       # pnpm audit n'a pas besoin de pnpm install — il lit pnpm-lock.yaml
       # et appelle directement le registry npm. Beaucoup plus rapide qu'un
       # install complet.
-      - name: pnpm audit --audit-level=high
-        run: pnpm audit --audit-level=high
+      - name: pnpm audit (high+critical, hors GHSAs tracées)
+        env:
+          # GHSAs ignorées — chacune doit avoir un item de suivi dans
+          # docs/SECURITY.md §9 avec date cible et raison.
+          IGNORED_GHSAS: 'GHSA-wrwg-2hg8-v723 GHSA-jx2c-rxcm-jvmq'
+        run: |
+          set -euo pipefail
+          # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
+          # faire planter le job — on analysera la sortie nous-mêmes.
+          pnpm audit --audit-level=high --json > audit.json || true
+
+          filter=''
+          for ghsa in $IGNORED_GHSAS; do
+            filter="$filter | select(.github_advisory_id != \"$ghsa\")"
+          done
+
+          remaining=$(jq -r "
+            [.advisories[]
+              | select(.severity == \"high\" or .severity == \"critical\")
+              $filter
+              | \"\(.severity) \(.module_name) (\(.github_advisory_id)) — \(.title)\"
+            ]
+          " audit.json)
+
+          count=$(echo "$remaining" | jq 'length')
+          if [ "$count" -gt 0 ]; then
+            echo "::error::$count vulnérabilité(s) ≥ high non tracées :"
+            echo "$remaining" | jq -r '.[]'
+            echo ""
+            echo "Pour ajouter une exception : voir IGNORED_GHSAS dans .github/workflows/security.yml + docs/SECURITY.md §9."
+            exit 1
+          fi
+          echo "Audit OK — 0 vulnérabilité ≥ high hors GHSAs tracées."
 
   # ─── Audit deps Python firmware — pip-audit
   # ────────────────────────────────────────────────────────────────────────
