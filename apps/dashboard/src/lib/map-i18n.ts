@@ -33,23 +33,28 @@ export type MapTiles = {
 }
 
 /**
- * Choix du serveur de tuiles selon la langue. CARTO Voyager anglicise les
- * toponymes (Brittany, Greater East…) — pour le français, on utilise OSM
- * France qui conserve les noms locaux ("Bretagne", "Grand Est").
+ * Choix du serveur de tuiles selon la langue.
+ *
+ * Tuiles **CARTO Dark Matter** par défaut — fond sombre qui s'harmonise avec
+ * le thème navy du dashboard et garantit la lisibilité (le mode clair
+ * d'OSM/Voyager créait un contraste éblouissant qui rendait la carte
+ * illisible).
+ *
+ * Compromis : Dark Matter n'a pas de variante française, donc les
+ * toponymes restent dans la langue locale renvoyée par OSM (cohérent dans
+ * les deux modes). Si on veut un jour des libellés français + dark, il
+ * faudra passer sur Stadia Alidade Smooth Dark + clé d'API.
  */
+const DARK_TILES: MapTiles = {
+  url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  subdomains: 'abcd',
+  maxZoom: 20,
+  attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}
+
 const TILES: Record<MapLang, MapTiles> = {
-  fr: {
-    url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
-    subdomains: 'abc',
-    maxZoom: 20,
-    attribution: '&copy; <a href="https://www.openstreetmap.fr/">OpenStreetMap France</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  },
-  en: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd',
-    maxZoom: 20,
-    attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  },
+  fr: DARK_TILES,
+  en: DARK_TILES,
 }
 
 export function getMapTiles(lang: MapLang = detectMapLang()): MapTiles {
