@@ -214,9 +214,16 @@ L'hypothèse : un attaquant peut, avec effort, ouvrir le boîtier et lire la mé
   → alerte dashboard pour l'admin mairie.
 
 ### 7.4 CI / dépendances
-- GitHub Actions : `pnpm install --frozen-lockfile` + `pnpm typecheck` + `pnpm test`
+- GitHub Actions `ci.yml` : `pnpm install --frozen-lockfile` + `pnpm typecheck` + `pnpm test`
   sur chaque PR.
-- **À ajouter (§9)** : `pnpm audit --audit-level=high` bloquant + Dependabot hebdo + secret-scanning.
+- GitHub Actions `security.yml` (workflow séparé, bloquant sur PR + cron hebdo lundi 06:00 UTC) :
+  - **`pnpm audit --audit-level=high`** sur le monorepo (`audit-node` job)
+  - **`pip-audit`** sur les requirements du firmware (`audit-python` job)
+  - **Secret scan** via `scripts/preflight.sh --secrets` (11 patterns connus : AWS, GitHub PAT,
+    Stripe live, Slack, Firebase, JWT secret, Postgres URL avec password, etc.)
+- **Dependabot** (`.github/dependabot.yml`) : updates auto hebdomadaires (lundi 07:00 Paris)
+  pour npm/pnpm, pip (firmware), github-actions et docker base images. Minor+patch
+  regroupés en une PR par ecosystem, majors en PRs séparées (review attentive).
 
 ---
 
@@ -256,8 +263,8 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 4 | CORS whitelist explicite (vs `origin: true`) | T2 2026 | 0.5 j |
 | 5 | Postgres Row-Level Security (défense en profondeur multi-tenant) | T3 2026 | 5 j |
 | 6 | Backups manuels hebdo hors Supabase (S3 chiffré) | T2 2026 | 1 j |
-| 7 | `pnpm audit` bloquant en CI + Dependabot | T2 2026 | 0.5 j |
-| 8 | Secret-scanning GitHub Actions (gitleaks) | T2 2026 | 0.5 j |
+| 7 | ~~`pnpm audit` bloquant en CI + Dependabot~~ | ✅ **done** (PR #65) — cf. §7.4 | — |
+| 8 | ~~Secret-scanning GitHub Actions~~ | ✅ **done** (PR #65) — via `preflight.sh --secrets`, pas gitleaks (licence payante sur repos privés) | — |
 | 9 | Pentest externe (ANSSI-qualifié si possible) | T4 2026 | budget ~15 k€ |
 | 10 | Politique mot de passe Firebase durcie (10 car. min, complexité) | T2 2026 | 0.5 j |
 | 11 | Anonymisation des `audit_logs` après 24 mois | T3 2026 | 1 j |

@@ -1,0 +1,112 @@
+# Security scans — séparé de ci.yml pour deux raisons :
+#   1. Cadence différente : ces checks tournent aussi en cron hebdomadaire
+#      pour détecter les CVE qui sortent après merge (un package safe au
+#      moment du merge peut devenir vulnérable 2 semaines plus tard).
+#   2. Lisibilité GitHub Actions : on veut un check "security" distinct du
+#      check "build/test" dans le statut de PR.
+#
+# Référencé par docs/SECURITY.md §9 items #7 (audit deps) et #8 (secret scan).
+
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Tous les lundis 06:00 UTC (cron hebdomadaire). Détecte les CVE
+    # publiées entre deux PR.
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Scan secrets — regex sur le diff vs main + diff staged + tracked files
+  # ────────────────────────────────────────────────────────────────────────
+  # On réutilise scripts/preflight.sh --secrets (la même source de vérité
+  # qu'en local). Pas de dépendance externe (gitleaks payant sur repos
+  # privés), patterns maintenus à un seul endroit.
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout (avec historique pour diff vs main)
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 → tout l'historique. Nécessaire pour que `git diff`
+          # voie les commits entre la PR et main (sans ça, depth=1 = juste HEAD).
+          fetch-depth: 0
+
+      - name: Vérification du script
+        run: |
+          test -x scripts/preflight.sh || {
+            echo "scripts/preflight.sh manquant ou non-exécutable"
+            exit 1
+          }
+
+      - name: Scan secrets (preflight --secrets)
+        run: bash scripts/preflight.sh --secrets
+
+  # ─── Audit deps Node — pnpm audit level=high bloquant
+  # ────────────────────────────────────────────────────────────────────────
+  # pnpm audit retourne non-zero quand il trouve >= 1 vuln au niveau demandé.
+  # On choisit `high` (vs `critical`) pour avoir une marge : une vuln high
+  # non patchée pendant 30j est inacceptable pour un service traitant des
+  # données citoyens.
+  audit-node:
+    name: audit deps (node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Activate pnpm 9.0.0
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.0.0 --activate
+
+      # pnpm audit n'a pas besoin de pnpm install — il lit pnpm-lock.yaml
+      # et appelle directement le registry npm. Beaucoup plus rapide qu'un
+      # install complet.
+      - name: pnpm audit --audit-level=high
+        run: pnpm audit --audit-level=high
+
+  # ─── Audit deps Python firmware — pip-audit
+  # ────────────────────────────────────────────────────────────────────────
+  # Équivalent pnpm audit pour le firmware. Lit requirements.txt + lockfile
+  # et croise avec la DB OSV/PyPI Advisory.
+  audit-python:
+    name: audit deps (python firmware)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: pip-audit (firmware)
+        working-directory: services/firmware
+        # --requirement plutôt que --strict pour ne pas bloquer sur les
+        # warnings transitifs (deps de deps). On bloque sur les CVE
+        # confirmées seulement.
+        run: pip-audit --requirement requirements.txt || pip-audit

@@ -1,0 +1,107 @@
+# Dependabot configuration — updates auto hebdomadaires.
+#
+# Référencé par docs/SECURITY.md §9 item #7 (audit deps + Dependabot).
+#
+# Stratégie :
+#   - Hebdomadaire (pas quotidien) : on évite le bruit, on regroupe les
+#     bumps mineurs en une PR par semaine et par ecosystem.
+#   - Group "minor + patch" en une seule PR par ecosystem → moins de PRs
+#     à reviewer. Les majors gardent leur PR dédiée (breaking changes
+#     potentiels = review attentive).
+#   - Labels = filtrage facile dans le board.
+#   - Reviewer : non spécifié — Dependabot ne peut pas assigner les sessions
+#     Claude, donc l'humain (toi) review.
+
+version: 2
+
+updates:
+  # ─── Monorepo npm/pnpm (apps/web, apps/dashboard, apps/mobile, services/api, packages/*)
+  # Dependabot suit automatiquement les workspaces depuis le pnpm-lock.yaml racine.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    groups:
+      # Tous les bumps minor/patch dans une seule PR par semaine.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "deps:node"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ─── Firmware Python (services/firmware)
+  - package-ecosystem: "pip"
+    directory: "/services/firmware"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "deps:python"
+      - "firmware"
+    commit-message:
+      prefix: "chore(deps,firmware)"
+
+  # ─── GitHub Actions versions (actions/checkout, setup-node, etc.)
+  # Important pour la sécurité supply-chain : un compromettage d'action
+  # est une attaque type connue (ex. tj-actions/changed-files CVE 2025).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "deps:ci"
+    commit-message:
+      prefix: "chore(deps,ci)"
+
+  # ─── Docker base images (Dockerfile dans services/api et services/firmware)
+  - package-ecosystem: "docker"
+    directory: "/services/api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "deps:docker"
+    commit-message:
+      prefix: "chore(deps,docker,api)"
+
+  - package-ecosystem: "docker"
+    directory: "/services/firmware"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "deps:docker"
+      - "firmware"
+    commit-message:
+      prefix: "chore(deps,docker,firmware)"
