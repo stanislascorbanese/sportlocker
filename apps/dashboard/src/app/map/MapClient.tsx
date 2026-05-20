@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import Script from 'next/script'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
-import { getMapStrings, getMapTiles, type MapStrings, type MapTiles } from '../../lib/map-i18n'
+import { useLang } from '../../lib/lang-client'
+import { getMapStrings, getMapTiles } from '../../lib/map-i18n'
 import type { LeafletMap } from '../../lib/leaflet-types'
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
@@ -22,14 +23,9 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const [leafletReady, setLeafletReady] = useState(false)
-  const [strings, setStrings] = useState<MapStrings>(() => getMapStrings('fr'))
-  const [tiles, setTiles] = useState<MapTiles>(() => getMapTiles('fr'))
-
-  // Détecte la langue côté client (document.documentElement.lang)
-  useEffect(() => {
-    setStrings(getMapStrings())
-    setTiles(getMapTiles())
-  }, [])
+  const lang = useLang()
+  const strings = useMemo(() => getMapStrings(lang), [lang])
+  const tiles = useMemo(() => getMapTiles(lang), [lang])
 
   const geo = distributors.filter(
     (d): d is Distributor & { latitude: number; longitude: number } =>

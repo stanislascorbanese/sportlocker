@@ -1,8 +1,9 @@
 'use client'
 
 import Script from 'next/script'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { useLang } from '../../lib/lang-client'
 import { getMapStrings, getMapTiles } from '../../lib/map-i18n'
 import type { LeafletMap, LeafletMarker } from '../../lib/leaflet-types'
 
@@ -38,8 +39,9 @@ export function MapPicker({
   const markerRef = useRef<LeafletMarker | null>(null)
   const onChangeRef = useRef(onChange)
   const [ready, setReady] = useState(false)
-  const [strings] = useState(() => getMapStrings())
-  const [tiles] = useState(() => getMapTiles())
+  const lang = useLang()
+  const strings = useMemo(() => getMapStrings(lang), [lang])
+  const tiles = useMemo(() => getMapTiles(lang), [lang])
 
   // Garde onChange à jour sans recréer la carte
   useEffect(() => {
@@ -100,7 +102,7 @@ export function MapPicker({
       mapRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready])
+  }, [ready, tiles])
 
   // Sync marqueur quand lat/lng changent depuis l'extérieur (ex : adresse autocomplétée)
   useEffect(() => {
