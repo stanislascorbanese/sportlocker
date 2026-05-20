@@ -65,12 +65,14 @@ export async function runRgpdAnonymize(log: FastifyBaseLogger): Promise<void> {
 
   if (candidates.length === 0) return
 
-  const now = new Date()
   let anonymized = 0
   let reviewsCleared = 0
 
   for (const { id } of candidates) {
-    // 1. Pseudonymise le user.
+    // 1. Pseudonymise le user. On utilise NOW() côté SQL plutôt que de passer
+    //    un objet Date en paramètre — le driver postgres.js ne sait pas le
+    //    sérialiser dans un sql template raw, et NOW() garantit un timestamp
+    //    cohérent entre les deux colonnes sans drift d'horloge appli/DB.
     await db.execute(sql`
       UPDATE users
          SET email           = 'deleted-' || ${id} || '@anonymized.local',
@@ -79,8 +81,8 @@ export async function runRgpdAnonymize(log: FastifyBaseLogger): Promise<void> {
              phone           = NULL,
              banned_reason   = NULL,
              last_active_at  = NULL,
-             gdpr_deleted_at = ${now},
-             updated_at      = ${now}
+             gdpr_deleted_at = NOW(),
+             updated_at      = NOW()
        WHERE id = ${id}::uuid
     `)
     anonymized++
