@@ -263,8 +263,8 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 4 | CORS whitelist explicite (vs `origin: true`) | T2 2026 | 0.5 j |
 | 5 | Postgres Row-Level Security (défense en profondeur multi-tenant) | T3 2026 | 5 j |
 | 6 | Backups manuels hebdo hors Supabase (S3 chiffré) | T2 2026 | 1 j |
-| 7 | ~~`pnpm audit` bloquant en CI + Dependabot~~ | ✅ **done** (PR #65) — cf. §7.4 | — |
-| 8 | ~~Secret-scanning GitHub Actions~~ | ✅ **done** (PR #65) — via `preflight.sh --secrets`, pas gitleaks (licence payante sur repos privés) | — |
+| 7 | ~~`pnpm audit` bloquant en CI + Dependabot~~ | ✅ **done** (PR #67) — cf. §7.4 | — |
+| 8 | ~~Secret-scanning GitHub Actions~~ | ✅ **done** (PR #67) — via `preflight.sh --secrets`, pas gitleaks (licence payante sur repos privés) | — |
 | 9 | Pentest externe (ANSSI-qualifié si possible) | T4 2026 | budget ~15 k€ |
 | 10 | Politique mot de passe Firebase durcie (10 car. min, complexité) | T2 2026 | 0.5 j |
 | 11 | Anonymisation des `audit_logs` après 24 mois | T3 2026 | 1 j |
