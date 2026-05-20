@@ -72,7 +72,7 @@ export function Sidebar({ user, lang }: { user: SessionPayload | null; lang: Lan
       <div className="px-5 py-5">
         <Link href="/" className="flex items-center gap-2" aria-label="SportLocker — accueil">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/logo-icon-outline.png" alt="" className="h-9 w-9 shrink-0" width={36} height={36} />
+          <img src="/brand/logo-mark-outline.png" alt="" className="h-9 w-9 shrink-0" width={36} height={36} />
           <span className="font-display text-lg tracking-tight">
             <span className="text-white">Sport</span>
             <span className="text-brand-500">Locker</span>
