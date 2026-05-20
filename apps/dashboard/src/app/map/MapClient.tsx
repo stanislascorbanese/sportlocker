@@ -5,6 +5,8 @@ import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
+import { getMapStrings, getMapTiles, type MapStrings, type MapTiles } from '../../lib/map-i18n'
+import type { LeafletMap } from '../../lib/leaflet-types'
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 const LEAFLET_CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
@@ -16,26 +18,18 @@ const STATUS_COLOR: Record<Distributor['status'], string> = {
   decommissioned: '#a1a1aa',
 }
 
-/** Le type minimal de Leaflet dont on a besoin — évite d'ajouter @types/leaflet. */
-type LeafletMap = { remove(): void; fitBounds(b: unknown, opts?: unknown): void; setView(latlng: [number, number], zoom: number): void }
-type LeafletLayer = { addTo(map: LeafletMap): LeafletLayer; bindPopup(html: string): LeafletLayer }
-type LeafletGlobal = {
-  map(el: HTMLElement): LeafletMap
-  tileLayer(url: string, opts: Record<string, unknown>): LeafletLayer
-  circleMarker(latlng: [number, number], opts: Record<string, unknown>): LeafletLayer
-  latLngBounds(coords: Array<[number, number]>): unknown
-}
-
-declare global {
-  interface Window {
-    L?: LeafletGlobal
-  }
-}
-
 export function MapClient({ distributors }: { distributors: Distributor[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const [leafletReady, setLeafletReady] = useState(false)
+  const [strings, setStrings] = useState<MapStrings>(() => getMapStrings('fr'))
+  const [tiles, setTiles] = useState<MapTiles>(() => getMapTiles('fr'))
+
+  // Détecte la langue côté client (document.documentElement.lang)
+  useEffect(() => {
+    setStrings(getMapStrings())
+    setTiles(getMapTiles())
+  }, [])
 
   const geo = distributors.filter(
     (d): d is Distributor & { latitude: number; longitude: number } =>
@@ -49,13 +43,16 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
 
     const points: Array<[number, number]> = geo.map((d) => [d.latitude, d.longitude])
 
-    const map = L.map(containerRef.current)
+    const map = L.map(containerRef.current, { zoomControl: false })
     mapRef.current = map
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
+    // Contrôles zoom avec libellés localisés
+    new L.Control.Zoom({ zoomInTitle: strings.zoomIn, zoomOutTitle: strings.zoomOut }).addTo(map)
+
+    L.tileLayer(tiles.url, {
+      attribution: tiles.attribution,
+      subdomains: tiles.subdomains,
+      maxZoom: tiles.maxZoom,
     }).addTo(map)
 
     if (points.length > 0) {
@@ -71,10 +68,10 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
           <div style="font-weight: 600; margin-bottom: 4px">${escapeHtml(d.name)}</div>
           <div style="font-size: 11px; color: #6b7280; font-family: ui-monospace, monospace">${escapeHtml(d.serialNumber)}</div>
           <div style="margin-top: 6px; font-size: 13px">
-            <span style="color:${color}; font-weight: 600">${d.status}</span>
-            · ${d.idleLockers} / ${d.lockerCount} libres
+            <span style="color:${color}; font-weight: 600">${escapeHtml(strings.status[d.status])}</span>
+            · ${escapeHtml(strings.freeLockers(d.idleLockers, d.lockerCount))}
           </div>
-          <a href="/distributors/${d.id}/edit" style="display:inline-block;margin-top:8px;font-size:12px;color:#1d9e75;text-decoration:underline">Modifier →</a>
+          <a href="/distributors/${d.id}/edit" style="display:inline-block;margin-top:8px;font-size:12px;color:#1d9e75;text-decoration:underline">${escapeHtml(strings.editLink)}</a>
         </div>
       `.trim()
 
@@ -93,7 +90,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       map.remove()
       mapRef.current = null
     }
-  }, [leafletReady, geo])
+  }, [leafletReady, geo, strings, tiles])
 
   const missingCoords = distributors.length - geo.length
 
@@ -107,14 +104,14 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-white/60">
-        <Legend color={STATUS_COLOR.online} label="online" />
-        <Legend color={STATUS_COLOR.maintenance} label="maintenance" />
-        <Legend color={STATUS_COLOR.offline} label="offline" />
-        <Legend color={STATUS_COLOR.decommissioned} label="decommissioned" />
+        <Legend color={STATUS_COLOR.online} label={strings.status.online} />
+        <Legend color={STATUS_COLOR.maintenance} label={strings.status.maintenance} />
+        <Legend color={STATUS_COLOR.offline} label={strings.status.offline} />
+        <Legend color={STATUS_COLOR.decommissioned} label={strings.status.decommissioned} />
         {missingCoords > 0 && (
           <span className="text-amber-300/80">
-            {missingCoords} distributeur{missingCoords > 1 ? 's' : ''} sans coordonnées —{' '}
-            <Link href="/distributors" className="underline">renseigner</Link>
+            {missingCoords === 1 ? strings.missingCoordsOne : strings.missingCoordsMany(missingCoords)}{' '}
+            <Link href="/distributors" className="underline">{strings.fillIn}</Link>
           </span>
         )}
       </div>
@@ -126,7 +123,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
       >
         {!leafletReady && (
           <div className="flex h-full items-center justify-center text-sm text-white/50">
-            Chargement de la carte…
+            {strings.loading}
           </div>
         )}
       </div>

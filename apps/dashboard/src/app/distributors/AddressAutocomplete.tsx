@@ -5,41 +5,47 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
 
 /**
- * Réponse de l'API BAN (Base Adresse Nationale) — api-adresse.data.gouv.fr.
+ * Feature GeoJSON renvoyée par api-adresse.data.gouv.fr (BAN).
  * Doc : https://adresse.data.gouv.fr/api-doc/adresse
- *
- * On extrait :
- *   - geometry.coordinates [lng, lat]
- *   - properties.label : adresse complète formatée
- *   - properties.citycode : code INSEE de la commune (pour matcher en BDD)
  */
 type BanFeature = {
-  geometry: { coordinates: [number, number] }
+  geometry: { type: 'Point'; coordinates: [number, number] } // [lon, lat]
   properties: {
     label: string
-    citycode: string
-    city: string
-    postcode: string
     score: number
     type: 'housenumber' | 'street' | 'locality' | 'municipality'
+    name?: string
+    postcode?: string
+    citycode?: string // code INSEE
+    city?: string
+    context?: string
   }
 }
 
 export type AddressAutofill = {
-  latitude: string
-  longitude: string
   label: string
-  cityCode: string
+  latitude: number
+  longitude: number
+  postcode: string
+  citycode: string
+  city: string
 }
 
 /**
- * Recherche d'adresse avec auto-complétion via l'API BAN gouv (gratuit, sans
- * clé, illimité). Renvoie lat/lng + label + code INSEE ville sur sélection.
+ * Champ d'autocomplétion qui interroge api-adresse.data.gouv.fr (BAN,
+ * gratuit, sans clé) pour pré-remplir latitude/longitude + code INSEE à
+ * partir d'une adresse postale libre.
  *
- * Le code INSEE permet au formulaire parent de pré-sélectionner la commune
- * correspondante dans le dropdown si elle existe déjà en BDD.
+ * Sur sélection, `onSelect` reçoit lat/lng au format décimal et le citycode
+ * INSEE pour permettre l'auto-sélection de la commune côté formulaire parent.
  */
-export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofill) => void }) {
+export function AddressAutocomplete({
+  onSelect,
+  hint,
+}: {
+  onSelect: (a: AddressAutofill) => void
+  hint?: string
+}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<BanFeature[]>([])
   const [loading, setLoading] = useState(false)
@@ -62,7 +68,7 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
         const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=8&autocomplete=1`
         const res = await fetch(url)
         if (!res.ok) throw new Error(`api_${res.status}`)
-        const data = (await res.json()) as { features: BanFeature[] }
+        const data = (await res.json()) as { features?: BanFeature[] }
         setResults(data.features ?? [])
         setActiveIndex(0)
       } catch {
@@ -83,15 +89,18 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
   }, [activeIndex, open, results.length])
 
   function pick(f: BanFeature) {
-    const [lng, lat] = f.geometry.coordinates
+    const [lon, lat] = f.geometry.coordinates
+    const p = f.properties
     onSelect({
-      latitude: String(lat),
-      longitude: String(lng),
-      label: f.properties.label,
-      cityCode: f.properties.citycode,
+      label: p.label,
+      latitude: lat,
+      longitude: lon,
+      postcode: p.postcode ?? '',
+      citycode: p.citycode ?? '',
+      city: p.city ?? '',
     })
-    setQuery(f.properties.label)
-    setPicked(f.properties.label)
+    setQuery(p.label)
+    setPicked(p.label)
     setOpen(false)
   }
 
@@ -116,10 +125,10 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
     <div className="relative rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-4">
       <label className="block">
         <span className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-emerald-300/90">
-          <span>📍 Rechercher l'adresse du distributeur</span>
+          <span>📍 Rechercher l&apos;adresse (auto-remplit lat/lng + commune)</span>
           {picked && (
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
-              ✓ Géolocalisé via BAN
+              ✓ Auto-rempli depuis BAN
             </span>
           )}
         </span>
@@ -134,14 +143,13 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
           onKeyDown={onKeyDown}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="10 rue de la Mairie, 75011 Paris…"
+          placeholder="12 rue de la Mairie, 44115 Basse-Goulaine…"
           className={cn(
             'mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none transition',
             'placeholder:text-white/30 focus:border-emerald-400/60',
           )}
           aria-autocomplete="list"
           aria-expanded={open}
-          aria-activedescendant={open && results[activeIndex] ? `addr-opt-${activeIndex}` : undefined}
           role="combobox"
         />
       </label>
@@ -155,7 +163,7 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
             <li className="px-3 py-2 text-xs text-white/40">Recherche…</li>
           )}
           {results.map((f, i) => (
-            <li key={`${f.properties.citycode}-${i}`} id={`addr-opt-${i}`} role="option" aria-selected={i === activeIndex}>
+            <li key={`${f.properties.label}-${i}`} role="option" aria-selected={i === activeIndex}>
               <button
                 type="button"
                 onMouseEnter={() => setActiveIndex(i)}
@@ -164,13 +172,13 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
                   pick(f)
                 }}
                 className={cn(
-                  'flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm text-white/90 transition',
+                  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-white/90 transition',
                   i === activeIndex ? 'bg-emerald-500/15' : 'hover:bg-emerald-500/10',
                 )}
               >
                 <span className="truncate">{f.properties.label}</span>
-                <span className="font-mono text-[11px] text-white/40">
-                  INSEE {f.properties.citycode} · {f.properties.type}
+                <span className="font-mono text-[11px] text-white/40 shrink-0">
+                  {f.properties.postcode ?? '—'} · {f.properties.type}
                 </span>
               </button>
             </li>
@@ -179,12 +187,16 @@ export function AddressAutocomplete({ onSelect }: { onSelect: (a: AddressAutofil
       )}
       <p className="mt-2 flex items-center justify-between text-[11px] text-white/40">
         <span>
-          Source : <span className="font-mono">api-adresse.data.gouv.fr</span> · BAN officielle
+          {hint ?? (
+            <>
+              Source : <span className="font-mono">api-adresse.data.gouv.fr</span> · Base Adresse Nationale
+            </>
+          )}
         </span>
         <span className="hidden sm:inline">
-          <kbd className="rounded border border-white/20 px-1">↑↓</kbd>{' '}
-          <kbd className="rounded border border-white/20 px-1">↵</kbd>{' '}
-          <kbd className="rounded border border-white/20 px-1">Esc</kbd>
+          <kbd className="rounded border border-white/20 px-1">↑↓</kbd> naviguer ·{' '}
+          <kbd className="rounded border border-white/20 px-1">↵</kbd> sélectionner ·{' '}
+          <kbd className="rounded border border-white/20 px-1">Esc</kbd> fermer
         </span>
       </p>
     </div>

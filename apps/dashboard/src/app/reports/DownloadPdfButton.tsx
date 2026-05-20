@@ -20,24 +20,22 @@ type State =
 export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
   const [state, setState] = useState<State>({ kind: 'idle' })
 
-  function onClick() {
+  async function onClick() {
     setState({ kind: 'loading' })
-    void (async () => {
-      try {
-        const res = await generateReportAction(filters)
-        if (!res.ok) {
-          setState({ kind: 'error', message: res.error })
-          return
-        }
-        triggerDownload(res.base64, res.filename)
-        setState({ kind: 'idle' })
-      } catch (err) {
-        setState({
-          kind: 'error',
-          message: err instanceof Error ? err.message : 'Erreur inconnue',
-        })
+    try {
+      const res = await generateReportAction(filters)
+      if (!res.ok) {
+        setState({ kind: 'error', message: res.error })
+        return
       }
-    })()
+      triggerDownload(res.base64, res.filename)
+      setState({ kind: 'idle' })
+    } catch (err) {
+      setState({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Erreur inconnue',
+      })
+    }
   }
 
   const busy = state.kind === 'loading'

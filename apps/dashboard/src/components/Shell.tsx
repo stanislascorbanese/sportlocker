@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Menu, X } from 'lucide-react'
 
 import { cn } from '../lib/cn'
+import type { Lang } from '../lib/lang'
 import type { SessionPayload } from '../lib/session'
 import { Sidebar } from './Sidebar'
 
@@ -13,9 +14,11 @@ const PUBLIC_PATHS = ['/login', '/accept-invite']
 export function Shell({
   children,
   user,
+  lang,
 }: {
   children: ReactNode
   user: SessionPayload | null
+  lang: Lang
 }) {
   const pathname = usePathname() ?? ''
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
@@ -73,7 +76,7 @@ export function Shell({
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <Sidebar user={user} />
+        <Sidebar user={user} lang={lang} />
         {/* Bouton fermer dédié, mobile uniquement */}
         <button
           type="button"

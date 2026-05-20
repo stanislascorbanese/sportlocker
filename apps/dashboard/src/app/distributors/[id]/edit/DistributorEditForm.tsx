@@ -1,11 +1,14 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import { updateDistributorAction, type FormState } from '../../_actions'
 import { cn } from '../../../../lib/cn'
 import type { DistributorDetail } from '../../../../lib/api'
+import { AddressAutocomplete, type AddressAutofill } from '../../AddressAutocomplete'
+import { MapPicker } from '../../MapPicker'
 
 const INITIAL: FormState = { status: 'idle' }
 
@@ -14,6 +17,18 @@ const STATUS_OPTIONS = ['online', 'offline', 'maintenance', 'decommissioned'] as
 export function DistributorEditForm({ distributor }: { distributor: DistributorDetail }) {
   const action = updateDistributorAction.bind(null, distributor.id)
   const [state, formAction] = useFormState(action, INITIAL)
+  const [latitude, setLatitude] = useState(distributor.latitude != null ? String(distributor.latitude) : '')
+  const [longitude, setLongitude] = useState(distributor.longitude != null ? String(distributor.longitude) : '')
+  // Adresse postale persistée en BDD (colonne address_line). Pré-remplie
+  // depuis le distributeur existant, auto-mise à jour si l'utilisateur
+  // sélectionne une nouvelle adresse via AddressAutocomplete.
+  const [addressLine, setAddressLine] = useState(distributor.addressLine ?? '')
+
+  function onAddressSelect(a: AddressAutofill) {
+    setLatitude(a.latitude.toFixed(6))
+    setLongitude(a.longitude.toFixed(6))
+    setAddressLine(a.label)
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -49,12 +64,27 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
         )}
       </label>
 
+      <AddressAutocomplete
+        onSelect={onAddressSelect}
+        hint="Repositionner le distributeur via une adresse"
+      />
+
       <Field
         name="addressLine"
         label="Adresse postale"
         placeholder="10 rue de la Mairie, 75011 Paris"
-        defaultValue={distributor.addressLine ?? ''}
+        value={addressLine}
+        onChange={(e) => setAddressLine(e.currentTarget.value)}
         error={state.fieldErrors?.['addressLine']}
+      />
+
+      <MapPicker
+        latitude={latitude}
+        longitude={longitude}
+        onChange={(lat, lng) => {
+          setLatitude(lat.toFixed(6))
+          setLongitude(lng.toFixed(6))
+        }}
       />
 
       <div className="grid grid-cols-2 gap-4">
@@ -63,7 +93,8 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
           label="Latitude"
           type="number"
           step="0.000001"
-          defaultValue={distributor.latitude ?? ''}
+          value={latitude}
+          onChange={(e) => setLatitude(e.currentTarget.value)}
           error={state.fieldErrors?.['latitude']}
         />
         <Field
@@ -71,7 +102,8 @@ export function DistributorEditForm({ distributor }: { distributor: DistributorD
           label="Longitude"
           type="number"
           step="0.000001"
-          defaultValue={distributor.longitude ?? ''}
+          value={longitude}
+          onChange={(e) => setLongitude(e.currentTarget.value)}
           error={state.fieldErrors?.['longitude']}
         />
       </div>
