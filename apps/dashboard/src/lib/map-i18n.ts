@@ -35,22 +35,36 @@ export type MapTiles = {
 /**
  * Choix du serveur de tuiles selon la langue.
  *
- * Tuiles **CARTO Dark Matter** par défaut — fond sombre qui s'harmonise avec
- * le thème navy du dashboard et garantit la lisibilité (le mode clair
- * d'OSM/Voyager créait un contraste éblouissant qui rendait la carte
- * illisible).
+ * Préférence : **Stadia Alidade Smooth Dark** — rendu dark mode façon
+ * Apple Maps (eau bleue, parcs verts, routes lisibles). Requiert une clé
+ * d'API gratuite (https://stadiamaps.com — 200 k req/mois gratuit), à
+ * placer dans NEXT_PUBLIC_STADIA_API_KEY.
  *
- * Compromis : Dark Matter n'a pas de variante française, donc les
- * toponymes restent dans la langue locale renvoyée par OSM (cohérent dans
- * les deux modes). Si on veut un jour des libellés français + dark, il
- * faudra passer sur Stadia Alidade Smooth Dark + clé d'API.
+ * Fallback : **CARTO Dark Matter** — sombre mais monochrome, gratuit sans
+ * clé. Sert si la clé Stadia n'est pas configurée.
+ *
+ * Les deux variantes sont multilingues sur les toponymes locaux ; ni l'une
+ * ni l'autre ne propose un mode tout-français.
  */
-const DARK_TILES: MapTiles = {
+const STADIA_API_KEY = process.env.NEXT_PUBLIC_STADIA_API_KEY
+
+const STADIA_DARK: MapTiles = {
+  url: STADIA_API_KEY
+    ? `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`
+    : 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+  subdomains: 'a', // pas de {s} dans l'URL Stadia, Leaflet ignore le champ
+  maxZoom: 20,
+  attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}
+
+const CARTO_DARK: MapTiles = {
   url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   subdomains: 'abcd',
   maxZoom: 20,
   attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }
+
+const DARK_TILES: MapTiles = STADIA_API_KEY ? STADIA_DARK : CARTO_DARK
 
 const TILES: Record<MapLang, MapTiles> = {
   fr: DARK_TILES,
