@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Safe areas iOS — respecter les notchs/home indicator des iPhone */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+  background: #0d1b2a;
+  color: #fff;
+  /* Désactive le bounce iOS et le zoom sur double tap */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Reset MapLibre canvas pour qu'il puisse occuper 100% */
+.maplibregl-map {
+  font-family: inherit;
+}
