@@ -30,6 +30,9 @@ export type LeafletMap = {
   setView(latlng: [number, number], zoom: number): LeafletMap
   fitBounds(b: unknown, opts?: unknown): void
   on(event: 'click', cb: (e: LeafletEvent) => void): LeafletMap
+  on(event: 'moveend' | 'zoomend', cb: () => void): LeafletMap
+  getCenter(): LeafletLatLng
+  getZoom(): number
 }
 
 export type LeafletGlobal = {
