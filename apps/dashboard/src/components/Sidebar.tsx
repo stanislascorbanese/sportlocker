@@ -23,7 +23,9 @@ import {
 
 import { cn } from '../lib/cn'
 import { getFirebaseAuth } from '../lib/firebase'
+import type { Lang } from '../lib/lang'
 import type { SessionPayload } from '../lib/session'
+import { LanguageSelector } from './LanguageSelector'
 
 type Item = { href: string; label: string; icon: LucideIcon }
 
@@ -45,7 +47,7 @@ const SUPER_ADMIN_ITEMS: Item[] = [
   { href: '/super-admin/tenants', label: 'Tenants', icon: ShieldCheck },
 ]
 
-export function Sidebar({ user }: { user: SessionPayload | null }) {
+export function Sidebar({ user, lang }: { user: SessionPayload | null; lang: Lang }) {
   const pathname = usePathname() ?? '/'
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
@@ -131,6 +133,9 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
             </p>
           </Link>
         )}
+        <div className="mb-2 px-1">
+          <LanguageSelector current={lang} />
+        </div>
         <button
           type="button"
           onClick={onLogout}
