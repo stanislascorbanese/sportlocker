@@ -67,10 +67,10 @@ export default async function StatsPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Stats</h2>
+      <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Stats</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
@@ -85,7 +85,7 @@ export default async function StatsPage({
             {useDemo && ' · données fictives'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex overflow-hidden rounded-lg border border-white/15 bg-navy-800 text-sm">
             {RANGES.map((d) => (
               <Link
@@ -114,18 +114,20 @@ export default async function StatsPage({
       )}
 
       {/* Sparkline large */}
-      <section className="rounded-xl border border-white/10 bg-navy-800 p-5">
+      <section className="rounded-xl border border-white/10 bg-navy-800 p-4 sm:p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
             Tendance · réservations / jour
           </h3>
           <span className="text-[11px] text-white/40">{days} derniers jours</span>
         </div>
-        <Sparkline points={stats.daily} width={Math.min(1200, 120 + stats.daily.length * 30)} />
+        <div className="overflow-x-auto">
+          <Sparkline points={stats.daily} width={Math.min(1200, 120 + stats.daily.length * 30)} />
+        </div>
       </section>
 
-      {/* Trois blocs en grid */}
-      <section className="grid gap-4 lg:grid-cols-3">
+      {/* Trois blocs en grid : donut + tops empilés sur mobile */}
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/40">
             Répartition par statut

@@ -31,7 +31,7 @@ export function StatCard({
 
   const inner = (
     <div className={cn(
-      'group relative overflow-hidden rounded-xl border bg-navy-800 p-4 transition',
+      'group relative overflow-hidden rounded-xl border bg-navy-800 p-3 transition sm:p-4',
       s.border,
       href && 'hover:border-white/30',
     )}>
@@ -40,7 +40,7 @@ export function StatCard({
         <p className="text-[11px] uppercase tracking-wider text-white/50">{label}</p>
         {icon && <span className="text-white/40">{icon}</span>}
       </div>
-      <p className={cn('mt-2 font-display text-3xl tabular-nums', s.valueText)}>{value}</p>
+      <p className={cn('mt-2 font-display text-2xl tabular-nums sm:text-3xl', s.valueText)}>{value}</p>
       {hint && <p className="mt-1 text-xs text-white/55">{hint}</p>}
       {href && (
         <span className="absolute bottom-2 right-3 text-[11px] text-white/30 transition group-hover:text-white/60">

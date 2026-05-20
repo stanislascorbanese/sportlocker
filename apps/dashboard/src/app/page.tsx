@@ -15,10 +15,12 @@ import {
   DEMO_MAINTENANCE_TICKETS,
   demoReservationsDaily,
 } from '../lib/demo-data'
+import { getSessionUser } from '../lib/session-server'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
 import { StatCard } from '../components/StatCard'
 import { cn } from '../lib/cn'
+import { TenantHome } from './_TenantHome'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Accueil · SportLocker ops' }
@@ -72,6 +74,14 @@ async function loadAll(): Promise<FetchResults> {
 }
 
 export default async function HomePage() {
+  // Dispatch role-based : un admin tenant (role=admin avec communeId) voit
+  // une home dédiée centrée sur sa commune. Un super_admin garde la vue
+  // parc globale ci-dessous.
+  const user = await getSessionUser()
+  if (user?.role === 'admin' && user.communeId) {
+    return <TenantHome communeId={user.communeId} />
+  }
+
   const data = await loadAll()
 
   // Mode démo si l'API admin a planté OU si tout est vide (table neuve)
@@ -109,10 +119,10 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-3xl">Vue d&apos;ensemble</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl">Vue d&apos;ensemble</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                 Démo
@@ -128,7 +138,7 @@ export default async function HomePage() {
       </header>
 
       {/* Tendance — sparkline réservations 7 jours */}
-      <section className="rounded-xl border border-white/10 bg-navy-800 p-5">
+      <section className="rounded-xl border border-white/10 bg-navy-800 p-4 sm:p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
             Tendance · réservations

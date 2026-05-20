@@ -45,6 +45,90 @@ export const ItemType = z.object({
 
 export type ItemType = z.infer<typeof ItemType>
 
+export const ItemTypeAdmin = ItemType.extend({
+  activeItemCount: z.number().int().nonnegative(),
+  totalReservations: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+})
+
+export type ItemTypeAdmin = z.infer<typeof ItemTypeAdmin>
+
+export const ItemTypeCreateInput = z.object({
+  slug:               z.string().regex(/^[a-z0-9-]+$/, 'kebab-case requis').min(2).max(60),
+  name:               z.string().min(1).max(120),
+  category:           z.string().min(1).max(40),
+  description:        z.string().max(2000).nullable().optional(),
+  imageUrl:           z.string().url().max(500).nullable().optional(),
+  cautionCents:       z.number().int().min(0).max(100_000_000),
+  maxDurationMinutes: z.number().int().min(15).max(7 * 24 * 60),
+})
+
+export type ItemTypeCreateInput = z.infer<typeof ItemTypeCreateInput>
+
+export const ItemTypeUpdateInput = z.object({
+  name:               z.string().min(1).max(120).optional(),
+  category:           z.string().min(1).max(40).optional(),
+  description:        z.string().max(2000).nullable().optional(),
+  imageUrl:           z.string().url().max(500).nullable().optional(),
+  cautionCents:       z.number().int().min(0).max(100_000_000).optional(),
+  maxDurationMinutes: z.number().int().min(15).max(7 * 24 * 60).optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: 'at_least_one_field_required' })
+
+export type ItemTypeUpdateInput = z.infer<typeof ItemTypeUpdateInput>
+
+// Import + ré-export depuis api-enums (module client-safe sans next/headers).
+// Le module séparé est nécessaire pour que les client components puissent
+// importer ITEM_CONDITIONS sans embarquer tout lib/api.ts (qui contient
+// `cookies` de next/headers) — sinon le build Next.js casse.
+// cf. apps/dashboard/src/lib/api-enums.ts
+import { ITEM_CONDITIONS, type ItemCondition } from './api-enums'
+export { ITEM_CONDITIONS, type ItemCondition }
+
+export const Item = z.object({
+  id: z.string().uuid(),
+  rfidTag: z.string(),
+  condition: z.enum(ITEM_CONDITIONS),
+  totalLoans: z.number().int().nonnegative(),
+  lastInspectedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  itemType: z.object({
+    id: z.string().uuid(),
+    slug: z.string(),
+    name: z.string(),
+    category: z.string(),
+  }),
+  currentLocker: z.object({
+    id: z.string().uuid(),
+    position: z.number().int().nonnegative(),
+    distributor: z.object({
+      id: z.string().uuid(),
+      name: z.string(),
+      serialNumber: z.string(),
+      communeId: z.string().uuid(),
+    }),
+  }).nullable(),
+})
+
+export type Item = z.infer<typeof Item>
+
+export const ItemCreateInput = z.object({
+  itemTypeId:      z.string().uuid(),
+  rfidTag:         z.string().min(4).max(64),
+  condition:       z.enum(ITEM_CONDITIONS).default('new'),
+  currentLockerId: z.string().uuid().nullable().optional(),
+})
+
+export type ItemCreateInput = z.infer<typeof ItemCreateInput>
+
+export const ItemUpdateInput = z.object({
+  rfidTag:         z.string().min(4).max(64).optional(),
+  condition:       z.enum(ITEM_CONDITIONS).optional(),
+  currentLockerId: z.string().uuid().nullable().optional(),
+  lastInspectedAt: z.string().datetime().nullable().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: 'at_least_one_field_required' })
+
+export type ItemUpdateInput = z.infer<typeof ItemUpdateInput>
+
 export const DistributorCreateInput = z.object({
   serialNumber: z.string().min(3).max(40),
   communeId:    z.string().uuid(),
@@ -581,6 +665,69 @@ export async function updateMaintenanceTicket(
   return MaintenanceTicket.parse(await res.json())
 }
 
+// ─── Audit / Activité (locker_events stream) ────────────────────────────────
+
+export const AuditEvent = z.object({
+  id:        z.string().uuid(),
+  eventType: z.enum(LOCKER_EVENT_TYPES),
+  source:    z.string(),
+  metadata:  z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+  locker: z.object({
+    id:       z.string().uuid(),
+    position: z.number().int(),
+  }),
+  distributor: z.object({
+    id:           z.string().uuid(),
+    name:         z.string(),
+    serialNumber: z.string(),
+    communeId:    z.string().uuid(),
+  }),
+  reservation: z.object({
+    id:        z.string().uuid(),
+    userEmail: z.string(),
+  }).nullable(),
+})
+
+export type AuditEvent = z.infer<typeof AuditEvent>
+
+export const AuditEventsPage = z.object({
+  items: z.array(AuditEvent),
+  nextCursor: z.string().nullable(),
+})
+
+export type AuditEventsPage = z.infer<typeof AuditEventsPage>
+
+export type AuditFilters = {
+  from?: string
+  to?: string
+  eventType?: LockerEventType
+  source?: string
+  distributorId?: string
+  cursor?: string
+  limit?: number
+}
+
+export async function fetchAuditEvents(filters: AuditFilters = {}): Promise<AuditEventsPage> {
+  const params = new URLSearchParams()
+  if (filters.from)          params.set('from', filters.from)
+  if (filters.to)            params.set('to', filters.to)
+  if (filters.eventType)     params.set('eventType', filters.eventType)
+  if (filters.source)        params.set('source', filters.source)
+  if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.cursor)        params.set('cursor', filters.cursor)
+  if (filters.limit)         params.set('limit', String(filters.limit))
+
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/audit/recent${qs ? `?${qs}` : ''}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['audit'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return AuditEventsPage.parse(await res.json())
+}
+
 export const Invite = z.object({
   token: z.string().min(20),
   inviteUrl: z.string().url(),
@@ -605,6 +752,123 @@ export async function createInvite(input: InviteCreateInput): Promise<Invite> {
   })
   if (!res.ok) await throwApiError(res)
   return Invite.parse(await res.json())
+}
+
+const ListAdminItemTypes = z.object({ items: z.array(ItemTypeAdmin) })
+const ListItems          = z.object({ items: z.array(Item) })
+
+export async function fetchAdminItemTypes(): Promise<ItemTypeAdmin[]> {
+  const res = await fetch(`${API_URL}/v1/admin/item-types`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['item-types'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return ListAdminItemTypes.parse(await res.json()).items
+}
+
+export async function fetchAdminItemType(id: string): Promise<ItemTypeAdmin> {
+  const res = await fetch(`${API_URL}/v1/admin/item-types/${id}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['item-types', `item-type:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'item_type_not_found')
+  if (!res.ok) await throwApiError(res)
+  return ItemTypeAdmin.parse(await res.json())
+}
+
+export async function createItemType(input: ItemTypeCreateInput): Promise<ItemTypeAdmin> {
+  const body = ItemTypeCreateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/item-types`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return ItemTypeAdmin.parse(await res.json())
+}
+
+export async function updateItemType(id: string, input: ItemTypeUpdateInput): Promise<ItemTypeAdmin> {
+  const body = ItemTypeUpdateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/item-types/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return ItemTypeAdmin.parse(await res.json())
+}
+
+export async function deleteItemType(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/admin/item-types/${id}`, {
+    method: 'DELETE',
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+}
+
+export type ItemFilters = {
+  itemTypeId?: string
+  condition?: ItemCondition
+  distributorId?: string
+  currentLockerId?: string
+  q?: string
+}
+
+export async function fetchItems(filters: ItemFilters = {}): Promise<Item[]> {
+  const params = new URLSearchParams()
+  if (filters.itemTypeId) params.set('itemTypeId', filters.itemTypeId)
+  if (filters.condition)  params.set('condition', filters.condition)
+  if (filters.distributorId) params.set('distributorId', filters.distributorId)
+  if (filters.currentLockerId) params.set('currentLockerId', filters.currentLockerId)
+  if (filters.q) params.set('q', filters.q)
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/items${qs ? `?${qs}` : ''}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['items'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return ListItems.parse(await res.json()).items
+}
+
+export async function fetchItem(id: string): Promise<Item> {
+  const res = await fetch(`${API_URL}/v1/admin/items/${id}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['items', `item:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'item_not_found')
+  if (!res.ok) await throwApiError(res)
+  return Item.parse(await res.json())
+}
+
+export async function createItem(input: ItemCreateInput): Promise<Item> {
+  const body = ItemCreateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/items`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return Item.parse(await res.json())
+}
+
+export async function updateItem(id: string, input: ItemUpdateInput): Promise<Item> {
+  const body = ItemUpdateInput.parse(input)
+  const res = await fetch(`${API_URL}/v1/admin/items/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return Item.parse(await res.json())
 }
 
 export class ApiError extends Error {

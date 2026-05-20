@@ -17,27 +17,30 @@ const MAX_EXTENSIONS = 2
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 const CreateReservationBody = z.object({
-  lockerId: z.string().uuid(),
-  itemId: z.string().uuid(),
-  communeId: z.string().uuid(),
+  lockerId: z.string().uuid().describe('UUID du casier ciblé (scanné via QR ou choisi depuis l\'app)'),
+  itemId: z.string().uuid().describe('UUID de l\'item physique présent dans le casier (doit matcher `currentItemId`)'),
+  communeId: z.string().uuid().describe('Tenant du distributeur (cohérence avec le scope de l\'app)'),
 })
 
 const ReturnReservationBody = z.object({
-  returnLockerId: z.string().uuid(),
-  returnDistributorId: z.string().uuid(),
+  returnLockerId: z.string().uuid().describe('Casier où l\'item est rendu (peut différer du casier d\'emprunt)'),
+  returnDistributorId: z.string().uuid().describe('Distributeur correspondant au returnLockerId'),
 })
 
 const ReservationBaseDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: z.enum(['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'])
+    .describe('État machine : pending → active → returned (nominal). overdue/cancelled/expired = terminal.'),
   lockerId: z.string().uuid(),
   itemId: z.string().uuid(),
   distributorId: z.string().uuid(),
-  expiresAt: z.string().datetime(),
-  dueAt: z.string().datetime().nullable(),
-  extensionCount: z.number().int().min(0),
+  expiresAt: z.string().datetime().describe('TTL de la réservation pending (15min). Auto-expire au-delà.'),
+  dueAt: z.string().datetime().nullable().describe('Échéance de retour (active). Null tant que pending.'),
+  extensionCount: z.number().int().min(0).describe('Nombre de prolongations utilisées (max 2)'),
 })
-const ReservationCreatedDTO = ReservationBaseDTO.extend({ nonce: z.string().uuid() })
+const ReservationCreatedDTO = ReservationBaseDTO.extend({
+  nonce: z.string().uuid().describe('Nonce anti-replay à embarquer dans le JWT QR. Usage unique côté firmware.'),
+})
 
 const ErrorDTO = z.object({ error: z.string() })
 
@@ -65,6 +68,20 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
   app.post('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Réserve un casier (citoyen)',
+      description: 'Verrouille le casier (Redis SETNX TTL 30s) puis crée la réservation en transaction. '
+        + 'Émet un `nonce` anti-replay à inclure dans le JWT QR généré côté app pour l\'unlock offline.\n\n'
+        + '**Erreurs** :\n'
+        + '- 404 `locker_not_found`\n'
+        + '- 409 `locker_being_processed` (autre user en train de réserver)\n'
+        + '- 409 `locker_not_available` (state ≠ idle ou aucun item)\n'
+        + '- 409 `item_mismatch` (itemId fourni ≠ currentItemId du casier)\n'
+        + '- 409 `commune_mismatch` (communeId ≠ commune du distributeur)\n\n'
+        + '**Exemple body** : `{ "lockerId": "8e7…", "itemId": "1a2…", "communeId": "9f0…" }`\n\n'
+        + '**Exemple réponse 201** : `{ "id":"…", "status":"pending", "expiresAt":"2026-05-19T14:45:00.000Z", '
+        + '"nonce":"…" }`',
+      security: [{ bearerAuth: [] }],
       body: CreateReservationBody,
       response: {
         201: ReservationCreatedDTO,
@@ -165,7 +182,13 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
    */
   app.get('/me', {
     onRequest: [app.authenticate],
-    schema: { response: { 200: z.object({ items: z.array(ReservationBaseDTO) }) } },
+    schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Historique du citoyen courant',
+      description: 'Renvoie les 50 dernières réservations du user authentifié (statuts pending/active/returned/overdue).',
+      security: [{ bearerAuth: [] }],
+      response: { 200: z.object({ items: z.array(ReservationBaseDTO) }) },
+    },
   }, async (req) => {
     const rows = await db
       .select()
@@ -185,6 +208,11 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
   app.post('/:id/cancel', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Annule une réservation pending',
+      description: 'Réservé au statut `pending` (le casier n\'a pas encore été ouvert). '
+        + 'Pour une annulation en cours d\'usage, voir `POST /v1/admin/reservations/:id/force-cancel` côté admin.',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       response: { 200: z.object({ ok: z.literal(true) }), 404: ErrorDTO },
     },
@@ -214,10 +242,17 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
   app.post('/:id/return', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Confirme le retour d\'un item',
+      description: 'Accepte statuts `active` (retour dans les temps) ET `overdue` (retour hors délai). '
+        + 'Le flag `wasOverdue` permet au client d\'afficher un toast adapté. Libère le casier d\'emprunt initial.',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       body: ReturnReservationBody,
       response: {
-        200: ReservationBaseDTO.extend({ wasOverdue: z.boolean() }),
+        200: ReservationBaseDTO.extend({
+          wasOverdue: z.boolean().describe('True si le retour intervient après dueAt (status="overdue" au moment du retour)'),
+        }),
         404: ErrorDTO,
         409: ErrorDTO,
       },
@@ -296,6 +331,12 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
   app.patch('/:id/extend', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Prolonge un emprunt actif',
+      description: 'Max 2 prolongations. Ajoute `item_types.max_duration_minutes` à `due_at`. '
+        + 'Erreurs : 409 `reservation_not_extendable` (status ≠ active), 409 `max_extensions_reached`, '
+        + '409 `locker_conflict` (autre résa pending/active sur le même casier).',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       response: {
         200: ReservationBaseDTO,

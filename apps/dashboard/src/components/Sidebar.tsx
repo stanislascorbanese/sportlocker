@@ -12,7 +12,10 @@ import {
   Wrench,
   Building2,
   Users,
+  Package,
   BarChart3,
+  Activity,
+  FileText,
   ShieldCheck,
   LogOut,
   type LucideIcon,
@@ -28,11 +31,14 @@ const COMMON_ITEMS: Item[] = [
   { href: '/',             label: 'Accueil',       icon: Home },
   { href: '/map',          label: 'Carte',         icon: Map },
   { href: '/distributors', label: 'Distributeurs', icon: Server },
+  { href: '/items',        label: 'Articles',      icon: Package },
   { href: '/communes',     label: 'Communes',      icon: Building2 },
   { href: '/users',        label: 'Utilisateurs',  icon: Users },
   { href: '/reservations', label: 'Réservations',  icon: CalendarClock },
   { href: '/maintenance',  label: 'Maintenance',   icon: Wrench },
   { href: '/stats',        label: 'Stats',         icon: BarChart3 },
+  { href: '/reports',      label: 'Rapports',      icon: FileText },
+  { href: '/audit',        label: 'Audit',         icon: Activity },
 ]
 
 const SUPER_ADMIN_ITEMS: Item[] = [
@@ -62,11 +68,16 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
   return (
     <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-white/10 bg-navy-900/80 backdrop-blur">
       <div className="px-5 py-5">
-        <Link href="/" className="font-display text-lg tracking-tight">
-          SportLocker
-          <span className="ml-1 text-emerald-400">· ops</span>
+        <Link href="/" className="flex items-center gap-2" aria-label="SportLocker — accueil">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-icon-outline.png" alt="" className="h-9 w-9 shrink-0" width={36} height={36} />
+          <span className="font-display text-lg tracking-tight">
+            <span className="text-white">Sport</span>
+            <span className="text-brand-500">Locker</span>
+            <span className="ml-1 text-emerald-400">· ops</span>
+          </span>
         </Link>
-        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/30">Console opérateur</p>
+        <p className="mt-0.5 pl-9 text-[10px] uppercase tracking-wider text-white/30">Console opérateur</p>
       </div>
 
       <nav className="mt-2 flex flex-col gap-0.5 px-3">
@@ -98,13 +109,27 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
 
       <div className="mt-auto px-3 py-3">
         {user && (
-          <div className="mb-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-            <p className="truncate text-xs text-white/80" title={user.email}>{user.email}</p>
+          <Link
+            href="/me"
+            className={cn(
+              'mb-2 block rounded-lg border px-3 py-2 transition',
+              pathname === '/me'
+                ? 'border-emerald-500/30 bg-emerald-500/10'
+                : 'border-white/5 bg-white/[0.02] hover:border-emerald-500/20 hover:bg-emerald-500/5',
+            )}
+            title="Voir mon compte"
+          >
+            <p className={cn(
+              'truncate text-xs',
+              pathname === '/me' ? 'text-white' : 'text-white/80',
+            )}>
+              {user.email}
+            </p>
             <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/40">
               {roleLabel(user.role)}
               {user.communeId && user.role !== 'super_admin' ? ' · 1 commune' : ''}
             </p>
-          </div>
+          </Link>
         )}
         <button
           type="button"
