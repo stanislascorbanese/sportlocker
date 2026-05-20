@@ -56,6 +56,7 @@
 
   .section {
     @apply py-24 sm:py-28;
+    scroll-margin-top: 5rem;
   }
   .section-title {
     @apply font-sans font-extrabold text-display-lg text-white tracking-tight;
