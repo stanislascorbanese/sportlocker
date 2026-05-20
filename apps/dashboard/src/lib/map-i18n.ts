@@ -35,41 +35,54 @@ export type MapTiles = {
 /**
  * Choix du serveur de tuiles selon la langue.
  *
- * Préférence : **Stadia Alidade Smooth Dark** — rendu dark mode façon
- * Apple Maps (eau bleue, parcs verts, routes lisibles). Requiert une clé
- * d'API gratuite (https://stadiamaps.com — 200 k req/mois gratuit), à
- * placer dans NEXT_PUBLIC_STADIA_API_KEY.
+ * Objectif : couleurs naturelles (eau bleue, parcs verts) pour une bonne
+ * lisibilité. L'atténuation pour s'harmoniser avec le thème dark du
+ * dashboard est faite côté CSS (filter brightness/contrast appliqué à la
+ * couche tuiles seule), pas via des tuiles dark monochromes qui perdent
+ * l'information chromatique.
  *
- * Fallback : **CARTO Dark Matter** — sombre mais monochrome, gratuit sans
- * clé. Sert si la clé Stadia n'est pas configurée.
+ * - fr → OSM France (toponymes locaux : "Bretagne", "Grand Est"…)
+ * - en → CARTO Voyager (toponymes anglicisés)
  *
- * Les deux variantes sont multilingues sur les toponymes locaux ; ni l'une
- * ni l'autre ne propose un mode tout-français.
+ * Option premium : Stadia Alidade Smooth Dark si NEXT_PUBLIC_STADIA_API_KEY
+ * est défini au build. Override sur les deux langues.
  */
 const STADIA_API_KEY = process.env.NEXT_PUBLIC_STADIA_API_KEY
 
-const STADIA_DARK: MapTiles = {
-  url: STADIA_API_KEY
-    ? `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`
-    : 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
-  subdomains: 'a', // pas de {s} dans l'URL Stadia, Leaflet ignore le champ
+const STADIA_DARK: MapTiles | null = STADIA_API_KEY
+  ? {
+      url: `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`,
+      subdomains: 'a',
+      maxZoom: 20,
+      attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }
+  : null
+
+const OSM_FR: MapTiles = {
+  url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+  subdomains: 'abc',
   maxZoom: 20,
-  attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  attribution: '&copy; <a href="https://www.openstreetmap.fr/">OpenStreetMap France</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }
 
-const CARTO_DARK: MapTiles = {
-  url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+const CARTO_VOYAGER: MapTiles = {
+  url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   subdomains: 'abcd',
   maxZoom: 20,
   attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }
 
-const DARK_TILES: MapTiles = STADIA_API_KEY ? STADIA_DARK : CARTO_DARK
-
 const TILES: Record<MapLang, MapTiles> = {
-  fr: DARK_TILES,
-  en: DARK_TILES,
+  fr: STADIA_DARK ?? OSM_FR,
+  en: STADIA_DARK ?? CARTO_VOYAGER,
 }
+
+/**
+ * Vrai si on utilise un fond clair (OSM/Voyager) — dans ce cas, le composant
+ * carte applique la classe `.map-tiles-dimmed` pour atténuer la luminosité
+ * (cf. globals.css). Faux si Stadia est actif (déjà dark, pas besoin).
+ */
+export const TILES_NEED_DIMMING = STADIA_DARK === null
 
 export function getMapTiles(lang: MapLang = detectMapLang()): MapTiles {
   return TILES[lang]
