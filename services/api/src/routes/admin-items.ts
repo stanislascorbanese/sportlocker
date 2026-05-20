@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { distributors, itemTypes, items, lockers } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
+import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 
 const ITEM_CONDITION = ['new', 'good', 'worn', 'damaged', 'lost'] as const
 
@@ -284,14 +285,14 @@ export async function adminItemRoutes(rawApp: FastifyInstance) {
       if (!row) return reply.code(404).send({ error: 'item_not_found' })
       return reply.code(201).send(rowToDto(row))
     } catch (err) {
-      const msg = (err as Error).message
-      if (/duplicate key|unique/i.test(msg) && /rfid/i.test(msg)) {
+      // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
+      if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'rfid')) {
         return reply.code(409).send({ error: 'rfid_tag_conflict' })
       }
-      if (/foreign key/i.test(msg) && /item_type/i.test(msg)) {
+      if (isPgViolation(err, PG_ERRORS.FOREIGN_KEY_VIOLATION, 'item_type')) {
         return reply.code(404).send({ error: 'item_type_not_found' })
       }
-      if (/foreign key/i.test(msg) && /locker/i.test(msg)) {
+      if (isPgViolation(err, PG_ERRORS.FOREIGN_KEY_VIOLATION, 'locker')) {
         return reply.code(404).send({ error: 'locker_not_found' })
       }
       throw err
@@ -381,11 +382,11 @@ export async function adminItemRoutes(rawApp: FastifyInstance) {
       if (!row) return reply.code(404).send({ error: 'item_not_found' })
       return rowToDto(row)
     } catch (err) {
-      const msg = (err as Error).message
-      if (/duplicate key|unique/i.test(msg) && /rfid/i.test(msg)) {
+      // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
+      if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'rfid')) {
         return reply.code(409).send({ error: 'rfid_tag_conflict' })
       }
-      if (/foreign key/i.test(msg) && /locker/i.test(msg)) {
+      if (isPgViolation(err, PG_ERRORS.FOREIGN_KEY_VIOLATION, 'locker')) {
         return reply.code(404).send({ error: 'locker_not_found' })
       }
       throw err

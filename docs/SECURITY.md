@@ -273,7 +273,9 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 10 | Politique mot de passe Firebase durcie (10 car. min, complexité) | T2 2026 | 0.5 j |
 | 11 | Anonymisation des `audit_logs` après 24 mois | T3 2026 | 1 j |
 | 12 | SOC 2 Type I (si demande mairies > 50k habitants) | 2027 | budget ~40 k€ |
-| 13 | **`pnpm.overrides` pour patcher fast-jwt (3 critical), fast-uri (high), @xmldom/xmldom (high) → passer `audit-node` en hard** | T2 2026 (immédiat) | 0.5 j |
+| 13 | ~~`pnpm.overrides` pour patcher fast-jwt (3 critical), fast-uri (high), @xmldom/xmldom (high) → passer `audit-node` en hard~~ | ✅ **done** — voir `package.json#pnpm.overrides`. Passe de 58 vulns (3 critical, 22 high) à 25 vulns (0 critical, 2 high). 2 GHSAs restantes ignorées en CI via filtre `jq` (items #14, #15). `audit-node` retiré du mode soft. | — |
+| 14 | **Migration `astro` 4 → 5+ pour résoudre `GHSA-wrwg-2hg8-v723` (XSS reflected via server islands, high)** — major bump qui touche `apps/web` (pages, layouts, integrations). Géré en chantier dédié. | T3 2026 | 3 j |
+| 15 | **Migration `fastify` 4 → 5+ pour résoudre `GHSA-jx2c-rxcm-jvmq` (Content-Type bypass, high)** — major bump qui implique de migrer aussi `@fastify/jwt`, `@fastify/cors`, `fastify-type-provider-zod` côté `services/api`. Géré en chantier dédié. | T3 2026 | 5 j |
 
 **Politique de transparence** : tout item listé ici sera marqué `done` dans ce document
 au moment du merge de la PR correspondante, avec lien vers le commit. Aucun item ne sera
