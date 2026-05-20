@@ -218,10 +218,30 @@ L'hypothèse : un attaquant peut, avec effort, ouvrir le boîtier et lire la mé
   sur chaque PR.
 - GitHub Actions `security.yml` (workflow séparé, bloquant sur PR + cron hebdo lundi 06:00 UTC) :
   - **`pnpm audit --audit-level=high`** sur le monorepo (`audit-node` job).
-    ⚠ Actuellement en `continue-on-error: true` (mode soft) : le monorepo a 25 vulns ≥ high
-    au livrage du workflow (3 critical sur `fast-jwt`, 22 high sur `fast-uri` + `@xmldom/xmldom`).
-    Le job remonte l'info sans bloquer les autres PRs. Passage en hard prévu via `pnpm.overrides`
-    (cf. §9 item #13).
+    ⚠ Reste en `continue-on-error: true` (mode soft) avec 3 high résiduelles.
+
+### 7.4.1 Application des `pnpm.overrides` (item §9 #13)
+État au 2026-05-20 : **22 vulns ≥ high éliminées sur 25** via overrides dans le `package.json`
+racine (3 critical fast-jwt + 8 high fast-uri/@xmldom/xmldom + 11 high tar/undici/rollup).
+
+Overrides actuelles (transitives uniquement, pas de risque de breaking) :
+```json
+"pnpm": {
+  "overrides": {
+    "fast-jwt":        ">=6.2.4",   // 3 critical JWT (auth bypass, algo confusion)
+    "fast-uri":        ">=3.1.2",   // 2 high host confusion
+    "@xmldom/xmldom":  ">=0.8.13",  // 4 high DoS + XML injection
+    "tar":             ">=7.5.11",  // 6 high path traversal + race conditions
+    "undici":          ">=6.24.0",  // 2 high WebSocket DoS + exception
+    "rollup":          ">=3.30.0"   // 1 high arbitrary file write
+  }
+}
+```
+
+3 high résiduelles (demandent des bumps directs, pas des overrides) :
+- `astro` <=5.15.6 → bump apps/web (item #14)
+- `drizzle-orm` <0.45.2 → bump services/api, saut majeur (item #15)
+- `fastify` <5.7.2 → pas de backport 4.x → attendre la migration Fastify 5 (item #16, issue #83)
   - **`pip-audit`** sur les requirements du firmware (`audit-python` job, hard) — 0 vuln au livrage.
   - **Secret scan** via `scripts/preflight.sh --secrets` (11 patterns connus : AWS, GitHub PAT,
     Stripe live, Slack, Firebase, JWT secret, Postgres URL avec password, etc.) — hard.
@@ -273,7 +293,10 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 10 | Politique mot de passe Firebase durcie (10 car. min, complexité) | T2 2026 | 0.5 j |
 | 11 | Anonymisation des `audit_logs` après 24 mois | T3 2026 | 1 j |
 | 12 | SOC 2 Type I (si demande mairies > 50k habitants) | 2027 | budget ~40 k€ |
-| 13 | **`pnpm.overrides` pour patcher fast-jwt (3 critical), fast-uri (high), @xmldom/xmldom (high) → passer `audit-node` en hard** | T2 2026 (immédiat) | 0.5 j |
+| 13 | ~~`pnpm.overrides` pour patcher fast-jwt + fast-uri + @xmldom/xmldom~~ | ✅ **partiellement done** — étendu à tar/undici/rollup (cf. §7.4.1). 3 critical éliminés + 19 high résolus. 3 high restants traités via items #14-16 ci-dessous. | — |
+| 14 | Bump `astro` 4 → 5.15.8 (XSS reflété — apps/web) | T2 2026 | 0.5 j |
+| 15 | Bump `drizzle-orm` 0.30 → 0.45.2 (SQL injection via identifiers — saut majeur, breaking changes Drizzle) | T2 2026 | 1 j |
+| 16 | Migration Fastify 4→5 → couvre CVE Content-Type tab character (cf. issue #83) | T3 2026 | 1 j (10 packages en bloc) |
 
 **Politique de transparence** : tout item listé ici sera marqué `done` dans ce document
 au moment du merge de la PR correspondante, avec lien vers le commit. Aucun item ne sera
