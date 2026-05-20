@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { communes, distributors } from '../db/schema.js'
 import { requireAdminScope, requireSuperAdmin } from '../lib/commune-scope.js'
+import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 
 const CommuneDTO = z.object({
   id: z.string().uuid(),
@@ -228,8 +229,8 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
         distributorCount: 0,
       })
     } catch (err) {
-      const msg = (err as Error).message
-      if (/duplicate key|unique/i.test(msg) && /insee/i.test(msg)) {
+      // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
+      if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'insee')) {
         return reply.code(409).send({ error: 'insee_code_conflict' })
       }
       throw err

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { itemTypes, items } from '../db/schema.js'
 import { requireAdminScope, requireSuperAdmin } from '../lib/commune-scope.js'
+import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 
 const ItemTypeAdminDTO = z.object({
   id: z.string().uuid(),
@@ -188,8 +189,8 @@ export async function adminItemTypeRoutes(rawApp: FastifyInstance) {
         createdAt: created!.createdAt.toISOString(),
       })
     } catch (err) {
-      const msg = (err as Error).message
-      if (/duplicate key|unique/i.test(msg) && /slug/i.test(msg)) {
+      // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
+      if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'slug')) {
         return reply.code(409).send({ error: 'slug_conflict' })
       }
       throw err

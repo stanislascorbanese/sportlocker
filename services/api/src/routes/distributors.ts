@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { distributors, lockers } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
+import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 
 const DistributorDTO = z.object({
   id: z.string().uuid().describe('UUID v4 du distributeur'),
@@ -321,13 +322,11 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         lastSeenAt: created.lastSeenAt?.toISOString() ?? null,
       })
     } catch (err) {
-      const msg = (err as Error).message
-      // unique_violation sur serial_number
-      if (/duplicate key|unique/i.test(msg) && /serial/i.test(msg)) {
+      // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
+      if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'serial')) {
         return reply.code(409).send({ error: 'serial_number_conflict' })
       }
-      // foreign_key_violation sur commune_id
-      if (/foreign key/i.test(msg) && /commune/i.test(msg)) {
+      if (isPgViolation(err, PG_ERRORS.FOREIGN_KEY_VIOLATION, 'commune')) {
         return reply.code(404).send({ error: 'commune_not_found' })
       }
       throw err
