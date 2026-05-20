@@ -217,10 +217,14 @@ L'hypothèse : un attaquant peut, avec effort, ouvrir le boîtier et lire la mé
 - GitHub Actions `ci.yml` : `pnpm install --frozen-lockfile` + `pnpm typecheck` + `pnpm test`
   sur chaque PR.
 - GitHub Actions `security.yml` (workflow séparé, bloquant sur PR + cron hebdo lundi 06:00 UTC) :
-  - **`pnpm audit --audit-level=high`** sur le monorepo (`audit-node` job)
-  - **`pip-audit`** sur les requirements du firmware (`audit-python` job)
+  - **`pnpm audit --audit-level=high`** sur le monorepo (`audit-node` job).
+    ⚠ Actuellement en `continue-on-error: true` (mode soft) : le monorepo a 25 vulns ≥ high
+    au livrage du workflow (3 critical sur `fast-jwt`, 22 high sur `fast-uri` + `@xmldom/xmldom`).
+    Le job remonte l'info sans bloquer les autres PRs. Passage en hard prévu via `pnpm.overrides`
+    (cf. §9 item #13).
+  - **`pip-audit`** sur les requirements du firmware (`audit-python` job, hard) — 0 vuln au livrage.
   - **Secret scan** via `scripts/preflight.sh --secrets` (11 patterns connus : AWS, GitHub PAT,
-    Stripe live, Slack, Firebase, JWT secret, Postgres URL avec password, etc.)
+    Stripe live, Slack, Firebase, JWT secret, Postgres URL avec password, etc.) — hard.
 - **Dependabot** (`.github/dependabot.yml`) : updates auto hebdomadaires (lundi 07:00 Paris)
   pour npm/pnpm, pip (firmware), github-actions et docker base images. Minor+patch
   regroupés en une PR par ecosystem, majors en PRs séparées (review attentive).
@@ -269,6 +273,7 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 10 | Politique mot de passe Firebase durcie (10 car. min, complexité) | T2 2026 | 0.5 j |
 | 11 | Anonymisation des `audit_logs` après 24 mois | T3 2026 | 1 j |
 | 12 | SOC 2 Type I (si demande mairies > 50k habitants) | 2027 | budget ~40 k€ |
+| 13 | **`pnpm.overrides` pour patcher fast-jwt (3 critical), fast-uri (high), @xmldom/xmldom (high) → passer `audit-node` en hard** | T2 2026 (immédiat) | 0.5 j |
 
 **Politique de transparence** : tout item listé ici sera marqué `done` dans ce document
 au moment du merge de la PR correspondante, avec lien vers le commit. Aucun item ne sera
