@@ -82,19 +82,25 @@ export default function DistributorDetailPage() {
 
       {detailQuery.data && (
         <>
+          <Link
+            href={`/distributors/${params.id}/book`}
+            className="rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-semibold text-navy-900 transition hover:bg-emerald-400"
+          >
+            Réserver un créneau →
+          </Link>
           <button
             type="button"
             disabled={!canReserve}
             onClick={() => reserveMutation.mutate()}
-            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 transition hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {reserveMutation.isPending
               ? 'Réservation…'
               : detailQuery.data.idleLockers === 0
-                ? 'Aucun casier disponible'
+                ? 'Aucun casier disponible (immédiat)'
                 : groups.length > 0 && selectedTypeId == null
-                  ? 'Choisis un matériel'
-                  : 'Réserver un casier'}
+                  ? 'Emprunter maintenant — choisis un matériel'
+                  : 'Emprunter maintenant (legacy)'}
           </button>
           {reserveMutation.error && (
             <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">
