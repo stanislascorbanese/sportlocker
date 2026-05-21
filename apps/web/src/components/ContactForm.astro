@@ -178,6 +178,27 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
     if (localityEl && !localityEl.value) localityEl.value = localityParam
   }
 
+  // Préremplissage depuis le simulateur tarifs : nb distributeurs → bucket le plus proche.
+  const distParam = parseInt(params.get('dist') ?? '', 10)
+  if (Number.isFinite(distParam) && distParam > 0) {
+    const distSelect = document.getElementById('distributors') as HTMLSelectElement | null
+    if (distSelect) {
+      const bucket =
+        distParam <= 1 ? '1'
+        : distParam <= 3 ? '2-3'
+        : distParam <= 5 ? '4-5'
+        : distParam <= 10 ? '6-10'
+        : '10+'
+      distSelect.value = bucket
+    }
+  }
+
+  const prefillParam = params.get('prefill')
+  if (prefillParam) {
+    const messageEl = document.getElementById('message') as HTMLTextAreaElement | null
+    if (messageEl && !messageEl.value) messageEl.value = prefillParam
+  }
+
   const form = document.getElementById('contact-form') as HTMLFormElement | null
   const status = document.getElementById('form-status') as HTMLDivElement | null
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement | null
