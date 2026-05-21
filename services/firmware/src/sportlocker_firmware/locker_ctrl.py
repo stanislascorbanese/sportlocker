@@ -39,13 +39,19 @@ from .nonce_store import NonceStore
 log = structlog.get_logger(__name__)
 
 GPIO_PULSE_SECONDS = 0.5
+# Watchdog défensif sur l'opération GPIO. Le pulse réel prend ~0.5s ;
+# 5s laisse une marge confortable mais protège du driver qui resterait
+# bloqué (filesystem GPIO inaccessible, etc.) et évite que le thread
+# paho callback ne fige indéfiniment.
+GPIO_PULSE_TIMEOUT_S = 5.0
+GPIO_PULSE_MAX_RETRIES = 1
 
 try:
-    import RPi.GPIO as GPIO  # type: ignore[import]
+    import RPi.GPIO as GPIO
 
     _GPIO_AVAILABLE = True
 except (ImportError, RuntimeError):
-    GPIO = None  # type: ignore[assignment]
+    GPIO = None
     _GPIO_AVAILABLE = False
 
 
@@ -150,22 +156,98 @@ class LockerController:
         for pin in self._gpio_mapping.values():
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
 
-    def _pulse_open(self, locker_id: str) -> bool:
+    def _pulse_open(
+        self,
+        locker_id: str,
+        *,
+        retries: int = GPIO_PULSE_MAX_RETRIES,
+        timeout_s: float = GPIO_PULSE_TIMEOUT_S,
+    ) -> bool:
+        """Pulse LOW puis HIGH le GPIO du casier.
+
+        - ``timeout_s`` : si le pulse n'aboutit pas dans ce délai (driver GPIO
+          bloqué, fs en lecture seule…), on abandonne et on force HIGH pour
+          rester fail-secure.
+        - ``retries`` : on retente une fois en cas d'échec — ouvrir un casier
+          déjà ouvert est idempotent (la serrure reste relâchée le temps du
+          pulse, le citoyen retire la porte).
+        """
         pin = self._gpio_mapping.get(locker_id)
         if pin is None:
             log.error("gpio_pin_not_mapped", locker_id=locker_id)
             return False
-        try:
-            if _GPIO_AVAILABLE:
+
+        attempts = retries + 1
+        last_err: str | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                self._run_pulse_with_timeout(pin, timeout_s)
+                log.info(
+                    "gpio_pulse_ok",
+                    locker_id=locker_id, pin=pin, attempt=attempt,
+                    simulated=not _GPIO_AVAILABLE,
+                )
+                return True
+            except Exception as exc:  # noqa: BLE001
+                last_err = str(exc)
+                log.warning(
+                    "gpio_pulse_attempt_failed",
+                    locker_id=locker_id, pin=pin, attempt=attempt,
+                    err=last_err,
+                )
+                # Force le retour HIGH au cas où on serait coincé en LOW —
+                # idempotent et fail-secure.
+                self._force_high_safe(pin)
+
+        log.error(
+            "gpio_pulse_exhausted",
+            locker_id=locker_id, pin=pin, attempts=attempts, err=last_err,
+        )
+        return False
+
+    def _run_pulse_with_timeout(self, pin: int, timeout_s: float) -> None:
+        """Exécute le pulse dans un thread daemon avec watchdog.
+
+        Lève ``TimeoutError`` si le pulse dépasse ``timeout_s`` — le thread
+        daemon survit mais ne bloquera pas la coroutine.
+        """
+        if not _GPIO_AVAILABLE:
+            log.info("gpio_pulse_simulated", pin=pin)
+            time.sleep(min(GPIO_PULSE_SECONDS, timeout_s))
+            return
+
+        done = threading.Event()
+        err_box: list[BaseException] = []
+
+        def _run() -> None:
+            try:
                 GPIO.output(pin, GPIO.LOW)
                 time.sleep(GPIO_PULSE_SECONDS)
                 GPIO.output(pin, GPIO.HIGH)
-            else:
-                log.info("gpio_pulse_simulated", locker_id=locker_id, pin=pin)
-            return True
+            except BaseException as exc:  # noqa: BLE001
+                err_box.append(exc)
+            finally:
+                done.set()
+
+        worker = threading.Thread(
+            target=_run, daemon=True, name=f"gpio-pulse-{pin}",
+        )
+        worker.start()
+        if not done.wait(timeout=timeout_s):
+            raise TimeoutError(
+                f"gpio pulse exceeded {timeout_s}s on pin {pin}"
+            )
+        if err_box:
+            raise err_box[0]
+
+    def _force_high_safe(self, pin: int) -> None:
+        """Best-effort GPIO HIGH (fail-secure). Swallow toute erreur."""
+        if not _GPIO_AVAILABLE:
+            return
+        try:
+            GPIO.output(pin, GPIO.HIGH)
         except Exception as exc:  # noqa: BLE001
-            log.exception("gpio_pulse_failed", locker_id=locker_id, pin=pin, err=str(exc))
-            return False
+            log.warning("gpio_force_high_failed", pin=pin, err=str(exc))
 
     # ─── Cache réservations ────────────────────────────────────────────────
 
