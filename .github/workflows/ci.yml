@@ -73,17 +73,28 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       # esbuild a besoin de son binaire natif (téléchargé normalement par
-      # son postinstall) pour que vitest fonctionne. On rebuild juste ce
-      # package — pnpm rebuild sans args rebuilderait TOUT et re-déclencherait
-      # le postinstall react-native-screens.
-      - name: Rebuild esbuild (binaire natif pour vitest)
-        run: pnpm rebuild esbuild || true
+      # son postinstall) pour que vitest fonctionne.
+      # sharp a aussi un binaire natif (libvips) requis par astro:assets
+      # pour générer les variantes WebP/AVIF au build (sinon « Could not
+      # find Sharp »). Cf. incident #93/#94.
+      # On les rebuild explicitement — pnpm rebuild sans args rebuilderait
+      # TOUT et re-déclencherait le postinstall react-native-screens.
+      - name: Rebuild binaires natifs (esbuild pour vitest, sharp pour astro:assets)
+        run: |
+          pnpm rebuild esbuild || true
+          pnpm rebuild sharp || true
 
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Tests
         run: pnpm test
+
+      # Build du site vitrine — `astro check` (typecheck) ne lance pas la
+      # pipeline d'optimisation d'images, donc des bugs comme « sharp not
+      # found » ou des assets manquants passent inaperçus. Cf. #94.
+      - name: Build (apps/web)
+        run: pnpm --filter @sportlocker/web build
 
   # ─── Firmware Python (services/firmware) ─────────────────────────────
   # Job parallèle au job Node ci-dessus. Lance ruff + pytest avec coverage
