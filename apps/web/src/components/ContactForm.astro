@@ -171,6 +171,13 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
     if (target) target.checked = true
   }
 
+  // Préremplissage de la localité depuis la carte /couverture
+  const localityParam = params.get('locality')
+  if (localityParam) {
+    const localityEl = document.getElementById('locality') as HTMLInputElement | null
+    if (localityEl && !localityEl.value) localityEl.value = localityParam
+  }
+
   // Préremplissage depuis le simulateur tarifs : nb distributeurs → bucket le plus proche.
   const distParam = parseInt(params.get('dist') ?? '', 10)
   if (Number.isFinite(distParam) && distParam > 0) {

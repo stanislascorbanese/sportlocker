@@ -14,6 +14,7 @@ export const NAV = [
   { href: '/mairies', label: 'Mairies' },
   { href: '/campings', label: 'Campings' },
   { href: '/hotels', label: 'Hôtels' },
+  { href: '/couverture', label: 'Couverture' },
   { href: '/tarifs', label: 'Tarifs' },
 ] as const
 
