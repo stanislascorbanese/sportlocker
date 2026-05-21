@@ -2,58 +2,20 @@
 
 import { z } from 'zod'
 
+import {
+  Distributor,
+  DistributorDetail,
+  DistributorLocker,
+  LockerItemType,
+  NearbyDistributor,
+} from '@sportlocker/types'
+
 import { getFirebaseAuth } from './firebase'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
 
-/**
- * Schémas Zod miroirs des DTO de services/api/src/routes/distributors.ts.
- * Dupliqués ici plutôt qu'importés du backend pour garder citizen/build
- * léger (pas de dépendance sur services/api).
- */
-export const Distributor = z.object({
-  id: z.string().uuid(),
-  serialNumber: z.string(),
-  name: z.string(),
-  status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
-  communeId: z.string().uuid(),
-  lockerCount: z.number().int().nonnegative(),
-  idleLockers: z.number().int().nonnegative(),
-  latitude: z.number().nullable(),
-  longitude: z.number().nullable(),
-  addressLine: z.string().max(200).nullable(),
-  batteryPercent: z.number().int().min(0).max(100).nullable(),
-  lastSeenAt: z.string().datetime().nullable(),
-})
-export type Distributor = z.infer<typeof Distributor>
-
-export const NearbyDistributor = Distributor.extend({
-  distanceKm: z.number().min(0),
-})
-export type NearbyDistributor = z.infer<typeof NearbyDistributor>
-
-export const LockerItemType = z.object({
-  id: z.string().uuid(),
-  slug: z.string(),
-  name: z.string(),
-  category: z.string(),
-  imageUrl: z.string().nullable(),
-})
-export type LockerItemType = z.infer<typeof LockerItemType>
-
-export const DistributorDetail = Distributor.extend({
-  lockers: z.array(
-    z.object({
-      id: z.string().uuid(),
-      position: z.number().int(),
-      state: z.enum(['idle', 'reserved', 'active', 'returning', 'fault']),
-      currentItemId: z.string().uuid().nullable(),
-      itemType: LockerItemType.nullable(),
-    }),
-  ),
-})
-export type DistributorDetail = z.infer<typeof DistributorDetail>
-export type LockerDetail = DistributorDetail['lockers'][number]
+export { Distributor, DistributorDetail, LockerItemType, NearbyDistributor }
+export type LockerDetail = DistributorLocker
 
 export const ReservationActive = z.object({
   id: z.string().uuid(),
