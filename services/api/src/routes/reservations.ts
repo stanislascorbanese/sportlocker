@@ -1,15 +1,18 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import {
-  distributors, itemTypes, items, lockerEvents, lockers, reservations, tokenNonces,
+  distributors, itemTypes, items, lockerEvents, lockers, pricingRules, reservations, tokenNonces,
 } from '../db/schema.js'
 import { signDeviceToken } from '../lib/jwt-device.js'
 import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
+import {
+  computeSlotEnd, NO_SHOW_GRACE_MINUTES, validateSlotRequest,
+} from '../lib/slots.js'
 import { redis } from '../redis/client.js'
 
 const RESERVATION_TTL_MS = 15 * 60 * 1000
@@ -48,6 +51,27 @@ const ReservationCreatedDTO = ReservationBaseDTO.extend({
   deviceToken: z.string().describe(
     'JWT HS256 prêt à afficher en QR. Claims : reservationId, lockerId, distributorId, jti=nonce, exp=15min. '
     + 'Signé avec JWT_DEVICE_SECRET (partagé avec le firmware, vérification offline).',
+  ),
+})
+
+const CreateSlotReservationBody = z.object({
+  distributorId: z.string().uuid().describe('Borne ciblée'),
+  itemTypeId: z.string().uuid().describe('Sport / type de matériel souhaité (depuis /v1/item-types)'),
+  slotStartAt: z.string().datetime({ offset: true })
+    .describe('Début du créneau réservé (ISO 8601, aligné sur :00 ou :30 UTC)'),
+  durationMinutes: z.number().int()
+    .refine((n) => [30, 60, 90, 120].includes(n), { message: 'duration_not_allowed' })
+    .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120'),
+})
+
+const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
+  slotStartAt: z.string().datetime().describe('Début du créneau réservé'),
+  slotEndAt: z.string().datetime().describe('Fin du créneau (= start + durationMinutes)'),
+  durationMinutes: z.number().int().describe('Durée du créneau en minutes'),
+  priceCents: z.number().int().nonnegative().describe('Prix d\'affichage figé à la création (snapshot)'),
+  nonce: z.string().uuid(),
+  deviceToken: z.string().describe(
+    'JWT HS256 prêt à afficher en QR. Valide jusqu\'à slot_end_at + grâce no-show.',
   ),
 })
 
@@ -146,7 +170,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
           .from(reservations)
           .where(and(
             eq(reservations.userId, userId),
-            inArray(reservations.status, ['pending', 'active']),
+            inArray(reservations.status, ['scheduled', 'pending', 'active']),
           ))
           .limit(1)
         if (existingActive.length > 0) {
@@ -226,8 +250,9 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       }).catch((err: unknown) => {
         // Race entre 2 POST simultanés du même user (lockers différents) :
         // le SELECT préalable peut voir "rien" mais l'INSERT viole l'index
-        // partiel unique. On traite comme `already_active`.
-        if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'one_active_per_user')) {
+        // partiel unique idx_reservations_one_live_per_user (migration 0008,
+        // remplace 0005). On traite comme `already_active`.
+        if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'one_live_per_user')) {
           return { kind: 'already_active' as const }
         }
         throw err
@@ -273,6 +298,207 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
   })
 
   /**
+   * POST /v1/reservations/slots — réserve un créneau futur (modèle slots).
+   *
+   * Pendant slot-aware de POST /v1/reservations (qui lui crée une résa
+   * "immédiate" en `pending` et lock le casier). Ici on crée une résa
+   * `scheduled` qui ne réserve PAS le casier physique : seul l'item est
+   * snapshot. À slot_start_at, le user vient scanner et la résa transite
+   * vers `active` (mécanique du firmware/check-in, hors scope PR 2).
+   */
+  app.post('/slots', {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Réserve un créneau futur (modèle slots)',
+      description: 'Crée une résa `scheduled` sur la fenêtre [slotStartAt, slotStartAt + durationMinutes). '
+        + 'L\'API choisit un item dispo du type demandé (snapshot) et fige le prix d\'affichage depuis `pricing_rules`. '
+        + 'Pas de paiement MVP : `priceCents` est informatif.\n\n'
+        + 'Garde anti-monopole : 1 résa "vivante" max par user (scheduled/pending/active). '
+        + 'Le QR (`deviceToken`) est valable jusqu\'à `slot_end_at + grâce` ; au-delà, le cron expire la résa.\n\n'
+        + '**Erreurs** :\n'
+        + '- 404 `distributor_not_found`\n'
+        + '- 409 `already_active` (le user a déjà une résa vivante)\n'
+        + '- 409 `slot_not_available` (aucun item libre sur le slot)\n'
+        + '- 409 `slot_being_processed` (autre user en train de réserver le même slot)\n'
+        + '- 422 `slot_not_aligned` / `slot_in_past` / `slot_too_far` / `slot_outside_opening_hours` / `duration_not_allowed`\n'
+        + '- 422 `no_pricing` (pas de pricing_rule pour ce triplet — tenant non configuré)',
+      security: [{ bearerAuth: [] }],
+      body: CreateSlotReservationBody,
+      response: {
+        201: SlotReservationCreatedDTO,
+        404: ErrorDTO,
+        409: ErrorDTO,
+        422: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const userId = req.user.sub
+    const { distributorId, itemTypeId, slotStartAt: slotStartAtStr, durationMinutes } = req.body
+
+    const slotStartAt = new Date(slotStartAtStr)
+    const validation = validateSlotRequest({ slotStartAt, durationMinutes })
+    if (validation !== null) return reply.code(422).send({ error: validation })
+
+    const slotEndAt = computeSlotEnd(slotStartAt, durationMinutes)
+
+    const [dist] = await db
+      .select({ id: distributors.id, communeId: distributors.communeId })
+      .from(distributors)
+      .where(eq(distributors.id, distributorId))
+      .limit(1)
+    if (!dist) return reply.code(404).send({ error: 'distributor_not_found' })
+
+    // Tarif (commune × item_type × duration). Pas de règle = créneau non
+    // proposé pour ce sport dans cette commune.
+    const [price] = await db
+      .select({ priceCents: pricingRules.priceCents })
+      .from(pricingRules)
+      .where(and(
+        eq(pricingRules.communeId, dist.communeId),
+        eq(pricingRules.itemTypeId, itemTypeId),
+        eq(pricingRules.durationMinutes, durationMinutes),
+      ))
+      .limit(1)
+    if (!price) return reply.code(422).send({ error: 'no_pricing' })
+
+    // Sérialise les booking concurrents sur le même créneau. Évite que deux
+    // citoyens grabbent le dernier item du type au même moment.
+    const slotIso = slotStartAt.toISOString()
+    const lockKey = `lock:slot:${distributorId}:${itemTypeId}:${slotIso}:${durationMinutes}`
+    const acquired = await redis.set(lockKey, userId, 'EX', LOCK_TTL_SEC, 'NX')
+    if (acquired !== 'OK') return reply.code(409).send({ error: 'slot_being_processed' })
+
+    try {
+      const result = await db.transaction(async (tx) => {
+        // Anti-monopole : 1 résa vivante max par user. SELECT préalable +
+        // filet via l'index partiel unique (catché dans le .catch en sortie).
+        const existing = await tx
+          .select({ id: reservations.id })
+          .from(reservations)
+          .where(and(
+            eq(reservations.userId, userId),
+            inArray(reservations.status, ['scheduled', 'pending', 'active']),
+          ))
+          .limit(1)
+        if (existing.length > 0) return { kind: 'already_active' as const }
+
+        // Items du type sur ce distributeur.
+        const candidates = await tx
+          .select({ id: items.id, lockerId: lockers.id })
+          .from(items)
+          .innerJoin(lockers, eq(items.currentLockerId, lockers.id))
+          .where(and(
+            eq(lockers.distributorId, distributorId),
+            eq(items.itemTypeId, itemTypeId),
+          ))
+        if (candidates.length === 0) return { kind: 'slot_not_available' as const }
+
+        // Items déjà occupés par une résa qui overlap [slotStartAt, slotEndAt).
+        const busy = await tx
+          .select({ itemId: reservations.itemId })
+          .from(reservations)
+          .where(and(
+            inArray(reservations.itemId, candidates.map((c) => c.id)),
+            inArray(reservations.status, ['scheduled', 'pending', 'active']),
+            sql`${reservations.slotStartAt} IS NOT NULL`,
+            sql`${reservations.slotEndAt} IS NOT NULL`,
+            lt(reservations.slotStartAt, slotEndAt),
+            gt(reservations.slotEndAt, slotStartAt),
+          ))
+        const busyIds = new Set(busy.map((b) => b.itemId))
+        const free = candidates.find((c) => !busyIds.has(c.id))
+        if (!free) return { kind: 'slot_not_available' as const }
+
+        const nonce = randomUUID()
+        // Le QR est valable jusqu'à la fin du slot + la fenêtre de grâce
+        // no-show — au-delà, le cron expire la résa et le firmware refusera
+        // de toute façon (token expiré). On garde la `expires_at` du modèle
+        // legacy pour la cohérence des cron existants, mais c'est en
+        // pratique une bound supérieure de l'usage.
+        const qrExpiresAt = new Date(slotEndAt.getTime() + NO_SHOW_GRACE_MINUTES * 60 * 1000)
+
+        const [reservation] = await tx
+          .insert(reservations)
+          .values({
+            userId,
+            lockerId: free.lockerId,
+            itemId: free.id,
+            distributorId,
+            status: 'scheduled',
+            qrJti: nonce,
+            expiresAt: qrExpiresAt,
+            slotStartAt,
+            slotEndAt,
+            durationMinutes,
+            priceCents: price.priceCents,
+          })
+          .returning()
+
+        await tx.insert(tokenNonces).values({
+          nonce,
+          reservationId: reservation!.id,
+          distributorId,
+        })
+
+        await tx.insert(lockerEvents).values({
+          lockerId: free.lockerId,
+          reservationId: reservation!.id,
+          eventType: 'reserved',
+          source: 'api',
+          metadata: {
+            slotStartAt: slotStartAt.toISOString(),
+            slotEndAt: slotEndAt.toISOString(),
+            durationMinutes,
+            priceCents: price.priceCents,
+            mode: 'slot',
+          },
+        })
+
+        return {
+          kind: 'ok' as const,
+          reservation: reservation!,
+          nonce,
+          qrExpiresAt,
+        }
+      }).catch((err: unknown) => {
+        if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'one_live_per_user')) {
+          return { kind: 'already_active' as const }
+        }
+        throw err
+      })
+
+      if (result.kind === 'already_active') {
+        return reply.code(409).send({ error: 'already_active' })
+      }
+      if (result.kind === 'slot_not_available') {
+        return reply.code(409).send({ error: 'slot_not_available' })
+      }
+
+      const ttlSec = Math.max(60, Math.floor(
+        (result.qrExpiresAt.getTime() - Date.now()) / 1000,
+      ))
+      const deviceToken = await signDeviceToken({
+        reservationId: result.reservation.id,
+        lockerId: result.reservation.lockerId,
+        distributorId,
+      }, ttlSec, result.nonce)
+
+      return reply.code(201).send({
+        ...toDto(result.reservation),
+        slotStartAt: result.reservation.slotStartAt!.toISOString(),
+        slotEndAt: result.reservation.slotEndAt!.toISOString(),
+        durationMinutes: result.reservation.durationMinutes!,
+        priceCents: result.reservation.priceCents!,
+        nonce: result.nonce,
+        deviceToken,
+      })
+    } finally {
+      await redis.del(lockKey)
+    }
+  })
+
+  /**
    * GET /v1/reservations/active — réservation pending ou active courante.
    *
    * Pendant de la garde "une seule réservation vivante par user" : l'app
@@ -296,7 +522,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       .from(reservations)
       .where(and(
         eq(reservations.userId, req.user.sub),
-        inArray(reservations.status, ['pending', 'active']),
+        inArray(reservations.status, ['scheduled', 'pending', 'active']),
       ))
       .limit(1)
 
@@ -321,7 +547,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       .select()
       .from(reservations)
       .where(and(eq(reservations.userId, req.user.sub), inArray(reservations.status, [
-        'pending', 'active', 'returned', 'overdue',
+        'scheduled', 'pending', 'active', 'returned', 'overdue',
       ])))
       .orderBy(reservations.createdAt)
       .limit(50)

@@ -24,6 +24,7 @@ import { adminAuditRoutes } from './routes/admin-audit.js'
 import { itemTypeRoutes } from './routes/item-types.js'
 import { adminItemTypeRoutes } from './routes/admin-item-types.js'
 import { adminItemRoutes } from './routes/admin-items.js'
+import { adminPricingRuleRoutes } from './routes/admin-pricing-rules.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -58,6 +59,7 @@ export async function buildApp() {
   await app.register(adminAuditRoutes,        { prefix: '/v1/admin/audit' })
   await app.register(adminItemTypeRoutes,     { prefix: '/v1/admin/item-types' })
   await app.register(adminItemRoutes,         { prefix: '/v1/admin/items' })
+  await app.register(adminPricingRuleRoutes,  { prefix: '/v1/admin/pricing-rules' })
 
   // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
   // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
