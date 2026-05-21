@@ -855,6 +855,76 @@ export async function updateItem(id: string, input: ItemUpdateInput): Promise<It
   return Item.parse(await res.json())
 }
 
+// ─── Tarification : pricing_rules (modèle slots PR 0008) ────────────────────
+
+export const SLOT_DURATIONS = [30, 60, 90, 120] as const
+export type SlotDurationMinutes = typeof SLOT_DURATIONS[number]
+
+export const PricingRule = z.object({
+  id: z.string().uuid(),
+  communeId: z.string().uuid(),
+  itemTypeId: z.string().uuid(),
+  itemTypeSlug: z.string(),
+  itemTypeName: z.string(),
+  durationMinutes: z.number().int(),
+  priceCents: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+export type PricingRule = z.infer<typeof PricingRule>
+
+const ListPricingRules = z.object({ items: z.array(PricingRule) })
+
+export async function fetchPricingRules(communeId?: string): Promise<PricingRule[]> {
+  const qs = communeId ? `?communeId=${encodeURIComponent(communeId)}` : ''
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules${qs}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['pricing-rules'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return ListPricingRules.parse(await res.json()).items
+}
+
+export async function upsertPricingRule(input: {
+  itemTypeId: string
+  durationMinutes: SlotDurationMinutes
+  priceCents: number
+  communeId?: string
+}): Promise<PricingRule> {
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return PricingRule.parse(await res.json())
+}
+
+export async function bulkUpsertPricingRules(input: {
+  rules: Array<{ itemTypeId: string; durationMinutes: SlotDurationMinutes; priceCents: number }>
+  communeId?: string
+}): Promise<{ applied: number }> {
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules/bulk`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return z.object({ applied: z.number().int().nonnegative() }).parse(await res.json())
+}
+
+export async function deletePricingRule(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules/${id}`, {
+    method: 'DELETE',
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
     super(`API ${status}: ${detail}`)
