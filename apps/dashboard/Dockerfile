@@ -61,12 +61,22 @@ FROM node:20-alpine AS runtime
 # wget pour le HEALTHCHECK Docker (Railway probe aussi via healthcheckPath)
 RUN apk add --no-cache wget
 
-# pnpm via corepack — nécessaire UNIQUEMENT parce que Railway a un Start
+# pnpm pin via npm — nécessaire UNIQUEMENT parce que Railway a un Start
 # Command custom `pnpm --filter @sportlocker/dashboard start` qui override
-# le CMD du Dockerfile. Sans corepack ici, le container crash au démarrage :
-# "The executable `pnpm` could not be found". À retirer si le Start Command
-# Railway est un jour aligné sur le CMD `next start` ci-dessous.
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+# le CMD du Dockerfile. Sans pnpm ici, le container crash au démarrage avec
+# "The executable `pnpm` could not be found".
+#
+# Pourquoi pas corepack ? Le bundle issu de `pnpm deploy` est un sous-dossier
+# du workspace SANS `pnpm-workspace.yaml`, et `package.json` du dashboard
+# ne porte pas la directive `packageManager`. Du coup `corepack prepare`
+# au build ne fige rien et `corepack enable` télécharge la dernière version
+# au premier appel — actuellement pnpm 11 qui exige Node 22 (crash avec
+# `No such built-in module: node:sqlite`) et qu'on ne peut pas faire
+# tourner sur node:20-alpine.
+#
+# `npm install -g` est déterministe : pin exact, pas de réseau au boot.
+# À retirer si on aligne le Start Command Railway sur le CMD `next start`.
+RUN npm install -g pnpm@9.0.0
 
 WORKDIR /app
 ENV NODE_ENV=production
