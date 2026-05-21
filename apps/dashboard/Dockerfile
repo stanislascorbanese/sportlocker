@@ -61,6 +61,13 @@ FROM node:20-alpine AS runtime
 # wget pour le HEALTHCHECK Docker (Railway probe aussi via healthcheckPath)
 RUN apk add --no-cache wget
 
+# pnpm via corepack — nécessaire UNIQUEMENT parce que Railway a un Start
+# Command custom `pnpm --filter @sportlocker/dashboard start` qui override
+# le CMD du Dockerfile. Sans corepack ici, le container crash au démarrage :
+# "The executable `pnpm` could not be found". À retirer si le Start Command
+# Railway est un jour aligné sur le CMD `next start` ci-dessous.
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -77,5 +84,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider "http://127.0.0.1:${PORT:-3001}/" || exit 1
 
-# `next start` lit PORT directement
+# Fallback si lancé sans override Railway : `next start` lit PORT directement.
 CMD ["node_modules/.bin/next", "start"]
