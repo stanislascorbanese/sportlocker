@@ -3,6 +3,7 @@ import Base from '@/layouts/Base.astro'
 import Hero from '@/components/Hero.astro'
 import ContactForm from '@/components/ContactForm.astro'
 import Faq from '@/components/Faq.astro'
+import MiniSimulator from '@/components/MiniSimulator.tsx'
 import { SITE } from '@/data/site'
 
 const problems = [
@@ -285,23 +286,22 @@ const faq = [
     </div>
   </section>
 
-  <!-- PRICING TEASER -->
+  <!-- SIMULATEUR TEASER -->
   <section class="section bg-navy-800">
     <div class="container-x">
-      <div class="card-dark p-10 sm:p-14 max-w-4xl mx-auto text-center">
-        <span class="eyebrow" data-reveal>Tarification</span>
-        <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
-          À partir de <span class="text-brand-500">400 € / mois</span> par distributeur<br/>
-          <span class="text-base font-medium text-white/55">+ 75 % des locations citoyens reversés à J+2</span>
+      <div class="text-center mb-10 max-w-2xl mx-auto">
+        <span class="eyebrow" data-reveal>Estimez en 30 secondes</span>
+        <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+          Combien ça coûte<br/><span class="text-brand-500">pour votre site ?</span>
         </h2>
-        <p class="section-sub mx-auto mb-8 text-center" data-reveal data-reveal-delay="2">
-          Abonnement SaaS tout inclus (matériel, maintenance, hotline, OTA) plus marketplace
-          3-flux : vos usagers paient 5 € la journée, vous gardez la majorité.
+        <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
+          Choisissez votre type d'établissement et sa taille — on calcule le budget année 1
+          (subventions ANS/DETR estimées pour les mairies) et l'excédent attendu en croisière.
         </p>
-        <div class="flex items-center justify-center gap-3 flex-wrap">
-          <a href="/tarifs" class="btn btn-primary">Calculer mon budget →</a>
-          <a href="#contact" class="btn btn-outline">Demander un devis</a>
-        </div>
+      </div>
+
+      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
+        <MiniSimulator client:load />
       </div>
     </div>
   </section>
