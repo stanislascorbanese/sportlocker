@@ -1,6 +1,7 @@
 ---
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
+import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
 
 const citoyen = [
   {
@@ -130,8 +131,29 @@ const inclus = [
     </div>
   </section>
 
-  <!-- ÉTABLISSEMENT -->
+  <!-- DISTRIBUTEUR 3D -->
   <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="mb-10 max-w-3xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>Le distributeur en détail</span>
+        <h2 class="section-title" data-reveal data-reveal-delay="1">
+          Huit casiers, écran tactile,<br />clavier PIN et lecteur QR.
+        </h2>
+        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
+          Manipulez le distributeur : faites-le pivoter, ouvrez les portes, observez les statuts en temps
+          réel (libre, réservé, emprunté, maintenance). C'est exactement la borne installée sur vos sites,
+          avec ses six composants annotés.
+        </p>
+      </div>
+
+      <div data-reveal data-reveal-delay="3">
+        <LockerDistributor3D />
+      </div>
+    </div>
+  </section>
+
+  <!-- ÉTABLISSEMENT -->
+  <section class="section bg-navy-800">
     <div class="container-x">
       <div class="mb-14">
         <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté établissement</span>
@@ -169,7 +191,7 @@ const inclus = [
   </section>
 
   <!-- CE QU'ON FOURNIT -->
-  <section class="section bg-navy-800">
+  <section class="section bg-navy-900">
     <div class="container-x">
       <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Ce qu'on fournit</span>
