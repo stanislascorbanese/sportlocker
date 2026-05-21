@@ -24,17 +24,22 @@ const DurationLiteral = z.coerce.number().int()
     message: 'duration_not_allowed',
   })
 
+// `communeId` est optionnel : transmis par le picker super_admin, ignoré
+// par le backend pour un admin scopé (qui utilise sa session).
+const OptionalCommuneId = z.string().uuid().optional()
+
 const UpsertForm = z.object({
   itemTypeId: z.string().uuid(),
   durationMinutes: DurationLiteral,
   priceCents: z.coerce.number().int().min(0).max(100_000_000),
+  communeId: OptionalCommuneId,
 })
 
 /**
  * Server action appelée par une cellule de la matrice à la perte de focus
  * (onBlur). Idempotent : upsert sur le triplet unique (commune, item_type,
- * duration). Le scope commune est implicite (admin scopé) — super_admin
- * doit utiliser la page super-admin spécifique (hors PR).
+ * duration). Pour super_admin, `communeId` est extrait du picker côté UI ;
+ * pour admin scopé, le champ est absent et l'API utilise la session.
  */
 export async function upsertPricingRuleAction(formData: FormData): Promise<ActionState> {
   const parsed = UpsertForm.safeParse(Object.fromEntries(formData))
@@ -47,6 +52,7 @@ export async function upsertPricingRuleAction(formData: FormData): Promise<Actio
       itemTypeId: parsed.data.itemTypeId,
       durationMinutes: parsed.data.durationMinutes,
       priceCents: parsed.data.priceCents,
+      ...(parsed.data.communeId ? { communeId: parsed.data.communeId } : {}),
     })
     revalidateTag('pricing-rules')
     return { status: 'success' }
@@ -58,7 +64,10 @@ export async function upsertPricingRuleAction(formData: FormData): Promise<Actio
   }
 }
 
-const DeleteForm = z.object({ id: z.string().uuid() })
+const DeleteForm = z.object({
+  id: z.string().uuid(),
+  communeId: OptionalCommuneId,
+})
 
 export async function deletePricingRuleAction(formData: FormData): Promise<ActionState> {
   const parsed = DeleteForm.safeParse(Object.fromEntries(formData))
@@ -78,6 +87,7 @@ export async function deletePricingRuleAction(formData: FormData): Promise<Actio
 
 const ApplyTemplateForm = z.object({
   templateId: z.enum(['communal-leger', 'saisonnier-plage', 'hotel-premium']),
+  communeId: OptionalCommuneId,
 })
 
 /**
@@ -123,7 +133,10 @@ export async function applyTemplateAction(formData: FormData): Promise<ActionSta
       }
     }
 
-    const { applied } = await bulkUpsertPricingRules({ rules })
+    const { applied } = await bulkUpsertPricingRules({
+      rules,
+      ...(parsed.data.communeId ? { communeId: parsed.data.communeId } : {}),
+    })
     revalidateTag('pricing-rules')
     return { status: 'success', message: `${applied}_rules_applied` }
   } catch (err) {
