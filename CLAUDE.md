@@ -28,11 +28,11 @@ sportlocker/
 ```
 
 ## Base de données (PostgreSQL 16)
-14 tables principales : communes · users · distributors · lockers · item_types · items ·
+15 tables principales : communes · users · distributors · lockers · item_types · items ·
 token_nonces · reservations · reviews · locker_events · distributor_heartbeats ·
-maintenance_tickets · push_tokens · notification_logs
+maintenance_tickets · push_tokens · notification_logs · pricing_rules
 
-Voir `database/schema.sql` pour le schéma complet (1 165 lignes commentées).
+Voir `database/schema.sql` pour le schéma complet.
 
 ## Règles métier critiques
 - Un casier suit une machine à états : idle → reserved → active → returning → idle
@@ -40,6 +40,7 @@ Voir `database/schema.sql` pour le schéma complet (1 165 lignes commentées).
 - Les stocks sont servis depuis Redis (< 20ms) avec fallback SQL
 - BullMQ crons : expire réservations (2 min) · detect overdue (1 min) · heartbeat watchdog (3 min)
 - RGPD : données supprimées/anonymisées 30j après gdpr_delete_requested_at
+- **Modèle tarifaire (PR 0008)** : slots de 30/60/90/120 min · prix configurable par tenant via `pricing_rules` (commune × item_type × duration) · réservation anticipée J+7 (statut `scheduled`) · max 1 résa "vivante" par user · pas de paiement MVP (prix d'affichage uniquement)
 
 ## Variables d'environnement
 Voir `.env.example` — ne jamais committer les vraies valeurs.

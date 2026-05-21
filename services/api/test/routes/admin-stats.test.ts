@@ -371,7 +371,7 @@ describe('GET /v1/admin/stats/dashboard', () => {
     const body = res.json() as DashboardResponse
     const statuses = body.byStatus.map((s) => s.status).sort()
     expect(statuses).toEqual(
-      ['active', 'cancelled', 'expired', 'overdue', 'pending', 'returned'].sort(),
+      ['active', 'cancelled', 'expired', 'overdue', 'pending', 'returned', 'scheduled'].sort(),
     )
     expect(body.byStatus.every((s) => s.count === 0)).toBe(true)
   })
@@ -599,7 +599,7 @@ describe('GET /v1/admin/stats/dashboard', () => {
     const body = res.json() as DashboardResponse
     expect(body.daily).toHaveLength(14)
     expect(body.daily.every((p) => p.count === 0)).toBe(true)
-    expect(body.byStatus).toHaveLength(6)
+    expect(body.byStatus).toHaveLength(7)
     expect(body.byStatus.every((s) => s.count === 0)).toBe(true)
     // topDistributors renvoie les distributeurs même sans résa (LEFT JOIN), count=0
     expect(body.topDistributors.every((d) => d.count === 0)).toBe(true)

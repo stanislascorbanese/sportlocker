@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 --  SportLocker — Schéma PostgreSQL 16
 -- ═══════════════════════════════════════════════════════════════════════════
---  14 tables principales pour le service de prêt de matériel sportif IoT.
+--  15 tables principales pour le service de prêt de matériel sportif IoT.
 --  Convention : noms de tables au pluriel, snake_case, timestamps UTC.
 --  À appliquer sur une base vide. Les migrations versionnées vivent dans
 --  ./migrations/ et sont produites par Drizzle Kit.
@@ -40,7 +40,8 @@ CREATE TYPE locker_state AS ENUM (
 CREATE TYPE item_condition AS ENUM ('new', 'good', 'worn', 'damaged', 'lost');
 
 CREATE TYPE reservation_status AS ENUM (
-  'pending',        -- créée, casier réservé, QR émis
+  'scheduled',      -- créneau futur réservé, QR émis (modèle slots)
+  'pending',        -- créée, casier réservé, QR émis (legacy modèle immédiat)
   'active',         -- item retiré
   'returned',       -- rendu dans les délais
   'overdue',        -- non rendu après 24h
@@ -227,7 +228,7 @@ CREATE TABLE reservations (
   locker_id       UUID NOT NULL REFERENCES lockers(id) ON DELETE RESTRICT,
   item_id         UUID NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
   distributor_id  UUID NOT NULL REFERENCES distributors(id) ON DELETE RESTRICT,
-  status          reservation_status NOT NULL DEFAULT 'pending',
+  status          reservation_status NOT NULL DEFAULT 'scheduled',
   qr_jti          VARCHAR(64) NOT NULL UNIQUE,   -- JWT ID = nonce attendu
   expires_at      TIMESTAMPTZ NOT NULL,
   opened_at       TIMESTAMPTZ,
@@ -237,6 +238,16 @@ CREATE TABLE reservations (
   cancellation_reason TEXT,
   due_at          TIMESTAMPTZ,                   -- deadline retour, posée à l'ouverture
   extension_count SMALLINT NOT NULL DEFAULT 0,   -- max 2 prolongations
+  -- ─── Modèle slots (PR 0008) ───
+  slot_start_at    TIMESTAMPTZ,                  -- début du créneau réservé
+  slot_end_at      TIMESTAMPTZ,                  -- fin (= start + duration_minutes)
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes IN (30, 60, 90, 120)),
+  price_cents      INTEGER CHECK (price_cents IS NULL OR price_cents >= 0),
+  CONSTRAINT reservations_slot_range_check CHECK (
+    (slot_start_at IS NULL AND slot_end_at IS NULL)
+    OR (slot_start_at IS NOT NULL AND slot_end_at IS NOT NULL
+        AND slot_end_at > slot_start_at)
+  ),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -257,6 +268,17 @@ CREATE INDEX idx_reservations_status_created
 -- Stats dashboard scopées commune (distributor_id IN ... AND created_at >= ...).
 CREATE INDEX idx_reservations_distributor_created
   ON reservations(distributor_id, created_at DESC);
+
+-- NB : les index UNIQUE PARTIAL `idx_reservations_one_live_per_user`
+-- (anti-monopole, migration 0008 — remplace 0005) et `idx_reservations_item_slot`
+-- (check overlap de slot par item, migration 0008) ne sont PAS déclarés ici.
+-- Raison : le setup de tests d'intégration applique schema.sql + uniquement
+-- la migration 0001, jamais 0005/0008. Les seeders insèrent plusieurs
+-- réservations "vivantes" par user — comportement légitime pour des
+-- fixtures d'agrégats stats. Activer la contrainte côté schema.sql ferait
+-- sauter ~20 tests sans valeur métier ajoutée. La contrainte est appliquée
+-- en prod par la migration 0008. Pour une DB fraîche bootstrappée via
+-- schema.sql, l'opérateur passe le runner de migrations ensuite.
 
 -- ─── 9. reviews ────────────────────────────────────────────────────────────
 
@@ -363,6 +385,26 @@ CREATE TABLE notification_logs (
 CREATE INDEX idx_notification_logs_user    ON notification_logs(user_id);
 CREATE INDEX idx_notification_logs_channel ON notification_logs(channel);
 
+-- ─── 15. pricing_rules ─────────────────────────────────────────────────────
+--  Tarification configurée par tenant : (commune × item_type × duration).
+--  Une ligne absente = ce slot n'est pas proposé pour cet item dans cette
+--  commune. price_cents = 0 autorisé (slot offert).
+
+CREATE TABLE pricing_rules (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  commune_id       UUID NOT NULL REFERENCES communes(id)   ON DELETE CASCADE,
+  item_type_id     UUID NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (30, 60, 90, 120)),
+  price_cents      INTEGER NOT NULL CHECK (price_cents >= 0),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX pricing_rules_commune_item_type_duration_uq
+  ON pricing_rules(commune_id, item_type_id, duration_minutes);
+CREATE INDEX idx_pricing_rules_commune   ON pricing_rules(commune_id);
+CREATE INDEX idx_pricing_rules_item_type ON pricing_rules(item_type_id);
+
 -- ─── Triggers updated_at ───────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION trg_set_updated_at() RETURNS trigger AS $$
@@ -377,7 +419,7 @@ DECLARE t TEXT;
 BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'communes', 'users', 'distributors', 'lockers', 'items',
-    'reservations', 'maintenance_tickets'
+    'reservations', 'maintenance_tickets', 'pricing_rules'
   ])
   LOOP
     EXECUTE format(

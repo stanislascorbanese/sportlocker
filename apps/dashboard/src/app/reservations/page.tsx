@@ -23,6 +23,7 @@ export const metadata = { title: 'Réservations · SportLocker ops' }
 const PAGE_SIZE = 50
 
 const STATUS_STYLE: Record<ReservationStatus, { bg: string; border: string; text: string }> = {
+  scheduled: { bg: 'bg-violet-500/10',  border: 'border-violet-500/30',  text: 'text-violet-300' },
   pending:   { bg: 'bg-sky-500/10',     border: 'border-sky-500/30',     text: 'text-sky-300' },
   active:    { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300' },
   returned:  { bg: 'bg-zinc-500/10',    border: 'border-zinc-500/30',    text: 'text-zinc-300' },
