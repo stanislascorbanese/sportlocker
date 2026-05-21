@@ -11,7 +11,7 @@ import { PRICING_TEMPLATES } from './templates'
  * triplets seront écrasées) → POST /v1/admin/pricing-rules/bulk. Le revalidate
  * côté action force le refresh de la matrice.
  */
-export function ApplyTemplate() {
+export function ApplyTemplate({ communeId }: { communeId: string | null }) {
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -21,6 +21,7 @@ export function ApplyTemplate() {
     startTransition(async () => {
       const fd = new FormData()
       fd.set('templateId', templateId)
+      if (communeId) fd.set('communeId', communeId)
       const res = await applyTemplateAction(fd)
       if (res.status === 'success') {
         const count = res.message?.match(/^(\d+)_rules_applied$/)?.[1]

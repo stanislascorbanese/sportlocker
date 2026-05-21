@@ -13,6 +13,12 @@ type Props = {
   initialPriceCents: number | null
   /** ID de la règle si elle existe (pour la suppression). */
   ruleId: string | null
+  /**
+   * Override commune (super_admin uniquement). null = admin scopé, l'API
+   * utilisera la session. Super_admin doit transmettre le communeId
+   * sélectionné dans le picker pour passer le guard `commune_id_required`.
+   */
+  communeId: string | null
 }
 
 /**
@@ -43,6 +49,7 @@ export function PriceCell(props: Props) {
       startTransition(async () => {
         const fd = new FormData()
         fd.set('id', props.ruleId!)
+        if (props.communeId) fd.set('communeId', props.communeId)
         const res = await deletePricingRuleAction(fd)
         if (res.status === 'error') {
           setError(res.message ?? 'error')
@@ -66,6 +73,7 @@ export function PriceCell(props: Props) {
       fd.set('itemTypeId', props.itemTypeId)
       fd.set('durationMinutes', String(props.durationMinutes))
       fd.set('priceCents', String(cents))
+      if (props.communeId) fd.set('communeId', props.communeId)
       const res = await upsertPricingRuleAction(fd)
       if (res.status === 'error') {
         setError(res.message ?? 'error')
