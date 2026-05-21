@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { LockerState } from './enums.js'
+import { LockerState } from './enums'
 
 export const Locker = z.object({
   id: z.string().uuid(),

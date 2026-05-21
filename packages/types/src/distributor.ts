@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DistributorStatus, LockerState } from './enums.js'
+import { DistributorStatus, LockerState } from './enums'
 
 /**
  * DTO miroir de `services/api/src/routes/distributors.ts` (DistributorDTO).

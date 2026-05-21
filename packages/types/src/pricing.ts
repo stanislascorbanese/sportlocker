@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SlotDurationMinutes } from './enums.js'
+import { SlotDurationMinutes } from './enums'
 
 /**
  * Règle tarifaire : prix d'un slot de N minutes pour un item_type donné dans
