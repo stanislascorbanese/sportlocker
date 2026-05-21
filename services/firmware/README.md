@@ -94,11 +94,19 @@ volume `/var/lib/sportlocker` persiste le SQLite entre redémarrages.
 
 ## Topics MQTT
 
-| Topic                                  | Sens  | QoS | Description                          |
-|----------------------------------------|-------|-----|--------------------------------------|
-| `sportlocker/{deviceId}/heartbeat`     | pub   | 0   | toutes les 60s (uptime, CPU, mem)    |
-| `sportlocker/{deviceId}/event`         | pub   | 1   | unlock, return, fault — signé HMAC   |
-| `sportlocker/{deviceId}/cmd`           | sub   | 1   | reservation_push, force_unlock, ...  |
+| Topic                                  | Sens  | QoS | Retain | Description                                              |
+|----------------------------------------|-------|-----|--------|----------------------------------------------------------|
+| `sportlocker/{deviceId}/heartbeat`     | pub   | 0   | non    | toutes les 30s (uptime, CPU, mem)                        |
+| `sportlocker/{deviceId}/status`        | pub   | 1   | oui    | `{"online": bool}` — LWT armé pour les coupures brutales |
+| `sportlocker/{deviceId}/event`         | pub   | 1   | non    | unlock, return, fault — signé HMAC                       |
+| `sportlocker/{deviceId}/cmd/+`         | sub   | 1   | non    | sous-topics : `open` (force-unlock), …                   |
+
+### Commande `cmd/open`
+
+Payload attendu : `{"token": "<jwt>"}`. Le firmware applique le même chemin
+de sécurité que pour un QR scanné en local (HS256 + anti-replay + cohérence
+locker + cache réservation). Permet au backend de déclencher une ouverture
+distante (réservation poussée, force-unlock par opérateur).
 
 Format d'un event signé :
 

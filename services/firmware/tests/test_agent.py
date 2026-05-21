@@ -1,4 +1,4 @@
-"""Tests agent — chargement calibration + entry-point."""
+"""Tests agent — chargement calibration + entry-point + handler cmd MQTT."""
 from __future__ import annotations
 
 import json
@@ -24,6 +24,56 @@ def test_load_gpio_mapping_missing_returns_empty(
 ) -> None:
     monkeypatch.setattr(agent, "CALIBRATION_PATH", tmp_path / "absent.json")
     assert agent._load_gpio_mapping() == {}
+
+
+def test_load_gpio_mapping_rejects_non_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cal = tmp_path / "calibration.json"
+    cal.write_text("[1, 2, 3]")
+    monkeypatch.setattr(agent, "CALIBRATION_PATH", cal)
+    assert agent._load_gpio_mapping() == {}
+
+
+def test_load_gpio_mapping_skips_bad_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cal = tmp_path / "calibration.json"
+    cal.write_text(json.dumps({
+        "locker-1": 17,
+        "locker-2": "not-an-int",
+        "locker-3": 22,
+    }))
+    monkeypatch.setattr(agent, "CALIBRATION_PATH", cal)
+    assert agent._load_gpio_mapping() == {"locker-1": 17, "locker-3": 22}
+
+
+def test_make_open_cmd_handler_forwards_token_to_controller() -> None:
+    controller = MagicMock()
+    controller.handle_unlock.return_value = MagicMock(
+        outcome=MagicMock(value="success"),
+        reservation_id="r-1",
+        locker_id="l-1",
+    )
+    handler = agent._make_open_cmd_handler(controller)
+    handler("open", {"token": "jwt-token-xyz"})
+    controller.handle_unlock.assert_called_once_with("jwt-token-xyz")
+
+
+def test_make_open_cmd_handler_ignores_payload_without_token() -> None:
+    controller = MagicMock()
+    handler = agent._make_open_cmd_handler(controller)
+    handler("open", {"not_a_token": "x"})
+    controller.handle_unlock.assert_not_called()
+
+
+def test_make_open_cmd_handler_ignores_non_string_token() -> None:
+    controller = MagicMock()
+    handler = agent._make_open_cmd_handler(controller)
+    handler("open", {"token": 12345})
+    handler("open", {"token": ""})
+    handler("open", {"token": None})
+    controller.handle_unlock.assert_not_called()
 
 
 def test_run_invokes_asyncio_run() -> None:

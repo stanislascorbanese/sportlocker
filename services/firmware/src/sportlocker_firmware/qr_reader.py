@@ -17,6 +17,7 @@ import structlog
 from pyzbar import pyzbar
 
 from .locker_ctrl import LockerController
+from .mqtt_client import MQTTClient
 
 log = structlog.get_logger(__name__)
 
@@ -24,9 +25,16 @@ DEDUP_WINDOW_SECONDS = 1.0
 
 
 class QRReader:
-    def __init__(self, *, mqtt, controller: LockerController, device_secret: str) -> None:
-        # device_secret est conservé pour compatibilité de signature, mais le
-        # controller s'occupe désormais de la vérification JWT.
+    def __init__(
+        self,
+        *,
+        mqtt: MQTTClient | None,
+        controller: LockerController,
+        device_secret: str,
+    ) -> None:
+        # mqtt et device_secret sont conservés pour compatibilité de signature
+        # (cf. agent.py et tests historiques), mais le controller s'occupe
+        # désormais de la vérification JWT et de la publication MQTT signée.
         del mqtt, device_secret
         self._controller = controller
         self._recent_decoded: dict[str, float] = {}

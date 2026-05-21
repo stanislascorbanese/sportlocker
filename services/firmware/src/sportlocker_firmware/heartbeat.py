@@ -1,4 +1,10 @@
-"""Heartbeat périodique → MQTT toutes les 60s."""
+"""Heartbeat périodique → MQTT toutes les 30s.
+
+Cadence resserrée à 30s pour que le watchdog backend détecte un device
+tombé en < 1 min (les BullMQ crons tournent à la minute, cf. CLAUDE.md).
+Le payload est minimal (uptime + temp CPU + free mem) pour rester sous
+le quota de messages EMQX Cloud.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -12,8 +18,12 @@ from .mqtt_client import MQTTClient
 log = structlog.get_logger()
 _START = time.monotonic()
 
+DEFAULT_HEARTBEAT_INTERVAL_S = 30
 
-async def heartbeat_loop(mqtt: MQTTClient, *, device_id: str, interval: int = 60) -> None:
+
+async def heartbeat_loop(
+    mqtt: MQTTClient, *, device_id: str, interval: int = DEFAULT_HEARTBEAT_INTERVAL_S
+) -> None:
     while True:
         mqtt.publish("heartbeat", {
             "deviceId": device_id,
