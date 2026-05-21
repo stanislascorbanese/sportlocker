@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Stats · SportLocker ops' }
 
 const STATUS_COLOR: Record<ReservationStatus, string> = {
+  scheduled: '#a78bfa',  // violet-400
   pending:   '#38bdf8',  // sky-400
   active:    '#34d399',  // emerald-400
   returned:  '#a1a1aa',  // zinc-400

@@ -9,7 +9,7 @@ import {
 } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 
-const RESERVATION_STATUS = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+const RESERVATION_STATUS = ['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
 
 const ReservationAdminDTO = z.object({
   id: z.string().uuid(),

@@ -6,6 +6,7 @@ import { cn } from '../../lib/cn'
 import { ForceCancelButton } from './ForceCancelButton'
 
 const STATUS_STYLE: Record<ReservationStatus, string> = {
+  scheduled: 'bg-violet-500/10 border-violet-500/30 text-violet-300',
   pending:   'bg-sky-500/10 border-sky-500/30 text-sky-300',
   active:    'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
   returned:  'bg-zinc-500/10 border-zinc-500/30 text-zinc-300',

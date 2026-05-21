@@ -34,8 +34,8 @@ const ReturnReservationBody = z.object({
 
 const ReservationBaseDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'])
-    .describe('État machine : pending → active → returned (nominal). overdue/cancelled/expired = terminal.'),
+  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'])
+    .describe('État machine : scheduled (créneau futur) → active → returned (nominal modèle slots). pending = legacy modèle immédiat. overdue/cancelled/expired = terminal.'),
   lockerId: z.string().uuid(),
   itemId: z.string().uuid(),
   distributorId: z.string().uuid(),

@@ -28,7 +28,7 @@ export const itemCondition = pgEnum('item_condition', [
   'new', 'good', 'worn', 'damaged', 'lost',
 ])
 export const reservationStatus = pgEnum('reservation_status', [
-  'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
+  'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
 ])
 export const lockerEventType = pgEnum('locker_event_type', [
   'reserved', 'opened', 'closed', 'returned',
@@ -167,7 +167,7 @@ export const reservations = pgTable('reservations', {
   lockerId: uuid('locker_id').notNull().references(() => lockers.id, { onDelete: 'restrict' }),
   itemId: uuid('item_id').notNull().references(() => items.id, { onDelete: 'restrict' }),
   distributorId: uuid('distributor_id').notNull().references(() => distributors.id, { onDelete: 'restrict' }),
-  status: reservationStatus('status').notNull().default('pending'),
+  status: reservationStatus('status').notNull().default('scheduled'),
   qrJti: varchar('qr_jti', { length: 64 }).notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   openedAt: timestamp('opened_at', { withTimezone: true }),
@@ -177,6 +177,11 @@ export const reservations = pgTable('reservations', {
   cancellationReason: text('cancellation_reason'),
   dueAt: timestamp('due_at', { withTimezone: true }),
   extensionCount: smallint('extension_count').notNull().default(0),
+  // Modèle slots (migration 0008) — nullable pour les résas legacy.
+  slotStartAt: timestamp('slot_start_at', { withTimezone: true }),
+  slotEndAt: timestamp('slot_end_at', { withTimezone: true }),
+  durationMinutes: integer('duration_minutes'),
+  priceCents: integer('price_cents'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -194,6 +199,13 @@ export const reservations = pgTable('reservations', {
   byStatusCreated: index('idx_reservations_status_created').on(t.status, t.createdAt),
   // Stats dashboard agrégats par distributeur sur fenêtre temporelle.
   byDistributorCreated: index('idx_reservations_distributor_created').on(t.distributorId, t.createdAt),
+  // Check overlap de slot par item pour dispo (migration 0008, index PARTIAL
+  // côté SQL — WHERE status IN ('scheduled','pending','active')). Drizzle 0.30
+  // n'exprime pas le partial, on déclare ici pour le tracking.
+  byItemSlot: index('idx_reservations_item_slot').on(t.itemId, t.slotStartAt, t.slotEndAt),
+  // NB : index UNIQUE PARTIAL idx_reservations_one_live_per_user (migration 0008,
+  // remplace 0005) non déclaré ici — même convention que l'ancien
+  // idx_reservations_one_active_per_user, partial unique non supporté par Drizzle 0.30.
 }))
 
 export const reviews = pgTable('reviews', {
@@ -260,6 +272,21 @@ export const pushTokens = pgTable('push_tokens', {
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+export const pricingRules = pgTable('pricing_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  communeId: uuid('commune_id').notNull().references(() => communes.id, { onDelete: 'cascade' }),
+  itemTypeId: uuid('item_type_id').notNull().references(() => itemTypes.id, { onDelete: 'cascade' }),
+  durationMinutes: integer('duration_minutes').notNull(),
+  priceCents: integer('price_cents').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCommune: index('idx_pricing_rules_commune').on(t.communeId),
+  byItemType: index('idx_pricing_rules_item_type').on(t.itemTypeId),
+  unqTriplet: uniqueIndex('pricing_rules_commune_item_type_duration_uq')
+    .on(t.communeId, t.itemTypeId, t.durationMinutes),
+}))
 
 export const notificationLogs = pgTable('notification_logs', {
   id: uuid('id').primaryKey().defaultRandom(),

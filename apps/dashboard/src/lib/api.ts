@@ -168,7 +168,7 @@ export const DistributorUpdateInput = z.object({
 
 export type DistributorUpdateInput = z.infer<typeof DistributorUpdateInput>
 
-export const RESERVATION_STATUSES = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+export const RESERVATION_STATUSES = ['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
 export type ReservationStatus = typeof RESERVATION_STATUSES[number]
 
 export const Reservation = z.object({
