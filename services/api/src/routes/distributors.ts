@@ -4,7 +4,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
-import { distributors, lockers } from '../db/schema.js'
+import { distributors, items, itemTypes, lockers } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 
@@ -216,6 +216,13 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
               .describe('État machine du casier (cf. règles métier)'),
             currentItemId: z.string().uuid().nullable()
               .describe('Item physiquement présent dans le casier, null si vide'),
+            itemType: z.object({
+              id: z.string().uuid(),
+              slug: z.string(),
+              name: z.string(),
+              category: z.string(),
+              imageUrl: z.string().nullable(),
+            }).nullable().describe('Type du matériel actuellement dans le casier (null si vide)'),
           })),
         }),
         404: ErrorDTO,
@@ -226,12 +233,25 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
     if (found.length === 0) return reply.code(404).send({ error: 'distributor_not_found' })
 
     const d = found[0]!
-    const lockerRows = await db.select({
-      id: lockers.id,
-      position: lockers.position,
-      state: lockers.state,
-      currentItemId: lockers.currentItemId,
-    }).from(lockers).where(eq(lockers.distributorId, d.id)).orderBy(lockers.position)
+    // LEFT JOIN sur items + item_types pour exposer ce qui est chargé
+    // dans chaque casier. Permet à l'app d'afficher "Ballon de foot · 3 dispos".
+    const lockerRows = await db
+      .select({
+        id: lockers.id,
+        position: lockers.position,
+        state: lockers.state,
+        currentItemId: lockers.currentItemId,
+        itemTypeId: itemTypes.id,
+        itemTypeSlug: itemTypes.slug,
+        itemTypeName: itemTypes.name,
+        itemTypeCategory: itemTypes.category,
+        itemTypeImageUrl: itemTypes.imageUrl,
+      })
+      .from(lockers)
+      .leftJoin(items, eq(lockers.currentItemId, items.id))
+      .leftJoin(itemTypes, eq(items.itemTypeId, itemTypes.id))
+      .where(eq(lockers.distributorId, d.id))
+      .orderBy(lockers.position)
 
     const idleLockers = lockerRows.filter((l) => l.state === 'idle').length
 
@@ -248,7 +268,21 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
       addressLine: d.addressLine,
       batteryPercent: null,
       lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
-      lockers: lockerRows,
+      lockers: lockerRows.map((l) => ({
+        id: l.id,
+        position: l.position,
+        state: l.state,
+        currentItemId: l.currentItemId,
+        itemType: l.itemTypeId
+          ? {
+              id: l.itemTypeId,
+              slug: l.itemTypeSlug!,
+              name: l.itemTypeName!,
+              category: l.itemTypeCategory!,
+              imageUrl: l.itemTypeImageUrl,
+            }
+          : null,
+      })),
     }
   })
 

@@ -32,6 +32,15 @@ export const NearbyDistributor = Distributor.extend({
 })
 export type NearbyDistributor = z.infer<typeof NearbyDistributor>
 
+export const LockerItemType = z.object({
+  id: z.string().uuid(),
+  slug: z.string(),
+  name: z.string(),
+  category: z.string(),
+  imageUrl: z.string().nullable(),
+})
+export type LockerItemType = z.infer<typeof LockerItemType>
+
 export const DistributorDetail = Distributor.extend({
   lockers: z.array(
     z.object({
@@ -39,10 +48,12 @@ export const DistributorDetail = Distributor.extend({
       position: z.number().int(),
       state: z.enum(['idle', 'reserved', 'active', 'returning', 'fault']),
       currentItemId: z.string().uuid().nullable(),
+      itemType: LockerItemType.nullable(),
     }),
   ),
 })
 export type DistributorDetail = z.infer<typeof DistributorDetail>
+export type LockerDetail = DistributorDetail['lockers'][number]
 
 export const ReservationActive = z.object({
   id: z.string().uuid(),
@@ -112,6 +123,19 @@ export async function fetchNearbyDistributors(
   const data = await apiFetch(
     `/v1/distributors/nearby?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
     z.object({ items: z.array(NearbyDistributor) }),
+  )
+  return data.items
+}
+
+/**
+ * Liste complète du parc (limite 200 côté API). Utilisé par la carte
+ * accueil : on veut TOUS les distributeurs visibles, l'utilisateur navigue
+ * lui-même. La distance est calculée client-side une fois la géoloc obtenue.
+ */
+export async function fetchAllDistributors(): Promise<Distributor[]> {
+  const data = await apiFetch(
+    `/v1/distributors`,
+    z.object({ items: z.array(Distributor) }),
   )
   return data.items
 }

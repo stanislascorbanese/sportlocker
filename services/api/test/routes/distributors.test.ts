@@ -282,6 +282,34 @@ describe('GET /v1/distributors/:id', () => {
     expect(body.lockers).toEqual([])
     expect(body.idleLockers).toBe(0)
   })
+
+  it('expose le type d\'item présent dans chaque casier (LEFT JOIN items + item_types)', async () => {
+    const communeId = await seedCommune()
+    const distributorId = await seedDistributor({ communeId, lockerCount: 2 })
+    const lockerWithItem = await seedLocker(distributorId, 0, 'idle')
+    await seedLocker(distributorId, 1, 'idle') // vide → itemType=null
+
+    const itemTypeId = randomUUID()
+    await pgSql`INSERT INTO item_types (id, slug, name, category, image_url, caution_cents, max_duration_minutes)
+      VALUES (${itemTypeId}, 'ball-foot', 'Ballon foot', 'ball', 'https://cdn.test/ball.png', 0, 240)`
+    const itemId = randomUUID()
+    await pgSql`INSERT INTO items (id, item_type_id, rfid_tag, current_locker_id)
+      VALUES (${itemId}, ${itemTypeId}, ${'rfid-' + itemId.slice(0, 8)}, ${lockerWithItem})`
+    await pgSql`UPDATE lockers SET current_item_id = ${itemId} WHERE id = ${lockerWithItem}`
+
+    const res = await app.inject({ method: 'GET', url: `/v1/distributors/${distributorId}` })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.lockers).toHaveLength(2)
+    expect(body.lockers[0].itemType).toEqual({
+      id: itemTypeId,
+      slug: 'ball-foot',
+      name: 'Ballon foot',
+      category: 'ball',
+      imageUrl: 'https://cdn.test/ball.png',
+    })
+    expect(body.lockers[1].itemType).toBeNull()
+  })
 })
 
 describe('GET /v1/distributors/nearby', () => {
