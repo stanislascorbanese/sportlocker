@@ -20,8 +20,12 @@ export interface DeviceTokenClaims extends JWTPayload {
   distributorId: string
 }
 
-export async function signDeviceToken(claims: DeviceTokenClaims, ttlSec = 900): Promise<string> {
-  const jti = randomBytes(16).toString('hex')
+export async function signDeviceToken(
+  claims: DeviceTokenClaims,
+  ttlSec = 900,
+  explicitJti?: string,
+): Promise<string> {
+  const jti = explicitJti ?? randomBytes(16).toString('hex')
   return new SignJWT({ ...claims })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(ISSUER)

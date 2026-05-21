@@ -8,11 +8,16 @@ import { db } from '../db/client.js'
 import {
   distributors, itemTypes, items, lockerEvents, lockers, reservations, tokenNonces,
 } from '../db/schema.js'
+import { signDeviceToken } from '../lib/jwt-device.js'
+import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
 import { redis } from '../redis/client.js'
 
 const RESERVATION_TTL_MS = 15 * 60 * 1000
+const DEVICE_TOKEN_TTL_SEC = 15 * 60
 const LOCK_TTL_SEC = 30
 const MAX_EXTENSIONS = 2
+const IDEMPOTENCY_TTL_SEC = 24 * 60 * 60
+const IDEMPOTENCY_KEY_MAX_LEN = 255
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -40,9 +45,21 @@ const ReservationBaseDTO = z.object({
 })
 const ReservationCreatedDTO = ReservationBaseDTO.extend({
   nonce: z.string().uuid().describe('Nonce anti-replay à embarquer dans le JWT QR. Usage unique côté firmware.'),
+  deviceToken: z.string().describe(
+    'JWT HS256 prêt à afficher en QR. Claims : reservationId, lockerId, distributorId, jti=nonce, exp=15min. '
+    + 'Signé avec JWT_DEVICE_SECRET (partagé avec le firmware, vérification offline).',
+  ),
 })
 
 const ErrorDTO = z.object({ error: z.string() })
+
+function readIdempotencyKey(headers: Record<string, unknown>): string | null {
+  const raw = headers['idempotency-key']
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  if (trimmed.length === 0 || trimmed.length > IDEMPOTENCY_KEY_MAX_LEN) return null
+  return trimmed
+}
 
 type ReservationRow = typeof reservations.$inferSelect
 
@@ -71,16 +88,17 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       tags: ['Citoyens — Réservations'],
       summary: 'Réserve un casier (citoyen)',
       description: 'Verrouille le casier (Redis SETNX TTL 30s) puis crée la réservation en transaction. '
-        + 'Émet un `nonce` anti-replay à inclure dans le JWT QR généré côté app pour l\'unlock offline.\n\n'
+        + 'Émet un `nonce` anti-replay et un `deviceToken` (JWT HS256, exp 15min, jti=nonce) prêt à afficher en QR. '
+        + 'Le firmware vérifie le JWT offline avec `JWT_DEVICE_SECRET`.\n\n'
+        + 'Header optionnel `Idempotency-Key` : si fourni, la réponse est mise en cache 24h par (user, key) ; '
+        + 'rejouer la même requête renvoie la même réponse sans créer de nouvelle réservation.\n\n'
         + '**Erreurs** :\n'
         + '- 404 `locker_not_found`\n'
+        + '- 409 `already_active` (le user a déjà une réservation pending/active)\n'
         + '- 409 `locker_being_processed` (autre user en train de réserver)\n'
         + '- 409 `locker_not_available` (state ≠ idle ou aucun item)\n'
         + '- 409 `item_mismatch` (itemId fourni ≠ currentItemId du casier)\n'
-        + '- 409 `commune_mismatch` (communeId ≠ commune du distributeur)\n\n'
-        + '**Exemple body** : `{ "lockerId": "8e7…", "itemId": "1a2…", "communeId": "9f0…" }`\n\n'
-        + '**Exemple réponse 201** : `{ "id":"…", "status":"pending", "expiresAt":"2026-05-19T14:45:00.000Z", '
-        + '"nonce":"…" }`',
+        + '- 409 `commune_mismatch` (communeId ≠ commune du distributeur)',
       security: [{ bearerAuth: [] }],
       body: CreateReservationBody,
       response: {
@@ -93,6 +111,24 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     const userId = req.user.sub
     const { lockerId, itemId, communeId } = req.body
 
+    // Idempotency-Key : si la même clé arrive 2× (réseau flaky, retry app), on
+    // renvoie la réponse cachée. Scope = par user pour éviter qu'une clé
+    // devine collide entre utilisateurs.
+    const idempKey = readIdempotencyKey(req.headers as Record<string, unknown>)
+    const idempCacheKey = idempKey ? `idem:reservations:${userId}:${idempKey}` : null
+    if (idempCacheKey) {
+      const cached = await redis.get(idempCacheKey)
+      if (cached) {
+        try {
+          // On ne cache que les 201 (cf. plus bas) ⇒ shape ReservationCreatedDTO.
+          const parsed = JSON.parse(cached) as { status: 201; body: z.infer<typeof ReservationCreatedDTO> }
+          return reply.code(parsed.status).send(parsed.body)
+        } catch {
+          // Cache corrompu — on poursuit comme si rien n'était caché.
+        }
+      }
+    }
+
     const lockKey = `lock:locker:${lockerId}`
     const acquired = await redis.set(lockKey, userId, 'EX', LOCK_TTL_SEC, 'NX')
     if (acquired !== 'OK') {
@@ -100,7 +136,23 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     }
 
     try {
-      return await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
+        // Garde "une seule réservation vivante par user" — première ligne de
+        // défense (erreur métier propre). Le filet de sécurité est l'index
+        // partiel unique idx_reservations_one_active_per_user (migration 0005)
+        // capté plus bas dans le catch.
+        const existingActive = await tx
+          .select({ id: reservations.id })
+          .from(reservations)
+          .where(and(
+            eq(reservations.userId, userId),
+            inArray(reservations.status, ['pending', 'active']),
+          ))
+          .limit(1)
+        if (existingActive.length > 0) {
+          return { kind: 'already_active' as const }
+        }
+
         const [locker] = await tx
           .select({
             id: lockers.id,
@@ -112,18 +164,18 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
           .limit(1)
 
         if (!locker) {
-          return reply.code(404).send({ error: 'locker_not_found' })
+          return { kind: 'locker_not_found' as const }
         }
 
         const availabilityRows = await tx.execute<{ is_available: boolean }>(
           sql`SELECT fn_locker_is_available(${lockerId}::uuid) AS is_available`,
         )
         if (availabilityRows[0]?.is_available !== true) {
-          return reply.code(409).send({ error: 'locker_not_available' })
+          return { kind: 'locker_not_available' as const }
         }
 
         if (locker.currentItemId !== itemId) {
-          return reply.code(409).send({ error: 'item_mismatch' })
+          return { kind: 'item_mismatch' as const }
         }
 
         const [dist] = await tx
@@ -132,7 +184,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
           .where(eq(distributors.id, locker.distributorId))
           .limit(1)
         if (!dist || dist.communeId !== communeId) {
-          return reply.code(409).send({ error: 'commune_mismatch' })
+          return { kind: 'commune_mismatch' as const }
         }
 
         const nonce = randomUUID()
@@ -170,11 +222,86 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
           source: 'api',
         })
 
-        return reply.code(201).send({ ...toDto(reservation!), nonce })
+        return { kind: 'ok' as const, reservation: reservation!, nonce, distributorId: locker.distributorId }
+      }).catch((err: unknown) => {
+        // Race entre 2 POST simultanés du même user (lockers différents) :
+        // le SELECT préalable peut voir "rien" mais l'INSERT viole l'index
+        // partiel unique. On traite comme `already_active`.
+        if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'one_active_per_user')) {
+          return { kind: 'already_active' as const }
+        }
+        throw err
       })
+
+      if (result.kind === 'locker_not_found') {
+        return reply.code(404).send({ error: 'locker_not_found' })
+      }
+      if (result.kind === 'already_active') {
+        return reply.code(409).send({ error: 'already_active' })
+      }
+      if (result.kind === 'locker_not_available') {
+        return reply.code(409).send({ error: 'locker_not_available' })
+      }
+      if (result.kind === 'item_mismatch') {
+        return reply.code(409).send({ error: 'item_mismatch' })
+      }
+      if (result.kind === 'commune_mismatch') {
+        return reply.code(409).send({ error: 'commune_mismatch' })
+      }
+
+      const deviceToken = await signDeviceToken({
+        reservationId: result.reservation.id,
+        lockerId,
+        distributorId: result.distributorId,
+      }, DEVICE_TOKEN_TTL_SEC, result.nonce)
+
+      const body = { ...toDto(result.reservation), nonce: result.nonce, deviceToken }
+
+      if (idempCacheKey) {
+        await redis.set(
+          idempCacheKey,
+          JSON.stringify({ status: 201, body }),
+          'EX',
+          IDEMPOTENCY_TTL_SEC,
+        )
+      }
+
+      return reply.code(201).send(body)
     } finally {
       await redis.del(lockKey)
     }
+  })
+
+  /**
+   * GET /v1/reservations/active — réservation pending ou active courante.
+   *
+   * Pendant de la garde "une seule réservation vivante par user" : l'app
+   * mobile interroge cet endpoint au boot pour savoir s'il y a un emprunt
+   * en cours. Renvoie 404 sinon (plutôt que 200 avec null) pour éviter le
+   * piège des clients qui oublient de check null.
+   */
+  app.get('/active', {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Réservation pending/active du citoyen courant',
+      description: 'Renvoie la réservation vivante du user (au plus 1 par contrainte métier). '
+        + '404 `no_active_reservation` si aucune.',
+      security: [{ bearerAuth: [] }],
+      response: { 200: ReservationBaseDTO, 404: ErrorDTO },
+    },
+  }, async (req, reply) => {
+    const [row] = await db
+      .select()
+      .from(reservations)
+      .where(and(
+        eq(reservations.userId, req.user.sub),
+        inArray(reservations.status, ['pending', 'active']),
+      ))
+      .limit(1)
+
+    if (!row) return reply.code(404).send({ error: 'no_active_reservation' })
+    return reply.code(200).send(toDto(row))
   })
 
   /**
