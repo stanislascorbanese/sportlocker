@@ -10,7 +10,7 @@ export const SITE = {
 } as const
 
 export const NAV = [
-  { href: '/#comment-ca-marche', label: 'Comment ça marche' },
+  { href: '/comment-ca-marche', label: 'Comment ça marche' },
   { href: '/mairies', label: 'Mairies' },
   { href: '/campings', label: 'Campings' },
   { href: '/hotels', label: 'Hôtels' },
