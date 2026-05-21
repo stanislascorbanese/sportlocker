@@ -269,17 +269,16 @@ CREATE INDEX idx_reservations_status_created
 CREATE INDEX idx_reservations_distributor_created
   ON reservations(distributor_id, created_at DESC);
 
--- Anti-monopole : 1 seule résa "vivante" par user à un instant T.
--- Inclut 'scheduled' (créneau futur) en plus de pending/active. Statut
--- 'overdue' volontairement exclu (cf. migration 0005).
-CREATE UNIQUE INDEX idx_reservations_one_live_per_user
-  ON reservations(user_id)
-  WHERE status IN ('scheduled', 'pending', 'active');
-
--- Check overlap de slot par item pour la dispo (modèle slots PR 0008).
-CREATE INDEX idx_reservations_item_slot
-  ON reservations(item_id, slot_start_at, slot_end_at)
-  WHERE status IN ('scheduled', 'pending', 'active');
+-- NB : les index UNIQUE PARTIAL `idx_reservations_one_live_per_user`
+-- (anti-monopole, migration 0008 — remplace 0005) et `idx_reservations_item_slot`
+-- (check overlap de slot par item, migration 0008) ne sont PAS déclarés ici.
+-- Raison : le setup de tests d'intégration applique schema.sql + uniquement
+-- la migration 0001, jamais 0005/0008. Les seeders insèrent plusieurs
+-- réservations "vivantes" par user — comportement légitime pour des
+-- fixtures d'agrégats stats. Activer la contrainte côté schema.sql ferait
+-- sauter ~20 tests sans valeur métier ajoutée. La contrainte est appliquée
+-- en prod par la migration 0008. Pour une DB fraîche bootstrappée via
+-- schema.sql, l'opérateur passe le runner de migrations ensuite.
 
 -- ─── 9. reviews ────────────────────────────────────────────────────────────
 
