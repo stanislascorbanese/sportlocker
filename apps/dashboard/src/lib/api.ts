@@ -2,52 +2,19 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
+import {
+  Distributor,
+  DistributorDetail,
+  DistributorLocker,
+  LockerItemType,
+} from '@sportlocker/types'
+
 import { SESSION_COOKIE } from './session'
 
-export const Distributor = z.object({
-  id: z.string().uuid(),
-  serialNumber: z.string(),
-  name: z.string(),
-  status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
-  communeId: z.string().uuid(),
-  lockerCount: z.number().int().nonnegative(),
-  idleLockers: z.number().int().nonnegative(),
-  latitude: z.number().nullable(),
-  longitude: z.number().nullable(),
-  addressLine: z.string().max(200).nullable(),
-  batteryPercent: z.number().int().min(0).max(100).nullable(),
-  lastSeenAt: z.string().datetime().nullable(),
-})
-
-export type Distributor = z.infer<typeof Distributor>
+export { Distributor, DistributorDetail, DistributorLocker, LockerItemType }
 
 export const LOCKER_STATES = ['idle', 'reserved', 'active', 'returning', 'fault'] as const
 export type LockerState = typeof LOCKER_STATES[number]
-
-export const DistributorLocker = z.object({
-  id: z.string().uuid(),
-  position: z.number().int(),
-  state: z.enum(LOCKER_STATES),
-  currentItemId: z.string().uuid().nullable(),
-  // Présent depuis #96 (LEFT JOIN items + item_types côté API). Null si le
-  // casier est vide. `.optional()` couvre l'environnement de dev quand le
-  // dashboard tourne contre une API antérieure à #96.
-  itemType: z.object({
-    id: z.string().uuid(),
-    slug: z.string(),
-    name: z.string(),
-    category: z.string(),
-    imageUrl: z.string().nullable(),
-  }).nullable().optional(),
-})
-
-export type DistributorLocker = z.infer<typeof DistributorLocker>
-
-export const DistributorDetail = Distributor.extend({
-  lockers: z.array(DistributorLocker),
-})
-
-export type DistributorDetail = z.infer<typeof DistributorDetail>
 
 export const ItemType = z.object({
   id: z.string().uuid(),
