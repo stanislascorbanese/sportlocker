@@ -4,6 +4,7 @@ import Hero from '@/components/Hero.astro'
 import ContactForm from '@/components/ContactForm.astro'
 import Faq from '@/components/Faq.astro'
 import MiniSimulator from '@/components/MiniSimulator.tsx'
+import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
 import { SITE } from '@/data/site'
 
 const problems = [
@@ -282,6 +283,26 @@ const faq = [
 
       <div class="text-center mt-12">
         <a href="/comment-ca-marche" class="btn btn-outline">Voir le détail complet →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISTRIBUTEUR 3D -->
+  <section class="section bg-navy-900 border-t border-white/[0.04]">
+    <div class="container-x">
+      <div class="text-center mb-10 max-w-3xl mx-auto">
+        <span class="eyebrow" data-reveal>Le distributeur en 3D</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Voilà à quoi ressemble<br/><span class="text-brand-500">la borne installée chez vous.</span>
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Faites-la pivoter, ouvrez les portes, survolez les étiquettes pour découvrir chaque composant.
+          Borne réelle, 8 casiers mixtes, alimentée par panneau solaire.
+        </p>
+      </div>
+
+      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
+        <LockerDistributor3D />
       </div>
     </div>
   </section>
