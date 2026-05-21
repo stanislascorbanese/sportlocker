@@ -188,12 +188,20 @@ export async function seedReservationFixtures(
  * Insère N réservations en forçant `created_at` (clé du `daily` series).
  * Renvoie les IDs créés, dans l'ordre des specs.
  */
+/**
+ * Liste des statuts couverts par l'index unique `idx_reservations_one_live_per_user`
+ * (migration 0008). Le seeder doit allouer un user dédié pour chaque résa qui
+ * tombe dans ces statuts, sinon la 2e violation déclenche un 23505.
+ */
+const LIVE_STATUSES = new Set(['scheduled', 'pending', 'active'])
+
 export async function seedReservations(
   pgSql: PgSql,
   fixtures: ReservationFixturesResult,
   specs: SeedReservationSpec[],
 ): Promise<string[]> {
   const ids: string[] = []
+  let liveCounter = 0
   for (const spec of specs) {
     const dist = fixtures.distributors[spec.distributorIdx]
     const item = fixtures.items[spec.itemIdx]
@@ -208,6 +216,20 @@ export async function seedReservations(
       throw new Error(`seedReservations: aucun locker pour le distributeur ${dist.id}`)
     }
 
+    // Anti-monopole : 1 résa "vivante" max par user (index partiel unique sur
+    // scheduled/pending/active). On alloue un user dédié quand le statut est
+    // dans ce set ; pour les statuts terminaux (returned/cancelled/expired/
+    // overdue) on garde le user "principal" pour minimiser la pollution.
+    let ownerId = fixtures.user.id
+    if (LIVE_STATUSES.has(spec.status)) {
+      ownerId = randomUUID()
+      const short = ownerId.slice(0, 8)
+      await pgSql`INSERT INTO users (id, firebase_uid, email, role)
+        VALUES (${ownerId}, ${'fb-live-' + short + '-' + liveCounter},
+                ${'live-' + short + '-' + liveCounter + '@test.local'}, 'citizen')`
+      liveCounter++
+    }
+
     const id = randomUUID()
     const jti = randomUUID()
     const hour = spec.hour ?? 12
@@ -218,7 +240,7 @@ export async function seedReservations(
       (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
        expires_at, created_at)
       VALUES (
-        ${id}, ${fixtures.user.id}, ${locker.id}, ${item.id}, ${dist.id},
+        ${id}, ${ownerId}, ${locker.id}, ${item.id}, ${dist.id},
         ${spec.status}::reservation_status, ${jti},
         NOW() + INTERVAL '15 minutes',
         date_trunc('day', NOW()) - (${days}::int * INTERVAL '1 day')

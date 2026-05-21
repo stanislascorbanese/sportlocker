@@ -1,12 +1,21 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
-import { distributors, items, itemTypes, lockers } from '../db/schema.js'
+import {
+  distributors, items, itemTypes, lockers, pricingRules, reservations,
+} from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
+import {
+  computeSlotEnd,
+  enumerateSlotStarts,
+  isoUtcDay,
+  MAX_BOOKING_HORIZON_DAYS,
+  type SlotDurationMinutes,
+} from '../lib/slots.js'
 
 const DistributorDTO = z.object({
   id: z.string().uuid().describe('UUID v4 du distributeur'),
@@ -283,6 +292,199 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
             }
           : null,
       })),
+    }
+  })
+
+  /**
+   * GET /v1/distributors/:id/availability — grille de slots dispos sur J→J+7.
+   *
+   * Pour chaque créneau aligné sur la granularité 30 min (slot durée 30/60/90/120),
+   * indique si au moins un item du `itemTypeId` demandé est libre pendant la
+   * fenêtre `[startsAt, endsAt)` sur ce distributeur, et le prix d'affichage
+   * (depuis `pricing_rules` scopé commune du distributeur).
+   *
+   * Implémentation : 2 queries (items + reservations chevauchant) puis calcul
+   * en mémoire, plutôt que N queries (une par slot). Acceptable pour MAX 7
+   * jours × ~30 slots/jour = ~200 lignes.
+   */
+  app.get('/:id/availability', {
+    schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Grille de slots dispos pour un sport et une durée',
+      description:
+        `Génère les créneaux 30 min alignés (06:00→22:00 UTC par défaut) sur la plage `
+        + `[from, to] (max ${MAX_BOOKING_HORIZON_DAYS} jours). Pour chaque slot, retourne `
+        + '`available` (au moins un item libre) et `priceCents` (depuis `pricing_rules`, '
+        + 'null si pas de règle = créneau non réservable).\n\n'
+        + 'Route publique : permet à un citoyen non logué de regarder les dispos. '
+        + 'Création de la résa nécessitera ensuite `POST /v1/reservations` (authentifié).',
+      params: z.object({ id: z.string().uuid() }),
+      querystring: z.object({
+        itemTypeId: z.string().uuid().describe('Type de matériel souhaité (sport)'),
+        durationMinutes: z.coerce.number().int()
+          .refine((n) => [30, 60, 90, 120].includes(n), { message: 'duration_not_allowed' })
+          .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120'),
+        from: z.string().datetime({ offset: true }).optional()
+          .describe('Début de la fenêtre (ISO 8601, défaut = maintenant)'),
+        to: z.string().datetime({ offset: true }).optional()
+          .describe(`Fin de la fenêtre (ISO 8601, défaut = from + ${MAX_BOOKING_HORIZON_DAYS} jours)`),
+      }),
+      response: {
+        200: z.object({
+          distributorId: z.string().uuid(),
+          itemTypeId: z.string().uuid(),
+          durationMinutes: z.number().int(),
+          days: z.record(z.string(), z.array(z.object({
+            startsAt: z.string().datetime(),
+            endsAt: z.string().datetime(),
+            durationMinutes: z.number().int(),
+            available: z.boolean(),
+            priceCents: z.number().int().nonnegative().nullable(),
+          }))),
+        }),
+        404: ErrorDTO,
+        422: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const { id: distributorId } = req.params
+    const { itemTypeId, durationMinutes } = req.query
+    const duration = durationMinutes as SlotDurationMinutes
+
+    const [dist] = await db
+      .select({ id: distributors.id, communeId: distributors.communeId })
+      .from(distributors)
+      .where(eq(distributors.id, distributorId))
+      .limit(1)
+    if (!dist) return reply.code(404).send({ error: 'distributor_not_found' })
+
+    // Fenêtre [from, to]. On normalise au début du jour UTC pour énumérer
+    // toute la grille du dernier jour inclus. Cap à J+MAX pour éviter qu'un
+    // client malicieux demande 365 jours et fasse du DOS PG.
+    const now = new Date()
+    const from = req.query.from ? new Date(req.query.from) : now
+    const horizonMs = now.getTime() + MAX_BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000
+    const requestedTo = req.query.to ? new Date(req.query.to).getTime() : horizonMs
+    const to = new Date(Math.min(requestedTo, horizonMs))
+    if (to.getTime() <= from.getTime()) {
+      return reply.code(422).send({ error: 'invalid_window' })
+    }
+
+    const fromDayUtc = new Date(Date.UTC(
+      from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(),
+    ))
+    const toDayUtc = new Date(Date.UTC(
+      to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate(),
+    ))
+
+    // 1) Items du type demandé physiquement présents sur ce distributeur.
+    //    Le join via lockers évite de compter les items "en transit".
+    const itemRows = await db
+      .select({ id: items.id })
+      .from(items)
+      .innerJoin(lockers, eq(items.currentLockerId, lockers.id))
+      .where(and(
+        eq(lockers.distributorId, distributorId),
+        eq(items.itemTypeId, itemTypeId),
+      ))
+    const itemIds = itemRows.map((r) => r.id)
+    const itemCount = itemIds.length
+
+    // 2) Réservations "vivantes" qui occupent ces items sur la fenêtre.
+    //    Critère overlap : slot_start_at < to AND slot_end_at > from.
+    type ResRow = { itemId: string; slotStartAt: Date; slotEndAt: Date }
+    const liveReservations: ResRow[] = itemCount === 0
+      ? []
+      : (await db
+        .select({
+          itemId: reservations.itemId,
+          slotStartAt: reservations.slotStartAt,
+          slotEndAt: reservations.slotEndAt,
+        })
+        .from(reservations)
+        .where(and(
+          inArray(reservations.itemId, itemIds),
+          inArray(reservations.status, ['scheduled', 'pending', 'active']),
+          // Overlap test : début de la résa avant fin de la fenêtre, ET fin
+          // de la résa après début de la fenêtre. NULL impossibles côté
+          // scheduled (CHECK reservations_slot_range_check), mais filtre
+          // défensif pour les résas legacy.
+          sql`${reservations.slotStartAt} IS NOT NULL`,
+          sql`${reservations.slotEndAt} IS NOT NULL`,
+          lt(reservations.slotStartAt, to),
+          gte(reservations.slotEndAt, fromDayUtc),
+        ))).map((r) => ({
+          itemId: r.itemId,
+          slotStartAt: r.slotStartAt!,
+          slotEndAt: r.slotEndAt!,
+        }))
+
+    // 3) Tarif unique pour (commune × item_type × duration). Une seule ligne
+    //    par triplet (UNIQUE en DB).
+    const [price] = await db
+      .select({ priceCents: pricingRules.priceCents })
+      .from(pricingRules)
+      .where(and(
+        eq(pricingRules.communeId, dist.communeId),
+        eq(pricingRules.itemTypeId, itemTypeId),
+        eq(pricingRules.durationMinutes, duration),
+      ))
+      .limit(1)
+    const priceCents = price?.priceCents ?? null
+
+    // 4) Énumération en mémoire des slots de la fenêtre + check overlap.
+    //    Si fromDayUtc != aujourd'hui, le premier jour aura ses heures
+    //    passées marquées simplement comme "in past" → on les filtre.
+    const slotStarts = enumerateSlotStarts({
+      fromDayUtc,
+      toDayUtcInclusive: toDayUtc,
+      durationMinutes: duration,
+    })
+
+    const days: Record<string, Array<{
+      startsAt: string
+      endsAt: string
+      durationMinutes: number
+      available: boolean
+      priceCents: number | null
+    }>> = {}
+
+    for (const start of slotStarts) {
+      if (start.getTime() <= now.getTime()) continue
+      const end = computeSlotEnd(start, duration)
+      const day = isoUtcDay(start)
+
+      // Compte les items occupés sur ce slot précis. Available = au moins
+      // un item physique sans résa overlap. priceCents null => non
+      // réservable (mais on affiche quand même la grille pour que l'UI
+      // explique "configuration manquante").
+      let busyItems = 0
+      const seenBusy = new Set<string>()
+      for (const r of liveReservations) {
+        if (r.slotStartAt.getTime() < end.getTime() && r.slotEndAt.getTime() > start.getTime()) {
+          if (!seenBusy.has(r.itemId)) {
+            seenBusy.add(r.itemId)
+            busyItems++
+          }
+        }
+      }
+      const available = priceCents !== null && busyItems < itemCount
+
+      days[day] ??= []
+      days[day]!.push({
+        startsAt: start.toISOString(),
+        endsAt: end.toISOString(),
+        durationMinutes: duration,
+        available,
+        priceCents,
+      })
+    }
+
+    return {
+      distributorId,
+      itemTypeId,
+      durationMinutes: duration,
+      days,
     }
   })
 
