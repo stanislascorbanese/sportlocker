@@ -4,7 +4,7 @@ import maplibregl, { type LngLatLike, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEffect, useRef } from 'react'
 
-import type { NearbyDistributor } from '../../lib/api'
+import type { Distributor } from '../../lib/api'
 
 /**
  * Wrapper React autour de MapLibre GL JS.
@@ -22,7 +22,7 @@ export function MapView({
   onPick,
 }: {
   center: { lat: number; lng: number }
-  distributors: NearbyDistributor[]
+  distributors: Distributor[]
   onPick: (id: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
