@@ -30,7 +30,7 @@ export function ApplyTemplate({ communeId }: { communeId: string | null }) {
         setFeedback({
           kind: 'err',
           msg: res.message === 'no_matching_item_types'
-            ? 'Aucun item_type ne matche les catégories du template. Créez d\'abord des articles dans /items.'
+            ? 'Ce template ne matche aucun de vos item_types existants. Saisissez les prix à la main dans la matrice ci-dessous, ou créez des item_types nommés ex. "raquette tennis", "ballon foot" pour qu\'ils matchent les catégories du template.'
             : (res.message ?? 'Erreur'),
         })
       }
