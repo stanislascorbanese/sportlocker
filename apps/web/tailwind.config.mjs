@@ -10,10 +10,10 @@ export default {
           700: '#243447',
         },
         brand: {
-          400: '#3B73F7',
-          500: '#0150F6',
-          600: '#0140CC',
-          700: '#0033A8',
+          400: '#2BC295',
+          500: '#1D9E75',
+          600: '#15785A',
+          700: '#0F6E56',
         },
         accent: {
           500: '#1D9E75',
@@ -46,9 +46,9 @@ export default {
       },
       backgroundImage: {
         'hero-glow':
-          'radial-gradient(ellipse 80% 60% at 60% 40%, rgba(1,80,246,.14) 0%, transparent 70%), radial-gradient(ellipse 50% 40% at 10% 90%, rgba(29,158,117,.06) 0%, transparent 60%)',
+          'radial-gradient(ellipse 80% 60% at 60% 40%, rgba(29,158,117,.14) 0%, transparent 70%), radial-gradient(ellipse 50% 40% at 10% 90%, rgba(43,194,149,.06) 0%, transparent 60%)',
         'cta-gradient':
-          'linear-gradient(135deg, #0033A8 0%, #0140CC 50%, #0150F6 100%)',
+          'linear-gradient(135deg, #0F6E56 0%, #15785A 50%, #1D9E75 100%)',
         grid: 'linear-gradient(rgba(255,255,255,.4) 1px,transparent 1px), linear-gradient(90deg,rgba(255,255,255,.4) 1px,transparent 1px)',
       },
     },
