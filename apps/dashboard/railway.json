@@ -1,11 +1,10 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "nixpacksConfigPath": "apps/dashboard/nixpacks.toml"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "apps/dashboard/Dockerfile"
   },
   "deploy": {
-    "startCommand": "pnpm --filter @sportlocker/dashboard start",
     "healthcheckPath": "/",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
