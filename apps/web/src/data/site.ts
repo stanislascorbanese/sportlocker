@@ -137,3 +137,64 @@ export function computeSimulation(
     paybackMonths,
   }
 }
+
+// Métadonnées par segment pour SEO + structured data
+export const SEGMENT_META: Record<TenantSegment, {
+  slug: string
+  label: string
+  pluralLabel: string
+  audienceType: string
+  serviceName: string
+}> = {
+  mairie:  { slug: 'mairies',  label: 'Mairies',  pluralLabel: 'Mairies & collectivités',   audienceType: 'Mairies / Communes',         serviceName: 'Distributeur de matériel sportif pour collectivités' },
+  camping: { slug: 'campings', label: 'Campings', pluralLabel: 'Campings & plages',          audienceType: 'Campings & sites de tourisme', serviceName: 'Distributeur de matériel sportif pour campings' },
+  hotel:   { slug: 'hotels',   label: 'Hôtels',   pluralLabel: 'Hôtels 3★ / 4★ / 5★',         audienceType: 'Hôtels haut de gamme',        serviceName: 'Distributeur de matériel sportif pour hôtels' },
+}
+
+// Génère les schemas Service + BreadcrumbList pour une page segment.
+// Le `@context` est ajouté côté Base.astro lors de la sérialisation.
+export function buildSegmentSchemas(segment: TenantSegment): Record<string, unknown>[] {
+  const meta = SEGMENT_META[segment]
+  const pricing = PRICING[segment]
+  const segmentUrl = `${SITE.url}/${meta.slug}`
+
+  return [
+    {
+      '@type': 'Service',
+      name: meta.serviceName,
+      serviceType: 'Location de matériel sportif en libre-service',
+      provider: { '@type': 'Organization', name: SITE.legalName, url: SITE.url },
+      areaServed: { '@type': 'Country', name: 'France' },
+      audience: { '@type': 'Audience', audienceType: meta.audienceType },
+      url: segmentUrl,
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'EUR',
+        price: pricing.monthlyPerDist.toString(),
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: pricing.monthlyPerDist,
+          priceCurrency: 'EUR',
+          unitText: 'MON',
+          referenceQuantity: {
+            '@type': 'QuantitativeValue',
+            value: 1,
+            unitText: 'distributeur',
+          },
+        },
+        eligibleDuration: {
+          '@type': 'QuantitativeValue',
+          value: pricing.commitMonths,
+          unitCode: 'MON',
+        },
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Accueil', item: SITE.url + '/' },
+        { '@type': 'ListItem', position: 2, name: meta.label, item: segmentUrl },
+      ],
+    },
+  ]
+}

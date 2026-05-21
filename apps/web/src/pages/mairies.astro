@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
+import { buildSegmentSchemas } from '@/data/site'
 
 const arguments_ = [
   {
@@ -79,8 +80,10 @@ const faqMairie = [
 ---
 
 <Base
-  title="Solution mairies — service sport citoyen 24/7"
-  description="SportLocker équipe vos parcs, bases sportives et écoles de distributeurs de matériel sportif en libre-service. OPEX maîtrisé, image dynamique, subventions CNDS éligibles."
+  title="Distributeurs de matériel sportif pour mairies"
+  description="Solution clé en main pour communes : distributeurs IoT de matériel sportif en libre-service 24/7 sur vos parcs, bases nautiques et écoles. À partir de 425 € HT/mois/dist, subventions ANS / DETR / DSIL éligibles."
+  ogImage="/og/mairies.svg"
+  extraJsonLd={buildSegmentSchemas('mairie')}
 >
   <!-- HEADER -->
   <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
@@ -99,7 +102,7 @@ const faqMairie = [
         </p>
         <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
           <a href="/contact?type=mairie" class="btn btn-primary">Demander un devis pour ma commune →</a>
-          <a href="#simulation" class="btn btn-outline">Voir la simulation budget</a>
+          <a href="/tarifs?type=mairie#simulateur" class="btn btn-outline">Estimer mon budget →</a>
         </div>
       </div>
     </div>
@@ -164,7 +167,7 @@ const faqMairie = [
             Configuration médiane observée : 4 distributeurs répartis sur les principaux sites
             sportifs municipaux (parc central, base nautique, école, city-stade).
           </p>
-          <a href="/contact?type=mairie" class="btn btn-primary" data-reveal data-reveal-delay="3">
+          <a href="/tarifs?type=mairie#simulateur" class="btn btn-primary" data-reveal data-reveal-delay="3">
             Simulation personnalisée pour ma commune →
           </a>
         </div>

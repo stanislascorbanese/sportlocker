@@ -10,6 +10,9 @@ interface Props {
   canonical?: string
   ogImage?: string
   noindex?: boolean
+  // Schemas additionnels (Service, BreadcrumbList, FAQPage…) injectés après
+  // le schema Organization. Le `@context` est ajouté automatiquement.
+  extraJsonLd?: Record<string, unknown>[]
 }
 
 const {
@@ -18,13 +21,14 @@ const {
   canonical,
   ogImage = SITE.defaultOgImage,
   noindex = false,
+  extraJsonLd = [],
 } = Astro.props
 
 const pageTitle = title.includes(SITE.name) ? title : `${title} — ${SITE.name}`
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.url).toString()
 const ogImageUrl = new URL(ogImage, SITE.url).toString()
 
-const jsonLd = {
+const orgJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: SITE.legalName,
@@ -33,6 +37,11 @@ const jsonLd = {
   description: SITE.description,
   sameAs: [],
 }
+
+const pageJsonLd = extraJsonLd.map((schema) => ({
+  '@context': 'https://schema.org',
+  ...schema,
+}))
 ---
 
 <!doctype html>
@@ -64,8 +73,14 @@ const jsonLd = {
 
     <script
       type="application/ld+json"
-      set:html={JSON.stringify(jsonLd)}
+      set:html={JSON.stringify(orgJsonLd)}
     />
+    {pageJsonLd.map((schema) => (
+      <script
+        type="application/ld+json"
+        set:html={JSON.stringify(schema)}
+      />
+    ))}
   </head>
   <body>
     <Nav />
