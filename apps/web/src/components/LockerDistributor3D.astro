@@ -1,0 +1,965 @@
+---
+// Distributeur SportLocker en 3D interactif avec annotations.
+// Three.js (r128) chargé en lazy quand la section entre dans le viewport.
+// Les traits d'étiquettes passent en pointillés quand le point d'ancrage
+// est occulté par la borne (raycast caméra → ancre chaque frame).
+---
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+  <div class="card-dark px-4 py-3">
+    <div class="text-[0.7rem] uppercase tracking-wider text-white/45">Distributeur</div>
+    <div class="text-sm font-medium text-white mt-1">Parc des Sports — Nord</div>
+  </div>
+  <div class="card-dark px-4 py-3">
+    <div class="text-[0.7rem] uppercase tracking-wider text-white/45">État</div>
+    <div class="text-sm font-medium text-brand-500 mt-1">En ligne</div>
+  </div>
+  <div class="card-dark px-4 py-3">
+    <div class="text-[0.7rem] uppercase tracking-wider text-white/45">Batterie</div>
+    <div class="text-sm font-medium text-white mt-1">92 %</div>
+  </div>
+  <div class="card-dark px-4 py-3">
+    <div class="text-[0.7rem] uppercase tracking-wider text-white/45">Casiers</div>
+    <div class="text-sm font-medium text-white mt-1">8</div>
+  </div>
+</div>
+
+<div
+  id="sl5-stage"
+  class="card-dark relative overflow-hidden"
+  style="height:500px;cursor:grab"
+  role="img"
+  aria-label="Rendu 3D interactif annoté d'un distributeur SportLocker à huit casiers mixtes : écran tactile, clavier PIN, lecteur QR et panneau solaire. Des étiquettes reliées par des lignes de repère désignent les composants principaux."
+></div>
+
+<div class="flex flex-wrap gap-2 items-center mt-4 mb-3">
+  <button id="sl5-open" class="btn btn-outline btn-sm" type="button">Ouvrir toutes les portes</button>
+  <button id="sl5-rotate" class="btn btn-outline btn-sm" type="button">Rotation auto</button>
+  <button id="sl5-labels" class="btn btn-outline btn-sm" type="button">Masquer les étiquettes</button>
+  <button id="sl5-reset" class="btn btn-outline btn-sm" type="button">Réinitialiser la vue</button>
+</div>
+
+<div class="flex flex-wrap gap-x-4 gap-y-2 items-center text-[0.78rem] text-white/55">
+  <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#1D9E75"></span>Libre</span>
+  <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#EFA12B"></span>Réservé</span>
+  <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#3A86DD"></span>Emprunté</span>
+  <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#7F77DD"></span>Retour</span>
+  <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#E24B4A"></span>Maintenance</span>
+  <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#8A8A86"></span>Hors ligne</span>
+</div>
+
+<p class="text-[0.78rem] text-white/40 mt-3">
+  Glissez pour pivoter · molette pour zoomer · cliquez une porte pour l'ouvrir. Les étiquettes suivent la rotation, leur trait passe en pointillés quand le repère est masqué par la borne.
+</p>
+
+<script is:inline>
+  (function () {
+    var stage = document.getElementById('sl5-stage');
+    if (!stage) return;
+
+    var loaded = false;
+
+    function init() {
+      var THREE = window.THREE;
+      if (!THREE) return;
+
+      var W = stage.clientWidth || 680,
+        H = 500;
+
+      var STATUS = {
+        idle: '#1D9E75',
+        reserved: '#EFA12B',
+        active: '#3A86DD',
+        returning: '#7F77DD',
+        maintenance: '#E24B4A',
+        offline: '#8A8A86',
+      };
+      var DOORS_DATA = [
+        { n: 1, x: -1.66, y: 2.175, w: 0.66, h: 2.95, label: 'Badminton', status: 'returning', word: 'Retour', item: 'racket' },
+        { n: 2, x: -0.9, y: 2.175, w: 0.66, h: 2.95, label: 'Cônes', status: 'idle', word: 'Libre', item: 'cones' },
+        { n: 3, x: -0.13, y: 3.19, w: 0.56, h: 0.917, label: 'Football', status: 'idle', word: 'Libre', item: 'ball', color: 0xf2f2ee },
+        { n: 4, x: 0.53, y: 3.19, w: 0.56, h: 0.917, label: 'Basket', status: 'reserved', word: 'Réservé', item: 'ball', color: 0xd85a30 },
+        { n: 5, x: -0.13, y: 2.18, w: 0.56, h: 0.917, label: 'Volley', status: 'active', word: 'Emprunté', item: null },
+        { n: 6, x: 0.53, y: 2.18, w: 0.56, h: 0.917, label: 'Frisbee', status: 'idle', word: 'Libre', item: 'disk', color: 0x3a86dd },
+        { n: 7, x: -0.13, y: 1.17, w: 0.56, h: 0.917, label: 'Corde', status: 'maintenance', word: '—', item: null },
+        { n: 8, x: 0.53, y: 1.17, w: 0.56, h: 0.917, label: 'Rugby', status: 'offline', word: 'Hors ligne', item: 'rugby', color: 0x8a5a2b },
+      ];
+
+      var scene = new THREE.Scene();
+      var camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 100);
+      var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(W, H);
+      renderer.setClearColor(0x000000, 0);
+      stage.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x70726c, 0.95));
+      var key = new THREE.DirectionalLight(0xffffff, 0.85);
+      key.position.set(7, 9, 8);
+      scene.add(key);
+      var fill = new THREE.DirectionalLight(0xffffff, 0.3);
+      fill.position.set(-7, 4, 3);
+      scene.add(fill);
+      scene.add(
+        (function () {
+          var p = new THREE.PointLight(0xffffff, 0.5, 8);
+          p.position.set(1.5, 2.6, 2.3);
+          return p;
+        })(),
+      );
+
+      var machine = new THREE.Group();
+      scene.add(machine);
+
+      function mat(c, r, m) {
+        return new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.65 : r, metalness: m == null ? 0.12 : m });
+      }
+      function box(w, h, d, c, r, m) {
+        return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c, r, m));
+      }
+      function emap(t, r, mt) {
+        return new THREE.MeshStandardMaterial({ map: t, roughness: r == null ? 0.5 : r, metalness: mt == null ? 0.05 : mt });
+      }
+      function tex(w, h, draw) {
+        var cv = document.createElement('canvas');
+        cv.width = w;
+        cv.height = h;
+        draw(cv.getContext('2d'), w, h);
+        var t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return t;
+      }
+      function rshape(w, h, r) {
+        var s = new THREE.Shape();
+        r = Math.min(r, w / 2 - 0.001, h / 2 - 0.001);
+        s.moveTo(-w / 2 + r, -h / 2);
+        s.lineTo(w / 2 - r, -h / 2);
+        s.absarc(w / 2 - r, -h / 2 + r, r, -Math.PI / 2, 0, false);
+        s.lineTo(w / 2, h / 2 - r);
+        s.absarc(w / 2 - r, h / 2 - r, r, 0, Math.PI / 2, false);
+        s.lineTo(-w / 2 + r, h / 2);
+        s.absarc(-w / 2 + r, h / 2 - r, r, Math.PI / 2, Math.PI, false);
+        s.lineTo(-w / 2, -h / 2 + r);
+        s.absarc(-w / 2 + r, -h / 2 + r, r, Math.PI, Math.PI * 1.5, false);
+        return s;
+      }
+      function uvg(w, h) {
+        var hw = w / 2,
+          hh = h / 2;
+        return {
+          generateTopUV: function (g, v, a, b, c) {
+            function u(i) {
+              return new THREE.Vector2((v[i * 3] + hw) / w, (v[i * 3 + 1] + hh) / h);
+            }
+            return [u(a), u(b), u(c)];
+          },
+          generateSideWallUV: function () {
+            return [new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1)];
+          },
+        };
+      }
+      function rgeo(w, h, depth, r) {
+        var g = new THREE.ExtrudeGeometry(rshape(w, h, r), {
+          depth: depth,
+          bevelEnabled: true,
+          bevelThickness: 0.012,
+          bevelSize: 0.012,
+          bevelSegments: 1,
+          curveSegments: 5,
+          UVGenerator: uvg(w, h),
+        });
+        g.translate(0, 0, -depth / 2);
+        return g;
+      }
+      function rcol(w, h, depth, r, c, ro, me) {
+        return new THREE.Mesh(rgeo(w, h, depth, r), mat(c, ro, me));
+      }
+      function rtex(w, h, depth, r, t, base, ro) {
+        return new THREE.Mesh(rgeo(w, h, depth, r), [emap(t, ro == null ? 0.5 : ro), mat(base)]);
+      }
+      function rframe(ow, oh, iw, ih, depth, r, c, me) {
+        var s = rshape(ow, oh, r);
+        s.holes.push(rshape(iw, ih, Math.min(r, 0.05)));
+        var g = new THREE.ExtrudeGeometry(s, {
+          depth: depth,
+          bevelEnabled: true,
+          bevelThickness: 0.01,
+          bevelSize: 0.01,
+          bevelSegments: 1,
+          curveSegments: 5,
+        });
+        g.translate(0, 0, -depth / 2);
+        return new THREE.Mesh(g, mat(c, 0.5, me == null ? 0.3 : me));
+      }
+
+      var BODY = 0xd7dbd6,
+        DOOR = 0xe9ecea,
+        TEAL = 0x1d9e75,
+        DARK = 0x2b3137;
+
+      machine.add(
+        (function () {
+          var m = rcol(4.6, 0.3, 1.9, 0.08, 0x6e726c, 0.7, 0.05);
+          m.position.set(0, 0.15, 0);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = box(4.4, 4.0, 0.08, BODY);
+          m.position.set(0, 2.3, -0.86);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = box(0.1, 4.0, 1.78, BODY);
+          m.position.set(-2.18, 2.3, 0);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = box(0.1, 4.0, 1.78, BODY);
+          m.position.set(2.18, 2.3, 0);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = box(4.36, 0.1, 1.78, 0xc9cdc7);
+          m.position.set(0, 4.28, 0);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = box(4.36, 0.12, 1.78, 0xc9cdc7);
+          m.position.set(0, 0.38, 0);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = rcol(4.3, 3.94, 0.05, 0.22, BODY, 0.6, 0.1);
+          m.position.set(0, 2.3, 0.83);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = rcol(4.24, 3.88, 0.05, 0.2, BODY, 0.55, 0.1);
+          m.position.set(0, 2.3, 0.875);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var s = rcol(4.24, 0.06, 0.06, 0.03, TEAL, 0.5, 0.1);
+          s.position.set(0, 4.18, 0.9);
+          return s;
+        })(),
+      );
+
+      var doors = [];
+      function doorTexture(lk) {
+        var aspect = lk.h / lk.w,
+          cw = 220,
+          ch = Math.min(1024, Math.round(cw * aspect)),
+          st = STATUS[lk.status];
+        return tex(cw, ch, function (g, w, h) {
+          g.fillStyle = '#E9ECEA';
+          g.fillRect(0, 0, w, h);
+          g.strokeStyle = '#C7CBC5';
+          g.lineWidth = 4;
+          g.strokeRect(14, 14, w - 28, h - 28);
+          g.fillStyle = '#4a4a47';
+          g.font = '600 ' + Math.round(w * 0.2) + 'px sans-serif';
+          g.fillText(lk.n, w * 0.12, h * 0.04 + Math.round(w * 0.2));
+          g.beginPath();
+          g.fillStyle = st;
+          g.arc(w * 0.78, h * 0.04 + Math.round(w * 0.06), Math.round(w * 0.055), 0, 7);
+          g.fill();
+          g.fillStyle = '#3a3a37';
+          g.font = '600 ' + Math.round(w * 0.12) + 'px sans-serif';
+          g.fillText(lk.label, w * 0.12, h * 0.89);
+          g.fillStyle = '#7a7a76';
+          g.font = Math.round(w * 0.09) + 'px sans-serif';
+          g.fillText(lk.word, w * 0.12, h * 0.955);
+          g.fillStyle = '#b3b7b1';
+          g.beginPath();
+          g.arc(w * 0.82, h * 0.5, Math.round(w * 0.03), 0, 7);
+          g.fill();
+          g.fillRect(w * 0.79, h * 0.46, Math.round(w * 0.06), Math.round(h * 0.08));
+        });
+      }
+      function makeItem(lk) {
+        var g = new THREE.Group();
+        if (lk.item === 'ball') {
+          g.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 18), mat(lk.color, 0.55, 0.05)));
+        } else if (lk.item === 'rugby') {
+          var b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 16), mat(lk.color, 0.5, 0.05));
+          b.scale.set(1, 1, 1.5);
+          g.add(b);
+        } else if (lk.item === 'disk') {
+          var d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 28), mat(lk.color, 0.5, 0.05));
+          d.rotation.x = Math.PI / 2;
+          g.add(d);
+        } else if (lk.item === 'racket') {
+          var grip = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 12), mat(0x2b2b2b, 0.6, 0.1));
+          grip.position.y = -0.55;
+          g.add(grip);
+          var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.45, 10), mat(0x9a9e98, 0.5, 0.3));
+          shaft.position.y = -0.07;
+          g.add(shaft);
+          var head = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.022, 10, 28), mat(0xb0b4ae, 0.5, 0.3));
+          head.position.y = 0.4;
+          head.scale.y = 1.3;
+          g.add(head);
+        } else if (lk.item === 'cones') {
+          [-0.5, -0.05, 0.4].forEach(function (yy, i) {
+            var c = new THREE.Mesh(new THREE.ConeGeometry(0.17 - i * 0.005, 0.34, 18), mat(0xd85a30, 0.55, 0.05));
+            c.position.y = yy;
+            g.add(c);
+          });
+        }
+        return g;
+      }
+      DOORS_DATA.forEach(function (lk) {
+        var rec = rcol(lk.w - 0.02, lk.h - 0.02, 0.01, 0.06, 0x1d2024, 0.8, 0.0);
+        rec.position.set(lk.x, lk.y, 0.902);
+        machine.add(rec);
+        if (lk.item) {
+          var im = makeItem(lk);
+          im.position.set(lk.x, lk.y, 0.76);
+          machine.add(im);
+        }
+        var led = new THREE.Mesh(
+          new THREE.SphereGeometry(0.033, 12, 10),
+          new THREE.MeshStandardMaterial({
+            color: STATUS[lk.status],
+            emissive: STATUS[lk.status],
+            emissiveIntensity: 0.9,
+            roughness: 0.4,
+          }),
+        );
+        led.position.set(lk.x + lk.w / 2 - 0.13, lk.y + lk.h / 2 - 0.13, 0.92);
+        machine.add(led);
+        var pivot = new THREE.Group();
+        pivot.position.set(lk.x - lk.w / 2, lk.y, 0.93);
+        machine.add(pivot);
+        var door = rtex(lk.w, lk.h, 0.045, 0.06, doorTexture(lk), DOOR, 0.6);
+        door.position.set(lk.w / 2, 0, 0);
+        pivot.add(door);
+        var handle = rcol(0.05, Math.min(0.22, lk.h * 0.2), 0.04, 0.02, 0x8d918b, 0.5, 0.2);
+        handle.position.set(lk.w - 0.11, 0, 0.04);
+        door.add(handle);
+        var d = { pivot: pivot, door: door, cur: 0, target: 0 };
+        door.userData.d = d;
+        doors.push(d);
+      });
+      doors[0].target = -1.95;
+      doors[2].target = -1.95;
+
+      var IX = 1.5;
+      machine.add(
+        (function () {
+          var m = rcol(1.18, 3.18, 0.05, 0.16, 0x4a525a, 0.5, 0.4);
+          m.position.set(IX, 2.18, 0.895);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = rcol(1.1, 3.1, 0.07, 0.14, DARK, 0.55, 0.25);
+          m.position.set(IX, 2.18, 0.915);
+          return m;
+        })(),
+      );
+
+      var brandTex = tex(420, 90, function (g, w, h) {
+        g.fillStyle = '#11171B';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1D9E75';
+        g.beginPath();
+        g.arc(36, h / 2, 9, 0, 7);
+        g.fill();
+        g.fillStyle = '#eef1ee';
+        g.font = '600 30px sans-serif';
+        g.fillText('SportLocker', 60, h / 2 + 11);
+      });
+      machine.add(
+        (function () {
+          var m = rtex(0.94, 0.22, 0.03, 0.06, brandTex, 0x11171b);
+          m.position.set(IX, 3.52, 0.955);
+          return m;
+        })(),
+      );
+
+      var SY = 2.86;
+      var screenTex = tex(420, 300, function (g, w, h) {
+        g.fillStyle = '#EDEFF3';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1D9E75';
+        g.fillRect(0, 0, w, 48);
+        g.fillStyle = '#ffffff';
+        g.font = '600 24px sans-serif';
+        g.fillText('SportLocker', 16, 32);
+        g.strokeStyle = '#9aa6b0';
+        g.lineWidth = 4;
+        g.strokeRect(w / 2 - 26, 96, 52, 40);
+        g.beginPath();
+        g.arc(w / 2, 96, 16, Math.PI, 0);
+        g.stroke();
+        g.fillStyle = '#3a4048';
+        g.font = '600 24px sans-serif';
+        g.textAlign = 'center';
+        g.fillText('Entrez votre code PIN', w / 2, 186);
+        g.fillStyle = '#aeb6bf';
+        for (var i = 0; i < 6; i++) {
+          g.beginPath();
+          g.arc(w / 2 - 70 + i * 28, 214, 7, 0, 7);
+          g.fill();
+        }
+        g.fillStyle = '#7c858d';
+        g.font = '17px sans-serif';
+        g.fillText('ou scannez votre QR code', w / 2, 262);
+        g.textAlign = 'left';
+      });
+      machine.add(
+        (function () {
+          var m = rtex(0.84, 0.6, 0.03, 0.05, screenTex, 0x0e1418, 0.32);
+          m.position.set(IX, SY, 0.95);
+          return m;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var f = rframe(0.96, 0.72, 0.82, 0.58, 0.06, 0.07, 0x171c21);
+          f.position.set(IX, SY, 0.97);
+          return f;
+        })(),
+      );
+
+      var keypadTex = tex(280, 300, function (g, w, h) {
+        g.fillStyle = '#9aa0a4';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#8b9195';
+        g.lineWidth = 1;
+        for (var l = 0; l < h; l += 3) {
+          g.beginPath();
+          g.moveTo(0, l);
+          g.lineTo(w, l);
+          g.stroke();
+        }
+        var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
+        var mx = 18,
+          my = 14,
+          gap = 10,
+          kw = (w - 2 * mx - 2 * gap) / 3,
+          kh = (h - 2 * my - 3 * gap) / 4;
+        for (var k = 0; k < 12; k++) {
+          var cx = k % 3,
+            cy = Math.floor(k / 3),
+            x = mx + cx * (kw + gap),
+            y = my + cy * (kh + gap);
+          g.fillStyle = '#5f6569';
+          g.fillRect(x + 1, y + 3, kw, kh);
+          var f = k === 11 ? '#1D9E75' : k === 9 ? '#c98a2a' : '#d7dadc';
+          g.fillStyle = f;
+          g.fillRect(x, y, kw, kh);
+          g.fillStyle = 'rgba(255,255,255,0.55)';
+          g.fillRect(x, y, kw, 3);
+          g.fillStyle = 'rgba(0,0,0,0.22)';
+          g.fillRect(x, y + kh - 3, kw, 3);
+          g.fillStyle = k === 11 || k === 9 ? '#15240f' : '#2a2e30';
+          g.font = '600 ' + (k === 11 ? 20 : 24) + 'px sans-serif';
+          g.textAlign = 'center';
+          g.fillText(keys[k], x + kw / 2, y + kh / 2 + 8);
+          g.textAlign = 'left';
+        }
+      });
+      machine.add(
+        (function () {
+          var f = rcol(0.48, 0.56, 0.03, 0.05, 0x7f868a, 0.45, 0.55);
+          f.position.set(IX, 1.62, 0.94);
+          return f;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = rtex(0.42, 0.5, 0.035, 0.04, keypadTex, 0x8b9195, 0.45);
+          m.position.set(IX, 1.62, 0.965);
+          return m;
+        })(),
+      );
+
+      var qrTex = tex(180, 180, function (g, w, h) {
+        g.fillStyle = '#11171B';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#F4F6F3';
+        g.fillRect(30, 30, 120, 120);
+        g.fillStyle = '#11171B';
+        for (var x = 0; x < 11; x++)
+          for (var y = 0; y < 11; y++) {
+            if ((x * 7 + y * 3 + x * y) % 3 === 0) g.fillRect(36 + x * 10, 36 + y * 10, 9, 9);
+          }
+        g.fillStyle = '#11171B';
+        g.fillRect(36, 36, 30, 30);
+        g.fillStyle = '#F4F6F3';
+        g.fillRect(42, 42, 18, 18);
+        g.fillStyle = '#11171B';
+        g.fillRect(47, 47, 8, 8);
+        g.strokeStyle = '#1D9E75';
+        g.lineWidth = 5;
+        g.beginPath();
+        g.moveTo(14, 40);
+        g.lineTo(14, 14);
+        g.lineTo(40, 14);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(140, 14);
+        g.lineTo(166, 14);
+        g.lineTo(166, 40);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(166, 140);
+        g.lineTo(166, 166);
+        g.lineTo(140, 166);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(40, 166);
+        g.lineTo(14, 166);
+        g.lineTo(14, 140);
+        g.stroke();
+      });
+      machine.add(
+        (function () {
+          var f = rcol(0.5, 0.5, 0.03, 0.06, 0x171c21, 0.5, 0.3);
+          f.position.set(IX, 0.86, 0.94);
+          return f;
+        })(),
+      );
+      machine.add(
+        (function () {
+          var m = rtex(0.42, 0.42, 0.03, 0.05, qrTex, 0x141a1e);
+          m.position.set(IX, 0.86, 0.965);
+          return m;
+        })(),
+      );
+
+      var sPivot = new THREE.Group();
+      sPivot.position.set(0, 4.32, -0.55);
+      sPivot.rotation.x = -0.36;
+      machine.add(sPivot);
+      var solarTex = tex(512, 200, function (g, w, h) {
+        g.fillStyle = '#0a1626';
+        g.fillRect(0, 0, w, h);
+        var cols = 12,
+          rows = 5,
+          mx = 8,
+          my = 8,
+          gap = 5,
+          cw = (w - 2 * mx - (cols - 1) * gap) / cols,
+          ch = (h - 2 * my - (rows - 1) * gap) / rows;
+        for (var c = 0; c < cols; c++)
+          for (var r = 0; r < rows; r++) {
+            var x = mx + c * (cw + gap),
+              y = my + r * (ch + gap);
+            g.fillStyle = '#10294a';
+            g.fillRect(x, y, cw, ch);
+            g.fillStyle = '#0a1626';
+            g.beginPath();
+            g.moveTo(x, y);
+            g.lineTo(x + 5, y);
+            g.lineTo(x, y + 5);
+            g.closePath();
+            g.fill();
+            g.beginPath();
+            g.moveTo(x + cw, y);
+            g.lineTo(x + cw - 5, y);
+            g.lineTo(x + cw, y + 5);
+            g.closePath();
+            g.fill();
+            g.beginPath();
+            g.moveTo(x, y + ch);
+            g.lineTo(x + 5, y + ch);
+            g.lineTo(x, y + ch - 5);
+            g.closePath();
+            g.fill();
+            g.beginPath();
+            g.moveTo(x + cw, y + ch);
+            g.lineTo(x + cw - 5, y + ch);
+            g.lineTo(x + cw, y + ch - 5);
+            g.closePath();
+            g.fill();
+            g.strokeStyle = '#163a5e';
+            g.lineWidth = 1;
+            for (var fy = y + 5; fy < y + ch; fy += 5) {
+              g.beginPath();
+              g.moveTo(x + 2, fy);
+              g.lineTo(x + cw - 2, fy);
+              g.stroke();
+            }
+            g.strokeStyle = '#7d93b4';
+            g.lineWidth = 1.5;
+            g.beginPath();
+            g.moveTo(x + cw * 0.34, y + 2);
+            g.lineTo(x + cw * 0.34, y + ch - 2);
+            g.stroke();
+            g.beginPath();
+            g.moveTo(x + cw * 0.68, y + 2);
+            g.lineTo(x + cw * 0.68, y + ch - 2);
+            g.stroke();
+          }
+      });
+      var solarMats = [
+        mat(0x223a5e, 0.5, 0.3),
+        mat(0x223a5e, 0.5, 0.3),
+        emap(solarTex, 0.35, 0.25),
+        mat(0x101b2e, 0.6, 0.2),
+        mat(0x223a5e, 0.5, 0.3),
+        mat(0x223a5e, 0.5, 0.3),
+      ];
+      var panel = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.07, 1.5), solarMats);
+      panel.position.set(0, 0, 0.78);
+      sPivot.add(panel);
+      var SIL = 0xc2c6ca;
+      sPivot.add(
+        (function () {
+          var m = box(4.12, 0.09, 0.07, SIL, 0.4, 0.6);
+          m.position.set(0, 0.01, 0.78 + 0.75);
+          return m;
+        })(),
+      );
+      sPivot.add(
+        (function () {
+          var m = box(4.12, 0.09, 0.07, SIL, 0.4, 0.6);
+          m.position.set(0, 0.01, 0.78 - 0.75);
+          return m;
+        })(),
+      );
+      sPivot.add(
+        (function () {
+          var m = box(0.07, 0.09, 1.5, SIL, 0.4, 0.6);
+          m.position.set(-2.02, 0.01, 0.78);
+          return m;
+        })(),
+      );
+      sPivot.add(
+        (function () {
+          var m = box(0.07, 0.09, 1.5, SIL, 0.4, 0.6);
+          m.position.set(2.02, 0.01, 0.78);
+          return m;
+        })(),
+      );
+      [-1.7, 1.7].forEach(function (sx) {
+        var st = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.62, 12), mat(0x9a9e98, 0.5, 0.5));
+        st.position.set(sx, -0.05, 1.35);
+        sPivot.add(st);
+      });
+
+      var shTex = tex(256, 256, function (g) {
+        var r = g.createRadialGradient(128, 128, 10, 128, 128, 120);
+        r.addColorStop(0, 'rgba(0,0,0,0.34)');
+        r.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = r;
+        g.fillRect(0, 0, 256, 256);
+      });
+      var sh = new THREE.Mesh(
+        new THREE.PlaneGeometry(7, 4.6),
+        new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false }),
+      );
+      sh.rotation.x = -Math.PI / 2;
+      sh.position.set(0, 0.02, 0.2);
+      scene.add(sh);
+
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:3';
+      stage.appendChild(overlay);
+      var NS = 'http://www.w3.org/2000/svg';
+      var svg = document.createElementNS(NS, 'svg');
+      svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;color:rgba(255,255,255,0.55)';
+      stage.appendChild(svg);
+      var LABELS = [
+        { t: 'Panneau solaire', a: new THREE.Vector3(0, 4.78, -0.05), side: 'left', ly: 0.1 },
+        { t: 'Grandes portes (matériel long)', a: new THREE.Vector3(-1.66, 2.4, 1.0), side: 'left', ly: 0.46 },
+        { t: 'Petites portes (ballons)', a: new THREE.Vector3(0.2, 1.6, 1.05), side: 'left', ly: 0.8 },
+        { t: 'Écran tactile', a: new THREE.Vector3(1.5, 2.86, 1.0), side: 'right', ly: 0.18 },
+        { t: 'Clavier code PIN', a: new THREE.Vector3(1.5, 1.62, 1.0), side: 'right', ly: 0.5 },
+        { t: 'Lecteur QR code', a: new THREE.Vector3(1.5, 0.86, 0.98), side: 'right', ly: 0.82 },
+      ];
+      LABELS.forEach(function (L) {
+        var d = document.createElement('div');
+        d.textContent = L.t;
+        d.style.cssText =
+          'position:absolute;font-size:12px;font-weight:500;color:#fff;background:rgba(13,27,42,0.92);border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:4px 9px;white-space:nowrap;backdrop-filter:blur(8px)';
+        overlay.appendChild(d);
+        L.div = d;
+        var ln = document.createElementNS(NS, 'line');
+        ln.setAttribute('stroke', 'currentColor');
+        ln.setAttribute('stroke-width', '1.2');
+        ln.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(ln);
+        L.line = ln;
+        var dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('r', '3.5');
+        dot.setAttribute('fill', 'currentColor');
+        svg.appendChild(dot);
+        L.dot = dot;
+      });
+      var showLabels = true;
+      function layout() {
+        var Hp = stage.clientHeight;
+        LABELS.forEach(function (L) {
+          var d = L.div;
+          d.style.top = L.ly * Hp - 12 + 'px';
+          if (L.side === 'left') {
+            d.style.left = '10px';
+            d.style.right = '';
+          } else {
+            d.style.right = '10px';
+            d.style.left = '';
+          }
+        });
+      }
+
+      var target = new THREE.Vector3(0, 2.1, 0),
+        rad = 13.5,
+        theta = 0.58,
+        phi = 1.08,
+        R0 = rad,
+        T0 = theta,
+        P0 = phi;
+      function place() {
+        camera.position.set(
+          target.x + rad * Math.sin(phi) * Math.sin(theta),
+          target.y + rad * Math.cos(phi),
+          target.z + rad * Math.sin(phi) * Math.cos(theta),
+        );
+        camera.lookAt(target);
+      }
+      place();
+
+      var dragging = false,
+        moved = 0,
+        px = 0,
+        py = 0,
+        autoR = false,
+        vp = new THREE.Vector3();
+      var el = renderer.domElement,
+        ray = new THREE.Raycaster(),
+        m2 = new THREE.Vector2();
+      function ndc(e) {
+        var r = el.getBoundingClientRect();
+        m2.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+        m2.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      }
+      el.addEventListener('pointerdown', function (e) {
+        dragging = true;
+        moved = 0;
+        px = e.clientX;
+        py = e.clientY;
+        stage.style.cursor = 'grabbing';
+        el.setPointerCapture(e.pointerId);
+      });
+      el.addEventListener('pointermove', function (e) {
+        if (dragging) {
+          var dx = e.clientX - px,
+            dy = e.clientY - py;
+          px = e.clientX;
+          py = e.clientY;
+          moved += Math.abs(dx) + Math.abs(dy);
+          theta -= dx * 0.006;
+          phi = Math.max(0.25, Math.min(1.45, phi - dy * 0.006));
+          place();
+        } else {
+          ndc(e);
+          ray.setFromCamera(m2, camera);
+          stage.style.cursor = ray.intersectObjects(
+            doors.map(function (d) {
+              return d.door;
+            }),
+          ).length
+            ? 'pointer'
+            : 'grab';
+        }
+      });
+      el.addEventListener('pointerup', function (e) {
+        dragging = false;
+        stage.style.cursor = 'grab';
+        if (moved < 6) {
+          ndc(e);
+          ray.setFromCamera(m2, camera);
+          var hit = ray.intersectObjects(
+            doors.map(function (d) {
+              return d.door;
+            }),
+          );
+          if (hit.length) {
+            var d = hit[0].object.userData.d;
+            d.target = d.target ? 0 : -1.95;
+          }
+        }
+      });
+      el.addEventListener(
+        'wheel',
+        function (e) {
+          e.preventDefault();
+          rad *= 1 + (e.deltaY > 0 ? 0.08 : -0.08);
+          rad = Math.max(8, Math.min(20, rad));
+          place();
+        },
+        { passive: false },
+      );
+
+      var btnOpen = document.getElementById('sl5-open');
+      var btnRotate = document.getElementById('sl5-rotate');
+      var btnLabels = document.getElementById('sl5-labels');
+      var btnReset = document.getElementById('sl5-reset');
+
+      btnOpen.addEventListener('click', function () {
+        var anyClosed = doors.some(function (d) {
+          return d.target === 0;
+        });
+        doors.forEach(function (d) {
+          d.target = anyClosed ? -1.95 : 0;
+        });
+        this.textContent = anyClosed ? 'Fermer toutes les portes' : 'Ouvrir toutes les portes';
+      });
+      btnRotate.addEventListener('click', function () {
+        autoR = !autoR;
+        this.classList.toggle('btn-primary', autoR);
+        this.classList.toggle('btn-outline', !autoR);
+      });
+      btnLabels.addEventListener('click', function () {
+        showLabels = !showLabels;
+        overlay.style.display = svg.style.display = showLabels ? '' : 'none';
+        this.textContent = showLabels ? 'Masquer les étiquettes' : 'Afficher les étiquettes';
+      });
+      btnReset.addEventListener('click', function () {
+        rad = R0;
+        theta = T0;
+        phi = P0;
+        autoR = false;
+        btnRotate.classList.remove('btn-primary');
+        btnRotate.classList.add('btn-outline');
+        doors.forEach(function (d, i) {
+          d.target = i === 0 || i === 2 ? -1.95 : 0;
+        });
+        btnOpen.textContent = 'Ouvrir toutes les portes';
+        place();
+      });
+
+      // Occlusion test: cast a ray from camera to each anchor.
+      // If the machine intersects strictly before the anchor, the leader line is occluded.
+      var occRay = new THREE.Raycaster();
+      var occDir = new THREE.Vector3();
+      function isOccluded(anchor) {
+        occDir.subVectors(anchor, camera.position);
+        var dist = occDir.length();
+        occDir.normalize();
+        occRay.set(camera.position, occDir);
+        occRay.far = dist;
+        var hits = occRay.intersectObject(machine, true);
+        for (var i = 0; i < hits.length; i++) {
+          if (hits[i].distance < dist - 0.04) return true;
+        }
+        return false;
+      }
+
+      function updateLabels() {
+        if (!showLabels) return;
+        var Wp = stage.clientWidth,
+          Hp = stage.clientHeight;
+        LABELS.forEach(function (L) {
+          var d = L.div,
+            cy = d.offsetTop + d.offsetHeight / 2,
+            cx = L.side === 'left' ? d.offsetLeft + d.offsetWidth : d.offsetLeft;
+          vp.copy(L.a).project(camera);
+          if (vp.z <= 1) {
+            var sx = (vp.x * 0.5 + 0.5) * Wp,
+              sy = (-vp.y * 0.5 + 0.5) * Hp;
+            L.line.setAttribute('x1', cx);
+            L.line.setAttribute('y1', cy);
+            L.line.setAttribute('x2', sx);
+            L.line.setAttribute('y2', sy);
+            L.dot.setAttribute('cx', sx);
+            L.dot.setAttribute('cy', sy);
+            L.line.style.display = '';
+            L.dot.style.display = '';
+            var occluded = isOccluded(L.a);
+            L.line.setAttribute('stroke-dasharray', occluded ? '5 4' : '');
+            L.line.setAttribute('stroke-opacity', occluded ? '0.55' : '1');
+            L.dot.setAttribute('fill-opacity', occluded ? '0.5' : '1');
+          } else {
+            L.line.style.display = 'none';
+            L.dot.style.display = 'none';
+          }
+        });
+      }
+      function loop() {
+        requestAnimationFrame(loop);
+        if (autoR) {
+          theta += 0.0035;
+          place();
+        }
+        doors.forEach(function (d) {
+          if (Math.abs(d.cur - d.target) > 0.001) {
+            d.cur += (d.target - d.cur) * 0.18;
+            d.pivot.rotation.y = d.cur;
+          }
+        });
+        renderer.render(scene, camera);
+        updateLabels();
+      }
+      layout();
+      loop();
+      if (window.ResizeObserver) {
+        new ResizeObserver(function () {
+          var w = stage.clientWidth || 680;
+          renderer.setSize(w, H);
+          camera.aspect = w / H;
+          camera.updateProjectionMatrix();
+          layout();
+        }).observe(stage);
+      }
+    }
+
+    function loadThree() {
+      if (loaded) return;
+      loaded = true;
+      if (window.THREE) {
+        init();
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.onload = init;
+      s.onerror = function () {
+        stage.innerHTML =
+          '<div style="padding:2rem;color:rgba(255,255,255,0.55);font-size:14px">Le moteur 3D n\'a pas pu se charger.</div>';
+      };
+      document.head.appendChild(s);
+    }
+
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(
+        function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            if (entries[i].isIntersecting) {
+              loadThree();
+              io.disconnect();
+              break;
+            }
+          }
+        },
+        { rootMargin: '200px 0px' },
+      );
+      io.observe(stage);
+    } else {
+      loadThree();
+    }
+  })();
+</script>
