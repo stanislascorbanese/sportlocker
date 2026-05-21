@@ -706,3 +706,190 @@ describe('PUT /v1/admin/items/:id', () => {
     expect(res.statusCode).toBe(403)
   })
 })
+
+/**
+ * Cohérence référentielle entre items.current_locker_id et
+ * lockers.current_item_id. Sans cette synchro, la grille des casiers du
+ * dashboard (GET /v1/distributors/:id) affiche "casier vide" pour un item
+ * pourtant bien créé en base.
+ */
+describe('cohérence lockers.current_item_id ↔ items.current_locker_id', () => {
+  it('POST avec currentLockerId → lockers.current_item_id pointe sur l\'item', async () => {
+    const stack = await seedStack('CommuneSync')
+    const t = await seedItemType()
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/items/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { itemTypeId: t, rfidTag: 'SYNC-1', currentLockerId: stack.lockerId },
+    })
+    expect(res.statusCode).toBe(201)
+    const created = res.json() as { id: string }
+
+    const rows = await pgSql<{ current_item_id: string | null }[]>`
+      SELECT current_item_id FROM lockers WHERE id = ${stack.lockerId}`
+    expect(rows[0]!.current_item_id).toBe(created.id)
+  })
+
+  it('POST sans currentLockerId → aucun locker n\'est synchronisé', async () => {
+    const stack = await seedStack('CommuneOrphan')
+    const t = await seedItemType()
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/items/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { itemTypeId: t, rfidTag: 'SYNC-ORPHAN' },
+    })
+    expect(res.statusCode).toBe(201)
+
+    const rows = await pgSql<{ current_item_id: string | null }[]>`
+      SELECT current_item_id FROM lockers WHERE id = ${stack.lockerId}`
+    expect(rows[0]!.current_item_id).toBeNull()
+  })
+
+  it('POST sur locker déjà occupé → 409 locker_not_available + item non créé', async () => {
+    const stack = await seedStack('CommuneOccupied')
+    const t = await seedItemType()
+    const existingId = await seedItem({ itemTypeId: t, currentLockerId: stack.lockerId, rfidTag: 'EXIST' })
+    await pgSql`UPDATE lockers SET current_item_id = ${existingId} WHERE id = ${stack.lockerId}`
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/items/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { itemTypeId: t, rfidTag: 'NEW-COLLIDE', currentLockerId: stack.lockerId },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('locker_not_available')
+
+    // Transaction bien rollback : pas d'item NEW-COLLIDE en base
+    const items = await pgSql`SELECT 1 FROM items WHERE rfid_tag = 'NEW-COLLIDE'`
+    expect(items).toHaveLength(0)
+    // Locker toujours pointé sur l'item original
+    const rows = await pgSql<{ current_item_id: string | null }[]>`
+      SELECT current_item_id FROM lockers WHERE id = ${stack.lockerId}`
+    expect(rows[0]!.current_item_id).toBe(existingId)
+  })
+
+  it('POST sur locker en panne (state=fault) → 409 locker_not_available', async () => {
+    const stack = await seedStack('CommuneFault')
+    await pgSql`UPDATE lockers SET state = 'fault' WHERE id = ${stack.lockerId}`
+    const t = await seedItemType()
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/items/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { itemTypeId: t, rfidTag: 'FAULT-1', currentLockerId: stack.lockerId },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('locker_not_available')
+  })
+
+  it('PUT déplacement vers nouveau locker vide → ancien libéré, nouveau occupé', async () => {
+    const stack = await seedStack('CommuneMove')
+    const otherLocker = await addLocker(stack.distributorId)
+    const t = await seedItemType()
+    const itemId = await seedItem({ itemTypeId: t, currentLockerId: stack.lockerId, rfidTag: 'MOVE' })
+    await pgSql`UPDATE lockers SET current_item_id = ${itemId} WHERE id = ${stack.lockerId}`
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/admin/items/${itemId}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { currentLockerId: otherLocker },
+    })
+    expect(res.statusCode).toBe(200)
+
+    const rows = await pgSql<{ id: string; current_item_id: string | null }[]>`
+      SELECT id, current_item_id FROM lockers WHERE id IN (${stack.lockerId}, ${otherLocker})`
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r.current_item_id]))
+    expect(byId[stack.lockerId]).toBeNull()
+    expect(byId[otherLocker]).toBe(itemId)
+  })
+
+  it('PUT déplacement vers locker occupé → 409 + ancien casier inchangé', async () => {
+    const stack = await seedStack('CommuneConflict')
+    const otherLocker = await addLocker(stack.distributorId)
+    const t = await seedItemType()
+    const itemA = await seedItem({ itemTypeId: t, currentLockerId: stack.lockerId, rfidTag: 'A' })
+    const itemB = await seedItem({ itemTypeId: t, currentLockerId: otherLocker, rfidTag: 'B' })
+    await pgSql`UPDATE lockers SET current_item_id = ${itemA} WHERE id = ${stack.lockerId}`
+    await pgSql`UPDATE lockers SET current_item_id = ${itemB} WHERE id = ${otherLocker}`
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/admin/items/${itemA}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { currentLockerId: otherLocker },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('locker_not_available')
+
+    // Transaction rollback : itemA toujours sur son locker initial
+    const rows = await pgSql<{ id: string; current_item_id: string | null }[]>`
+      SELECT id, current_item_id FROM lockers WHERE id IN (${stack.lockerId}, ${otherLocker})`
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r.current_item_id]))
+    expect(byId[stack.lockerId]).toBe(itemA)
+    expect(byId[otherLocker]).toBe(itemB)
+    const itemRow = await pgSql<{ current_locker_id: string }[]>`
+      SELECT current_locker_id FROM items WHERE id = ${itemA}`
+    expect(itemRow[0]!.current_locker_id).toBe(stack.lockerId)
+  })
+
+  it('PUT super_admin unassign → ancien locker libéré', async () => {
+    const stack = await seedStack('CommuneUnassign')
+    const t = await seedItemType()
+    const itemId = await seedItem({ itemTypeId: t, currentLockerId: stack.lockerId, rfidTag: 'UNASSIGN' })
+    await pgSql`UPDATE lockers SET current_item_id = ${itemId} WHERE id = ${stack.lockerId}`
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/admin/items/${itemId}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { currentLockerId: null },
+    })
+    expect(res.statusCode).toBe(200)
+
+    const rows = await pgSql<{ current_item_id: string | null }[]>`
+      SELECT current_item_id FROM lockers WHERE id = ${stack.lockerId}`
+    expect(rows[0]!.current_item_id).toBeNull()
+  })
+
+  it('GET /v1/distributors/:id renvoie itemType peuplé après POST admin-items', async () => {
+    const stack = await seedStack('CommuneE2E')
+    const t = await seedItemType('ballon-foot')
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    // Création via la route admin (le scénario du bug remonté en prod)
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/items/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { itemTypeId: t, rfidTag: 'E2E-1', currentLockerId: stack.lockerId },
+    })
+    expect(createRes.statusCode).toBe(201)
+
+    // La grille du dashboard doit voir le type d'article (LEFT JOIN via
+    // lockers.current_item_id). Route publique → pas d'auth nécessaire.
+    const detailRes = await app.inject({
+      method: 'GET',
+      url: `/v1/distributors/${stack.distributorId}`,
+    })
+    expect(detailRes.statusCode).toBe(200)
+    const detail = detailRes.json() as {
+      lockers: Array<{ id: string; itemType: { slug: string } | null }>
+    }
+    const loaded = detail.lockers.find((l) => l.id === stack.lockerId)
+    expect(loaded?.itemType?.slug).toBe('ballon-foot')
+  })
+})

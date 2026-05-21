@@ -1,12 +1,21 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { distributors, itemTypes, items, lockers } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
+
+/**
+ * Lever depuis une transaction pour signaler que le locker visé ne peut pas
+ * accueillir d'item (déjà chargé ou state ≠ 'idle'). Mappé en 409 par le
+ * handler appelant.
+ */
+class LockerNotAvailableError extends Error {
+  constructor() { super('locker_not_available'); this.name = 'LockerNotAvailableError' }
+}
 
 const ITEM_CONDITION = ['new', 'good', 'worn', 'damaged', 'lost'] as const
 
@@ -266,12 +275,36 @@ export async function adminItemRoutes(rawApp: FastifyInstance) {
     if (!typeCheck) return reply.code(404).send({ error: 'item_type_not_found' })
 
     try {
-      const [created] = await db.insert(items).values({
-        itemTypeId:      body.itemTypeId,
-        rfidTag:         body.rfidTag,
-        condition:       body.condition,
-        currentLockerId: body.currentLockerId ?? null,
-      }).returning({ id: items.id })
+      const createdId = await db.transaction(async (tx) => {
+        const [created] = await tx.insert(items).values({
+          itemTypeId:      body.itemTypeId,
+          rfidTag:         body.rfidTag,
+          condition:       body.condition,
+          currentLockerId: body.currentLockerId ?? null,
+        }).returning({ id: items.id })
+
+        // Synchronise lockers.current_item_id : sans ça la grille du dashboard
+        // (GET /v1/distributors/:id LEFT JOIN items via lockers.current_item_id)
+        // ne voit pas le nouveau matériel et l'affiche comme "casier vide".
+        // L'UPDATE conditionné par `current_item_id IS NULL AND state='idle'`
+        // garantit l'atomicité face à 2 POST concurrents sur le même casier.
+        if (body.currentLockerId) {
+          const occupied = await tx
+            .update(lockers)
+            .set({ currentItemId: created!.id, updatedAt: new Date() })
+            .where(and(
+              eq(lockers.id, body.currentLockerId),
+              isNull(lockers.currentItemId),
+              eq(lockers.state, 'idle'),
+            ))
+            .returning({ id: lockers.id })
+          if (occupied.length === 0) {
+            throw new LockerNotAvailableError()
+          }
+        }
+
+        return created!.id
+      })
 
       const [row] = await db
         .select(baseSelect)
@@ -279,12 +312,15 @@ export async function adminItemRoutes(rawApp: FastifyInstance) {
         .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
         .leftJoin(lockers, eq(lockers.id, items.currentLockerId))
         .leftJoin(distributors, eq(distributors.id, lockers.distributorId))
-        .where(eq(items.id, created!.id))
+        .where(eq(items.id, createdId))
         .limit(1)
 
       if (!row) return reply.code(404).send({ error: 'item_not_found' })
       return reply.code(201).send(rowToDto(row))
     } catch (err) {
+      if (err instanceof LockerNotAvailableError) {
+        return reply.code(409).send({ error: 'locker_not_available' })
+      }
       // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
       if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'rfid')) {
         return reply.code(409).send({ error: 'rfid_tag_conflict' })
@@ -362,13 +398,64 @@ export async function adminItemRoutes(rawApp: FastifyInstance) {
     }
 
     try {
-      const [updated] = await db
-        .update(items)
-        .set(update)
-        .where(eq(items.id, req.params.id))
-        .returning({ id: items.id })
+      const updatedId = await db.transaction(async (tx) => {
+        // Lit le locker actuel avant l'UPDATE pour pouvoir le libérer après si
+        // l'item change de casier (cf. synchro lockers.current_item_id décrite
+        // sur le POST).
+        let oldLockerId: string | null = null
+        if (body.currentLockerId !== undefined) {
+          const [before] = await tx
+            .select({ currentLockerId: items.currentLockerId })
+            .from(items)
+            .where(eq(items.id, req.params.id))
+            .limit(1)
+          if (!before) return null
+          oldLockerId = before.currentLockerId
+        }
 
-      if (!updated) return reply.code(404).send({ error: 'item_not_found' })
+        const [updated] = await tx
+          .update(items)
+          .set(update)
+          .where(eq(items.id, req.params.id))
+          .returning({ id: items.id })
+        if (!updated) return null
+
+        if (body.currentLockerId !== undefined) {
+          const newLockerId = body.currentLockerId
+
+          // Libère l'ancien casier si l'item le quittait. La clause sur
+          // current_item_id évite d'écraser un locker remappé entre temps.
+          if (oldLockerId && oldLockerId !== newLockerId) {
+            await tx
+              .update(lockers)
+              .set({ currentItemId: null, updatedAt: new Date() })
+              .where(and(
+                eq(lockers.id, oldLockerId),
+                eq(lockers.currentItemId, req.params.id),
+              ))
+          }
+
+          // Occupe le nouveau (idempotent si oldLockerId === newLockerId).
+          if (newLockerId && newLockerId !== oldLockerId) {
+            const occupied = await tx
+              .update(lockers)
+              .set({ currentItemId: req.params.id, updatedAt: new Date() })
+              .where(and(
+                eq(lockers.id, newLockerId),
+                isNull(lockers.currentItemId),
+                eq(lockers.state, 'idle'),
+              ))
+              .returning({ id: lockers.id })
+            if (occupied.length === 0) {
+              throw new LockerNotAvailableError()
+            }
+          }
+        }
+
+        return updated.id
+      })
+
+      if (!updatedId) return reply.code(404).send({ error: 'item_not_found' })
 
       const [row] = await db
         .select(baseSelect)
@@ -376,12 +463,15 @@ export async function adminItemRoutes(rawApp: FastifyInstance) {
         .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
         .leftJoin(lockers, eq(lockers.id, items.currentLockerId))
         .leftJoin(distributors, eq(distributors.id, lockers.distributorId))
-        .where(eq(items.id, updated.id))
+        .where(eq(items.id, updatedId))
         .limit(1)
 
       if (!row) return reply.code(404).send({ error: 'item_not_found' })
       return rowToDto(row)
     } catch (err) {
+      if (err instanceof LockerNotAvailableError) {
+        return reply.code(409).send({ error: 'locker_not_available' })
+      }
       // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
       if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'rfid')) {
         return reply.code(409).send({ error: 'rfid_tag_conflict' })
