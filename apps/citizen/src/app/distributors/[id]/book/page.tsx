@@ -1,0 +1,422 @@
+'use client'
+
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { ArrowLeft, CalendarClock, Check, Clock } from 'lucide-react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { QRCodeSVG } from 'qrcode.react'
+import { useMemo, useState } from 'react'
+
+import {
+  SLOT_DURATIONS,
+  type SlotDurationMinutes,
+  type SlotReservationCreated,
+  createSlotReservation,
+  fetchAvailability,
+  fetchDistributorDetail,
+  type AvailabilitySlot,
+  type DistributorDetail,
+  type LockerItemType,
+} from '../../../../lib/api'
+import { useRequireAuth } from '../../../../lib/auth-context'
+import { cn } from '../../../../lib/cn'
+
+/**
+ * Flow de réservation par créneaux (modèle slots PR 0008).
+ *
+ *   1. Choix du sport (item_type) — chips horizontaux
+ *   2. Choix de la durée — 30/60/90/120 min
+ *   3. Grille des créneaux disponibles J→J+7 — colonnes = jours, cellules = slots
+ *   4. Récap (prix figé) + bouton "Réserver ce créneau"
+ *
+ * Le calendrier ne s'affiche qu'après les 2 premiers choix (cascade
+ * dépendante). Si pas de pricing_rule pour le triplet courant, l'API
+ * renvoie une grille avec `priceCents=null` et `available=false` → on
+ * affiche "Pas de tarif configuré".
+ */
+
+function fmtDurationMinutes(d: SlotDurationMinutes): string {
+  if (d < 60) return `${d} min`
+  const h = Math.floor(d / 60)
+  const r = d % 60
+  return r === 0 ? `${h} h` : `${h} h ${r}`
+}
+
+function fmtPrice(cents: number | null): string {
+  if (cents === null) return '—'
+  if (cents === 0) return 'Gratuit'
+  return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`
+}
+
+function fmtHour(iso: string): string {
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function fmtDayShort(isoDay: string): { weekday: string; day: number; month: string } {
+  const d = new Date(`${isoDay}T12:00:00Z`)
+  return {
+    weekday: d.toLocaleDateString('fr-FR', { weekday: 'short' }),
+    day: d.getUTCDate(),
+    month: d.toLocaleDateString('fr-FR', { month: 'short' }),
+  }
+}
+
+function fmtFullSlot(slot: AvailabilitySlot): string {
+  const d = new Date(slot.startsAt)
+  const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return `${dateStr} · ${fmtHour(slot.startsAt)} – ${fmtHour(slot.endsAt)}`
+}
+
+function groupAvailableTypes(d: DistributorDetail): LockerItemType[] {
+  const map = new Map<string, LockerItemType>()
+  for (const l of d.lockers) {
+    if (l.itemType && !map.has(l.itemType.id)) map.set(l.itemType.id, l.itemType)
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export default function BookingPage() {
+  const params = useParams<{ id: string }>()
+  const user = useRequireAuth()
+
+  const [itemTypeId, setItemTypeId] = useState<string | null>(null)
+  const [duration, setDuration] = useState<SlotDurationMinutes>(60)
+  const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null)
+
+  const detailQuery = useQuery({
+    queryKey: ['distributor-detail', params.id],
+    queryFn: () => fetchDistributorDetail(params.id),
+    enabled: Boolean(user && params.id),
+  })
+
+  const availabilityQuery = useQuery({
+    queryKey: ['availability', params.id, itemTypeId, duration],
+    queryFn: () => fetchAvailability({
+      distributorId: params.id,
+      itemTypeId: itemTypeId!,
+      durationMinutes: duration,
+    }),
+    // Pas de fetch tant que pas d'itemType choisi : économise une requête
+    // qui renverrait 422 de toute façon (itemTypeId obligatoire).
+    enabled: Boolean(user && params.id && itemTypeId),
+    staleTime: 30_000,
+  })
+
+  const reserveMutation = useMutation({
+    mutationFn: () => createSlotReservation({
+      distributorId: params.id,
+      itemTypeId: itemTypeId!,
+      slotStartAt: selectedSlot!.startsAt,
+      durationMinutes: duration,
+    }),
+    // Pas de redirect vers /reservations/[id] : la page de détail attend un
+    // shape enrichi (qrToken, distributor.name) que `/v1/reservations/active`
+    // ne fournit pas aujourd'hui — bug pré-existant hors scope PR 4. On
+    // affiche directement le récap + QR dans cette page sur succès.
+  })
+
+  const types = useMemo(
+    () => (detailQuery.data ? groupAvailableTypes(detailQuery.data) : []),
+    [detailQuery.data],
+  )
+  const days = availabilityQuery.data?.days ?? {}
+  const dayKeys = Object.keys(days).sort()
+
+  if (!user) return null
+
+  // État succès : on remplace tout le flux par un récap + QR.
+  if (reserveMutation.data) {
+    return (
+      <ConfirmationView
+        reservation={reserveMutation.data}
+        distributorName={detailQuery.data?.name ?? ''}
+        itemTypeName={types.find((t) => t.id === itemTypeId)?.name ?? ''}
+      />
+    )
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-8 pt-[calc(var(--safe-top)+1rem)]">
+      <header className="flex items-center gap-3">
+        <Link
+          href={`/distributors/${params.id}`}
+          aria-label="Retour"
+          className="rounded-full bg-white/10 p-2 hover:bg-white/20"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div>
+          <p className="text-[11px] uppercase tracking-wider text-white/50">Réserver un créneau</p>
+          <h1 className="font-display text-xl font-semibold">
+            {detailQuery.data?.name ?? '…'}
+          </h1>
+        </div>
+      </header>
+
+      {/* Étape 1 : sport */}
+      <section>
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
+          1. Choisis ton sport
+        </h2>
+        {types.length === 0 ? (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+            Ce distributeur ne contient aucun matériel pour le moment.
+          </p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {types.map((t) => {
+              const isSel = itemTypeId === t.id
+              return (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemTypeId(t.id)
+                      setSelectedSlot(null)
+                    }}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-sm transition',
+                      isSel
+                        ? 'border-emerald-400 bg-emerald-500/10 text-emerald-100'
+                        : 'border-white/15 bg-white/5 text-white/80 hover:border-white/40',
+                    )}
+                  >
+                    {t.name}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Étape 2 : durée */}
+      {itemTypeId && (
+        <section>
+          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
+            2. Combien de temps ?
+          </h2>
+          <ul className="grid grid-cols-4 gap-2">
+            {SLOT_DURATIONS.map((d) => {
+              const isSel = duration === d
+              return (
+                <li key={d}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDuration(d)
+                      setSelectedSlot(null)
+                    }}
+                    className={cn(
+                      'flex w-full flex-col items-center gap-0.5 rounded-xl border p-2.5 text-center transition',
+                      isSel
+                        ? 'border-emerald-400 bg-emerald-500/10'
+                        : 'border-white/10 bg-white/5 hover:border-white/30',
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5 text-white/50" />
+                    <span className="text-xs font-medium tabular-nums">{fmtDurationMinutes(d)}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* Étape 3 : créneau */}
+      {itemTypeId && (
+        <section>
+          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
+            3. Choisis un créneau
+          </h2>
+          {availabilityQuery.isLoading && (
+            <p className="text-sm text-white/50">Chargement des dispos…</p>
+          )}
+          {availabilityQuery.error && (
+            <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+              Erreur : {(availabilityQuery.error as Error).message}
+            </p>
+          )}
+          {availabilityQuery.data && dayKeys.length === 0 && (
+            <p className="text-sm text-white/50">Aucun créneau dans la fenêtre J→J+7.</p>
+          )}
+          {availabilityQuery.data && dayKeys.length > 0 && (
+            <SlotGrid
+              days={days}
+              dayKeys={dayKeys}
+              selected={selectedSlot}
+              onSelect={setSelectedSlot}
+            />
+          )}
+        </section>
+      )}
+
+      {/* Étape 4 : récap + confirmation */}
+      {selectedSlot && (
+        <section className="rounded-2xl border border-emerald-400/30 bg-emerald-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium capitalize">{fmtFullSlot(selectedSlot)}</p>
+              <p className="mt-1 text-[12px] text-white/60">
+                {fmtDurationMinutes(duration)} · {fmtPrice(selectedSlot.priceCents)}
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+                Aucun débit (MVP) — le prix est affiché à titre indicatif. Tu pourras
+                ouvrir le casier en scannant ton QR le jour J, dans la fenêtre de 15 min après
+                l'heure de début.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={reserveMutation.isPending}
+            onClick={() => reserveMutation.mutate()}
+            className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {reserveMutation.isPending ? 'Réservation…' : 'Réserver ce créneau'}
+          </button>
+          {reserveMutation.error && (
+            <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">
+              {(reserveMutation.error as Error).message}
+            </p>
+          )}
+        </section>
+      )}
+    </main>
+  )
+}
+
+function ConfirmationView({
+  reservation,
+  distributorName,
+  itemTypeName,
+}: {
+  reservation: SlotReservationCreated
+  distributorName: string
+  itemTypeName: string
+}) {
+  const slotStart = new Date(reservation.slotStartAt)
+  const slotEnd = new Date(reservation.slotEndAt)
+  const dateStr = slotStart.toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  })
+  const timeRange =
+    `${slotStart.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} – `
+    + `${slotEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-8 pt-[calc(var(--safe-top)+1rem)]">
+      <header className="flex items-center gap-3">
+        <Link href="/" aria-label="Accueil" className="rounded-full bg-white/10 p-2 hover:bg-white/20">
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div>
+          <p className="text-[11px] uppercase tracking-wider text-emerald-300/80">Créneau réservé</p>
+          <h1 className="font-display text-xl font-semibold">Présente ton QR le jour J</h1>
+        </div>
+      </header>
+
+      <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4">
+        <div className="flex items-start gap-3">
+          <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium capitalize text-emerald-100">{dateStr}</p>
+            <p className="mt-0.5 text-sm text-emerald-200/80">{timeRange}</p>
+            <p className="mt-2 text-[12px] text-white/65">
+              {itemTypeName} · {distributorName}
+            </p>
+            <p className="mt-1 text-[12px] font-medium text-white/85">
+              {reservation.priceCents === 0
+                ? 'Gratuit'
+                : `${(reservation.priceCents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6">
+        <QRCodeSVG value={reservation.deviceToken} size={256} level="H" marginSize={0} />
+        <p className="max-w-[256px] truncate text-center font-mono text-[11px] text-navy-900/50">
+          {reservation.deviceToken.slice(0, 32)}…
+        </p>
+      </section>
+
+      <p className="text-center text-[11px] leading-relaxed text-white/40">
+        Scanne ce QR sur le distributeur pour ouvrir le casier. Le QR reste valide
+        jusqu'à 15 min après l'heure de début. Au-delà, le créneau est libéré et la
+        réservation expire.
+      </p>
+
+      <Link
+        href="/"
+        className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-center text-sm font-medium text-white/85 transition hover:border-white/30"
+      >
+        Retour à l'accueil
+      </Link>
+    </main>
+  )
+}
+
+function SlotGrid({
+  days,
+  dayKeys,
+  selected,
+  onSelect,
+}: {
+  days: Record<string, AvailabilitySlot[]>
+  dayKeys: string[]
+  selected: AvailabilitySlot | null
+  onSelect: (s: AvailabilitySlot) => void
+}) {
+  return (
+    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+      {dayKeys.map((dk) => {
+        const d = fmtDayShort(dk)
+        const slots = days[dk] ?? []
+        return (
+          <div key={dk} className="flex w-[88px] shrink-0 flex-col">
+            <div className="mb-1.5 flex flex-col items-center gap-0">
+              <span className="text-[10px] uppercase tracking-wider text-white/50">{d.weekday}</span>
+              <span className="text-base font-semibold tabular-nums">{d.day}</span>
+              <span className="text-[10px] text-white/40">{d.month}</span>
+            </div>
+            <ul className="flex flex-col gap-1">
+              {slots.length === 0 && (
+                <li className="text-center text-[10px] text-white/30">—</li>
+              )}
+              {slots.map((s) => {
+                const isSel = selected?.startsAt === s.startsAt
+                const noPrice = s.priceCents === null
+                return (
+                  <li key={s.startsAt}>
+                    <button
+                      type="button"
+                      disabled={!s.available || noPrice}
+                      onClick={() => onSelect(s)}
+                      title={noPrice ? 'Pas de tarif configuré pour ce créneau' : undefined}
+                      className={cn(
+                        'flex w-full flex-col items-center rounded-md border px-1 py-1 text-center text-[11px] tabular-nums transition',
+                        !s.available || noPrice
+                          ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/25'
+                          : isSel
+                            ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
+                            : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
+                      )}
+                    >
+                      <span className="font-medium">{fmtHour(s.startsAt)}</span>
+                      {s.priceCents !== null && (
+                        <span className="text-[9px] text-white/55">{fmtPrice(s.priceCents)}</span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
