@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SlotDurationMinutes } from './enums.js'
+import { SlotDurationMinutes } from './enums'
 
 /**
  * Un créneau réservable retourné par `GET /v1/distributors/:id/availability`.

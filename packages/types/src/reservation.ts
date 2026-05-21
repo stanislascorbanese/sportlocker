@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ReservationStatus, SlotDurationMinutes } from './enums.js'
+import { ReservationStatus, SlotDurationMinutes } from './enums'
 
 export const Reservation = z.object({
   id: z.string().uuid(),
