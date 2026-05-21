@@ -7,8 +7,15 @@ import { lockers, reservations } from '../db/schema.js'
 /**
  * Libère les casiers dont la réservation est en `pending` mais a dépassé
  * `expires_at` sans avoir été ouverte. Casier → idle, réservation → expired.
+ *
+ * Idempotence : un re-run trouve 0 ligne (les déjà-expirées ne sont plus
+ * 'pending'). La libération des casiers tolère qu'un casier soit déjà 'idle'
+ * (UPDATE sans WHERE state, sûr car on n'écrase pas un casier qui aurait été
+ * re-réservé entretemps — impossible par la state machine).
+ *
+ * Retourne le nombre de réservations expirées (utile pour tests et obs).
  */
-export async function runExpireReservations(log: FastifyBaseLogger): Promise<void> {
+export async function runExpireReservations(log: FastifyBaseLogger): Promise<number> {
   const now = new Date()
 
   const expired = await db
@@ -25,4 +32,5 @@ export async function runExpireReservations(log: FastifyBaseLogger): Promise<voi
   }
 
   if (expired.length > 0) log.info({ count: expired.length }, 'expired reservations released')
+  return expired.length
 }
