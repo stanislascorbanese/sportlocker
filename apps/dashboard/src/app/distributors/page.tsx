@@ -119,12 +119,20 @@ export default async function DistributorsListPage() {
                     {fmtRelative(d.lastSeenAt)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/distributors/${d.id}/edit`}
-                      className="text-xs text-emerald-300 transition hover:text-emerald-200"
-                    >
-                      Modifier
-                    </Link>
+                    <div className="flex items-center justify-end gap-3">
+                      <Link
+                        href={`/distributors/${d.id}`}
+                        className="text-xs text-emerald-300 transition hover:text-emerald-200"
+                      >
+                        Détail
+                      </Link>
+                      <Link
+                        href={`/distributors/${d.id}/edit`}
+                        className="text-xs text-white/55 transition hover:text-white"
+                      >
+                        Modifier
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
