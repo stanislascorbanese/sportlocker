@@ -171,6 +171,13 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
     if (target) target.checked = true
   }
 
+  // Préremplissage de la localité depuis la carte /couverture
+  const localityParam = params.get('locality')
+  if (localityParam) {
+    const localityEl = document.getElementById('locality') as HTMLInputElement | null
+    if (localityEl && !localityEl.value) localityEl.value = localityParam
+  }
+
   const form = document.getElementById('contact-form') as HTMLFormElement | null
   const status = document.getElementById('form-status') as HTMLDivElement | null
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement | null
