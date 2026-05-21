@@ -114,6 +114,13 @@ function apiErrorToLoadState(err: unknown): LoadLockerState {
           fieldErrors: { rfidTag: 'déjà utilisé' },
         }
       }
+      if (err.detail === 'locker_not_available') {
+        return {
+          status: 'error',
+          message: 'Ce casier ne peut pas être chargé (déjà occupé ou en panne). Rafraîchissez la liste.',
+          fieldErrors: { lockerId: 'indisponible' },
+        }
+      }
       return { status: 'error', message: 'Conflit : ressource déjà existante.' }
     }
     return { status: 'error', message: `API ${err.status}: ${err.detail}` }
