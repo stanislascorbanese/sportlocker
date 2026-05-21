@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets'
+import logoMark from '@/assets/brand/logo-mark-outline.png'
 import { NAV } from '@/data/site'
 const path = Astro.url.pathname
 ---
@@ -7,7 +9,7 @@ const path = Astro.url.pathname
   <div class="container-x">
     <div class="flex items-center justify-between gap-8">
       <a href="/" class="flex items-center gap-2.5 no-underline" aria-label="SportLocker — accueil">
-        <img src="/brand/logo-mark-outline.png" alt="" class="w-11 h-11" width="44" height="44" />
+        <Image src={logoMark} alt="" class="w-11 h-11" width={88} height={88} densities={[1, 2]} loading="eager" />
         <span class="font-extrabold text-[1.15rem] text-white">
           Sport<span class="text-brand-500">Locker</span>
         </span>
