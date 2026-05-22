@@ -247,23 +247,41 @@ export default function BookingPage() {
           {availabilityQuery.data && dayKeys.length === 0 && (
             <p className="text-sm text-white/50">Aucun créneau dans la fenêtre J→J+7.</p>
           )}
-          {availabilityQuery.data && dayKeys.length > 0 && (
-            isDayPassDuration(duration) ? (
-              <DayPassGrid
-                days={days}
-                dayKeys={dayKeys}
-                selected={selectedSlot}
-                onSelect={setSelectedSlot}
-              />
-            ) : (
-              <SlotGrid
-                days={days}
-                dayKeys={dayKeys}
-                selected={selectedSlot}
-                onSelect={setSelectedSlot}
-              />
+          {availabilityQuery.data && dayKeys.length > 0 && (() => {
+            // Détecte le cas "aucun tarif configuré" : tous les slots ont
+            // priceCents=null, càd aucune pricing_rule pour ce triplet
+            // (commune × item_type × durée). Plutôt qu'un tooltip par
+            // cellule (peu visible), on bannerise au-dessus de la grille.
+            const allWithoutPrice = dayKeys.every((dk) =>
+              (days[dk] ?? []).every((s) => s.priceCents === null),
             )
-          )}
+            return (
+              <>
+                {allWithoutPrice && (
+                  <p className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-[12px] leading-relaxed text-amber-200">
+                    Aucun tarif <strong>{fmtDurationMinutes(duration)}</strong> n'est configuré
+                    pour ce sport sur ce distributeur. Demande à l'opérateur d'ajouter ce créneau
+                    dans le dashboard, ou essaie une autre durée ci-dessus.
+                  </p>
+                )}
+                {isDayPassDuration(duration) ? (
+                  <DayPassGrid
+                    days={days}
+                    dayKeys={dayKeys}
+                    selected={selectedSlot}
+                    onSelect={setSelectedSlot}
+                  />
+                ) : (
+                  <SlotGrid
+                    days={days}
+                    dayKeys={dayKeys}
+                    selected={selectedSlot}
+                    onSelect={setSelectedSlot}
+                  />
+                )}
+              </>
+            )
+          })()}
         </section>
       )}
 
