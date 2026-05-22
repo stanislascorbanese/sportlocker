@@ -93,6 +93,21 @@
       renderer.setClearColor(0x000000, 0);
       stage.appendChild(renderer.domElement);
 
+      // Resilience WebGL : Safari/macOS peut "perdre" le contexte WebGL
+      // (GPU process corrompu, quota dépassé, mise en veille longue…) — sans
+      // handler, le canvas reste noir silencieusement. On affiche un overlay
+      // de fallback avec bouton "Recharger" pour que le visiteur sache quoi
+      // faire au lieu de croire que la 3D est cassée.
+      renderer.domElement.addEventListener('webglcontextlost', function (e) {
+        e.preventDefault();
+        stage.innerHTML =
+          '<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.75rem;padding:2rem;text-align:center">' +
+          '<p style="color:rgba(255,255,255,0.85);font-size:0.95rem;margin:0">Aperçu 3D temporairement interrompu</p>' +
+          '<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;margin:0;max-width:32ch;line-height:1.45">Safari a fermé le contexte graphique. Rechargez la page pour relancer le rendu.</p>' +
+          '<button type="button" onclick="window.location.reload()" style="margin-top:0.25rem;padding:0.5rem 1rem;border-radius:9999px;background:#1D9E75;color:#0D1B2A;font-weight:600;font-size:0.85rem;border:0;cursor:pointer">Recharger la page</button>' +
+          '</div>';
+      }, false);
+
       scene.add(new THREE.AmbientLight(0xffffff, 0.4));
       scene.add(new THREE.HemisphereLight(0xffffff, 0x70726c, 0.95));
       var key = new THREE.DirectionalLight(0xffffff, 0.85);
