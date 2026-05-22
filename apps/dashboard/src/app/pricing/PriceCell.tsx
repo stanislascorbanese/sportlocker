@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState, useTransition } from 'react'
 
 import { cn } from '../../lib/cn'
 import { upsertPricingRuleAction, deletePricingRuleAction } from './_actions'
@@ -22,6 +23,28 @@ type Props = {
 }
 
 /**
+ * Formate des cents en string lisible côté input (sans symbole €, le €
+ * est rendu à part en absolu pour ne pas perturber l'édition) :
+ *   50    → "0,50"
+ *   100   → "1"
+ *   150   → "1,50"
+ *   2000  → "20"
+ *   1234  → "12,34"
+ * Virgule (et pas point) parce qu'on est en fr-FR.
+ */
+function formatCents(cents: number): string {
+  const euros = cents / 100
+  // toFixed(2) puis on retire les zéros de queue, mais on garde la virgule
+  // si il reste des centimes significatifs.
+  const fixed = euros.toFixed(2)
+  // "0.50" → "0,5" ; "1.00" → "1" ; "1.50" → "1,5" — pas idéal, on veut
+  // garder "0,50" pour la lisibilité. Donc on enlève seulement les zéros
+  // ET le point quand TOUS les centimes sont à 0.
+  const trimmed = fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
+  return trimmed.replace('.', ',')
+}
+
+/**
  * Cellule de la matrice tarifaire. L'admin tape un montant en € (1 décimale
  * max). À la perte de focus :
  *   - vide → DELETE de la règle (le slot disparaît pour ce sport)
@@ -29,15 +52,26 @@ type Props = {
  *   - valeur invalide → reset à l'initial + petite bordure rouge
  *
  * On utilise `useTransition` pour bloquer les autres edits tant que le
- * serveur ne répond pas, et `revalidateTag('pricing-rules')` côté action
- * force le re-fetch côté serveur sans full reload.
+ * serveur ne répond pas. Le `router.refresh()` après succès force Next.js
+ * à re-render le RSC parent → la matrice reflète l'état serveur réel
+ * (le `revalidateTag('pricing-rules')` côté action ne suffit pas seul à
+ * forcer le re-render du Server Component contenant).
  */
 export function PriceCell(props: Props) {
+  const router = useRouter()
   const [draft, setDraft] = useState<string>(
-    props.initialPriceCents === null ? '' : (props.initialPriceCents / 100).toFixed(2).replace(/\.?0+$/, ''),
+    props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents),
   )
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  // Si le parent re-fetch (après router.refresh) et que `initialPriceCents`
+  // change, on resynchronise le draft local. Sans ça l'edit local persiste
+  // par-dessus l'état serveur.
+  useEffect(() => {
+    setDraft(props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents))
+    setError(null)
+  }, [props.initialPriceCents, props.ruleId])
 
   function commit() {
     setError(null)
@@ -53,8 +87,10 @@ export function PriceCell(props: Props) {
         const res = await deletePricingRuleAction(fd)
         if (res.status === 'error') {
           setError(res.message ?? 'error')
-          setDraft(props.initialPriceCents === null ? '' : (props.initialPriceCents / 100).toFixed(2))
+          setDraft(props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents))
+          return
         }
+        router.refresh()
       })
       return
     }
@@ -62,7 +98,7 @@ export function PriceCell(props: Props) {
     const parsed = Number(trimmed)
     if (!Number.isFinite(parsed) || parsed < 0) {
       setError('invalid')
-      setDraft(props.initialPriceCents === null ? '' : (props.initialPriceCents / 100).toFixed(2))
+      setDraft(props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents))
       return
     }
     const cents = Math.round(parsed * 100)
@@ -77,8 +113,10 @@ export function PriceCell(props: Props) {
       const res = await upsertPricingRuleAction(fd)
       if (res.status === 'error') {
         setError(res.message ?? 'error')
-        setDraft(props.initialPriceCents === null ? '' : (props.initialPriceCents / 100).toFixed(2))
+        setDraft(props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents))
+        return
       }
+      router.refresh()
     })
   }
 
@@ -93,7 +131,7 @@ export function PriceCell(props: Props) {
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur()
           if (e.key === 'Escape') {
-            setDraft(props.initialPriceCents === null ? '' : (props.initialPriceCents / 100).toFixed(2))
+            setDraft(props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents))
             e.currentTarget.blur()
           }
         }}
@@ -101,7 +139,9 @@ export function PriceCell(props: Props) {
         disabled={isPending}
         aria-label={`Prix ${props.durationMinutes} min en euros`}
         className={cn(
-          'w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-right text-sm tabular-nums',
+          // 6rem au lieu de 5rem pour laisser la place au "€" sans
+          // chevauchement du nombre — utile pour 1234 (= 12,34 €).
+          'w-24 rounded-md border bg-zinc-900/60 px-2 py-1 pr-6 text-right text-sm tabular-nums',
           'transition-colors focus:outline-none focus:ring-1',
           error
             ? 'border-rose-500/60 text-rose-300 focus:border-rose-500 focus:ring-rose-500/30'

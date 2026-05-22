@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 import { cn } from '../../lib/cn'
@@ -8,10 +9,13 @@ import { PRICING_TEMPLATES } from './templates'
 
 /**
  * 3 cards de templates. Click → confirme (les règles existantes sur les mêmes
- * triplets seront écrasées) → POST /v1/admin/pricing-rules/bulk. Le revalidate
- * côté action force le refresh de la matrice.
+ * triplets seront écrasées) → POST /v1/admin/pricing-rules/bulk. Le
+ * `router.refresh()` côté client force Next.js à re-render le Server
+ * Component parent → la matrice reflète l'état serveur réel (le seul
+ * `revalidateTag('pricing-rules')` côté action ne suffit pas).
  */
 export function ApplyTemplate({ communeId }: { communeId: string | null }) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -26,6 +30,7 @@ export function ApplyTemplate({ communeId }: { communeId: string | null }) {
       if (res.status === 'success') {
         const count = res.message?.match(/^(\d+)_rules_applied$/)?.[1]
         setFeedback({ kind: 'ok', msg: count ? `${count} règle(s) appliquée(s)` : 'Template appliqué' })
+        router.refresh()
       } else {
         setFeedback({
           kind: 'err',
