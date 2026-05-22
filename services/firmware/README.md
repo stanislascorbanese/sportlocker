@@ -120,6 +120,32 @@ il finit dans l'historique shell. En prod, le JWT device est minté par
 l'app citoyenne (et par l'API pour les forces-unlock opérateur), jamais par
 ce tool.
 
+### E2E complet API + DB (regression test)
+
+`demo_unlock` (ci-dessus) teste juste le couple firmware ↔ broker. Pour
+valider la chaîne **citoyen → API → MQTT → firmware → MQTT → API → DB**
+en une commande :
+
+```bash
+# One-shot : docker up, seed, scan, extend, return, vérifie, cleanup.
+./scripts/e2e-firmware-sim.sh
+
+# Variante : garde les containers up à la fin pour debug interactif.
+./scripts/e2e-firmware-sim.sh --keep-running
+```
+
+Le script orchestre :
+1. Docker compose (postgres + mosquitto + firmware-sim x86)
+2. Schema + migrations + truncate
+3. `pnpm --filter @sportlocker/api db:seed-fw-sim` (distributeur fixe
+   `00000000-…` + 4 casiers `11111111-…`, `22222222-…`, etc.)
+4. API en arrière-plan avec `MQTT_SUBSCRIBER_ENABLED=true` et le même
+   `JWT_DEVICE_SECRET` que le firmware-sim
+5. `POST /v1/dev/simulate-scan` → vérifie résa → `active`
+6. `PATCH /v1/reservations/:id/extend` → vérifie `due_at +1h`
+7. `POST /v1/reservations/:id/return` → vérifie résa → `returned`
+8. Audit `locker_events` = `[opened, extended, returned]`
+
 ## Déploiement Balena
 
 ```bash
