@@ -141,19 +141,25 @@ function ReservationContent({
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <Row icon={<MapPin className="h-4 w-4" />} label="Distributeur" value={r.distributor.name} />
         <Row icon={<Package className="h-4 w-4" />} label="Article" value={r.item.typeName} />
-        {isScheduled && r.slotStartAt && (
+        {isScheduled && r.slotStartAt ? (
+          // Pour les résas scheduled, le countdown vers expiresAt (slotEnd
+          // + grâce 15min) peut être >24h → afficher "4777:49" est aberrant.
+          // On affiche le créneau directement ; le countdown ne devient
+          // utile qu'au moment où le slot démarre (status passe à pending).
           <Row
             icon={<CalendarClock className="h-4 w-4" />}
             label={isDayPass ? 'Date réservée' : 'Créneau'}
             value={fmtSlot(r.slotStartAt, r.slotEndAt ?? null, isDayPass)}
           />
+        ) : (
+          // pending : QR avec TTL court (15 min), countdown pertinent
+          <Row
+            icon={<Clock className="h-4 w-4" />}
+            label="Temps restant"
+            value={expired ? 'Expiré' : formatRemaining(remaining)}
+            highlight={!expired}
+          />
         )}
-        <Row
-          icon={<Clock className="h-4 w-4" />}
-          label={isScheduled ? 'Validité QR' : 'Temps restant'}
-          value={expired ? 'Expiré' : formatRemaining(remaining)}
-          highlight={!expired && !isScheduled}
-        />
       </section>
 
       <p className="text-center text-[11px] leading-relaxed text-white/40">

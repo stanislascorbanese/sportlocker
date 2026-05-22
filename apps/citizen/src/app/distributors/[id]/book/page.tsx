@@ -5,7 +5,7 @@ import { ArrowLeft, CalendarClock, Check, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   DAY_PASS_MINUTES,
@@ -239,48 +239,58 @@ export default function BookingPage() {
         )}
       </section>
 
-      {/* Étape 2 : durée */}
+      {/* Étape 2 : durée — liste verticale avec prix prominent à droite */}
       {itemTypeId && (
         <section>
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
             2. Combien de temps ?
           </h2>
-          <ul className="grid grid-cols-5 gap-2">
+          <ul className="space-y-1.5">
             {SLOT_DURATIONS.map((d) => {
               const isSel = duration === d
               const price = pricesByDuration[d]
               const isDay = isDayPassDuration(d)
-              // Tant que la query availability tourne (price === undefined dans
-              // notre map mais on a forcé null si pas data), on n'affiche rien
-              // sous la durée pour éviter le flash "—" puis valeur.
               const priceLoading = priceQueries[SLOT_DURATIONS.indexOf(d)]?.isPending ?? true
+              const unavailable = !priceLoading && price == null
               return (
                 <li key={d}>
                   <button
                     type="button"
+                    disabled={unavailable}
                     onClick={() => {
                       setDuration(d)
                       setSelectedSlot(null)
                     }}
                     className={cn(
-                      'flex w-full flex-col items-center gap-0.5 rounded-xl border p-2.5 text-center transition',
-                      isSel
-                        ? 'border-emerald-400 bg-emerald-500/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/30',
-                      // Le bouton "Journée" reste visible mais légèrement
-                      // distinct pour signaler le forfait (vs slot court).
-                      isDay && !isSel && 'border-emerald-400/25',
+                      'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition',
+                      unavailable
+                        ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30'
+                        : isSel
+                          ? 'border-emerald-400 bg-emerald-500/10'
+                          : 'border-white/10 bg-white/5 hover:border-white/30',
                     )}
                   >
-                    <Clock className="h-3.5 w-3.5 text-white/50" />
-                    <span className="text-xs font-medium tabular-nums">{fmtDurationMinutes(d)}</span>
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'flex h-9 w-9 items-center justify-center rounded-full',
+                        isSel ? 'bg-emerald-500/25 text-emerald-200' : 'bg-white/10 text-white/60',
+                      )}>
+                        <Clock className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium tabular-nums">{fmtDurationMinutes(d)}</p>
+                        {isDay && (
+                          <p className="text-[10px] text-white/45">Forfait journalier</p>
+                        )}
+                      </div>
+                    </div>
                     {priceLoading ? (
-                      <span className="text-[10px] text-white/30 tabular-nums">·</span>
+                      <span className="text-xs text-white/30 tabular-nums">…</span>
                     ) : (
                       <span
                         className={cn(
-                          'text-[10px] tabular-nums',
-                          price == null ? 'text-white/30' : 'text-emerald-300/80',
+                          'text-sm font-semibold tabular-nums',
+                          unavailable ? 'text-white/30' : 'text-emerald-300',
                         )}
                       >
                         {price == null ? '—' : fmtPrice(price)}
@@ -469,53 +479,99 @@ function SlotGrid({
   selected: AvailabilitySlot | null
   onSelect: (s: AvailabilitySlot) => void
 }) {
-  // Slots courts : colonnes par jour, heures empilées, prix supprimés
-  // de chaque cellule (déjà rappelé sous le bouton de durée et dans le
-  // récap). Cellule = heure seule = plus lisible.
+  // Picker en 2 étapes (vs grille dense de 5×N cellules avant) :
+  //   3a. Sélection du jour via chips horizontaux. Défaut = 1er jour avec
+  //       au moins un créneau libre, sinon 1er jour de la fenêtre.
+  //   3b. Grille 3 colonnes des heures du jour choisi.
+  //
+  // Gain UX : ~30 boutons visibles à la fois contre ~150 avant.
+  const firstDayWithSlots = dayKeys.find((dk) =>
+    (days[dk] ?? []).some((s) => s.available && s.priceCents !== null),
+  ) ?? dayKeys[0] ?? null
+
+  const [activeDay, setActiveDay] = useState<string | null>(firstDayWithSlots)
+  // Si le 1er jour dispo change (autre durée), on resynchronise.
+  useEffect(() => {
+    setActiveDay(firstDayWithSlots)
+  }, [firstDayWithSlots])
+
+  // Bascule auto sur le jour du slot sélectionné si l'user re-clique sur
+  // un autre jour avant de finaliser (préserve l'ergonomie).
+  useEffect(() => {
+    if (selected) {
+      const sel = new Date(selected.startsAt)
+      const key = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}-${String(sel.getDate()).padStart(2, '0')}`
+      if (dayKeys.includes(key)) setActiveDay(key)
+    }
+  }, [selected, dayKeys])
+
+  const currentSlots = activeDay ? (days[activeDay] ?? []) : []
+  const hasAvailableInActiveDay = currentSlots.some((s) => s.available && s.priceCents !== null)
+
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
-      {dayKeys.map((dk) => {
-        const d = fmtDayShort(dk)
-        const slots = days[dk] ?? []
-        return (
-          <div key={dk} className="flex w-[72px] shrink-0 flex-col">
-            <div className="mb-1.5 flex flex-col items-center gap-0">
-              <span className="text-[10px] uppercase tracking-wider text-white/50">{d.weekday}</span>
-              <span className="text-base font-semibold tabular-nums">{d.day}</span>
-              <span className="text-[10px] text-white/40">{d.month}</span>
-            </div>
-            <ul className="flex flex-col gap-1">
-              {slots.length === 0 && (
-                <li className="text-center text-[10px] text-white/30">—</li>
+    <div className="space-y-3">
+      {/* 3a. Chips jours, scrollable horizontalement */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {dayKeys.map((dk) => {
+          const d = fmtDayShort(dk)
+          const slots = days[dk] ?? []
+          const hasFree = slots.some((s) => s.available && s.priceCents !== null)
+          const isActive = activeDay === dk
+          return (
+            <button
+              key={dk}
+              type="button"
+              onClick={() => setActiveDay(dk)}
+              className={cn(
+                'flex shrink-0 flex-col items-center gap-0 rounded-xl border px-3.5 py-2 transition',
+                isActive
+                  ? 'border-emerald-400 bg-emerald-500/10'
+                  : hasFree
+                    ? 'border-white/10 bg-white/5 hover:border-white/30'
+                    : 'border-white/[0.06] bg-white/[0.02] text-white/35',
               )}
-              {slots.map((s) => {
-                const isSel = selected?.startsAt === s.startsAt
-                const noPrice = s.priceCents === null
-                return (
-                  <li key={s.startsAt}>
-                    <button
-                      type="button"
-                      disabled={!s.available || noPrice}
-                      onClick={() => onSelect(s)}
-                      title={noPrice ? 'Pas de tarif configuré pour ce créneau' : undefined}
-                      className={cn(
-                        'flex w-full items-center justify-center rounded-md border px-1 py-1.5 text-center text-[11px] font-medium tabular-nums transition',
-                        !s.available || noPrice
-                          ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/25'
-                          : isSel
-                            ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                            : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
-                      )}
-                    >
-                      {fmtHour(s.startsAt)}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )
-      })}
+            >
+              <span className="text-[10px] uppercase tracking-wider opacity-70">{d.weekday}</span>
+              <span className="text-lg font-semibold tabular-nums leading-tight">{d.day}</span>
+              <span className="text-[10px] opacity-55">{d.month}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* 3b. Grille des heures du jour sélectionné */}
+      {!hasAvailableInActiveDay ? (
+        <p className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center text-[12px] text-white/45">
+          Aucun créneau libre ce jour-là. Choisis un autre jour ci-dessus.
+        </p>
+      ) : (
+        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {currentSlots.map((s) => {
+            const isSel = selected?.startsAt === s.startsAt
+            const noPrice = s.priceCents === null
+            const disabled = !s.available || noPrice
+            return (
+              <li key={s.startsAt}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onSelect(s)}
+                  className={cn(
+                    'flex w-full items-center justify-center rounded-lg border py-2.5 text-sm font-medium tabular-nums transition',
+                    disabled
+                      ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/25'
+                      : isSel
+                        ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
+                        : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
+                  )}
+                >
+                  {fmtHour(s.startsAt)}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
