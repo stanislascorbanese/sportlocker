@@ -10,6 +10,16 @@ export const metadata: Metadata = {
   description: 'Service citoyen de prêt de matériel sportif en libre-service. Trouvez un distributeur, scannez, empruntez gratuitement.',
   manifest: '/manifest.json',
   applicationName: 'SportLocker',
+  // Path explicite vers /icon-v2.png pour buster le cache favicon de Safari :
+  // Safari indexe les favicons par l'URL de la page, pas par celle de l'icône,
+  // donc même un ?hash= différent sur /icon.png ne suffit pas. Changer le
+  // basename (icon → icon-v2) force Safari à traiter ça comme un nouveau
+  // favicon et re-fetch.
+  icons: {
+    icon: '/icon-v2.png',
+    shortcut: '/icon-v2.png',
+    apple: '/icon-v2.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
