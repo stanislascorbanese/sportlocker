@@ -1,0 +1,33 @@
+# SportLocker firmware — image dev/simulation x86.
+#
+# Pour faire tourner l'agent sur une machine de dev (Mac/Linux x86) sans
+# Raspberry Pi : pas de RPi.GPIO (le firmware détecte son absence et passe
+# en mode pulse simulé), pas de caméra (cf qr_reader.py fail-soft).
+#
+# Le Dockerfile prod (ARM64 Balena) reste dans Dockerfile.
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+# Deps natives : pyzbar a besoin de libzbar0, opencv-python du runtime GL/glib.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libzbar0 \
+      libgl1 \
+      libglib2.0-0 \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+COPY pyproject.toml ./
+COPY src/sportlocker_firmware ./sportlocker_firmware
+
+VOLUME ["/var/lib/sportlocker"]
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app
+
+CMD ["python", "-m", "sportlocker_firmware"]

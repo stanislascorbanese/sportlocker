@@ -194,6 +194,30 @@ class TestMQTTClient:
         client._on_disconnect(client._client, None, 0)
         client._on_disconnect(client._client, None, 7)  # rc != 0
 
+    def test_on_connect_accepts_reasoncode_mqttv5(self, cfg: Config) -> None:
+        """En MQTTv5, paho passe un ``ReasonCode`` (objet avec ``.value``).
+        Le callback doit l'accepter sans crash, sinon les messages MQTT
+        suivants ne sont jamais dispatched (cf bug Phase 1 stack sim)."""
+        client = MQTTClient(cfg)
+        # Simule un ReasonCode paho v2 : objet avec attribut .value
+        reason_ok = MagicMock(spec=[])
+        reason_ok.value = 0
+        with patch.object(client._client, "publish") as mock_pub:
+            client._on_connect(client._client, None, {}, reason_ok)
+        mock_pub.assert_called_once()  # status online publié
+
+        reason_fail = MagicMock(spec=[])
+        reason_fail.value = 5
+        with patch.object(client._client, "publish") as mock_pub:
+            client._on_connect(client._client, None, {}, reason_fail)
+        mock_pub.assert_not_called()
+
+    def test_on_disconnect_accepts_reasoncode_mqttv5(self, cfg: Config) -> None:
+        client = MQTTClient(cfg)
+        reason = MagicMock(spec=[])
+        reason.value = 7
+        client._on_disconnect(client._client, None, reason)  # ne lève pas
+
     def test_disconnect_publishes_clean_offline_then_disconnects(self, cfg: Config) -> None:
         client = MQTTClient(cfg)
         with patch.object(client._client, "publish") as mock_pub, \
