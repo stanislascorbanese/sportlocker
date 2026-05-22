@@ -322,8 +322,8 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
       querystring: z.object({
         itemTypeId: z.string().uuid().describe('Type de matériel souhaité (sport)'),
         durationMinutes: z.coerce.number().int()
-          .refine((n) => [30, 60, 90, 120].includes(n), { message: 'duration_not_allowed' })
-          .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120'),
+          .refine((n) => [30, 60, 90, 120, 1440].includes(n), { message: 'duration_not_allowed' })
+          .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120 (slots courts) ou 1440 (forfait journée)'),
         from: z.string().datetime({ offset: true }).optional()
           .describe('Début de la fenêtre (ISO 8601, défaut = maintenant)'),
         to: z.string().datetime({ offset: true }).optional()

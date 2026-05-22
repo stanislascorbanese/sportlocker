@@ -86,7 +86,7 @@ export async function deletePricingRuleAction(formData: FormData): Promise<Actio
 }
 
 const ApplyTemplateForm = z.object({
-  templateId: z.enum(['communal-leger', 'saisonnier-plage', 'hotel-premium']),
+  templateId: z.enum(['communal-leger', 'saisonnier-plage', 'hotel-premium', 'forfait-journalier-seul']),
   communeId: OptionalCommuneId,
 })
 

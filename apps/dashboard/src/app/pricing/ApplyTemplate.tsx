@@ -62,7 +62,7 @@ export function ApplyTemplate({ communeId }: { communeId: string | null }) {
           )}>{feedback.msg}</div>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {PRICING_TEMPLATES.map((t) => {
           const isConfirming = confirming === t.id
           return (

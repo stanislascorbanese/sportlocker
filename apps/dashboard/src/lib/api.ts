@@ -855,10 +855,25 @@ export async function updateItem(id: string, input: ItemUpdateInput): Promise<It
   return Item.parse(await res.json())
 }
 
-// ─── Tarification : pricing_rules (modèle slots PR 0008) ────────────────────
+// ─── Tarification : pricing_rules (modèle slots PR 0008, day pass PR 0009) ─
 
-export const SLOT_DURATIONS = [30, 60, 90, 120] as const
+export const DAY_PASS_MINUTES = 1440 as const
+
+export const SLOT_DURATIONS = [30, 60, 90, 120, 1440] as const
 export type SlotDurationMinutes = typeof SLOT_DURATIONS[number]
+
+export function isDayPassDuration(d: number): boolean {
+  return d === DAY_PASS_MINUTES
+}
+
+/** Libellé court d'une durée pour l'affichage UI. */
+export function formatDurationLabel(min: number): string {
+  if (min === DAY_PASS_MINUTES) return 'Journée'
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const r = min % 60
+  return r === 0 ? `${h} h` : `${h} h ${r}`
+}
 
 export const PricingRule = z.object({
   id: z.string().uuid(),

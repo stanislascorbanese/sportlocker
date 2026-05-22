@@ -35,10 +35,16 @@ export const ReservationActive = z.object({
 })
 export type ReservationActive = z.infer<typeof ReservationActive>
 
-// ─── Modèle slots (PR 0008) ───────────────────────────────────────────────
+// ─── Modèle slots (PR 0008) + forfait journée (PR 0009) ───────────────────
 
-export const SLOT_DURATIONS = [30, 60, 90, 120] as const
+export const DAY_PASS_MINUTES = 1440 as const
+
+export const SLOT_DURATIONS = [30, 60, 90, 120, 1440] as const
 export type SlotDurationMinutes = typeof SLOT_DURATIONS[number]
+
+export function isDayPassDuration(d: number): boolean {
+  return d === DAY_PASS_MINUTES
+}
 
 export const AvailabilitySlot = z.object({
   startsAt: z.string().datetime(),
