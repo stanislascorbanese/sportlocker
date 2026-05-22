@@ -79,14 +79,27 @@ class MQTTClient:
 
     async def connect(self) -> None:
         """Tentative initiale de connexion avec backoff exponentiel borné."""
-        host, port = _parse_mqtt_url(self._cfg.mqtt_url)
+        host, port, tls = _parse_mqtt_url(self._cfg.mqtt_url)
+        # Active TLS *avant* la première tentative. paho conserve la config
+        # TLS pour les reconnects auto internes — un seul appel suffit. Le CA
+        # cert est requis pour valider le certificat serveur EMQX Cloud :
+        # sans lui, un MITM pourrait usurper le broker et déclencher des
+        # ouvertures de serrures via cmd/open.
+        if tls:
+            if not self._cfg.mqtt_ca_cert_path:
+                raise RuntimeError(
+                    "mqtts:// requires MQTT_CA_CERT_PATH to validate broker cert"
+                )
+            self._client.tls_set(ca_certs=self._cfg.mqtt_ca_cert_path)
         backoff = INITIAL_BACKOFF_S
         attempt = 0
         while True:
             attempt += 1
             try:
                 await asyncio.to_thread(self._client.connect, host, port, 60)
-                log.info("mqtt_connected", host=host, port=port, attempt=attempt)
+                log.info(
+                    "mqtt_connected", host=host, port=port, tls=tls, attempt=attempt
+                )
                 # Abonnement wildcard : router internement par sous-topic.
                 self._client.subscribe(
                     f"sportlocker/{self._cfg.device_id}/{CMD_TOPIC_SUFFIX}/+",
@@ -98,7 +111,7 @@ class MQTTClient:
             except (OSError, mqtt.WebsocketConnectionError) as exc:
                 log.warning(
                     "mqtt_connect_failed",
-                    host=host, port=port, attempt=attempt,
+                    host=host, port=port, tls=tls, attempt=attempt,
                     backoff_s=backoff, err=str(exc),
                 )
                 await asyncio.sleep(backoff)
@@ -221,12 +234,23 @@ def _rc_value(rc: Any) -> int:
         return -1
 
 
-def _parse_mqtt_url(url: str) -> tuple[str, int]:
-    rest = url.split("://", 1)[-1]
+def _parse_mqtt_url(url: str) -> tuple[str, int, bool]:
+    """Parse une URL ``mqtt[s]://host[:port]`` → ``(host, port, tls)``.
+
+    Le port par défaut suit le scheme : ``mqtts://`` → 8883, sinon 1883.
+    Le flag ``tls`` est vrai uniquement si le scheme est ``mqtts://``,
+    indépendamment du port (un opérateur peut exposer du TLS sur 1883).
+    """
+    if "://" in url:
+        scheme, rest = url.split("://", 1)
+    else:
+        scheme, rest = "mqtt", url
+    tls = scheme.lower() == "mqtts"
+    default_port = 8883 if tls else 1883
     if ":" in rest:
         host, port = rest.split(":", 1)
-        return host, int(port)
-    return rest, 1883
+        return host, int(port), tls
+    return rest, default_port, tls
 
 
 def _extract_cmd_subtopic(topic: str) -> str | None:
