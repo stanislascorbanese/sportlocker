@@ -374,3 +374,52 @@ export async function createSlotReservation(input: {
     body: JSON.stringify(input),
   })
 }
+
+// ─── Web Push subscriptions (PR 0010) ─────────────────────────────────────
+
+export const PushConfig = z.object({
+  vapidPublicKey: z.string().nullable(),
+})
+export type PushConfig = z.infer<typeof PushConfig>
+
+/**
+ * Récupère la clé publique VAPID nécessaire à `pushManager.subscribe()`.
+ * Route publique, pas d'auth requise. Retourne `vapidPublicKey: null` si
+ * l'API n'a pas de clés VAPID configurées (l'opérateur n'a pas tourné
+ * `npx web-push generate-vapid-keys` puis set les Variables Railway).
+ */
+export async function fetchPushConfig(): Promise<PushConfig> {
+  // Route publique → fetch direct sans apiFetch (pas d'auth header,
+  // pas de retry session sur 401).
+  const res = await fetch(`${API_URL}/v1/push-subscriptions/config`)
+  if (!res.ok) throw new ApiError(res.status, `http_${res.status}`)
+  return PushConfig.parse(await res.json())
+}
+
+const PushSubscriptionDTO = z.object({
+  id: z.string().uuid(),
+  endpoint: z.string().url(),
+  createdAt: z.string().datetime(),
+  lastUsedAt: z.string().datetime(),
+})
+
+/** Enregistre la subscription côté backend (idempotent ON CONFLICT endpoint). */
+export async function registerPushSubscription(input: {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+  deviceInfo?: Record<string, unknown>
+}): Promise<z.infer<typeof PushSubscriptionDTO>> {
+  return apiFetch(`/v1/push-subscriptions`, PushSubscriptionDTO, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** Désinscrit la subscription identifiée par son endpoint. Idempotent. */
+export async function unregisterPushSubscription(endpoint: string): Promise<void> {
+  await apiFetch(
+    `/v1/push-subscriptions`,
+    z.object({ ok: z.literal(true) }),
+    { method: 'DELETE', body: JSON.stringify({ endpoint }) },
+  )
+}
