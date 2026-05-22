@@ -22,6 +22,7 @@ export const ReservationActive = z.object({
   status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
+  dueAt: z.string().datetime().nullable().optional(),
   qrToken: z.string().min(20),
   distributor: z.object({
     id: z.string().uuid(),
@@ -32,8 +33,27 @@ export const ReservationActive = z.object({
     id: z.string().uuid(),
     typeName: z.string(),
   }),
+  // Champs slot (PR 0008/0009) — null pour les résas legacy `pending`,
+  // peuplés pour les `scheduled`.
+  slotStartAt: z.string().datetime().nullable().optional(),
+  slotEndAt: z.string().datetime().nullable().optional(),
+  durationMinutes: z.number().int().nullable().optional(),
+  priceCents: z.number().int().nullable().optional(),
 })
 export type ReservationActive = z.infer<typeof ReservationActive>
+
+/**
+ * Annule une réservation `pending` ou `scheduled`. Pour `scheduled`,
+ * l'API refuse 409 `too_late_to_cancel` si on est à moins de 30 min du début
+ * du slot.
+ */
+export async function cancelReservation(id: string): Promise<void> {
+  await apiFetch(
+    `/v1/reservations/${id}/cancel`,
+    z.object({ ok: z.literal(true) }),
+    { method: 'POST', body: '{}' },
+  )
+}
 
 // ─── Modèle slots (PR 0008) + forfait journée (PR 0009) ───────────────────
 
