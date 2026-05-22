@@ -58,7 +58,7 @@ const usecases = [
 const faqHotel = [
   {
     q: 'Le service est-il facturé à mes clients ?',
-    a: 'Oui — modèle marketplace. Vous définissez votre propre grille tarifaire dans le dashboard (slots 30 min / 1 h / 1 h 30 / 2 h / journée). Le template « Hôtel premium » livré par défaut propose 2 €/30 min, 4 €/1 h, 7 €/2 h et 15 €/journée — cohérent avec un standing 4★ / 5★. Sur chaque transaction, vous gardez 75 %, SportLocker prend 25 % de commission. La caution préautorisée (de 30 à 150 € selon l\'item) est libérée si retour OK.',
+    a: 'Oui — modèle marketplace. Vous définissez votre propre grille tarifaire dans le dashboard (slots 30 min / 1 h / 1 h 30 / 2 h / journée). Le template « Standing 4★ / 5★ » livré par défaut propose 2 €/30 min, 4 €/1 h, 7 €/2 h et 15 €/journée — cohérent avec un positionnement premium. Sur chaque transaction, vous gardez 75 %, SportLocker prend 25 % de commission. La caution préautorisée (de 30 à 150 € selon l\'item) est libérée si retour OK.',
   },
   {
     q: 'Comment je récupère ma part des locations ?',
@@ -91,7 +91,7 @@ const proofs = [
 
 <Base
   title="Distributeurs de matériel sportif pour hôtels 3★ / 4★ / 5★"
-  description="Service premium 24/7 sans charge réception : matériel sportif (Wilson, équipement piscine) en libre-service pour vos clients. À partir de 475 € HT/mois/dist, grille tarifaire à la durée (template hôtel premium fourni), revenu partagé 75 % via marketplace."
+  description="Service premium 24/7 sans charge réception : matériel sportif (Wilson, équipement piscine) en libre-service pour vos clients. À partir de 475 € HT/mois/dist, grille tarifaire à la durée (template Standing 4★ / 5★ fourni), revenu partagé 75 % via marketplace."
   ogImage="/og/hotels.svg"
   extraJsonLd={buildSegmentSchemas('hotel')}
 >
@@ -107,7 +107,7 @@ const proofs = [
         <p class="text-[1.15rem] text-white/65 leading-loose font-light mb-9" data-reveal data-reveal-delay="2">
           Du matériel sportif premium en libre-service, disponible 24/7. Vos clients
           jouent quand ils veulent, vous facturez à la durée selon votre grille
-          (30 min à la journée — template « Hôtel premium » livré par défaut).
+          (30 min à la journée — template « Standing 4★ / 5★ » livré par défaut).
           Reversement automatique à J+2, risque matériel zéro grâce à la caution Stripe.
         </p>
         <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
@@ -229,7 +229,7 @@ const proofs = [
           </div>
 
           <p class="mt-6 text-[0.7rem] text-white/30 italic leading-relaxed">
-            Hypothèse 50 locations/mois cumulées avec un panier moyen ~5,90 € (template hôtel premium :
+            Hypothèse 50 locations/mois cumulées avec un panier moyen ~5,90 € (template Standing 4★ / 5★ :
             2 €/30 min, 4 €/1 h, 7 €/2 h, 15 €/journée). Chiffre conservateur sur un 80 chambres en saison —
             tarif final selon configuration et grille choisies.
           </p>

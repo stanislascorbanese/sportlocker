@@ -8,7 +8,7 @@ import { DEPOSITS, MARKETPLACE, PRICING_TEMPLATES, SLOT_DURATIONS } from '@/data
 const formatEur = (n: number): string =>
   new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n) + ' €'
 
-// Illustration concrète du split — basée sur le template saisonnier
+// Illustration concrète du split — basée sur le template Pleine saison
 // (un slot 2 h à 5 €) pour rester lisible. Le split 75/25 s'applique
 // quelle que soit la durée et le prix configurés par le tenant.
 const illustrationCitoyenPrice = 5
@@ -59,7 +59,7 @@ const notIncluded = [
 const faqTarifs = [
   {
     q: 'Les citoyens paient à chaque emprunt ?',
-    a: 'Oui — à la durée choisie au moment de la réservation : 30 min, 1 h, 1 h 30, 2 h ou la journée (1440 min). Le prix de chaque créneau est défini par vous via le dashboard /pricing. Quatre templates pré-configurés (communal léger, saisonnier, hôtel premium, forfait journée seul) permettent de démarrer en quelques clics. Vous pouvez n\'activer que les slots courts, que la journée, ou les deux.',
+    a: 'Oui — à la durée choisie au moment de la réservation : 30 min, 1 h, 1 h 30, 2 h ou la journée (1440 min). Le prix de chaque créneau est défini par vous via le dashboard /pricing. Quatre templates pré-configurés (Communal léger, Pleine saison, Standing 4★ / 5★, Forfait journée seul) permettent de démarrer en quelques clics. Vous pouvez n\'activer que les slots courts, que la journée, ou les deux.',
   },
   {
     q: 'Et la caution ?',
@@ -183,7 +183,7 @@ const faqTarifs = [
               <div class="text-xs uppercase tracking-[0.12em] text-brand-500/80 mb-2">
                 {tpl.targetSegment === 'mairie'  ? 'Mairie'
                 : tpl.targetSegment === 'camping' ? 'Camping & plage'
-                : tpl.targetSegment === 'hotel'   ? 'Hôtel premium'
+                : tpl.targetSegment === 'hotel'   ? 'Hôtel'
                 : 'Tout type de site'}
               </div>
               <h4 class="font-extrabold text-white text-base mb-2">{tpl.label}</h4>
@@ -242,8 +242,8 @@ const faqTarifs = [
               À titre indicatif : un distributeur mature voit ~ 10 locations/jour. Avec
               un panier moyen de {formatEur(MARKETPLACE.citoyenAvgPrice)}, ça vous fait
               ~ {formatEur(tenantShareAvg * 10 * 30)}/mois de revenu locations net — la
-              fourchette varie selon votre grille tarifaire (template communal léger à
-              hôtel premium).
+              fourchette varie selon votre grille tarifaire (du template Communal léger
+              au Standing 4★ / 5★).
             </p>
           </div>
         </div>
@@ -294,10 +294,10 @@ const faqTarifs = [
         </div>
 
         <p class="text-[0.7rem] text-white/35 italic leading-relaxed mt-6">
-          Exemple basé sur un slot à 5 € (typique du template saisonnier ou du forfait
-          journée seul). Le ratio 75 / 25 s'applique à toute durée et à tout prix
-          configurés dans votre grille — d'un slot 30 min à 0,50 € à un slot journée
-          à 15 €.
+          Exemple basé sur un slot à 5 € (typique des templates Pleine saison ou
+          Forfait journée seul). Le ratio 75 / 25 s'applique à toute durée et à tout
+          prix configurés dans votre grille — d'un slot 30 min à 0,50 € à un slot
+          journée à 15 €.
         </p>
       </div>
 
