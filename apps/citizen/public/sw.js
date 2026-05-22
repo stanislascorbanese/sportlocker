@@ -60,3 +60,44 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(event.request).then((cached) => cached || Response.error())),
   )
 })
+
+// ─── Web Push (PR 0010) ────────────────────────────────────────────────────
+// Le backend signe + chiffre le payload via lib/webpush.ts. Ici on désérialise
+// et on affiche. Format attendu (cf. services/api/src/lib/webpush.ts) :
+//   { title, body, url?, icon?, tag? }
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+  let payload
+  try {
+    payload = event.data.json()
+  } catch (_e) {
+    payload = { title: 'SportLocker', body: event.data.text() }
+  }
+  const title = payload.title || 'SportLocker'
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: payload.tag, // dédup côté browser : un nouveau push remplace l'ancien
+    data: { url: payload.url || '/' },
+  }
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+// Au clic sur la notif : focus une fenêtre existante ou ouvre l'URL.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/'
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      // Focus une fenêtre déjà ouverte sur la PWA, route vers targetUrl.
+      for (const client of wins) {
+        if ('navigate' in client && 'focus' in client) {
+          return client.focus().then(() => client.navigate(targetUrl))
+        }
+      }
+      return clients.openWindow(targetUrl)
+    }),
+  )
+})

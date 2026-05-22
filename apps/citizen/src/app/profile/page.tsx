@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 
 import { useRequireAuth } from '../../lib/auth-context'
 import { getFirebaseAuth } from '../../lib/firebase'
+import { PushSubscribeButton } from './PushSubscribeButton'
 
 export default function ProfilePage() {
   const user = useRequireAuth()
@@ -35,6 +36,8 @@ export default function ProfilePage() {
         {user.phoneNumber && <p className="text-sm font-mono text-white/70">{user.phoneNumber}</p>}
         <p className="pt-2 font-mono text-[10px] text-white/40 break-all">UID : {user.uid}</p>
       </section>
+
+      <PushSubscribeButton />
 
       <button
         type="button"
