@@ -469,13 +469,16 @@ function SlotGrid({
   selected: AvailabilitySlot | null
   onSelect: (s: AvailabilitySlot) => void
 }) {
+  // Slots courts : colonnes par jour, heures empilées, prix supprimés
+  // de chaque cellule (déjà rappelé sous le bouton de durée et dans le
+  // récap). Cellule = heure seule = plus lisible.
   return (
     <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
       {dayKeys.map((dk) => {
         const d = fmtDayShort(dk)
         const slots = days[dk] ?? []
         return (
-          <div key={dk} className="flex w-[88px] shrink-0 flex-col">
+          <div key={dk} className="flex w-[72px] shrink-0 flex-col">
             <div className="mb-1.5 flex flex-col items-center gap-0">
               <span className="text-[10px] uppercase tracking-wider text-white/50">{d.weekday}</span>
               <span className="text-base font-semibold tabular-nums">{d.day}</span>
@@ -496,7 +499,7 @@ function SlotGrid({
                       onClick={() => onSelect(s)}
                       title={noPrice ? 'Pas de tarif configuré pour ce créneau' : undefined}
                       className={cn(
-                        'flex w-full flex-col items-center rounded-md border px-1 py-1 text-center text-[11px] tabular-nums transition',
+                        'flex w-full items-center justify-center rounded-md border px-1 py-1.5 text-center text-[11px] font-medium tabular-nums transition',
                         !s.available || noPrice
                           ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/25'
                           : isSel
@@ -504,10 +507,7 @@ function SlotGrid({
                             : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
                       )}
                     >
-                      <span className="font-medium">{fmtHour(s.startsAt)}</span>
-                      {s.priceCents !== null && (
-                        <span className="text-[9px] text-white/55">{fmtPrice(s.priceCents)}</span>
-                      )}
+                      {fmtHour(s.startsAt)}
                     </button>
                   </li>
                 )
