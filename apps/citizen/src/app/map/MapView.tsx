@@ -2,7 +2,7 @@
 
 import maplibregl, { type LngLatLike, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
 
@@ -15,6 +15,11 @@ import type { Distributor } from '../../lib/api'
  *
  * Markers : un pour la position user (point bleu), un par distributeur
  * (pin emerald). Cleanup propre au unmount pour éviter les fuites mémoire.
+ *
+ * Resilience WebGL : Safari peut "perdre" le contexte WebGL (GPU process
+ * corrompu, quota dépassé, onglet en arrière-plan trop longtemps…) — on
+ * écoute `webglcontextlost` pour basculer sur une UI de fallback avec
+ * bouton "Recharger" plutôt que de laisser un canvas vide silencieux.
  */
 export function MapView({
   center,
@@ -28,6 +33,7 @@ export function MapView({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<Marker[]>([])
+  const [contextLost, setContextLost] = useState(false)
 
   // Init carte une seule fois.
   useEffect(() => {
@@ -48,7 +54,18 @@ export function MapView({
       'top-right',
     )
     mapRef.current = map
+
+    // Détecte la perte du contexte WebGL (cas Safari notamment) pour
+    // afficher un fallback explicite au lieu d'une carte fantôme.
+    const canvas = map.getCanvas()
+    const onContextLost = (e: Event) => {
+      e.preventDefault()
+      setContextLost(true)
+    }
+    canvas.addEventListener('webglcontextlost', onContextLost, false)
+
     return () => {
+      canvas.removeEventListener('webglcontextlost', onContextLost)
       map.remove()
       mapRef.current = null
     }
@@ -95,7 +112,29 @@ export function MapView({
     mapRef.current.easeTo({ center: [center.lng, center.lat], duration: 800 })
   }, [center.lat, center.lng])
 
-  return <div ref={containerRef} className="h-full w-full" />
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {contextLost && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-navy-900/95 px-6 text-center backdrop-blur-sm">
+          <p className="text-sm font-medium text-white">
+            Affichage de la carte interrompu
+          </p>
+          <p className="max-w-xs text-xs leading-relaxed text-white/60">
+            Safari a fermé le contexte graphique (souvent après mise en veille).
+            Rechargez la page pour relancer la carte.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-1 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow-lg hover:bg-emerald-400"
+          >
+            Recharger la page
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function escapeHtml(s: string): string {
