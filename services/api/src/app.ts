@@ -27,6 +27,7 @@ import { adminItemTypeRoutes } from './routes/admin-item-types.js'
 import { adminItemRoutes } from './routes/admin-items.js'
 import { adminPricingRuleRoutes } from './routes/admin-pricing-rules.js'
 import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
+import { devRoutes } from './routes/dev.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -64,6 +65,13 @@ export async function buildApp() {
   await app.register(adminItemTypeRoutes,     { prefix: '/v1/admin/item-types' })
   await app.register(adminItemRoutes,         { prefix: '/v1/admin/items' })
   await app.register(adminPricingRuleRoutes,  { prefix: '/v1/admin/pricing-rules' })
+
+  // Routes de dev/simulation — register UNIQUEMENT hors production.
+  // La route refuse aussi en interne si NODE_ENV=production (defense-in-depth),
+  // mais on évite déjà de les mounter pour ne pas exposer le path Swagger.
+  if (env.NODE_ENV !== 'production') {
+    await app.register(devRoutes, { prefix: '/v1/dev' })
+  }
 
   // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
   // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
