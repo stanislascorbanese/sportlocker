@@ -288,21 +288,40 @@ export async function registerCurrentUser(idToken?: string): Promise<void> {
 }
 
 /**
+ * Réponse de `POST /v1/reservations` — shape "base + nonce + deviceToken",
+ * différent du shape enrichi de `GET /v1/reservations/active`. Pas de
+ * `distributor.name` / `item.typeName` ici ; le caller redirige vers
+ * /reservations/<id> qui fait un GET /active enrichi pour le rendu.
+ */
+export const ReservationCreated = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  lockerId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  distributorId: z.string().uuid(),
+  expiresAt: z.string().datetime(),
+  dueAt: z.string().datetime().nullable(),
+  extensionCount: z.number().int(),
+  nonce: z.string().uuid(),
+  deviceToken: z.string(),
+})
+export type ReservationCreated = z.infer<typeof ReservationCreated>
+
+/**
  * Crée une réservation IMMÉDIATE (status `pending`, TTL 15 min) sur un
  * casier ciblé. Contrat API : `{ lockerId, itemId, communeId }`. Le caller
- * doit donc choisir le casier en amont (cf. distributor detail page : on
- * pick le 1er locker idle dont l'`itemType.id` matche le type choisi).
+ * doit choisir le casier en amont (cf. distributor detail page).
  *
- * Ce flow est différent de `createSlotReservation` (qui crée du
- * `scheduled` avec un slot futur). Utilisé quand l'utilisateur est
- * physiquement au distributeur et veut emprunter dans la minute.
+ * Différent de `createSlotReservation` (qui crée du `scheduled`). Utilisé
+ * quand l'utilisateur est physiquement au distributeur et veut emprunter
+ * dans la minute.
  */
 export async function createReservation(input: {
   lockerId: string
   itemId: string
   communeId: string
-}): Promise<ReservationActive> {
-  return apiFetch(`/v1/reservations`, ReservationActive, {
+}): Promise<ReservationCreated> {
+  return apiFetch(`/v1/reservations`, ReservationCreated, {
     method: 'POST',
     body: JSON.stringify(input),
   })
