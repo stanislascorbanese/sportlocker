@@ -21,6 +21,11 @@ const LOCK_TTL_SEC = 30
 const MAX_EXTENSIONS = 2
 const IDEMPOTENCY_TTL_SEC = 24 * 60 * 60
 const IDEMPOTENCY_KEY_MAX_LEN = 255
+// Fenêtre de blocage de l'annulation côté citoyen avant le début du slot.
+// Au-delà de ce délai, le créneau est considéré comme engagé (cf. CDC :
+// donne le temps au tenant de planifier le rechargement matériel et évite
+// les annulations "régret" juste avant arrivée).
+const CANCEL_CUTOFF_MIN = 30
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -46,6 +51,7 @@ const ReservationBaseDTO = z.object({
   dueAt: z.string().datetime().nullable().describe('Échéance de retour (active). Null tant que pending.'),
   extensionCount: z.number().int().min(0).describe('Nombre de prolongations utilisées (max 2)'),
 })
+
 const ReservationCreatedDTO = ReservationBaseDTO.extend({
   nonce: z.string().uuid().describe('Nonce anti-replay à embarquer dans le JWT QR. Usage unique côté firmware.'),
   deviceToken: z.string().describe(
@@ -649,36 +655,76 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
 
   /**
    * POST /v1/reservations/:id/cancel — annule avant ouverture.
+   *
+   * Modes :
+   *   - `pending`   : cancel à tout moment avant le scan firmware (legacy).
+   *                   Le casier est libéré (state→idle).
+   *   - `scheduled` : cancel jusqu'à `CANCEL_CUTOFF_MIN` minutes avant
+   *                   `slotStartAt`. Au-delà, refus 409 `too_late_to_cancel`
+   *                   pour laisser à l'opérateur le temps d'anticiper.
+   *                   Pas de libération de casier (rien n'était réservé physiquement).
    */
   app.post('/:id/cancel', {
     onRequest: [app.authenticate],
     schema: {
       tags: ['Citoyens — Réservations'],
-      summary: 'Annule une réservation pending',
-      description: 'Réservé au statut `pending` (le casier n\'a pas encore été ouvert). '
-        + 'Pour une annulation en cours d\'usage, voir `POST /v1/admin/reservations/:id/force-cancel` côté admin.',
+      summary: 'Annule une réservation pending ou scheduled',
+      description: `Accepte les statuts \`pending\` (legacy immédiat) et \`scheduled\` (slot futur). `
+        + `Pour \`scheduled\`, refuse 409 \`too_late_to_cancel\` si \`slotStartAt - now < ${CANCEL_CUTOFF_MIN} min\`. `
+        + 'Pour une annulation en cours d\'usage (status `active`), voir `POST /v1/admin/reservations/:id/force-cancel` côté admin.',
       security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
-      response: { 200: z.object({ ok: z.literal(true) }), 404: ErrorDTO },
+      response: {
+        200: z.object({ ok: z.literal(true) }),
+        404: ErrorDTO,
+        409: ErrorDTO,
+      },
     },
   }, async (req, reply) => {
-    const updated = await db
-      .update(reservations)
-      .set({ status: 'cancelled', cancellationReason: 'user_cancel', updatedAt: new Date() })
-      .where(and(
-        eq(reservations.id, req.params.id),
-        eq(reservations.userId, req.user.sub),
-        eq(reservations.status, 'pending'),
-      ))
-      .returning({ id: reservations.id, lockerId: reservations.lockerId })
+    const userId = req.user.sub
+    const { id } = req.params
 
-    if (updated.length === 0) return reply.code(404).send({ error: 'reservation_not_cancellable' })
+    return db.transaction(async (tx: DbTx) => {
+      const [existing] = await tx
+        .select({
+          id: reservations.id,
+          status: reservations.status,
+          lockerId: reservations.lockerId,
+          slotStartAt: reservations.slotStartAt,
+        })
+        .from(reservations)
+        .where(and(eq(reservations.id, id), eq(reservations.userId, userId)))
+        .limit(1)
 
-    await db.update(lockers)
-      .set({ state: 'idle', lastStateAt: new Date(), updatedAt: new Date() })
-      .where(eq(lockers.id, updated[0]!.lockerId))
+      if (!existing) {
+        return reply.code(404).send({ error: 'reservation_not_cancellable' })
+      }
+      if (existing.status !== 'pending' && existing.status !== 'scheduled') {
+        return reply.code(409).send({ error: 'reservation_not_cancellable' })
+      }
+      if (existing.status === 'scheduled' && existing.slotStartAt) {
+        const minutesUntilStart = (existing.slotStartAt.getTime() - Date.now()) / 60_000
+        if (minutesUntilStart < CANCEL_CUTOFF_MIN) {
+          return reply.code(409).send({ error: 'too_late_to_cancel' })
+        }
+      }
 
-    return { ok: true as const }
+      await tx
+        .update(reservations)
+        .set({ status: 'cancelled', cancellationReason: 'user_cancel', updatedAt: new Date() })
+        .where(eq(reservations.id, id))
+
+      // Le casier physique n'est lock que pour les résas `pending`
+      // (POST /v1/reservations). Les `scheduled` ne réservent que l'item
+      // (snapshot) — le casier reste idle.
+      if (existing.status === 'pending') {
+        await tx.update(lockers)
+          .set({ state: 'idle', lastStateAt: new Date(), updatedAt: new Date() })
+          .where(eq(lockers.id, existing.lockerId))
+      }
+
+      return reply.code(200).send({ ok: true as const })
+    })
   })
 
   /**
