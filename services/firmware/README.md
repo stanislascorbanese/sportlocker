@@ -37,12 +37,22 @@ src/sportlocker_firmware/
 | `DEVICE_ID`          | oui    | UUID du distributeur (matché côté API)     |
 | `DEVICE_API_KEY`     | oui    | clé d'authent device → API REST            |
 | `JWT_DEVICE_SECRET`  | oui    | secret HS256 partagé avec app + API        |
-| `MQTT_URL`           | non    | par défaut `mqtt://localhost:1883`         |
+| `MQTT_URL`           | non    | `mqtt://host:1883` (clair) ou `mqtts://host:8883` (TLS, prod EMQX) |
 | `MQTT_USERNAME`      | non    |                                            |
 | `MQTT_PASSWORD`      | non    |                                            |
+| `MQTT_CA_CERT_PATH`  | oui si `mqtts://` | chemin du CA cert pour valider le broker — bundlé par le Dockerfile à `/etc/sportlocker/emqxsl-ca.crt` |
 | `LOCKER_COUNT`       | non    | par défaut 8                               |
 | `CALIBRATION_PATH`   | non    | `/etc/sportlocker/calibration.json`        |
 | `FIRMWARE_DB_PATH`   | non    | `/var/lib/sportlocker/agent.db`            |
+
+### TLS broker (prod EMQX Cloud)
+
+En prod, le distributeur parle au broker EMQX serverless en TLS sur 8883.
+Le CA cert public (`services/firmware/emqxsl-ca.crt`) est bundlé dans l'image
+Balena et lu par paho via `tls_set(ca_certs=...)`. Sans ce check, un attaquant
+sur le réseau du Pi pourrait usurper le broker et déclencher `cmd/open` sur
+n'importe quel locker — d'où l'échec explicite de `MQTTClient.connect` si on
+demande `mqtts://` sans CA.
 
 `calibration.json` mappe `lockerId → pin BCM` :
 

@@ -25,6 +25,21 @@ def cfg() -> Config:
         mqtt_url="mqtt://broker.local:1883",
         mqtt_username=None,
         mqtt_password=None,
+        mqtt_ca_cert_path=None,
+        device_secret="secret",
+        locker_count=4,
+    )
+
+
+@pytest.fixture
+def cfg_tls() -> Config:
+    return Config(
+        device_id="dev-1",
+        api_key="key",
+        mqtt_url="mqtts://broker.emqxsl.com:8883",
+        mqtt_username="sportlocker",
+        mqtt_password="secret",
+        mqtt_ca_cert_path="/etc/sportlocker/emqxsl-ca.crt",
         device_secret="secret",
         locker_count=4,
     )
@@ -32,13 +47,42 @@ def cfg() -> Config:
 
 class TestParseMqttUrl:
     def test_with_explicit_port(self) -> None:
-        assert _parse_mqtt_url("mqtt://broker.local:8883") == ("broker.local", 8883)
+        assert _parse_mqtt_url("mqtt://broker.local:8883") == (
+            "broker.local",
+            8883,
+            False,
+        )
 
     def test_with_default_port(self) -> None:
-        assert _parse_mqtt_url("mqtt://broker.local") == ("broker.local", 1883)
+        assert _parse_mqtt_url("mqtt://broker.local") == ("broker.local", 1883, False)
 
     def test_without_scheme(self) -> None:
-        assert _parse_mqtt_url("broker.local:1883") == ("broker.local", 1883)
+        assert _parse_mqtt_url("broker.local:1883") == ("broker.local", 1883, False)
+
+    def test_mqtts_scheme_sets_tls_flag(self) -> None:
+        assert _parse_mqtt_url("mqtts://broker.emqxsl.com:8883") == (
+            "broker.emqxsl.com",
+            8883,
+            True,
+        )
+
+    def test_mqtts_defaults_to_port_8883(self) -> None:
+        assert _parse_mqtt_url("mqtts://broker.emqxsl.com") == (
+            "broker.emqxsl.com",
+            8883,
+            True,
+        )
+
+    def test_mqtts_explicit_non_default_port_kept(self) -> None:
+        # Un opérateur peut router le TLS sur un port non-standard derrière un LB.
+        assert _parse_mqtt_url("mqtts://broker.local:9883") == (
+            "broker.local",
+            9883,
+            True,
+        )
+
+    def test_scheme_case_insensitive(self) -> None:
+        assert _parse_mqtt_url("MQTTS://broker.local") == ("broker.local", 8883, True)
 
 
 class TestExtractCmdSubtopic:
@@ -295,10 +339,55 @@ class TestMQTTClient:
     def test_username_password_set_when_provided(self) -> None:
         cfg = Config(
             device_id="d", api_key="a", mqtt_url="mqtt://h",
-            mqtt_username="u", mqtt_password="p", device_secret="s", locker_count=1,
+            mqtt_username="u", mqtt_password="p", mqtt_ca_cert_path=None,
+            device_secret="s", locker_count=1,
         )
         client = MQTTClient(cfg)
         assert client._cfg.mqtt_username == "u"
+
+    def test_connect_does_not_call_tls_set_on_plain_mqtt(self, cfg: Config) -> None:
+        """Sur ``mqtt://`` (clair), aucun ``tls_set`` ne doit être appelé."""
+        client = MQTTClient(cfg)
+        with patch.object(client._client, "tls_set") as mock_tls, \
+             patch.object(client._client, "connect"), \
+             patch.object(client._client, "subscribe"), \
+             patch.object(client._client, "publish"):
+            asyncio.run(client.connect())
+        mock_tls.assert_not_called()
+
+    def test_connect_calls_tls_set_with_ca_on_mqtts(self, cfg_tls: Config) -> None:
+        """Sur ``mqtts://``, ``tls_set(ca_certs=...)`` doit être armé avant le
+        ``connect`` TCP — sinon paho monte une socket en clair et le broker
+        EMQX refuse l'handshake."""
+        client = MQTTClient(cfg_tls)
+        call_order: list[str] = []
+        with patch.object(
+            client._client, "tls_set", side_effect=lambda *_a, **_kw: call_order.append("tls")
+        ) as mock_tls, \
+             patch.object(
+                 client._client, "connect",
+                 side_effect=lambda *_a, **_kw: call_order.append("connect"),
+             ) as mock_co, \
+             patch.object(client._client, "subscribe"), \
+             patch.object(client._client, "publish"):
+            asyncio.run(client.connect())
+        mock_tls.assert_called_once_with(ca_certs="/etc/sportlocker/emqxsl-ca.crt")
+        mock_co.assert_called_once_with("broker.emqxsl.com", 8883, 60)
+        assert call_order == ["tls", "connect"]  # ordre critique
+
+    def test_connect_raises_when_mqtts_without_ca_cert(self) -> None:
+        """``mqtts://`` sans ``MQTT_CA_CERT_PATH`` doit échouer explicitement
+        plutôt que d'autoriser un fallback insecure."""
+        bad_cfg = Config(
+            device_id="d", api_key="a", mqtt_url="mqtts://broker.emqxsl.com",
+            mqtt_username=None, mqtt_password=None, mqtt_ca_cert_path=None,
+            device_secret="s", locker_count=1,
+        )
+        client = MQTTClient(bad_cfg)
+        with patch.object(client._client, "connect"), \
+             patch.object(client._client, "tls_set"):
+            with pytest.raises(RuntimeError, match="MQTT_CA_CERT_PATH"):
+                asyncio.run(client.connect())
 
     def test_disconnect_swallows_offline_publish_failure(self, cfg: Config) -> None:
         """Si publish offline lève, disconnect doit toujours appeler le client paho."""
