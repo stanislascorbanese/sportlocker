@@ -74,6 +74,52 @@ DEVICE_ID=dev-local DEVICE_API_KEY=k JWT_DEVICE_SECRET=s \
   python -m sportlocker_firmware
 ```
 
+## Démo / dev sans Raspberry Pi physique
+
+Quand on ne dispose pas d'un Pi (démos commerciales, dev local, CI E2E), la
+stack `docker-compose.dev.yml` lance Mosquitto + un container `firmware-sim`
+qui exécute exactement le même agent Python mais sans GPIO ni caméra
+(fail-soft transparent).
+
+```bash
+# 1. Boot la stack (postgres + redis + mosquitto + firmware-sim)
+docker compose -f infra/docker/docker-compose.dev.yml up -d
+
+# 2. Optionnel : observer tout le trafic MQTT en parallèle
+docker run --rm --network host eclipse-mosquitto:2 \
+  mosquitto_sub -h localhost -p 1883 -v -t 'sportlocker/#'
+
+# 3. Simuler un scan QR — mint un JWT device et publie sur cmd/open.
+#    Le firmware-sim reçoit, vérifie la signature, "ouvre" le casier
+#    (pulse GPIO simulé), et publie l'event signé en retour.
+python -m sportlocker_firmware.tools.demo_unlock \
+  --broker mqtt://localhost:1883 \
+  --secret dev-jwt-device-secret-change-me \
+  --device 00000000-0000-0000-0000-000000000000 \
+  --locker 11111111-1111-1111-1111-111111111111
+```
+
+Les UUIDs `00000000-…` (device) et `11111111-…` à `44444444-…` (lockers) sont
+ceux pré-câblés dans `infra/docker/firmware-sim/calibration.json` — adapte-les
+pour matcher les vrais UUIDs de ta base si tu joues le scénario E2E avec
+l'API en sus.
+
+Pour obtenir juste le JWT (sans publier sur le broker, ex. pour le coller
+dans Postman ou debug API) :
+
+```bash
+python -m sportlocker_firmware.tools.demo_unlock \
+  --secret dev-jwt-device-secret-change-me \
+  --device 00000000-0000-0000-0000-000000000000 \
+  --locker 11111111-1111-1111-1111-111111111111 \
+  --print-only
+```
+
+⚠️ **N'utilise jamais cette CLI avec le vrai secret prod en argument bash** :
+il finit dans l'historique shell. En prod, le JWT device est minté par
+l'app citoyenne (et par l'API pour les forces-unlock opérateur), jamais par
+ce tool.
+
 ## Déploiement Balena
 
 ```bash
