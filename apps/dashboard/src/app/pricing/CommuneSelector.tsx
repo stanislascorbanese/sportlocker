@@ -37,8 +37,8 @@ export function CommuneSelector({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/5 px-4 py-3">
-      <span className="text-xs font-medium uppercase tracking-wider text-violet-300">
+    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3">
+      <span className="text-xs font-medium uppercase tracking-wider text-emerald-300">
         Super-admin
       </span>
       <span className="text-sm text-zinc-400">·</span>
@@ -52,7 +52,7 @@ export function CommuneSelector({
         onChange={(e) => onChange(e.target.value)}
         className={cn(
           'flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100',
-          'focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/30',
+          'focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30',
           pending && 'opacity-50',
         )}
       >
