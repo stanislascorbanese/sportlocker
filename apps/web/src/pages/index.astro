@@ -31,7 +31,7 @@ const pillars = [
   {
     icon: '💸',
     title: 'Revenu locations partagé',
-    desc: 'Vos usagers paient 5 € la journée. Vous gardez 75 %, SportLocker prend 25 % de commission.',
+    desc: 'Vous fixez la grille — slots de 30 min à la journée. Vous gardez 75 % de chaque location, SportLocker prend 25 % de commission.',
   },
 ]
 
@@ -64,7 +64,7 @@ const useCases = [
 
 const citoyenSteps = [
   { n: '01', title: 'Je trouve un casier', desc: 'L\'app affiche les distributeurs proches avec le stock en temps réel.' },
-  { n: '02', title: 'Je paie 5 € la journée', desc: 'Forfait simple, caution préautorisée sur la CB (libérée si retour OK). Apple Pay / Google Pay.' },
+  { n: '02', title: 'Je choisis ma durée', desc: '30 min, 1 h, 1 h 30, 2 h ou la journée. Prix fixé par l\'opérateur du site. Caution préautorisée sur la CB (libérée si retour OK).' },
   { n: '03', title: 'J\'ouvre avec mon QR', desc: 'Scan devant le casier, ouverture en moins d\'une seconde. Fonctionne sans réseau.' },
 ]
 
@@ -96,7 +96,7 @@ const competitors = [
 const faq = [
   {
     q: 'Combien ça coûte pour mon site ?',
-    a: 'Abonnement à partir de 400 € HT / mois / distributeur, tout inclus (matériel, maintenance, support, mises à jour). En parallèle, vos usagers paient 5 € la journée par location et vous gardez 75 % de ce montant. Voir la page tarifs pour la simulation détaillée.',
+    a: 'Abonnement à partir de 400 € HT / mois / distributeur, tout inclus (matériel, maintenance, support, mises à jour). En parallèle, vos usagers paient à la location selon la grille que vous fixez (slots de 30 min à la journée) et vous gardez 75 % de chaque transaction. Voir la page tarifs pour la simulation détaillée.',
   },
   {
     q: 'Qui paie le matériel sportif (ballons, raquettes, etc.) ?',
@@ -108,7 +108,7 @@ const faq = [
   },
   {
     q: 'Le service est-il payant pour mes usagers ?',
-    a: 'Oui — modèle marketplace. L\'inscription à l\'app et la consultation des distributeurs sont gratuites. Chaque location est facturée 5 € TTC forfait journée. Vous récupérez 75 % (3,75 €), SportLocker prend 25 % de commission.',
+    a: 'Oui — modèle marketplace. L\'inscription à l\'app et la consultation des distributeurs sont gratuites. Chaque location est facturée selon votre grille (30 min, 1 h, 1 h 30, 2 h ou journée — vous choisissez les durées et les prix). Quatre templates pré-configurés sont fournis pour démarrer (communal léger, saisonnier, hôtel premium, forfait journée seul). Sur chaque transaction, vous récupérez 75 % et SportLocker prend 25 % de commission.',
   },
   {
     q: 'Comment je récupère ma part des locations ?',
@@ -123,20 +123,20 @@ const faq = [
 
 <Base
   title="Distributeurs de matériel sportif en libre-service 24/7"
-  description="SportLocker installe des distributeurs IoT de matériel sportif sur vos sites. Marketplace 3-flux : abonnement SaaS, location citoyen 5€/jour, vous gardez 75%. Solution clé en main pour mairies, campings et hôtels."
+  description="SportLocker installe des distributeurs IoT de matériel sportif sur vos sites. Marketplace 3-flux : abonnement SaaS, locations citoyens à la durée (30 min à la journée, prix paramétrable), vous gardez 75 %. Solution clé en main pour mairies, campings et hôtels."
 >
   <Hero
     tag="Premier réseau marketplace en France · 2026"
     title="Le sport en libre-service,"
     highlight="24/7, sur vos sites."
-    desc="SportLocker installe des distributeurs connectés sur vos terrains publics, plages, campings et hôtels. Vos usagers paient 5 € la journée pour emprunter ballon, raquette ou matos plage en 30 secondes. Vous gardez 75 % du chiffre, SportLocker prend l'opérationnel."
+    desc="SportLocker installe des distributeurs connectés sur vos terrains publics, plages, campings et hôtels. Vos usagers empruntent ballon, raquette ou matos plage en 30 secondes — durée au choix (30 min à la journée), prix que vous fixez. Vous gardez 75 % du chiffre, SportLocker prend l'opérationnel."
     primary={{ href: '/contact#formulaire', label: 'Demander un devis' }}
     secondary={{ href: '/comment-ca-marche#distributeur-3d', label: 'Voir comment ça marche' }}
   >
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 mt-16 pt-10 border-t border-white/10 max-w-2xl" data-reveal data-reveal-delay="4">
       <div>
-        <div class="font-extrabold text-3xl text-white">5<span class="text-brand-500">€</span></div>
-        <div class="text-xs text-white/45 mt-1">Forfait journée<br/>côté usager</div>
+        <div class="font-extrabold text-3xl text-white">5</div>
+        <div class="text-xs text-white/45 mt-1">Durées au choix<br/>30 min → journée</div>
       </div>
       <div>
         <div class="font-extrabold text-3xl text-white">75<span class="text-brand-500">%</span></div>

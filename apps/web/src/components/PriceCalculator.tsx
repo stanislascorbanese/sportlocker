@@ -314,9 +314,9 @@ export default function PriceCalculator(): JSX.Element {
           </div>
         </dl>
         <p className="text-[0.7rem] text-white/40 italic leading-relaxed mt-4 pt-4 border-t border-white/5">
-          Les locations citoyens ({formatInt(LOCATIONS_PER_DIST_PER_DAY)} loc/jour/dist à pleine charge × 75 % reversés) ne sont
-          pas comptabilisées en année 1 — l'usage met 12 à 18 mois à monter en charge.
-          En croisière, le revenu mature atteint{' '}
+          Les locations citoyens ({formatInt(LOCATIONS_PER_DIST_PER_DAY)} loc/jour/dist à pleine charge × 75 % reversés,
+          panier moyen indicatif — vous fixez votre grille via /pricing) ne sont pas comptabilisées en année 1 :
+          l'usage met 12 à 18 mois à monter en charge. En croisière, le revenu mature atteint{' '}
           <strong className="text-white/65 font-normal">
             {formatEur(result.annualLocationRevenueMature)}/an
           </strong>.
