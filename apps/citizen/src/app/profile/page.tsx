@@ -47,6 +47,46 @@ export default function ProfilePage() {
         <LogOut className="h-4 w-4" />
         Se déconnecter
       </button>
+
+      {/* Liens légaux — pointent vers la vitrine (source unique de vérité juridique).
+          target=_blank parce que l'utilisateur ne doit pas perdre son flow de réservation
+          en ouvrant un document de plusieurs pages. */}
+      <footer className="pt-2 pb-4 text-center text-xs text-white/40">
+        <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+          <li>
+            <a
+              href="https://sportlocker.fr/cgu"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white/70 transition"
+            >
+              CGU
+            </a>
+          </li>
+          <li aria-hidden="true">·</li>
+          <li>
+            <a
+              href="https://sportlocker.fr/confidentialite"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white/70 transition"
+            >
+              Confidentialité
+            </a>
+          </li>
+          <li aria-hidden="true">·</li>
+          <li>
+            <a
+              href="https://sportlocker.fr/mentions-legales"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white/70 transition"
+            >
+              Mentions légales
+            </a>
+          </li>
+        </ul>
+      </footer>
     </main>
   )
 }
