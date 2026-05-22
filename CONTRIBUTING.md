@@ -199,8 +199,8 @@ Si rouge → on fixe, on ne merge pas.
 | Stack | Outil | Localisation |
 |---|---|---|
 | API (Fastify) | vitest + testcontainers Postgres | `services/api/test/` |
-| Dashboard (Next.js) | (à venir — playwright e2e prévu) | — |
-| Mobile (Expo) | Jest + React Testing Library | `apps/mobile/__tests__/` |
+| Dashboard (Next.js) | vitest + (à venir — playwright e2e prévu) | `apps/dashboard/` |
+| Citoyen PWA (Next.js) | vitest + (à venir — playwright e2e prévu) | `apps/citizen/` |
 | Firmware (Python) | pytest | `services/firmware/tests/` |
 
 Couverture minimale visée : **80% sur les routes critiques** (auth, reservations, distributors).

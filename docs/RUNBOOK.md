@@ -12,8 +12,8 @@ expliquant le **comment**.
 |---|---|---|---|
 | API backend | Fastify 4 + Drizzle + TS | Railway (Dockerfile) | US West |
 | Dashboard ops | Next.js 15 App Router | Railway (Nixpacks) | US West |
-| Site vitrine | HTML statique + `serve` | Railway (Dockerfile) | US West |
-| App mobile | Expo SDK 51 / RN 0.74 | Pas hébergé (build EAS) | - |
+| App citoyenne | Next.js 15 PWA | Railway (Dockerfile) | EU West |
+| Site vitrine | Astro statique | Railway (Dockerfile) | US West |
 | Firmware IoT | Python 3.11 (paho, OpenCV, jose) | Balena (Raspberry Pi CM4) | sur site |
 | Base de données | PostgreSQL 16 managé | **Supabase** | EU Central (Frankfurt) |
 | Cache & queues | Redis 7 + BullMQ | Railway service | US West |
@@ -30,7 +30,7 @@ expliquant le **comment**.
 | API | `https://sportlockerapi-production.up.railway.app` |
 | Dashboard | `https://sportlockerdashboard-production.up.railway.app` |
 | Site web | Railway → `@sportlocker/web` → Settings → Networking |
-| Mobile | (build Expo → TestFlight / Play Store quand prêt) |
+| App citoyenne | `https://app.sportlocker.fr` |
 
 ### Endpoints API utiles
 - `GET /health/` — healthcheck (utilisé par Railway probe)
@@ -56,7 +56,6 @@ expliquant le **comment**.
 | Sentry | https://sentry.io | Erreurs prod (à activer) |
 | Balena | https://www.balena.io | OTA firmware Pi (à activer) |
 | Stripe | https://dashboard.stripe.com | Paiements / cautions (à activer) |
-| Expo EAS | https://expo.dev | Builds mobile + push (à activer) |
 
 ---
 
@@ -82,8 +81,8 @@ cp .env.example .env  # remplir les secrets locaux
 |---|---|---|
 | API | `pnpm --filter @sportlocker/api dev` | 3000 |
 | Dashboard | `pnpm --filter @sportlocker/dashboard dev` | 3001 |
+| Citizen PWA | `pnpm --filter @sportlocker/citizen dev` | 3002 |
 | Web | `pnpm --filter @sportlocker/web dev` | 4000 |
-| Mobile | `pnpm --filter @sportlocker/mobile dev` | Expo (QR code) |
 | Tous en parallèle | `pnpm dev` | (turbo) |
 
 ### Tests
@@ -237,7 +236,7 @@ gh run view <run-id> --log   # logs détaillés d'un run échoué
 | `FIREBASE_PROJECT_ID` | api | ID projet Firebase |
 | `INTERNAL_API_URL` | dashboard | URL API (server-side fetch) |
 | `NEXT_PUBLIC_FIREBASE_*` | dashboard | Config Firebase Auth web (API_KEY, AUTH_DOMAIN, PROJECT_ID, APP_ID) |
-| `SENTRY_DSN` | api, dashboard, mobile, firmware | DSN Sentry par service |
+| `SENTRY_DSN` | api, dashboard, citizen, firmware | DSN Sentry par service |
 
 ---
 
