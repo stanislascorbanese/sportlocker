@@ -60,16 +60,16 @@ export const PRICING_TEMPLATES = [
   },
   {
     slug: 'saisonnier',
-    label: 'Saisonnier camping & plage',
+    label: 'Pleine saison',
     targetSegment: 'camping' as const,
     desc: 'Pratique courante en bord de mer : 30 min à la journée.',
     prices: { 30: 1, 60: 2, 90: 3, 120: 5, 1440: 5 },
   },
   {
     slug: 'hotel-premium',
-    label: 'Hôtel premium',
+    label: 'Standing 4★ / 5★',
     targetSegment: 'hotel' as const,
-    desc: 'Positionnement haut de gamme cohérent avec le standing 4★ / 5★.',
+    desc: 'Positionnement haut de gamme cohérent avec les attentes d\'un hôtel premium.',
     prices: { 30: 2, 60: 4, 90: 5, 120: 7, 1440: 15 },
   },
   {
