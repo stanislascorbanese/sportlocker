@@ -5,7 +5,7 @@ import { ArrowLeft, CalendarClock, Check, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   DAY_PASS_MINUTES,
@@ -539,39 +539,138 @@ function SlotGrid({
         })}
       </div>
 
-      {/* 3b. Grille des heures du jour sélectionné */}
+      {/* 3b. Wheel picker des heures du jour sélectionné (style iOS Clock) */}
       {!hasAvailableInActiveDay ? (
         <p className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center text-[12px] text-white/45">
           Aucun créneau libre ce jour-là. Choisis un autre jour ci-dessus.
         </p>
       ) : (
-        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {currentSlots.map((s) => {
-            const isSel = selected?.startsAt === s.startsAt
-            const noPrice = s.priceCents === null
-            const disabled = !s.available || noPrice
-            return (
-              <li key={s.startsAt}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onSelect(s)}
-                  className={cn(
-                    'flex w-full items-center justify-center rounded-lg border py-2.5 text-sm font-medium tabular-nums transition',
-                    disabled
-                      ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/25'
-                      : isSel
-                        ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                        : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
-                  )}
-                >
-                  {fmtHour(s.startsAt)}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        <TimeWheel slots={currentSlots} selected={selected} onSelect={onSelect} />
       )}
+    </div>
+  )
+}
+
+/**
+ * Wheel picker style iPhone Clock : liste verticale snap-y avec bande
+ * centrale fixe qui surligne le créneau choisi. L'utilisateur scrolle
+ * et le slot au centre devient sélectionné automatiquement (debounce 100ms).
+ * Tap direct sur un slot → scroll smooth pour le centrer.
+ *
+ * On filtre les slots indisponibles (pas dans la liste défilante) — sinon
+ * le wheel pourrait s'arrêter sur un slot qu'on ne peut pas réserver, ce
+ * qui rend l'UX confuse.
+ */
+function TimeWheel({
+  slots,
+  selected,
+  onSelect,
+}: {
+  slots: AvailabilitySlot[]
+  selected: AvailabilitySlot | null
+  onSelect: (s: AvailabilitySlot) => void
+}) {
+  const ITEM_HEIGHT = 44
+  const VISIBLE = 5
+  const HEIGHT = ITEM_HEIGHT * VISIBLE
+  const PAD = (HEIGHT - ITEM_HEIGHT) / 2
+
+  const available = useMemo(
+    () => slots.filter((s) => s.available && s.priceCents !== null),
+    [slots],
+  )
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const debounceRef = useRef<number | null>(null)
+
+  // Centre le slot sélectionné quand il change depuis l'extérieur (ex.
+  // changement de durée ou re-bascule de jour qui re-mappe la sélection).
+  useEffect(() => {
+    if (!containerRef.current || !selected) return
+    const idx = available.findIndex((s) => s.startsAt === selected.startsAt)
+    if (idx >= 0) {
+      containerRef.current.scrollTop = idx * ITEM_HEIGHT
+    }
+  }, [selected, available])
+
+  // Auto-sélectionne le premier slot dispo au montage si rien n'est choisi
+  // (sinon le bouton "Réserver" reste désactivé sans qu'on comprenne pourquoi).
+  useEffect(() => {
+    if (!selected && available.length > 0 && available[0]) {
+      onSelect(available[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [available.length])
+
+  const handleScroll = () => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current)
+    }
+    debounceRef.current = window.setTimeout(() => {
+      if (!containerRef.current) return
+      const idx = Math.round(containerRef.current.scrollTop / ITEM_HEIGHT)
+      const slot = available[Math.max(0, Math.min(idx, available.length - 1))]
+      if (slot && slot.startsAt !== selected?.startsAt) {
+        onSelect(slot)
+      }
+    }, 120)
+  }
+
+  return (
+    <div className="relative mx-auto w-full max-w-xs select-none" style={{ height: HEIGHT }}>
+      {/* Bande de sélection centrale */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 rounded-xl border border-emerald-400/60 bg-emerald-500/10"
+        style={{ top: PAD, height: ITEM_HEIGHT }}
+      />
+
+      {/* Wheel scrollable */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-scroll scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          paddingTop: PAD,
+          paddingBottom: PAD,
+          scrollSnapType: 'y mandatory',
+        }}
+      >
+        {available.map((s, i) => {
+          const isSel = selected?.startsAt === s.startsAt
+          return (
+            <button
+              key={s.startsAt}
+              type="button"
+              onClick={() => {
+                containerRef.current?.scrollTo({
+                  top: i * ITEM_HEIGHT,
+                  behavior: 'smooth',
+                })
+                onSelect(s)
+              }}
+              style={{ height: ITEM_HEIGHT, scrollSnapAlign: 'center', scrollSnapStop: 'always' }}
+              className={cn(
+                'flex w-full items-center justify-center text-lg tabular-nums transition-colors',
+                isSel ? 'font-semibold text-emerald-100' : 'text-white/45',
+              )}
+            >
+              {fmtHour(s.startsAt)}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Dégradés fade haut/bas pour l'effet "wheel" iOS */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-navy-900 via-navy-900/85 to-transparent"
+        style={{ height: PAD - 6 }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-900 via-navy-900/85 to-transparent"
+        style={{ height: PAD - 6 }}
+      />
     </div>
   )
 }
