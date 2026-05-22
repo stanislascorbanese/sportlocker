@@ -60,8 +60,8 @@ const CreateSlotReservationBody = z.object({
   slotStartAt: z.string().datetime({ offset: true })
     .describe('Début du créneau réservé (ISO 8601, aligné sur :00 ou :30 UTC)'),
   durationMinutes: z.number().int()
-    .refine((n) => [30, 60, 90, 120].includes(n), { message: 'duration_not_allowed' })
-    .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120'),
+    .refine((n) => [30, 60, 90, 120, 1440].includes(n), { message: 'duration_not_allowed' })
+    .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120 (slots courts) ou 1440 (forfait journée)'),
 })
 
 const SlotReservationCreatedDTO = ReservationBaseDTO.extend({

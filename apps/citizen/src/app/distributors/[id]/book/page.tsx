@@ -8,12 +8,14 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useMemo, useState } from 'react'
 
 import {
+  DAY_PASS_MINUTES,
   SLOT_DURATIONS,
   type SlotDurationMinutes,
   type SlotReservationCreated,
   createSlotReservation,
   fetchAvailability,
   fetchDistributorDetail,
+  isDayPassDuration,
   type AvailabilitySlot,
   type DistributorDetail,
   type LockerItemType,
@@ -36,6 +38,7 @@ import { cn } from '../../../../lib/cn'
  */
 
 function fmtDurationMinutes(d: SlotDurationMinutes): string {
+  if (d === DAY_PASS_MINUTES) return 'Journée'
   if (d < 60) return `${d} min`
   const h = Math.floor(d / 60)
   const r = d % 60
@@ -61,9 +64,12 @@ function fmtDayShort(isoDay: string): { weekday: string; day: number; month: str
   }
 }
 
-function fmtFullSlot(slot: AvailabilitySlot): string {
+function fmtFullSlot(slot: AvailabilitySlot, duration: SlotDurationMinutes): string {
   const d = new Date(slot.startsAt)
   const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  // Forfait journée : on n'affiche pas la fourchette horaire (peu utile,
+  // car le citoyen vient quand il veut dans les heures d'ouverture).
+  if (duration === DAY_PASS_MINUTES) return `${dateStr} · Forfait journée`
   return `${dateStr} · ${fmtHour(slot.startsAt)} – ${fmtHour(slot.endsAt)}`
 }
 
@@ -242,12 +248,21 @@ export default function BookingPage() {
             <p className="text-sm text-white/50">Aucun créneau dans la fenêtre J→J+7.</p>
           )}
           {availabilityQuery.data && dayKeys.length > 0 && (
-            <SlotGrid
-              days={days}
-              dayKeys={dayKeys}
-              selected={selectedSlot}
-              onSelect={setSelectedSlot}
-            />
+            isDayPassDuration(duration) ? (
+              <DayPassGrid
+                days={days}
+                dayKeys={dayKeys}
+                selected={selectedSlot}
+                onSelect={setSelectedSlot}
+              />
+            ) : (
+              <SlotGrid
+                days={days}
+                dayKeys={dayKeys}
+                selected={selectedSlot}
+                onSelect={setSelectedSlot}
+              />
+            )
           )}
         </section>
       )}
@@ -258,14 +273,14 @@ export default function BookingPage() {
           <div className="flex items-start gap-3">
             <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium capitalize">{fmtFullSlot(selectedSlot)}</p>
+              <p className="text-sm font-medium capitalize">{fmtFullSlot(selectedSlot, duration)}</p>
               <p className="mt-1 text-[12px] text-white/60">
                 {fmtDurationMinutes(duration)} · {fmtPrice(selectedSlot.priceCents)}
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-white/40">
-                Aucun débit (MVP) — le prix est affiché à titre indicatif. Tu pourras
-                ouvrir le casier en scannant ton QR le jour J, dans la fenêtre de 15 min après
-                l'heure de début.
+                {isDayPassDuration(duration)
+                  ? 'Aucun débit (MVP) — le prix est affiché à titre indicatif. Tu peux récupérer ton item à tout moment dans les heures d\'ouverture le jour réservé.'
+                  : 'Aucun débit (MVP) — le prix est affiché à titre indicatif. Tu pourras ouvrir le casier en scannant ton QR le jour J, dans la fenêtre de 15 min après l\'heure de début.'}
               </p>
             </div>
           </div>
@@ -299,11 +314,13 @@ function ConfirmationView({
 }) {
   const slotStart = new Date(reservation.slotStartAt)
   const slotEnd = new Date(reservation.slotEndAt)
+  const isDayPass = reservation.durationMinutes === DAY_PASS_MINUTES
   const dateStr = slotStart.toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
-  const timeRange =
-    `${slotStart.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} – `
+  const timeRange = isDayPass
+    ? 'Forfait journée'
+    : `${slotStart.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} – `
     + `${slotEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
 
   return (
@@ -344,9 +361,9 @@ function ConfirmationView({
       </section>
 
       <p className="text-center text-[11px] leading-relaxed text-white/40">
-        Scanne ce QR sur le distributeur pour ouvrir le casier. Le QR reste valide
-        jusqu'à 15 min après l'heure de début. Au-delà, le créneau est libéré et la
-        réservation expire.
+        {isDayPass
+          ? 'Scanne ce QR sur le distributeur pour ouvrir le casier. Tu peux venir à tout moment dans les heures d\'ouverture le jour réservé.'
+          : 'Scanne ce QR sur le distributeur pour ouvrir le casier. Le QR reste valide jusqu\'à 15 min après l\'heure de début. Au-delà, le créneau est libéré et la réservation expire.'}
       </p>
 
       <Link
@@ -418,5 +435,65 @@ function SlotGrid({
         )
       })}
     </div>
+  )
+}
+
+/**
+ * Variante "forfait journée" : 1 carte par jour (le slot enumerator API
+ * n'émet qu'un seul créneau par jour quand duration=1440). Pas de grille
+ * d'horaires — on affiche juste le jour + le prix.
+ */
+function DayPassGrid({
+  days,
+  dayKeys,
+  selected,
+  onSelect,
+}: {
+  days: Record<string, AvailabilitySlot[]>
+  dayKeys: string[]
+  selected: AvailabilitySlot | null
+  onSelect: (s: AvailabilitySlot) => void
+}) {
+  return (
+    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {dayKeys.map((dk) => {
+        const d = fmtDayShort(dk)
+        const slot = days[dk]?.[0]
+        if (!slot) return null
+        const isSel = selected?.startsAt === slot.startsAt
+        const noPrice = slot.priceCents === null
+        return (
+          <li key={dk}>
+            <button
+              type="button"
+              disabled={!slot.available || noPrice}
+              onClick={() => onSelect(slot)}
+              title={noPrice ? 'Pas de tarif "Journée" configuré pour ce sport' : undefined}
+              className={cn(
+                'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition',
+                !slot.available || noPrice
+                  ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30'
+                  : isSel
+                    ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
+                    : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
+              )}
+            >
+              <div className="flex items-baseline gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-white/50">{d.weekday}</span>
+                <span className="text-base font-semibold tabular-nums">{d.day}</span>
+                <span className="text-[10px] text-white/40">{d.month}</span>
+              </div>
+              <span className="text-sm tabular-nums">
+                {slot.priceCents === null
+                  ? '—'
+                  : slot.priceCents === 0
+                    ? 'Gratuit'
+                    : `${(slot.priceCents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

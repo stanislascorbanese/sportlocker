@@ -1,20 +1,31 @@
 /**
  * Helpers métier pour le modèle de réservation par slots
- * (cf. migration 0008 et docs/CDC.md §4.3).
+ * (cf. migration 0008 et docs/CDC.md §4.3) + forfait journée (migration 0009).
  *
- * Granularité fixe : **30 minutes**. Tout `slot_start_at` doit tomber sur
- * `:00` ou `:30` en UTC (l'API stocke en TIMESTAMPTZ, donc on s'aligne sur
- * UTC pour éviter les surprises DST).
+ * Granularité fixe pour les slots courts : **30 minutes**. Tout `slot_start_at`
+ * doit tomber sur `:00` ou `:30` en UTC (l'API stocke en TIMESTAMPTZ, donc
+ * on s'aligne sur UTC pour éviter les surprises DST).
  *
  * Plage de booking : J → J+`MAX_BOOKING_HORIZON_DAYS`. Au-delà, refus 422.
  *
- * Durées autorisées : 30, 60, 90, 120 minutes (validées par le CHECK SQL et
- * le z.literal côté types partagés). Toute autre valeur est rejetée ici en
- * première ligne pour donner une erreur explicite plutôt qu'un 500 PG.
+ * Durées autorisées : 30, 60, 90, 120 minutes (slots courts) + 1440 (forfait
+ * journée). Validées par le CHECK SQL et le z.literal côté types partagés.
+ * Toute autre valeur est rejetée ici en première ligne pour donner une erreur
+ * explicite plutôt qu'un 500 PG.
+ *
+ * Forfait journée (1440 min) :
+ *   - 1 slot par jour, démarrant à `DEFAULT_OPENING_HOUR_UTC`
+ *   - Le check "fin ≤ heure de fermeture" est bypassé (par définition la
+ *     journée dépasse la fenêtre d'ouverture). Le citoyen vient récupérer
+ *     dans la journée pendant les heures d'ouverture, mais la résa couvre
+ *     symboliquement 24h glissantes.
+ *   - L'alignement ":00 ou :30" reste appliqué (slot_start = OPENING:00).
  */
 
 const SLOT_GRANULARITY_MINUTES = 30
-const ALLOWED_DURATIONS = [30, 60, 90, 120] as const
+const ALLOWED_DURATIONS = [30, 60, 90, 120, 1440] as const
+
+export const DAY_PASS_MINUTES = 1440
 
 export const MAX_BOOKING_HORIZON_DAYS = 7
 
@@ -81,8 +92,17 @@ export function validateSlotRequest(args: {
   const horizon = new Date(now.getTime() + MAX_BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000)
   if (args.slotStartAt.getTime() > horizon.getTime()) return 'slot_too_far'
 
-  const endAt = computeSlotEnd(args.slotStartAt, args.durationMinutes)
   const startHour = args.slotStartAt.getUTCHours()
+  const startMin = args.slotStartAt.getUTCMinutes()
+  // Forfait journée : on n'impose QUE start = OPENING:00 (1 slot/jour). La
+  // contrainte "fin ≤ closing" n'a pas de sens (24h > fenêtre d'ouverture).
+  if (args.durationMinutes === DAY_PASS_MINUTES) {
+    if (startHour !== DEFAULT_OPENING_HOUR_UTC || startMin !== 0) {
+      return 'slot_outside_opening_hours'
+    }
+    return null
+  }
+  const endAt = computeSlotEnd(args.slotStartAt, args.durationMinutes)
   // Le slot doit *commencer ET finir* dans la plage d'ouverture. Comme la
   // fin est exclusive (endAt = startAt + duration), un slot de 21:30-22:00
   // est OK si DEFAULT_CLOSING_HOUR_UTC = 22, mais pas si =21.
@@ -116,10 +136,18 @@ export function enumerateSlotStarts(args: {
   durationMinutes: number
 }): Date[] {
   const starts: Date[] = []
-  const oneSlotMs = SLOT_GRANULARITY_MINUTES * 60 * 1000
   const dayMs = 24 * 60 * 60 * 1000
   const lastDayStart = args.toDayUtcInclusive.getTime()
 
+  // Forfait journée : 1 slot par jour à OPENING:00, pas d'intra-day.
+  if (args.durationMinutes === DAY_PASS_MINUTES) {
+    for (let dayStart = args.fromDayUtc.getTime(); dayStart <= lastDayStart; dayStart += dayMs) {
+      starts.push(new Date(dayStart + DEFAULT_OPENING_HOUR_UTC * 60 * 60 * 1000))
+    }
+    return starts
+  }
+
+  const oneSlotMs = SLOT_GRANULARITY_MINUTES * 60 * 1000
   for (let dayStart = args.fromDayUtc.getTime(); dayStart <= lastDayStart; dayStart += dayMs) {
     const openMs = dayStart + DEFAULT_OPENING_HOUR_UTC * 60 * 60 * 1000
     const closeMs = dayStart + DEFAULT_CLOSING_HOUR_UTC * 60 * 60 * 1000

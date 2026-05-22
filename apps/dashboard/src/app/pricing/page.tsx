@@ -4,10 +4,11 @@ import {
   fetchAdminItemTypes,
   fetchCommunes,
   fetchPricingRules,
+  formatDurationLabel,
+  isDayPassDuration,
   type Commune,
   type ItemTypeAdmin,
   type PricingRule,
-  type SlotDurationMinutes,
 } from '../../lib/api'
 import { getSessionUser } from '../../lib/session-server'
 import { RefreshButton } from '../../components/RefreshButton'
@@ -17,13 +18,6 @@ import { PriceCell } from './PriceCell'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Tarification · SportLocker ops' }
-
-function fmtMinutes(min: SlotDurationMinutes): string {
-  if (min < 60) return `${min} min`
-  const h = Math.floor(min / 60)
-  const r = min % 60
-  return r === 0 ? `${h} h` : `${h} h ${r}`
-}
 
 /**
  * Matrice tarifaire éditable : lignes = item_types, colonnes = durées
@@ -164,8 +158,15 @@ export default async function PricingPage({
                       <th className="px-4 py-2 text-left font-normal">Sport / item_type</th>
                       <th className="px-3 py-2 text-left font-normal">Catégorie</th>
                       {SLOT_DURATIONS.map((d) => (
-                        <th key={d} className="px-3 py-2 text-right font-normal tabular-nums">
-                          {fmtMinutes(d)}
+                        <th
+                          key={d}
+                          className={
+                            'px-3 py-2 text-right font-normal tabular-nums '
+                            + (isDayPassDuration(d) ? 'text-amber-300/80' : '')
+                          }
+                          title={isDayPassDuration(d) ? 'Forfait journée — 1 slot/jour à l\'ouverture' : undefined}
+                        >
+                          {formatDurationLabel(d)}
                         </th>
                       ))}
                     </tr>

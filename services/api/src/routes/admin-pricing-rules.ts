@@ -20,7 +20,7 @@ import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
  *   - super_admin : voit / édite toutes les communes (en passant ?communeId=)
  */
 
-const ALLOWED_DURATIONS = [30, 60, 90, 120] as const
+const ALLOWED_DURATIONS = [30, 60, 90, 120, 1440] as const
 const DurationSchema = z.number().int()
   .refine((n) => (ALLOWED_DURATIONS as readonly number[]).includes(n), {
     message: 'duration_not_allowed',

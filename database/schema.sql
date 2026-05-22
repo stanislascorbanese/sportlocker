@@ -241,7 +241,7 @@ CREATE TABLE reservations (
   -- ─── Modèle slots (PR 0008) ───
   slot_start_at    TIMESTAMPTZ,                  -- début du créneau réservé
   slot_end_at      TIMESTAMPTZ,                  -- fin (= start + duration_minutes)
-  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes IN (30, 60, 90, 120)),
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes IN (30, 60, 90, 120, 1440)),
   price_cents      INTEGER CHECK (price_cents IS NULL OR price_cents >= 0),
   CONSTRAINT reservations_slot_range_check CHECK (
     (slot_start_at IS NULL AND slot_end_at IS NULL)
@@ -394,7 +394,7 @@ CREATE TABLE pricing_rules (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   commune_id       UUID NOT NULL REFERENCES communes(id)   ON DELETE CASCADE,
   item_type_id     UUID NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
-  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (30, 60, 90, 120)),
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (30, 60, 90, 120, 1440)),
   price_cents      INTEGER NOT NULL CHECK (price_cents >= 0),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
