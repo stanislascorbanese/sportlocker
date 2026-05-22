@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CalendarClock, Check, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -108,6 +108,49 @@ export default function BookingPage() {
     staleTime: 30_000,
   })
 
+  // Pour afficher le prix sous chaque bouton de durée, on fetch availability
+  // en parallèle pour les 5 durées. React-query dédupe la requête en cours
+  // (celle de la durée sélectionnée) automatiquement via queryKey identique.
+  // Le prix est extrait du premier slot avec priceCents non-null — la grille
+  // pricing_rules garantit un prix unique par triplet (commune × item × duration).
+  const priceQueries = useQueries({
+    queries: SLOT_DURATIONS.map((d) => ({
+      queryKey: ['availability', params.id, itemTypeId, d],
+      queryFn: () => fetchAvailability({
+        distributorId: params.id,
+        itemTypeId: itemTypeId!,
+        durationMinutes: d,
+      }),
+      enabled: Boolean(user && params.id && itemTypeId),
+      staleTime: 60_000,
+    })),
+  })
+
+  const pricesByDuration = useMemo<Record<number, number | null>>(() => {
+    const out: Record<number, number | null> = {}
+    SLOT_DURATIONS.forEach((d, i) => {
+      const data = priceQueries[i]?.data
+      if (!data) {
+        out[d] = null
+        return
+      }
+      // Premier slot avec un prix dans les 7 jours — null si toute la grille
+      // est à priceCents=null (= pricing_rule absente pour ce triplet).
+      let found: number | null = null
+      for (const dayKey of Object.keys(data.days)) {
+        for (const slot of data.days[dayKey] ?? []) {
+          if (slot.priceCents !== null) {
+            found = slot.priceCents
+            break
+          }
+        }
+        if (found !== null) break
+      }
+      out[d] = found
+    })
+    return out
+  }, [priceQueries])
+
   const reserveMutation = useMutation({
     mutationFn: () => createSlotReservation({
       distributorId: params.id,
@@ -202,9 +245,15 @@ export default function BookingPage() {
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
             2. Combien de temps ?
           </h2>
-          <ul className="grid grid-cols-4 gap-2">
+          <ul className="grid grid-cols-5 gap-2">
             {SLOT_DURATIONS.map((d) => {
               const isSel = duration === d
+              const price = pricesByDuration[d]
+              const isDay = isDayPassDuration(d)
+              // Tant que la query availability tourne (price === undefined dans
+              // notre map mais on a forcé null si pas data), on n'affiche rien
+              // sous la durée pour éviter le flash "—" puis valeur.
+              const priceLoading = priceQueries[SLOT_DURATIONS.indexOf(d)]?.isPending ?? true
               return (
                 <li key={d}>
                   <button
@@ -218,10 +267,25 @@ export default function BookingPage() {
                       isSel
                         ? 'border-emerald-400 bg-emerald-500/10'
                         : 'border-white/10 bg-white/5 hover:border-white/30',
+                      // Le bouton "Journée" reste visible mais légèrement
+                      // distinct pour signaler le forfait (vs slot court).
+                      isDay && !isSel && 'border-emerald-400/25',
                     )}
                   >
                     <Clock className="h-3.5 w-3.5 text-white/50" />
                     <span className="text-xs font-medium tabular-nums">{fmtDurationMinutes(d)}</span>
+                    {priceLoading ? (
+                      <span className="text-[10px] text-white/30 tabular-nums">·</span>
+                    ) : (
+                      <span
+                        className={cn(
+                          'text-[10px] tabular-nums',
+                          price == null ? 'text-white/30' : 'text-emerald-300/80',
+                        )}
+                      >
+                        {price == null ? '—' : fmtPrice(price)}
+                      </span>
+                    )}
                   </button>
                 </li>
               )
