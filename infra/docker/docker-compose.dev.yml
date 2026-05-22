@@ -38,7 +38,9 @@ services:
     environment:
       DEVICE_ID: '00000000-0000-0000-0000-000000000000'
       DEVICE_API_KEY: dev-key
-      JWT_DEVICE_SECRET: dev-jwt-device-secret-change-me
+      # 32+ chars (le schéma Zod côté API exige min 32). Le même secret doit
+      # être utilisé côté API quand on lance l'E2E (cf. README firmware).
+      JWT_DEVICE_SECRET: dev-jwt-device-secret-change-me-32+
       MQTT_URL: mqtt://mosquitto:1883
       CALIBRATION_PATH: /etc/sportlocker/calibration.json
       FIRMWARE_DB_PATH: /var/lib/sportlocker/agent.db
