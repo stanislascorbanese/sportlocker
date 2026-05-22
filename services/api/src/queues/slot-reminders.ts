@@ -1,39 +1,39 @@
-import { and, between, eq, isNotNull } from 'drizzle-orm'
+import { and, between, eq, isNotNull, sql } from 'drizzle-orm'
 import type { FastifyBaseLogger } from 'fastify'
 
 import { db } from '../db/client.js'
 import {
-  distributors, itemTypes, items, notificationLogs, pushTokens, reservations,
+  distributors, itemTypes, items, notificationLogs, pushTokens, reservations, users,
 } from '../db/schema.js'
 import { sendWebPush } from '../lib/webpush.js'
 
 /**
- * Cron : envoie un rappel push **1h avant** chaque créneau réservé en
- * statut `scheduled`. Tourne toutes les 15 min. Idempotent via
- * `notification_logs` : on ne renvoie pas le même template pour la même
- * réservation.
+ * Cron : envoie un rappel push **avant** chaque créneau réservé en statut
+ * `scheduled`. Délai paramétrable par user (cf. PR 0011) :
+ * `users.reminder_minutes_before` (15 par défaut, valeurs UI 15/30/60/120).
  *
- * Fenêtre cible : `slot_start_at ∈ [now + 55 min, now + 65 min]`. Si le
- * cron est en retard de quelques minutes (drift Redis/BullMQ), on capture
- * quand même les résas grâce à la fenêtre de 10 min. Si une résa tombe
- * pile sur la frontière, le filet anti-doublon (`notification_logs`)
- * évite le double envoi.
+ * Tourne toutes les 15 min. Fenêtre cible :
+ * `slot_start_at - reminder_minutes_before ∈ [now - 8 min, now + 8 min]`
  *
- * Toutes les notifs ratées (push gone/invalid/http_error) sont loggées en
- * info. Une subscription qui répond 404/410 = révoquée → DELETE de la row
- * pour ne plus retenter.
+ * Soit, par construction du JOIN :
+ *   slot_start_at ∈ [now + reminder - 8min, now + reminder + 8min]
+ *
+ * Le filtre est fait côté SQL avec une fenêtre exprimée en intervalle relatif
+ * au user, ce qui permet aux users qui veulent 15min comme à ceux qui veulent
+ * 2h d'être servis par le même cron toutes les 15 min.
+ *
+ * Idempotent via `notification_logs` (template `slot_reminder:<resId>`).
  */
-const REMINDER_TEMPLATE = 'slot_reminder_1h'
-const WINDOW_MIN_MS = 55 * 60 * 1000
-const WINDOW_MAX_MS = 65 * 60 * 1000
+const REMINDER_TEMPLATE_PREFIX = 'slot_reminder'
+const WINDOW_TOLERANCE_MIN = 8  // ±8 min autour de la cible (cron tourne 15 min)
 
 type CandidateRow = {
   reservationId: string
   userId: string
   slotStartAt: Date
+  reminderMinutesBefore: number
   distributorName: string
   itemTypeName: string
-  durationMinutes: number | null
 }
 
 export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
@@ -43,27 +43,34 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
   revoked: number
   failed: number
 }> {
-  const now = Date.now()
-  const windowMin = new Date(now + WINDOW_MIN_MS)
-  const windowMax = new Date(now + WINDOW_MAX_MS)
+  const now = new Date()
 
+  // Critère SQL : slot_start_at - users.reminder_minutes_before * INTERVAL '1 minute'
+  // doit tomber dans [now - TOLERANCE, now + TOLERANCE].
+  //
+  // On exprime ça via : now + reminder ∈ [slot - TOL, slot + TOL]
+  // Soit l'autre côté : slot - now ∈ [reminder - TOL, reminder + TOL]
+  // En SQL: EXTRACT(EPOCH FROM (slot_start_at - now)) / 60 ∈ [reminder - TOL, reminder + TOL]
   const candidates = await db
     .select({
       reservationId: reservations.id,
       userId: reservations.userId,
       slotStartAt: reservations.slotStartAt,
+      reminderMinutesBefore: users.reminderMinutesBefore,
       distributorName: distributors.name,
       itemTypeName: itemTypes.name,
-      durationMinutes: reservations.durationMinutes,
     })
     .from(reservations)
+    .innerJoin(users, eq(users.id, reservations.userId))
     .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
     .innerJoin(items, eq(items.id, reservations.itemId))
     .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
     .where(and(
       eq(reservations.status, 'scheduled'),
       isNotNull(reservations.slotStartAt),
-      between(reservations.slotStartAt, windowMin, windowMax),
+      // delta_min = (slot_start_at - now) en minutes
+      // condition : ABS(delta_min - reminder) <= TOLERANCE
+      sql`ABS(EXTRACT(EPOCH FROM (${reservations.slotStartAt} - ${now})) / 60.0 - ${users.reminderMinutesBefore}) <= ${WINDOW_TOLERANCE_MIN}`,
     ))
 
   let sent = 0
@@ -72,28 +79,10 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
   let failed = 0
 
   for (const row of candidates as CandidateRow[]) {
-    // Anti-doublon : on a déjà envoyé ce template pour cette résa ?
-    // notification_logs.payload.reservationId nous sert d'index logique
-    // (pas indexé en DB, mais sur 1 row/résa max c'est négligeable).
-    const already = await db
-      .select({ id: notificationLogs.id })
-      .from(notificationLogs)
-      .where(and(
-        eq(notificationLogs.userId, row.userId),
-        eq(notificationLogs.template, REMINDER_TEMPLATE),
-        eq(notificationLogs.channel, 'push'),
-      ))
-      .limit(50)
-    const alreadySentForThisRes = already.some((_log) => {
-      // L'enregistrement payload n'est pas chargé ici — on prend la voie
-      // simple : on attache directement reservationId dans le template
-      // composite pour pouvoir requêter dessus précisément. Voir plus bas.
-      return false
-    })
-    void alreadySentForThisRes
-    // Implémentation plus simple : on stocke le template "slot_reminder_1h:<resId>"
-    // unique par résa → le SELECT teste l'existence directement.
-    const templateWithId = `${REMINDER_TEMPLATE}:${row.reservationId}`
+    // Anti-doublon : 1 row notification_logs par résa identifiée par
+    // template = "slot_reminder:<resId>". L'unicité est logique (pas
+    // d'index UNIQUE en DB — sur 1 row/résa max c'est négligeable).
+    const templateWithId = `${REMINDER_TEMPLATE_PREFIX}:${row.reservationId}`
     const existing = await db
       .select({ id: notificationLogs.id })
       .from(notificationLogs)
@@ -125,9 +114,10 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
     const slotHour = row.slotStartAt.toLocaleTimeString('fr-FR', {
       hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
     })
+    const minutesLabel = formatMinutesLabel(row.reminderMinutesBefore)
     const payload = {
-      title: 'Ton créneau arrive 🏐',
-      body: `${row.itemTypeName} à ${slotHour} · ${row.distributorName}. À tout de suite !`,
+      title: `Ton créneau arrive dans ${minutesLabel} 🏐`,
+      body: `${row.itemTypeName} à ${slotHour} · ${row.distributorName}.`,
       url: `/reservations/${row.reservationId}`,
       tag: `slot-${row.reservationId}`,
     }
@@ -164,7 +154,11 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
         userId: row.userId,
         channel: 'push',
         template: templateWithId,
-        payload: { reservationId: row.reservationId, slotStartAt: row.slotStartAt.toISOString() },
+        payload: {
+          reservationId: row.reservationId,
+          slotStartAt: row.slotStartAt.toISOString(),
+          reminderMinutesBefore: row.reminderMinutesBefore,
+        },
         deliveredAt: new Date(),
       })
     }
@@ -174,4 +168,11 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
     log.info({ scanned: candidates.length, sent, skipped, revoked, failed }, 'slot_reminders_run')
   }
   return { scanned: candidates.length, sent, skipped, revoked, failed }
+}
+
+function formatMinutesLabel(min: number): string {
+  if (min < 60) return `${min} min`
+  if (min === 60) return '1 h'
+  if (min < 1440) return `${Math.floor(min / 60)} h`
+  return '24 h'
 }

@@ -3,8 +3,10 @@
 import { Bell, BellOff, BellRing } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { fetchReminderPreferences } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import {
+  REMINDER_MINUTES_CHOICES,
   currentPermission,
   detectPushSupport,
   getCurrentSubscription,
@@ -12,6 +14,7 @@ import {
   unsubscribePush,
   type PushPermission,
   type PushSupportStatus,
+  type ReminderMinutesBefore,
 } from '../../lib/push'
 
 /**
@@ -20,30 +23,48 @@ import {
  * États visuels :
  *   - **unsupported / insecure-context** : message grisé "non disponible"
  *   - **denied** : message rouge + lien vers les réglages browser
- *   - **default + pas de sub** : bouton vert "Activer les rappels"
- *   - **granted + sub active** : badge vert "Activées" + bouton "Désactiver"
- *   - **pending** : spinner inline pendant subscribe/unsubscribe
+ *   - **default + pas de sub** : dropdown délai + bouton vert "Activer"
+ *   - **granted + sub active** : badge vert + dropdown délai (modifiable) +
+ *     bouton "Désactiver". Changer la valeur du dropdown re-POST la sub
+ *     pour mettre à jour la préférence côté backend.
+ *   - **pending** : spinner inline pendant subscribe/unsubscribe.
  *
- * UX importante : le bouton est désactivé tant que la permission n'est pas
- * tranchée (eviter le double-prompt sur Safari qui n'oublie pas). Sur
- * succès on affiche un petit toast inline "C'est activé". Sur échec
- * (`vapid_missing` ex.) on affiche une erreur cohérente.
+ * Le délai du rappel est stocké côté `users.reminder_minutes_before` (donc
+ * partagé entre devices du même user). UI propose 15/30/60/120 min, 15 min
+ * en défaut (cf. PR 0011).
  */
+const REMINDER_LABELS: Record<ReminderMinutesBefore, string> = {
+  15: '15 minutes',
+  30: '30 minutes',
+  60: '1 heure',
+  120: '2 heures',
+}
+
 export function PushSubscribeButton() {
   const [support, setSupport] = useState<PushSupportStatus>('unsupported')
   const [permission, setPermission] = useState<PushPermission>('unsupported')
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null)
+  const [reminderMinutes, setReminderMinutes] = useState<ReminderMinutesBefore>(15)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Init : détecte le support + l'état de subscription actuel.
+  // Init : détecte le support + l'état de subscription + la préférence user.
   useEffect(() => {
     setSupport(detectPushSupport())
     setPermission(currentPermission())
     getCurrentSubscription()
       .then((sub) => setHasSubscription(sub !== null))
       .catch(() => setHasSubscription(false))
+    // Charge la préf user pour pré-sélectionner le dropdown. Si l'API
+    // tombe ou si user pas connecté, on garde 15 min par défaut.
+    fetchReminderPreferences()
+      .then((p) => {
+        if ((REMINDER_MINUTES_CHOICES as readonly number[]).includes(p.reminderMinutesBefore)) {
+          setReminderMinutes(p.reminderMinutesBefore as ReminderMinutesBefore)
+        }
+      })
+      .catch(() => undefined)
   }, [])
 
   async function onActivate() {
@@ -51,11 +72,11 @@ export function PushSubscribeButton() {
     setSuccess(null)
     setPending(true)
     try {
-      const res = await subscribePush()
+      const res = await subscribePush({ reminderMinutesBefore: reminderMinutes })
       if (res.ok) {
         setHasSubscription(true)
         setPermission('granted')
-        setSuccess('Rappels activés. Tu recevras une notif 1h avant chaque créneau réservé.')
+        setSuccess(`Rappels activés. Tu recevras une notif ${REMINDER_LABELS[reminderMinutes]} avant chaque créneau réservé.`)
       } else {
         const map: Record<typeof res.reason, string> = {
           unsupported: 'Ton navigateur ne supporte pas les notifications push.',
@@ -80,6 +101,28 @@ export function PushSubscribeButton() {
       await unsubscribePush()
       setHasSubscription(false)
       setSuccess('Rappels désactivés.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  /**
+   * Changement du dropdown délai alors qu'une sub existe déjà : on re-POST
+   * pour update la préférence côté backend (et lastUsedAt du token). Pas de
+   * re-subscribe browser nécessaire — c'est la même PushSubscription.
+   */
+  async function onChangeReminder(value: ReminderMinutesBefore) {
+    setReminderMinutes(value)
+    if (!hasSubscription) return  // pré-selection avant activation, rien à push
+    setError(null)
+    setPending(true)
+    try {
+      const res = await subscribePush({ reminderMinutesBefore: value })
+      if (res.ok) {
+        setSuccess(`Préférence mise à jour : ${REMINDER_LABELS[value]} avant le créneau.`)
+      } else {
+        setError('Impossible de mettre à jour la préférence. Réessaie.')
+      }
     } finally {
       setPending(false)
     }
@@ -115,7 +158,6 @@ export function PushSubscribeButton() {
     )
   }
 
-  // État chargement initial (avant que useEffect ait résolu).
   if (hasSubscription === null) {
     return (
       <Card>
@@ -136,9 +178,26 @@ export function PushSubscribeButton() {
         }
         title={hasSubscription ? 'Rappels activés' : 'Activer les rappels'}
       >
-        Reçois une notif <strong>1 heure avant</strong> chaque créneau réservé. Tu peux désactiver à
-        tout moment.
+        Reçois une notif avant chaque créneau réservé. Tu peux désactiver à tout moment.
       </Header>
+
+      <label className="mt-4 block">
+        <span className="text-[11px] uppercase tracking-wider text-white/50">
+          Recevoir le rappel
+        </span>
+        <select
+          value={reminderMinutes}
+          onChange={(e) => onChangeReminder(Number(e.target.value) as ReminderMinutesBefore)}
+          disabled={pending}
+          className="mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/60 disabled:opacity-50"
+        >
+          {REMINDER_MINUTES_CHOICES.map((m) => (
+            <option key={m} value={m}>
+              {REMINDER_LABELS[m]} avant le créneau
+            </option>
+          ))}
+        </select>
+      </label>
 
       {error && (
         <p className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">

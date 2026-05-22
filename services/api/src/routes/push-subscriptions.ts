@@ -5,8 +5,15 @@ import { z } from 'zod'
 
 import { env } from '../config/env.js'
 import { db } from '../db/client.js'
-import { pushTokens } from '../db/schema.js'
+import { pushTokens, users } from '../db/schema.js'
 import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
+
+/**
+ * Délais autorisés (minutes avant `slot_start_at`) pour le rappel push.
+ * UI propose ces 4 valeurs (cf. PushSubscribeButton.tsx) ; backend
+ * accepte n'importe quel int entre 5 et 1440 (cf. CHECK SQL migration 0011).
+ */
+const ALLOWED_REMINDER_MINUTES = [15, 30, 60, 120] as const
 
 /**
  * Routes citoyen pour gérer les Web Push subscriptions.
@@ -36,6 +43,16 @@ const SubscribeBody = z.object({
   }),
   /** Optionnel : userAgent ou label pour distinguer ce device dans /profile. */
   deviceInfo: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Optionnel : préférence "X minutes avant le créneau" pour les rappels.
+   * Si fourni, on update `users.reminder_minutes_before` (préférence
+   * partagée entre devices du même user). Valeurs autorisées : 15/30/60/120.
+   */
+  reminderMinutesBefore: z.number().int()
+    .refine((n) => (ALLOWED_REMINDER_MINUTES as readonly number[]).includes(n), {
+      message: 'invalid_reminder_minutes',
+    })
+    .optional(),
 })
 
 const PushSubscriptionDTO = z.object({
@@ -100,7 +117,7 @@ export async function pushSubscriptionRoutes(rawApp: FastifyInstance) {
     },
   }, async (req, reply) => {
     const userId = req.user.sub
-    const { endpoint, keys, deviceInfo } = req.body
+    const { endpoint, keys, deviceInfo, reminderMinutesBefore } = req.body
     const now = new Date()
 
     try {
@@ -126,6 +143,16 @@ export async function pushSubscriptionRoutes(rawApp: FastifyInstance) {
         })
         .returning()
 
+      // Préférence "X minutes avant" : si fournie, on update la row user.
+      // Pas dans la même transaction (overkill pour 2 inserts indépendants
+      // sur des tables différentes) — si l'update plante, la sub reste
+      // créée et le user gardera la préférence par défaut.
+      if (reminderMinutesBefore !== undefined) {
+        await db.update(users)
+          .set({ reminderMinutesBefore, updatedAt: now })
+          .where(eq(users.id, userId))
+      }
+
       return reply.code(201).send({
         id: row!.id,
         endpoint: row!.endpoint!,
@@ -138,6 +165,29 @@ export async function pushSubscriptionRoutes(rawApp: FastifyInstance) {
       }
       throw err
     }
+  })
+
+  /**
+   * GET /v1/push-subscriptions/preferences — lit la préférence du user
+   * courant (délai du rappel). Pour pré-sélectionner le dropdown côté UI.
+   */
+  app.get('/preferences', {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ['Citoyens — Push'],
+      summary: 'Préférence "X minutes avant" du user courant',
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: z.object({ reminderMinutesBefore: z.number().int() }),
+      },
+    },
+  }, async (req) => {
+    const [row] = await db
+      .select({ reminderMinutesBefore: users.reminderMinutesBefore })
+      .from(users)
+      .where(eq(users.id, req.user.sub))
+      .limit(1)
+    return { reminderMinutesBefore: row?.reminderMinutesBefore ?? 15 }
   })
 
   /**
