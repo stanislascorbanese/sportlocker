@@ -12,6 +12,12 @@ const EnvSchema = z.object({
   MQTT_URL: z.string().default('mqtt://localhost:1883'),
   MQTT_USERNAME: z.string().optional(),
   MQTT_PASSWORD: z.string().optional(),
+  // Chemin du CA cert pour valider le broker en TLS (`mqtts://`).
+  // Sur Railway, le cert public EMQX est bundlé dans l'image à
+  // `/app/emqxsl-ca.crt` (cf. Dockerfile). Si `MQTT_URL=mqtts://…` sans CA,
+  // le boot du subscriber échoue plutôt que d'accepter un cert non vérifié —
+  // un MITM sur le canal pourrait sinon injecter des events forgés en DB.
+  MQTT_CA_CERT_PATH: z.string().optional(),
   // Active le plugin mqtt-subscriber au boot. Désactivable pour les tests
   // d'intégration qui n'ont pas de broker, ou en local quand on veut couper
   // le bruit. Default `true` sauf `NODE_ENV=test`.

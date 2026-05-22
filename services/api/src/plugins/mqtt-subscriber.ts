@@ -22,9 +22,10 @@
  * Désactivable via `MQTT_SUBSCRIBER_ENABLED=false` (utile en tests + en
  * dev quand on ne veut pas connecter au broker prod).
  */
+import { readFileSync } from 'node:fs'
 import fp from 'fastify-plugin'
 import type { FastifyInstance } from 'fastify'
-import mqtt, { type MqttClient } from 'mqtt'
+import mqtt, { type IClientOptions, type MqttClient } from 'mqtt'
 
 import { env } from '../config/env.js'
 import { db } from '../db/client.js'
@@ -41,20 +42,72 @@ function shouldEnable(): boolean {
   return env.NODE_ENV !== 'test'
 }
 
+/**
+ * Détecte si une URL `mqtt://` ou `mqtts://` désigne du TLS.
+ *
+ * Aligné sur l'équivalent Python côté firmware (`_parse_mqtt_url`) : seul
+ * le scheme `mqtts://` (case-insensitive) active TLS, indépendamment du port.
+ */
+export function parseMqttScheme(url: string): { tls: boolean } {
+  const idx = url.indexOf('://')
+  if (idx < 0) return { tls: false }
+  return { tls: url.slice(0, idx).toLowerCase() === 'mqtts' }
+}
+
+/**
+ * Construit les options `mqtt.connect` à partir de la config. Pure et testable.
+ *
+ * - En `mqtt://` (clair), retourne juste username/password. `ca` n'est pas
+ *   passé — mqtt.js démarre une socket TCP non-chiffrée.
+ * - En `mqtts://`, charge le PEM depuis `caCertPath` et le passe à mqtt.js
+ *   via l'option `ca`. Si `caCertPath` manque, throw : on refuse de monter
+ *   une socket TLS sans validation du serveur (un MITM pourrait sinon forger
+ *   des events injectés en DB côté API).
+ */
+export function buildMqttOptions(opts: {
+  url: string
+  username?: string | undefined
+  password?: string | undefined
+  caCertPath?: string | undefined
+  clientId: string
+  readFile?: ((path: string) => Buffer) | undefined
+}): IClientOptions {
+  const { url, username, password, caCertPath, clientId } = opts
+  const readFile = opts.readFile ?? readFileSync
+  const { tls } = parseMqttScheme(url)
+
+  const base: IClientOptions = {
+    ...(username ? { username } : {}),
+    ...(password ? { password } : {}),
+    clientId,
+    clean: true,
+    reconnectPeriod: 5_000,
+    connectTimeout: 10_000,
+  }
+
+  if (!tls) return base
+  if (!caCertPath) {
+    throw new Error(
+      'mqtts:// requires MQTT_CA_CERT_PATH to validate broker cert',
+    )
+  }
+  return { ...base, ca: readFile(caCertPath) }
+}
+
 export const mqttSubscriberPlugin = fp(async function mqttSubscriberPlugin(app: FastifyInstance) {
   if (!shouldEnable()) {
     app.log.info('mqtt_subscriber_disabled')
     return
   }
 
-  const client: MqttClient = mqtt.connect(env.MQTT_URL, {
-    ...(env.MQTT_USERNAME ? { username: env.MQTT_USERNAME } : {}),
-    ...(env.MQTT_PASSWORD ? { password: env.MQTT_PASSWORD } : {}),
+  const options = buildMqttOptions({
+    url: env.MQTT_URL,
+    username: env.MQTT_USERNAME,
+    password: env.MQTT_PASSWORD,
+    caCertPath: env.MQTT_CA_CERT_PATH,
     clientId: `sportlocker-api-${process.pid}-${Date.now()}`,
-    clean: true,
-    reconnectPeriod: 5_000,
-    connectTimeout: 10_000,
   })
+  const client: MqttClient = mqtt.connect(env.MQTT_URL, options)
 
   client.on('connect', () => {
     app.log.info({ url: env.MQTT_URL }, 'mqtt_subscriber_connected')
