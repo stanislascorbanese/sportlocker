@@ -8,6 +8,7 @@ import { env } from './config/env.js'
 import { Sentry } from './sentry.js'
 import { swaggerPlugin } from './plugins/swagger.js'
 import { authPlugin } from './plugins/auth.js'
+import { mqttSubscriberPlugin } from './plugins/mqtt-subscriber.js'
 
 import { healthRoutes } from './routes/health.js'
 import { distributorRoutes } from './routes/distributors.js'
@@ -44,6 +45,7 @@ export async function buildApp() {
 
   await app.register(swaggerPlugin)
   await app.register(authPlugin)
+  await app.register(mqttSubscriberPlugin)
 
   await app.register(healthRoutes,       { prefix: '/health' })
   await app.register(authRoutes,         { prefix: '/v1/auth' })

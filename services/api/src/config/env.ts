@@ -12,6 +12,13 @@ const EnvSchema = z.object({
   MQTT_URL: z.string().default('mqtt://localhost:1883'),
   MQTT_USERNAME: z.string().optional(),
   MQTT_PASSWORD: z.string().optional(),
+  // Active le plugin mqtt-subscriber au boot. Désactivable pour les tests
+  // d'intégration qui n'ont pas de broker, ou en local quand on veut couper
+  // le bruit. Default `true` sauf `NODE_ENV=test`.
+  MQTT_SUBSCRIBER_ENABLED: z
+    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true' || v === '1')),
 
   JWT_SESSION_SECRET: z.string().min(32),
   JWT_DEVICE_SECRET: z.string().min(32),
