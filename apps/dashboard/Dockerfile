@@ -59,7 +59,12 @@ RUN pnpm --filter @sportlocker/dashboard --prod deploy /out && \
 FROM node:20-alpine AS runtime
 
 # wget pour le HEALTHCHECK Docker (Railway probe aussi via healthcheckPath)
-RUN apk add --no-cache wget
+# tzdata + TZ=Europe/Paris pour que les Server Components Next.js formatent
+# les dates en heure locale française (toLocaleString sans timeZone explicite
+# utilise TZ du process). Sans ça, le container Railway tourne en UTC et
+# affiche 08:54 au lieu de 10:54 dans la liste des réservations.
+RUN apk add --no-cache wget tzdata
+ENV TZ=Europe/Paris
 
 # pnpm pin via npm — nécessaire UNIQUEMENT parce que Railway a un Start
 # Command custom `pnpm --filter @sportlocker/dashboard start` qui override
