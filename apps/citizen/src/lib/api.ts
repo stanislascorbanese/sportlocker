@@ -23,6 +23,7 @@ export const ReservationActive = z.object({
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable().optional(),
+  extensionCount: z.number().int().min(0),
   qrToken: z.string().min(20),
   distributor: z.object({
     id: z.string().uuid(),
@@ -52,6 +53,26 @@ export async function cancelReservation(id: string): Promise<void> {
     `/v1/reservations/${id}/cancel`,
     z.object({ ok: z.literal(true) }),
     { method: 'POST', body: '{}' },
+  )
+}
+
+/**
+ * Prolonge une réservation `active` (emprunt en cours). L'API ajoute
+ * `item_types.max_duration_minutes` au `dueAt`. Max `MAX_EXTENSIONS` (2)
+ * prolongations par résa — au-delà, 409 `max_extensions_reached`. Refuse
+ * aussi si status ≠ 'active' (409 `reservation_not_extendable`) ou si
+ * un autre user a déjà claim le casier (409 `locker_conflict`).
+ */
+export const MAX_EXTENSIONS = 2
+
+export async function extendReservation(id: string): Promise<void> {
+  await apiFetch(
+    `/v1/reservations/${id}/extend`,
+    // L'API retourne ReservationBaseDTO (non enrichi) — on ignore le body
+    // de réponse, le caller invalide la query `reservation-active` pour
+    // récupérer le shape complet via GET /active.
+    z.object({}).passthrough(),
+    { method: 'PATCH', body: '{}' },
   )
 }
 

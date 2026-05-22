@@ -1,14 +1,16 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CalendarClock, Clock, MapPin, Package, X } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Clock, MapPin, Package, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 
 import {
+  MAX_EXTENSIONS,
   cancelReservation,
+  extendReservation,
   fetchActiveReservation,
   type ReservationActive,
 } from '../../../lib/api'
@@ -55,6 +57,15 @@ export default function ReservationPage() {
     },
   })
 
+  const extendMutation = useMutation({
+    mutationFn: () => extendReservation(params.id),
+    onSuccess: () => {
+      // Refetch immédiat pour mettre à jour dueAt + extensionCount visibles
+      // sur cet écran (le compteur "X/2" se rafraîchit).
+      queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
+    },
+  })
+
   if (!user) return null
 
   const reservation = query.data
@@ -84,6 +95,9 @@ export default function ReservationPage() {
           onCancel={() => cancelMutation.mutate()}
           cancelling={cancelMutation.isPending}
           cancelError={cancelMutation.error as Error | null}
+          onExtend={() => extendMutation.mutate()}
+          extending={extendMutation.isPending}
+          extendError={extendMutation.error as Error | null}
         />
       )}
     </main>
@@ -95,11 +109,17 @@ function ReservationContent({
   onCancel,
   cancelling,
   cancelError,
+  onExtend,
+  extending,
+  extendError,
 }: {
   r: ReservationActive
   onCancel: () => void
   cancelling: boolean
   cancelError: Error | null
+  onExtend: () => void
+  extending: boolean
+  extendError: Error | null
 }) {
   const [remaining, setRemaining] = useState(() => msUntil(r.expiresAt))
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -167,6 +187,47 @@ function ReservationContent({
           ? 'Présente ce QR au scanner du distributeur à l\'heure du créneau.'
           : 'Présente ce QR au scanner du distributeur. Le casier s\'ouvre automatiquement.'}
       </p>
+
+      {/* Bloc prolongation — uniquement actif quand l'emprunt est réellement
+          en cours (status 'active' = casier ouvert, item sorti). Pour les
+          'pending' ou 'scheduled', l'API refuse 409 reservation_not_extendable. */}
+      {r.status === 'active' && (
+        <section className="rounded-xl border border-emerald-400/20 bg-white/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-white/85">Prolonger l'emprunt</p>
+              <p className="text-[11px] text-white/45">
+                {r.extensionCount} / {MAX_EXTENSIONS} prolongations utilisées
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onExtend}
+              disabled={extending || r.extensionCount >= MAX_EXTENSIONS}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition',
+                r.extensionCount >= MAX_EXTENSIONS
+                  ? 'cursor-not-allowed bg-white/[0.02] text-white/30'
+                  : 'bg-emerald-500 text-navy-900 hover:bg-emerald-400 disabled:opacity-50',
+              )}
+            >
+              <Plus className="h-4 w-4" />
+              {extending ? 'Prolongation…' : r.extensionCount >= MAX_EXTENSIONS ? 'Max atteint' : 'Prolonger'}
+            </button>
+          </div>
+          {extendError && (
+            <p className="text-[11px] text-rose-200">
+              {extendError.message.includes('max_extensions_reached')
+                ? `Tu as déjà utilisé tes ${MAX_EXTENSIONS} prolongations.`
+                : extendError.message.includes('reservation_not_extendable')
+                  ? 'Prolongation possible uniquement pendant l\'emprunt actif.'
+                  : extendError.message.includes('locker_conflict')
+                    ? 'Un autre créneau est réservé juste après — impossible de prolonger.'
+                    : extendError.message}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Bloc annulation — gris si trop tard pour scheduled */}
       <section className="space-y-2">
