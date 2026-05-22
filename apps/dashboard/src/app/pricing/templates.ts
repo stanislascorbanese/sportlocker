@@ -40,8 +40,9 @@ export const PRICING_TEMPLATES: PricingTemplate[] = [
   {
     id: 'saisonnier-plage',
     label: 'Saisonnier camping / plage',
-    description: 'Raquettes plage, beach-tennis, snorkel, frisbees. Slot 1h30 désactivé.',
+    description: 'Ballons (beach-volley), raquettes plage, beach-tennis, snorkel, frisbees. Slot 1h30 désactivé.',
     rows: [
+      { categoryHint: 'ballon',   label: 'Ballons (beach-volley, foot plage)', prices: { 30: 100, 60: 200, 120: 500 } },
       { categoryHint: 'plage',    label: 'Équipement plage', prices: { 30: 100, 60: 200, 120: 500 } },
       { categoryHint: 'raquette', label: 'Raquettes plage',  prices: { 30: 100, 60: 200, 120: 500 } },
       { categoryHint: 'snorkel',  label: 'Snorkel / masque', prices: { 30: 100, 60: 200, 120: 500 } },
@@ -51,9 +52,10 @@ export const PRICING_TEMPLATES: PricingTemplate[] = [
   {
     id: 'hotel-premium',
     label: 'Hôtel premium',
-    description: 'Raquettes tennis pro (Wilson), équipement pool, accessoires fitness haut de gamme.',
+    description: 'Raquettes tennis pro (Wilson), ballons, équipement pool, accessoires fitness haut de gamme.',
     rows: [
       { categoryHint: 'tennis',  label: 'Raquettes tennis pro', prices: { 30: 200, 60: 400, 90: 550, 120: 700 } },
+      { categoryHint: 'ballon',  label: 'Ballons (piscine, multi-usage)', prices: { 30: 200, 60: 400, 90: 550, 120: 700 } },
       { categoryHint: 'pool',    label: 'Équipement piscine',   prices: { 30: 200, 60: 400, 90: 550, 120: 700 } },
       { categoryHint: 'fitness', label: 'Accessoires fitness',  prices: { 30: 200, 60: 400, 90: 550, 120: 700 } },
     ],
