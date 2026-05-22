@@ -267,11 +267,22 @@ export const maintenanceTickets = pgTable('maintenance_tickets', {
 export const pushTokens = pgTable('push_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  expoToken: varchar('expo_token', { length: 200 }).notNull().unique(),
+  // Web Push (migration 0010) — endpoint = URL du push service (FCM, Mozilla, Apple).
+  endpoint: varchar('endpoint', { length: 500 }),
+  p256dhKey: varchar('p256dh_key', { length: 200 }),
+  authKey: varchar('auth_key', { length: 50 }),
+  // Vestige Expo Push, nullable depuis 0010. À droper plus tard.
+  expoToken: varchar('expo_token', { length: 200 }),
   deviceInfo: jsonb('device_info').notNull().default(sql`'{}'::jsonb`),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => ({
+  // Unicité partielle gérée côté SQL (WHERE endpoint IS NOT NULL).
+  // Drizzle ne supporte pas la clause WHERE → on déclare juste l'index pour
+  // que drizzle-kit ne propose pas un drop intempestif.
+  byEndpoint: uniqueIndex('idx_push_tokens_endpoint').on(t.endpoint),
+  byUser: index('idx_push_tokens_user').on(t.userId),
+}))
 
 export const pricingRules = pgTable('pricing_rules', {
   id: uuid('id').primaryKey().defaultRandom(),

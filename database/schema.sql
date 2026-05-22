@@ -359,14 +359,23 @@ CREATE INDEX idx_maintenance_status_severity_created
 -- ─── 13. push_tokens ───────────────────────────────────────────────────────
 
 CREATE TABLE push_tokens (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expo_token  VARCHAR(200) NOT NULL UNIQUE,
-  device_info JSONB NOT NULL DEFAULT '{}'::jsonb,
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- ─── Web Push (RFC 8030 + VAPID, migration 0010) ───
+  endpoint     VARCHAR(500),
+  p256dh_key   VARCHAR(200),
+  auth_key     VARCHAR(50),
+  -- Vestige Expo Push (apps/mobile supprimé en mai 2026) : nullable pour
+  -- compat, à droper dans une migration future.
+  expo_token   VARCHAR(200),
+  device_info  JSONB NOT NULL DEFAULT '{}'::jsonb,
   last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX idx_push_tokens_endpoint
+  ON push_tokens(endpoint)
+  WHERE endpoint IS NOT NULL;
 CREATE INDEX idx_push_tokens_user ON push_tokens(user_id);
 
 -- ─── 14. notification_logs ─────────────────────────────────────────────────
