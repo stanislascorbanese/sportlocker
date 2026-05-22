@@ -11,7 +11,10 @@
  * À évoluer : Background Sync pour les réservations en zone blanche.
  */
 
-const CACHE_NAME = 'sportlocker-v1'
+// v2 : bump du cache pour purger les anciens assets bleus (logos PWA pré-recolorisation verte).
+// Le handler `activate` ci-dessous supprime tous les caches dont le nom diffère de CACHE_NAME,
+// donc bumper le suffixe = wipe complet de l'ancien cache au prochain reload.
+const CACHE_NAME = 'sportlocker-v2'
 const PRECACHE = ['/', '/login', '/map', '/manifest.json']
 
 self.addEventListener('install', (event) => {
