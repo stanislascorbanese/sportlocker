@@ -25,6 +25,7 @@ import { itemTypeRoutes } from './routes/item-types.js'
 import { adminItemTypeRoutes } from './routes/admin-item-types.js'
 import { adminItemRoutes } from './routes/admin-items.js'
 import { adminPricingRuleRoutes } from './routes/admin-pricing-rules.js'
+import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -49,6 +50,7 @@ export async function buildApp() {
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
+  await app.register(pushSubscriptionRoutes, { prefix: '/v1/push-subscriptions' })
   await app.register(adminAuthRoutes,         { prefix: '/v1/admin/auth' })
   await app.register(adminInviteRoutes,       { prefix: '/v1/admin/invites' })
   await app.register(adminReservationRoutes,  { prefix: '/v1/admin/reservations' })

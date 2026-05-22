@@ -24,6 +24,15 @@ const EnvSchema = z.object({
 
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
+  // Web Push VAPID — clé de signature + identité du push agent.
+  // Génération : `npx web-push generate-vapid-keys` puis copier les valeurs
+  // dans les env Railway. Si absentes, l'API démarre quand même mais les
+  // routes /v1/push-subscriptions renvoient 503 (pas d'envoi possible).
+  // Subject : URL ou mailto: identifiant l'expéditeur des notifs (RFC 8292).
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:contact@sportlocker.fr'),
+
   // Base URL utilisée pour construire les inviteUrl envoyés aux admins tenant.
   // Ex : https://app.sportlocker.fr → inviteUrl = https://app.sportlocker.fr/accept-invite?token=...
   DASHBOARD_INVITE_BASE_URL: z.string().url().default('http://localhost:3001'),
