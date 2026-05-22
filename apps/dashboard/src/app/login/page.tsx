@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 
@@ -124,6 +125,15 @@ export default function LoginPage() {
           >
             {loading ? 'Connexion…' : 'Se connecter'}
           </button>
+
+          <div className="text-center">
+            <Link
+              href="/login/reset"
+              className="text-xs text-emerald-400/80 hover:text-emerald-300 hover:underline"
+            >
+              Mot de passe oublié ?
+            </Link>
+          </div>
         </form>
 
         <p className="mt-5 text-[11px] text-white/30">
