@@ -288,13 +288,19 @@ export async function registerCurrentUser(idToken?: string): Promise<void> {
 }
 
 /**
- * Crée une réservation sur un casier disponible du distributeur, pour un
- * item-type donné. Le backend choisit le casier le moins ancien parmi les
- * idle qui contiennent un item du bon type.
+ * Crée une réservation IMMÉDIATE (status `pending`, TTL 15 min) sur un
+ * casier ciblé. Contrat API : `{ lockerId, itemId, communeId }`. Le caller
+ * doit donc choisir le casier en amont (cf. distributor detail page : on
+ * pick le 1er locker idle dont l'`itemType.id` matche le type choisi).
+ *
+ * Ce flow est différent de `createSlotReservation` (qui crée du
+ * `scheduled` avec un slot futur). Utilisé quand l'utilisateur est
+ * physiquement au distributeur et veut emprunter dans la minute.
  */
 export async function createReservation(input: {
-  distributorId: string
-  itemTypeId: string
+  lockerId: string
+  itemId: string
+  communeId: string
 }): Promise<ReservationActive> {
   return apiFetch(`/v1/reservations`, ReservationActive, {
     method: 'POST',
