@@ -46,6 +46,13 @@ GPIO_PULSE_SECONDS = 0.5
 GPIO_PULSE_TIMEOUT_S = 5.0
 GPIO_PULSE_MAX_RETRIES = 1
 
+# Tolérance d'horloge pour le check ``slot_start_at`` du JWT (cf. PR 0010).
+# L'horloge du Raspberry Pi peut dériver de ~60s entre 2 synchronisations
+# NTP, l'horloge du smartphone qui a signé le QR aussi. On accepte qu'un
+# user scanne jusqu'à 60s avant le début théorique de son créneau pour
+# éviter les refus à cause de skew.
+SLOT_START_CLOCK_TOLERANCE_S = 60
+
 try:
     import RPi.GPIO as GPIO
 
@@ -65,6 +72,8 @@ class UnlockOutcome(StrEnum):
     HARDWARE_FAULT = "hardware_fault"
     CACHE_MISS_OFFLINE = "cache_miss_offline"
     INTERNAL_ERROR = "internal_error"
+    # PR 0010 — modèle slots : le user scanne avant le début de son créneau.
+    SLOT_NOT_YET_OPEN = "slot_not_yet_open"
 
 
 @dataclass(frozen=True)
@@ -369,7 +378,25 @@ class LockerController:
             locker_id=claims.locker_id,
         )
 
-        # 2. Anti-replay
+        # 2. Modèle slots : refuse l'ouverture avant le début du créneau.
+        # On check AVANT l'anti-replay pour ne pas consommer le nonce —
+        # le user pourra re-scanner le même QR à l'heure dite.
+        if claims.slot_start_at is not None:
+            now_ts = int(time.time())
+            if now_ts + SLOT_START_CLOCK_TOLERANCE_S < claims.slot_start_at:
+                wait_s = claims.slot_start_at - now_ts
+                bound.warning(
+                    "slot_not_yet_open",
+                    slot_start_at=claims.slot_start_at, wait_seconds=wait_s,
+                )
+                return UnlockResult(
+                    UnlockOutcome.SLOT_NOT_YET_OPEN,
+                    reservation_id=claims.reservation_id,
+                    locker_id=claims.locker_id,
+                    detail=f"wait_{wait_s}s",
+                )
+
+        # 3. Anti-replay
         if self._nonces.seen(claims.jti):
             bound.warning("replay_blocked")
             return UnlockResult(
@@ -385,7 +412,7 @@ class LockerController:
                 locker_id=claims.locker_id,
             )
 
-        # 3. Cohérence du mapping GPIO
+        # 4. Cohérence du mapping GPIO
         if claims.locker_id not in self._gpio_mapping:
             bound.error("locker_not_mapped")
             return UnlockResult(
@@ -394,7 +421,7 @@ class LockerController:
                 locker_id=claims.locker_id,
             )
 
-        # 4. Cache réservation → mode dégradé
+        # 5. Cache réservation → mode dégradé
         cached = self._lookup_reservation(claims.reservation_id)
         online = self._mqtt.is_connected
 
@@ -424,7 +451,7 @@ class LockerController:
                     locker_id=claims.locker_id,
                 )
 
-        # 5. Ouverture physique
+        # 6. Ouverture physique
         if not self._pulse_open(claims.locker_id):
             bound.error("gpio_pulse_failed")
             return UnlockResult(
@@ -433,7 +460,7 @@ class LockerController:
                 locker_id=claims.locker_id,
             )
 
-        # 6. Event MQTT signé (avec fallback file locale)
+        # 7. Event MQTT signé (avec fallback file locale)
         published = self._publish_signed(
             "event",
             {
@@ -447,7 +474,7 @@ class LockerController:
             },
         )
 
-        # 7. Purge périodique des nonces > 24 h
+        # 8. Purge périodique des nonces > 24 h
         self._nonces.purge_expired()
 
         bound.info("unlock_success", mqtt_published=published)

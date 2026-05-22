@@ -520,10 +520,13 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       const ttlSec = Math.max(60, Math.floor(
         (result.qrExpiresAt.getTime() - Date.now()) / 1000,
       ))
+      // `slotStartAt` est embarqué comme claim — le firmware refuse
+      // l'ouverture avant cet instant (cf. PR 0010, slot-aware check-in).
       const deviceToken = await signDeviceToken({
         reservationId: result.reservation.id,
         lockerId: result.reservation.lockerId,
         distributorId,
+        slotStartAt: Math.floor(result.reservation.slotStartAt!.getTime() / 1000),
       }, ttlSec, result.nonce)
 
       return reply.code(201).send({
@@ -598,11 +601,14 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
 
     // Re-signe un device JWT avec le qr_jti stable. TTL = jusqu'à expiresAt
     // (clamp à 60s minimum pour éviter un token déjà expiré sur un edge case).
+    // Embarque `slotStartAt` pour les résas scheduled — le firmware s'en sert
+    // pour bloquer un scan trop tôt (cf. PR 0010 slot-aware check-in).
     const ttlSec = Math.max(60, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000))
     const qrToken = await signDeviceToken({
       reservationId: row.id,
       lockerId: row.lockerId,
       distributorId: row.distributorId,
+      ...(row.slotStartAt ? { slotStartAt: Math.floor(row.slotStartAt.getTime() / 1000) } : {}),
     }, ttlSec, row.qrJti)
 
     return reply.code(200).send({
