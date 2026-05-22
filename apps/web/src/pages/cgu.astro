@@ -1,0 +1,240 @@
+---
+import Base from '@/layouts/Base.astro'
+import { SITE } from '@/data/site'
+---
+
+<Base
+  title="Conditions Générales d'Utilisation"
+  description="Conditions générales d'utilisation de l'application citoyenne SportLocker."
+  noindex={true}
+>
+  <section class="pt-32 pb-20 sm:pt-40">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow">CGU citoyen</span>
+      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Conditions Générales d'Utilisation</h1>
+
+      <div class="text-white/70 font-light leading-relaxed space-y-7">
+        <p class="text-white/55 italic">Dernière mise à jour : mai 2026 — version 1.</p>
+
+        <p>
+          Les présentes Conditions Générales d'Utilisation (« CGU ») régissent l'accès et l'utilisation
+          de l'application citoyenne <strong class="text-white/85">app.sportlocker.fr</strong> (la « PWA »),
+          éditée par {SITE.legalName}. Toute utilisation du service implique l'acceptation pleine et entière
+          des présentes CGU.
+        </p>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">1. Objet du service</h2>
+          <p>
+            SportLocker met à disposition, via des distributeurs IoT installés par des opérateurs partenaires
+            (mairies, campings, hôtels — les « tenants »), du matériel sportif que les utilisateurs (les
+            « citoyens ») peuvent emprunter pour une durée déterminée et restituer dans le même distributeur
+            ou un distributeur compatible du même réseau.
+          </p>
+          <p class="mt-3">
+            L'accès au service nécessite la création d'un compte personnel sur la PWA.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">2. Création de compte</h2>
+          <p>
+            L'inscription s'effectue via Firebase Authentication par lien magique e-mail, Google ou Apple.
+            L'utilisateur s'engage à fournir des informations exactes et à maintenir la confidentialité de
+            ses moyens d'accès.
+          </p>
+          <p class="mt-3">
+            Le service est ouvert à toute personne physique majeure. Les mineurs de plus de 15 ans peuvent
+            créer un compte avec l'accord d'un parent ou représentant légal. SportLocker ne collecte pas
+            sciemment de données concernant un mineur sans cet accord.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">3. Gratuité du service applicatif</h2>
+          <p>
+            L'utilisation de la PWA est <strong class="text-white/85">gratuite</strong> pour le citoyen.
+            Aucun abonnement, frais d'inscription ou frais cachés ne sont facturés au citoyen pour l'accès
+            au service applicatif.
+          </p>
+          <p class="mt-3">
+            En revanche, chaque tenant fixe librement le tarif du créneau de prêt sur ses propres distributeurs
+            (de 0 € à un montant librement défini, par durée et par sport). Le tarif applicable au créneau
+            choisi est affiché de manière claire avant validation de la réservation. La validation de la
+            réservation vaut acceptation du tarif affiché.
+          </p>
+          <p class="mt-3">
+            <span class="text-white/55 italic">Note MVP :</span> à la date des présentes, le paiement
+            citoyen n'est pas activé techniquement (prix affiché à titre indicatif). La mise en place
+            effective du paiement par carte bancaire (via Stripe) fera l'objet d'une notification dans
+            l'application et d'une mise à jour des présentes CGU avant activation.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">4. Réservation et créneau</h2>
+          <p>
+            Les créneaux disponibles sont proposés par tranches de 30, 60, 90, 120 minutes ou en forfait
+            journée. L'utilisateur peut réserver un créneau jusqu'à <strong class="text-white/85">7 jours
+            à l'avance</strong>.
+          </p>
+          <p class="mt-3">
+            Un utilisateur ne peut avoir qu'<strong class="text-white/85">une seule réservation active ou
+            programmée à la fois</strong>. Toute nouvelle réservation suppose la clôture (restitution, expiration
+            ou annulation) de la précédente.
+          </p>
+          <p class="mt-3">
+            L'annulation d'une réservation programmée (statut <em>scheduled</em>) est libre et gratuite jusqu'au
+            début du créneau. À partir du début du créneau, la réservation est réputée consommée.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">5. Ouverture et restitution du casier</h2>
+          <p>
+            L'ouverture du casier s'effectue à l'aide d'un QR code généré par la PWA, valable 15 minutes,
+            signé cryptographiquement et à usage unique (anti-rejeu). Le citoyen est responsable de la bonne
+            scanographie du QR code devant le lecteur du distributeur.
+          </p>
+          <p class="mt-3">
+            La restitution doit intervenir <strong class="text-white/85">avant la fin du créneau réservé</strong>,
+            dans le même distributeur ou tout distributeur compatible du même réseau (selon configuration tenant).
+            Tout retard est susceptible d'entraîner les conséquences décrites à l'article 6.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">6. Obligations du citoyen</h2>
+          <p class="mb-3">L'utilisateur s'engage à :</p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2">
+            <li>Utiliser le matériel <strong class="text-white/85">en bon père de famille</strong>, conformément à sa destination ;</li>
+            <li>Restituer le matériel dans son état d'origine, propre et sec, à l'issue du créneau ;</li>
+            <li>Signaler immédiatement, via la PWA, toute anomalie ou détérioration constatée à la prise du matériel ;</li>
+            <li>Ne pas prêter, sous-louer ou céder le matériel à un tiers pendant la durée du créneau ;</li>
+            <li>Respecter le règlement du site où est installé le distributeur (mairie, camping, hôtel) ;</li>
+            <li>Ne pas tenter de contourner les mécanismes de sécurité du distributeur ou de l'application.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">7. Caution et retard</h2>
+          <p>
+            Une <strong class="text-white/85">caution préautorisée</strong> (entre 30 € et 150 € selon la
+            catégorie de l'item — ballon, raquette, équipement « pro ») peut être bloquée sur la carte du
+            citoyen au moment de la réservation. Cette caution n'est pas débitée si le matériel est restitué
+            en bon état et dans les délais.
+          </p>
+          <p class="mt-3">
+            En cas de retard, de non-restitution ou de détérioration manifeste constatée par le tenant ou
+            par les capteurs du distributeur, tout ou partie de la caution pourra être débitée à titre de
+            dédommagement. L'utilisateur sera notifié par e-mail préalablement à tout débit, avec un délai
+            de contestation de 7 jours.
+          </p>
+          <p class="mt-3">
+            <span class="text-white/55 italic">Note MVP :</span> la caution n'est pas techniquement activée
+            à la date des présentes. Son activation fera l'objet d'une notification préalable.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">8. Notifications</h2>
+          <p>
+            La PWA permet, sur demande explicite du citoyen, d'envoyer des notifications de rappel
+            (15, 30, 60 ou 120 minutes avant la fin du créneau, au choix de l'utilisateur). Cette
+            fonctionnalité repose sur des services de notification tiers (Google FCM, Mozilla Autopush,
+            Apple Push) et nécessite un consentement explicite. L'utilisateur peut désactiver les
+            notifications à tout moment depuis son profil.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">9. Données personnelles</h2>
+          <p>
+            Le traitement des données personnelles est régi par notre
+            <a href="/confidentialite" class="text-brand-500 hover:underline">Politique de confidentialité</a>,
+            qui détaille les données collectées, leurs finalités, leur durée de conservation et les droits
+            dont vous disposez au titre du RGPD.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">10. Suspension et résiliation</h2>
+          <p>
+            SportLocker se réserve le droit de suspendre ou supprimer un compte en cas de manquement
+            grave aux présentes CGU, notamment : dégradation volontaire de matériel, tentative de fraude,
+            non-restitution répétée, comportement contrevenant au règlement du tenant. La suspension est
+            notifiée par e-mail avec un délai de contestation de 14 jours.
+          </p>
+          <p class="mt-3">
+            L'utilisateur peut résilier son compte à tout moment, sans préavis et sans frais, depuis son
+            profil ou en écrivant à <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline">{SITE.email}</a>.
+            Les données personnelles sont anonymisées sous 30 jours conformément à l'article 4 de la Politique
+            de confidentialité.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">11. Disponibilité du service</h2>
+          <p>
+            SportLocker met en œuvre les moyens raisonnables pour assurer la disponibilité du service.
+            L'application et les distributeurs peuvent toutefois être indisponibles ponctuellement pour
+            maintenance, mise à jour ou en cas de force majeure. Aucune indemnisation ne pourra être
+            réclamée au titre de ces indisponibilités, le service applicatif étant gratuit pour le citoyen.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">12. Propriété intellectuelle</h2>
+          <p>
+            L'ensemble des éléments composant la PWA (interface, marque SportLocker, logos, codes,
+            illustrations) est la propriété exclusive de {SITE.legalName} ou de ses partenaires. Toute
+            reproduction, modification, diffusion ou exploitation non autorisée est strictement interdite.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">13. Responsabilité</h2>
+          <p>
+            Le matériel est mis à disposition par le tenant. SportLocker assure la mise en relation
+            technique et l'exploitation de l'application, mais n'est pas le propriétaire du matériel.
+            Le citoyen reconnaît utiliser le matériel sportif sous sa propre responsabilité et atteste
+            disposer des conditions physiques nécessaires à la pratique de l'activité concernée.
+          </p>
+          <p class="mt-3">
+            En aucun cas SportLocker ne pourra être tenu responsable des dommages corporels survenant
+            lors de la pratique sportive, sauf à démontrer un défaut imputable au matériel et un manquement
+            caractérisé de SportLocker à ses obligations de maintenance préventive.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">14. Évolution des CGU</h2>
+          <p>
+            SportLocker se réserve le droit de modifier les présentes CGU pour refléter des évolutions
+            techniques, fonctionnelles ou réglementaires. Les modifications substantielles font l'objet
+            d'une notification dans l'application au moins 30 jours avant leur entrée en vigueur. L'utilisation
+            continue du service après cette date vaut acceptation des nouvelles CGU.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">15. Droit applicable et litiges</h2>
+          <p>
+            Les présentes CGU sont régies par le droit français. En cas de litige, les parties
+            s'efforceront de trouver une solution amiable avant toute action judiciaire. À défaut,
+            le citoyen peut saisir gratuitement un médiateur de la consommation conformément aux
+            articles L.611-1 et suivants du Code de la consommation.
+          </p>
+          <p class="mt-3">
+            À défaut de résolution amiable, les tribunaux français seront compétents, conformément
+            aux règles de droit commun.
+          </p>
+        </div>
+
+        <p class="text-xs text-white/40 pt-6">
+          Contact : <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline">{SITE.email}</a>
+        </p>
+      </div>
+    </div>
+  </section>
+</Base>
