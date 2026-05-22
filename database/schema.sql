@@ -91,6 +91,10 @@ CREATE TABLE users (
   commune_id               UUID REFERENCES communes(id) ON DELETE SET NULL,
   trust_score              SMALLINT NOT NULL DEFAULT 100 CHECK (trust_score BETWEEN 0 AND 100),
   total_reservations       INTEGER NOT NULL DEFAULT 0,
+  -- Préférence push (migration 0011) : combien de minutes avant `slot_start_at`
+  -- le cron `slot-reminders` envoie le rappel. UI propose 15/30/60/120.
+  reminder_minutes_before  INTEGER NOT NULL DEFAULT 15
+    CHECK (reminder_minutes_before BETWEEN 5 AND 1440),
   is_banned                BOOLEAN NOT NULL DEFAULT FALSE,
   banned_reason            TEXT,
   last_active_at           TIMESTAMPTZ,

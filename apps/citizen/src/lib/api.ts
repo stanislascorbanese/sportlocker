@@ -429,6 +429,8 @@ export async function registerPushSubscription(input: {
   endpoint: string
   keys: { p256dh: string; auth: string }
   deviceInfo?: Record<string, unknown>
+  /** Délai en minutes avant `slot_start_at` pour le rappel. UI propose 15/30/60/120. */
+  reminderMinutesBefore?: number
 }): Promise<z.infer<typeof PushSubscriptionDTO>> {
   return apiFetch(`/v1/push-subscriptions`, PushSubscriptionDTO, {
     method: 'POST',
@@ -442,5 +444,13 @@ export async function unregisterPushSubscription(endpoint: string): Promise<void
     `/v1/push-subscriptions`,
     z.object({ ok: z.literal(true) }),
     { method: 'DELETE', body: JSON.stringify({ endpoint }) },
+  )
+}
+
+/** Lit la préférence "X minutes avant" du user courant. */
+export async function fetchReminderPreferences(): Promise<{ reminderMinutesBefore: number }> {
+  return apiFetch(
+    `/v1/push-subscriptions/preferences`,
+    z.object({ reminderMinutesBefore: z.number().int() }),
   )
 }

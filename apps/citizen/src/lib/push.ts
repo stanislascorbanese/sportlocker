@@ -79,11 +79,23 @@ export type SubscribeResult =
   | { ok: false; reason: 'unsupported' | 'permission_denied' | 'vapid_missing' | 'subscribe_failed' | 'register_failed'; detail?: string }
 
 /**
+ * Délais autorisés pour le rappel (minutes avant `slot_start_at`). Doit
+ * matcher le whitelist côté backend (cf. push-subscriptions.ts).
+ */
+export const REMINDER_MINUTES_CHOICES = [15, 30, 60, 120] as const
+export type ReminderMinutesBefore = typeof REMINDER_MINUTES_CHOICES[number]
+
+/**
  * Flow complet d'inscription. Idempotent : si une subscription existe déjà
  * pour ce browser, on la réutilise (et on re-POST au backend pour mettre à
  * jour lastUsedAt côté DB).
+ *
+ * `reminderMinutesBefore` optionnel : si fourni, met à jour la préférence
+ * du user côté backend (`users.reminder_minutes_before`).
  */
-export async function subscribePush(): Promise<SubscribeResult> {
+export async function subscribePush(opts?: {
+  reminderMinutesBefore?: ReminderMinutesBefore
+}): Promise<SubscribeResult> {
   if (detectPushSupport() !== 'supported') {
     return { ok: false, reason: 'unsupported' }
   }
@@ -149,6 +161,7 @@ export async function subscribePush(): Promise<SubscribeResult> {
         userAgent: navigator.userAgent,
         language: navigator.language,
       },
+      ...(opts?.reminderMinutesBefore ? { reminderMinutesBefore: opts.reminderMinutesBefore } : {}),
     })
   } catch (err) {
     return {

@@ -68,6 +68,8 @@ export const users = pgTable('users', {
   communeId: uuid('commune_id').references(() => communes.id, { onDelete: 'set null' }),
   trustScore: smallint('trust_score').notNull().default(100),
   totalReservations: integer('total_reservations').notNull().default(0),
+  // Préférence push (migration 0011) : délai du rappel slot-reminder en min.
+  reminderMinutesBefore: integer('reminder_minutes_before').notNull().default(15),
   isBanned: boolean('is_banned').notNull().default(false),
   bannedReason: text('banned_reason'),
   lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
