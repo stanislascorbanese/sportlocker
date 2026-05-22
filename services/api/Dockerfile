@@ -10,7 +10,7 @@
 # Le boot exécute scripts/migrate.mjs avant `node dist/index.js` (cf. entrypoint.sh).
 
 # ─── Stage 1 : build ─────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:26-alpine AS builder
 
 # pnpm via corepack (version pin matchée sur package.json#packageManager)
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
@@ -46,7 +46,7 @@ RUN pnpm --filter @sportlocker/api build
 RUN pnpm --filter @sportlocker/api --prod deploy /out
 
 # ─── Stage 2 : runtime ───────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:26-alpine AS runtime
 
 # wget pour le HEALTHCHECK Docker (Railway probe via /health/ aussi)
 RUN apk add --no-cache wget
