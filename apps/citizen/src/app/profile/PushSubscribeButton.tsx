@@ -40,6 +40,14 @@ const REMINDER_LABELS: Record<ReminderMinutesBefore, string> = {
   120: '2 heures',
 }
 
+/** Libellé court pour les pills (gain de place sur mobile). */
+const REMINDER_LABELS_SHORT: Record<ReminderMinutesBefore, string> = {
+  15: '15 min',
+  30: '30 min',
+  60: '1 h',
+  120: '2 h',
+}
+
 export function PushSubscribeButton() {
   const [support, setSupport] = useState<PushSupportStatus>('unsupported')
   const [permission, setPermission] = useState<PushPermission>('unsupported')
@@ -181,23 +189,35 @@ export function PushSubscribeButton() {
         Reçois une notif avant chaque créneau réservé. Tu peux désactiver à tout moment.
       </Header>
 
-      <label className="mt-4 block">
-        <span className="text-[11px] uppercase tracking-wider text-white/50">
-          Recevoir le rappel
-        </span>
-        <select
-          value={reminderMinutes}
-          onChange={(e) => onChangeReminder(Number(e.target.value) as ReminderMinutesBefore)}
-          disabled={pending}
-          className="mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/60 disabled:opacity-50"
-        >
-          {REMINDER_MINUTES_CHOICES.map((m) => (
-            <option key={m} value={m}>
-              {REMINDER_LABELS[m]} avant le créneau
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="mt-4">
+        <p className="text-[11px] uppercase tracking-wider text-white/50">
+          Recevoir le rappel avant le créneau
+        </p>
+        <div className="mt-2 grid grid-cols-4 gap-1.5">
+          {REMINDER_MINUTES_CHOICES.map((m) => {
+            const isSelected = reminderMinutes === m
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onChangeReminder(m)}
+                disabled={pending}
+                className={cn(
+                  'rounded-lg border px-2 py-2 text-sm font-medium tabular-nums transition',
+                  isSelected
+                    ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+                aria-pressed={isSelected}
+                aria-label={`${REMINDER_LABELS[m]} avant le créneau`}
+              >
+                {REMINDER_LABELS_SHORT[m]}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       {error && (
         <p className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">

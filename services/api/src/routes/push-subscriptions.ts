@@ -145,12 +145,22 @@ export async function pushSubscriptionRoutes(rawApp: FastifyInstance) {
 
       // Préférence "X minutes avant" : si fournie, on update la row user.
       // Pas dans la même transaction (overkill pour 2 inserts indépendants
-      // sur des tables différentes) — si l'update plante, la sub reste
-      // créée et le user gardera la préférence par défaut.
+      // sur des tables différentes). Catché silencieusement : si la colonne
+      // `users.reminder_minutes_before` n'existe pas (migration 0011 pas
+      // encore appliquée), la sub reste créée et l'API ne renvoie pas 500.
+      // Le user gardera la préférence par défaut (15 min) jusqu'à ce que
+      // la migration soit appliquée.
       if (reminderMinutesBefore !== undefined) {
-        await db.update(users)
-          .set({ reminderMinutesBefore, updatedAt: now })
-          .where(eq(users.id, userId))
+        try {
+          await db.update(users)
+            .set({ reminderMinutesBefore, updatedAt: now })
+            .where(eq(users.id, userId))
+        } catch (err) {
+          req.log.warn(
+            { err: err instanceof Error ? err.message : String(err), userId },
+            'push_subscription_pref_update_failed',
+          )
+        }
       }
 
       return reply.code(201).send({
@@ -182,12 +192,23 @@ export async function pushSubscriptionRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req) => {
-    const [row] = await db
-      .select({ reminderMinutesBefore: users.reminderMinutesBefore })
-      .from(users)
-      .where(eq(users.id, req.user.sub))
-      .limit(1)
-    return { reminderMinutesBefore: row?.reminderMinutesBefore ?? 15 }
+    // Tolérant : si la colonne `reminder_minutes_before` n'existe pas
+    // (migration 0011 pas encore appliquée), on renvoie le default 15
+    // au lieu de planter. Le client garde le dropdown sur 15 par défaut.
+    try {
+      const [row] = await db
+        .select({ reminderMinutesBefore: users.reminderMinutesBefore })
+        .from(users)
+        .where(eq(users.id, req.user.sub))
+        .limit(1)
+      return { reminderMinutesBefore: row?.reminderMinutesBefore ?? 15 }
+    } catch (err) {
+      req.log.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'push_subscription_pref_fetch_failed',
+      )
+      return { reminderMinutesBefore: 15 }
+    }
   })
 
   /**
