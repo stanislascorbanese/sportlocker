@@ -35,9 +35,32 @@ export default function DistributorDetailPage() {
     enabled: Boolean(user && params.id),
   })
 
+  // Sélectionne un locker idle du type demandé (premier match par position
+  // pour la prévisibilité). Le backend exige lockerId + itemId + communeId,
+  // contrairement au flow `scheduled` où il pick lui-même.
+  const targetLocker = (() => {
+    if (!detailQuery.data) return null
+    const lockers = detailQuery.data.lockers
+      .filter((l) => l.state === 'idle' && l.currentItemId != null)
+    if (selectedTypeId) {
+      return lockers.find((l) => l.itemType?.id === selectedTypeId) ?? null
+    }
+    // Pas de selection → si un seul type est dispo, on tente quand même
+    // (autre lane peut décider de hardcoder vs cliquer).
+    return lockers[0] ?? null
+  })()
+
   const reserveMutation = useMutation({
-    mutationFn: () =>
-      createReservation({ distributorId: params.id, itemTypeId: selectedTypeId ?? '' }),
+    mutationFn: () => {
+      if (!detailQuery.data || !targetLocker || !targetLocker.currentItemId) {
+        throw new Error('no_available_locker')
+      }
+      return createReservation({
+        lockerId: targetLocker.id,
+        itemId: targetLocker.currentItemId,
+        communeId: detailQuery.data.communeId,
+      })
+    },
     onSuccess: (reservation) => router.push(`/reservations/${reservation.id}`),
   })
 
@@ -48,6 +71,7 @@ export default function DistributorDetailPage() {
     detailQuery.data != null &&
     !reserveMutation.isPending &&
     detailQuery.data.idleLockers > 0 &&
+    targetLocker != null &&
     (groups.length === 0 || selectedTypeId != null)
 
   return (
@@ -97,10 +121,10 @@ export default function DistributorDetailPage() {
             {reserveMutation.isPending
               ? 'Réservation…'
               : detailQuery.data.idleLockers === 0
-                ? 'Aucun casier disponible (immédiat)'
+                ? 'Aucun casier disponible'
                 : groups.length > 0 && selectedTypeId == null
                   ? 'Emprunter maintenant — choisis un matériel'
-                  : 'Emprunter maintenant (legacy)'}
+                  : 'Emprunter maintenant'}
           </button>
           {reserveMutation.error && (
             <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">
