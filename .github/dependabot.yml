@@ -15,7 +15,7 @@
 version: 2
 
 updates:
-  # ─── Monorepo npm/pnpm (apps/web, apps/dashboard, apps/mobile, services/api, packages/*)
+  # ─── Monorepo npm/pnpm (apps/web, apps/dashboard, apps/citizen, services/api, packages/*)
   # Dependabot suit automatiquement les workspaces depuis le pnpm-lock.yaml racine.
   - package-ecosystem: "npm"
     directory: "/"
