@@ -39,13 +39,26 @@ export const MAX_BOOKING_HORIZON_DAYS = 7
 export const NO_SHOW_GRACE_MINUTES = 15
 
 /**
- * Heures d'ouverture proposées par défaut côté MVP. Hardcoded ici : on n'a
- * pas (encore) de champ `opening_hours` par distributeur côté DB. À sortir
- * en colonne sur `distributors` quand on aura un cas réel (camping fermé
- * la nuit, école accessible 24/7, etc.).
+ * Heures d'ouverture des distributeurs : **24h/24** par défaut.
+ *
+ * Décision produit (conversation 2026-05-22) : par nature un distributeur
+ * IoT libre-service en zone publique (parc, terrain, plage…) reste
+ * accessible toute la journée. On n'impose pas de fenêtre d'ouverture
+ * côté plateforme.
+ *
+ * Si un tenant a un cas spécifique (camping fermé la nuit, école qui
+ * ferme à 19h…), on ouvrira plus tard une colonne `distributors.opening_hours`
+ * pour override commune par commune. Cela reste hors scope tant qu'aucun
+ * client n'en a fait la demande explicite.
+ *
+ * Concrètement :
+ *   - `DEFAULT_OPENING_HOUR_UTC = 0` (00:00 UTC = 01:00 CET / 02:00 CEST)
+ *   - `DEFAULT_CLOSING_HOUR_UTC = 24` (lendemain 00:00 UTC, fin exclusive)
+ *   - Tous les créneaux 30 min de la grille jour sont proposés
+ *   - Forfait journée : start = 00:00 UTC, end = +24h
  */
-export const DEFAULT_OPENING_HOUR_UTC = 6   // 06:00 UTC ≈ 07:00 CET / 08:00 CEST
-export const DEFAULT_CLOSING_HOUR_UTC = 21  // 21:00 UTC ≈ 22:00 CET / 23:00 CEST
+export const DEFAULT_OPENING_HOUR_UTC = 0
+export const DEFAULT_CLOSING_HOUR_UTC = 24
 
 export type SlotDurationMinutes = (typeof ALLOWED_DURATIONS)[number]
 
