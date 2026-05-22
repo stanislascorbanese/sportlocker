@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Package } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -26,6 +26,7 @@ import { cn } from '../../../lib/cn'
 export default function DistributorDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const user = useRequireAuth()
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
 
@@ -61,7 +62,15 @@ export default function DistributorDetailPage() {
         communeId: detailQuery.data.communeId,
       })
     },
-    onSuccess: (reservation) => router.push(`/reservations/${reservation.id}`),
+    onSuccess: async (reservation) => {
+      // Invalidation cruciale : la home page (et la page /reservations/<id>)
+      // utilisent queryKey: ['reservation-active'] avec le résultat précédent
+      // (null si pas de résa au chargement initial). Sans invalidation, la
+      // redirection affiche "Aucune réservation active ne correspond à cet ID"
+      // pendant 30s (refetchInterval) malgré le POST réussi.
+      await queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
+      router.push(`/reservations/${reservation.id}`)
+    },
   })
 
   if (!user) return null

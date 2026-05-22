@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CalendarClock, Check, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -83,6 +83,7 @@ function groupAvailableTypes(d: DistributorDetail): LockerItemType[] {
 
 export default function BookingPage() {
   const params = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
   const user = useRequireAuth()
 
   const [itemTypeId, setItemTypeId] = useState<string | null>(null)
@@ -158,10 +159,15 @@ export default function BookingPage() {
       slotStartAt: selectedSlot!.startsAt,
       durationMinutes: duration,
     }),
-    // Pas de redirect vers /reservations/[id] : la page de détail attend un
-    // shape enrichi (qrToken, distributor.name) que `/v1/reservations/active`
-    // ne fournit pas aujourd'hui — bug pré-existant hors scope PR 4. On
-    // affiche directement le récap + QR dans cette page sur succès.
+    onSuccess: () => {
+      // Invalide la résa active : la bannière home + la page /reservations/<id>
+      // doivent voir la nouvelle résa scheduled au prochain accès. Sans ça,
+      // le cache renvoie le précédent `null` jusqu'au refetchInterval (60s).
+      queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
+    },
+    // Pas de redirect vers /reservations/[id] depuis ici : on rend
+    // ConfirmationView in-page (QR + détails) car POST /slots renvoie déjà
+    // le deviceToken + slot fields nécessaires.
   })
 
   const types = useMemo(
