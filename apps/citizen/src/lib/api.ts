@@ -96,21 +96,58 @@ export class ApiError extends Error {
 }
 
 /**
- * Récupère le Firebase ID token courant si l'utilisateur est connecté.
- * `forceRefresh=false` pour éviter de rafraîchir à chaque requête (token
- * Firebase valable 1h, rafraîchi auto par le SDK avant expiration).
+ * Token de session SportLocker (JWT HS256 signé par l'API avec
+ * JWT_SESSION_SECRET, TTL 7 jours). Échangé contre le Firebase ID token
+ * via `POST /v1/auth/register` au login et stocké dans localStorage pour
+ * persister entre reloads de la PWA.
+ *
+ * IMPORTANT : l'API n'accepte PAS le Firebase ID token directement —
+ * elle vérifie systématiquement sa propre session JWT. D'où le besoin
+ * d'échange explicite (cf. registerCurrentUser).
  */
+const SESSION_TOKEN_KEY = 'sportlocker_session_token'
+
+function getStoredSessionToken(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage.getItem(SESSION_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+function setStoredSessionToken(token: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(SESSION_TOKEN_KEY, token)
+  } catch {
+    // localStorage peut throw en private mode Safari — pas critique,
+    // la session sera juste perdue au reload.
+  }
+}
+
+export function clearSessionToken(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY)
+  } catch {
+    /* idem */
+  }
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
-  const user = getFirebaseAuth().currentUser
-  if (!user) return {}
-  const idToken = await user.getIdToken(false)
-  return { authorization: `Bearer ${idToken}` }
+  const token = getStoredSessionToken()
+  if (!token) return {}
+  return { authorization: `Bearer ${token}` }
 }
 
 async function apiFetch<T>(
   path: string,
   schema: z.ZodSchema<T>,
   init: RequestInit = {},
+  // Pour éviter une boucle infinie register → register en cas de bug serveur,
+  // on coupe la retry au 2e essai.
+  isRetry = false,
 ): Promise<T> {
   const headers = {
     'content-type': 'application/json',
@@ -118,11 +155,41 @@ async function apiFetch<T>(
     ...(init.headers as Record<string, string> | undefined),
   }
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
+  // 401 = session expirée ou jamais établie → on tente un re-register à
+  // partir du Firebase user courant, puis retry de la requête originale.
+  if (res.status === 401 && !isRetry && path !== '/v1/auth/register') {
+    const refreshed = await tryRefreshSession()
+    if (refreshed) {
+      return apiFetch(path, schema, init, true)
+    }
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new ApiError(res.status, body?.error ?? `http_${res.status}`)
   }
   return schema.parse(await res.json())
+}
+
+/**
+ * Tente un re-register silencieux : récupère le Firebase ID token courant
+ * (fresh, forceRefresh=true pour éliminer un Firebase token expiré au passage)
+ * et l'échange contre une nouvelle session. Retourne true si la session a
+ * été rafraîchie avec succès.
+ */
+async function tryRefreshSession(): Promise<boolean> {
+  const user = getFirebaseAuth().currentUser
+  if (!user) {
+    clearSessionToken()
+    return false
+  }
+  try {
+    const idToken = await user.getIdToken(true)
+    await registerCurrentUser(idToken)
+    return true
+  } catch {
+    clearSessionToken()
+    return false
+  }
 }
 
 // ─── Endpoints citoyens ───────────────────────────────────────────────
@@ -157,15 +224,47 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
 }
 
 /**
- * Enregistre l'utilisateur Firebase courant côté API (idempotent côté backend).
- * À appeler après chaque signIn pour s'assurer qu'une ligne `users` existe.
+ * Échange un Firebase ID token contre une session SportLocker (JWT HS256,
+ * TTL 7 jours) et stocke le sessionToken dans localStorage. Upsert idempotent
+ * de la row `users` côté backend.
+ *
+ * À appeler :
+ *   - après chaque signIn (la session précédente peut être périmée)
+ *   - automatiquement par `apiFetch` sur une 401 (cf. tryRefreshSession)
+ *
+ * Si `idToken` est omis, on récupère le token Firebase du user courant.
  */
-export async function registerCurrentUser(): Promise<void> {
-  await apiFetch(
-    `/v1/auth/register`,
-    z.object({ id: z.string() }).passthrough(),
-    { method: 'POST', body: '{}' },
-  )
+export async function registerCurrentUser(idToken?: string): Promise<void> {
+  let token = idToken
+  if (!token) {
+    const user = getFirebaseAuth().currentUser
+    if (!user) throw new ApiError(401, 'no_firebase_user')
+    token = await user.getIdToken(false)
+  }
+
+  const RegisterResponse = z.object({
+    sessionToken: z.string(),
+    user: z.object({
+      id: z.string().uuid(),
+      email: z.string().email(),
+      displayName: z.string().nullable(),
+      role: z.enum(['citizen', 'operator', 'admin', 'super_admin']),
+    }).passthrough(),
+  })
+
+  // Bypass de `apiFetch` ici : pas d'authHeaders à envoyer (on n'en a pas
+  // encore !) et pas de retry sur 401 (la 401 est terminale pour /register).
+  const res = await fetch(`${API_URL}/v1/auth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: token }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body?.error ?? `http_${res.status}`)
+  }
+  const data = RegisterResponse.parse(await res.json())
+  setStoredSessionToken(data.sessionToken)
 }
 
 /**
