@@ -35,6 +35,9 @@ importers:
 
   apps/citizen:
     dependencies:
+      '@sentry/nextjs':
+        specifier: ^8.0.0
+        version: 8.55.2(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.57.2(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@0.0.0-experimental-592953e-20240517)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(webpack@5.106.2(lightningcss@1.19.0)(postcss@8.5.15))
       '@tanstack/react-query':
         specifier: ^5.100.11
         version: 5.100.11(react@18.3.1)
