@@ -274,7 +274,7 @@ export type CommuneUpdateInput = z.infer<typeof CommuneUpdateInput>
 
 const ListCommunes = z.object({ items: z.array(Commune) })
 
-export const USER_ROLES = ['citizen', 'operator', 'admin'] as const
+export const USER_ROLES = ['citizen', 'operator', 'admin', 'super_admin'] as const
 export type UserRole = typeof USER_ROLES[number]
 
 export const AdminUser = z.object({

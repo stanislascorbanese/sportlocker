@@ -15,9 +15,10 @@ import {
 } from './_actions'
 
 const ROLE_STYLE: Record<UserRole, string> = {
-  citizen:  'bg-sky-500/10 text-sky-300 border-sky-500/30',
-  operator: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
-  admin:    'bg-amber-500/10 text-amber-300 border-amber-500/30',
+  citizen:     'bg-sky-500/10 text-sky-300 border-sky-500/30',
+  operator:    'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+  admin:       'bg-amber-500/10 text-amber-300 border-amber-500/30',
+  super_admin: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
 }
 
 function fmtRelative(iso: string | null): string {
@@ -157,6 +158,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
           <option value="citizen">citizen</option>
           <option value="operator">operator</option>
           <option value="admin">admin</option>
+          {user.role === 'super_admin' && <option value="super_admin">super_admin</option>}
         </select>
       </td>
       <td className="px-4 py-3">
