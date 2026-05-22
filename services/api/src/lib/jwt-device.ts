@@ -18,6 +18,13 @@ export interface DeviceTokenClaims extends JWTPayload {
   reservationId: string
   lockerId: string
   distributorId: string
+  /**
+   * Pour les résas du modèle slots (PR 0008), epoch seconds du début du
+   * créneau. Le firmware refuse l'ouverture si `now < slotStartAt` (à
+   * une tolérance d'horloge près), évitant qu'un user scanne avant son
+   * créneau. Absent pour les résas legacy "immédiat" (POST /reservations).
+   */
+  slotStartAt?: number
 }
 
 export async function signDeviceToken(

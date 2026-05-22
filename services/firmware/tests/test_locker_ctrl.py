@@ -25,25 +25,28 @@ def _make_token(
     reservation_id: str,
     jti: str,
     exp_offset: int = 900,
+    slot_start_offset: int | None = None,
 ) -> str:
+    """Forge un JWT QR pour les tests. ``slot_start_offset`` permet de simuler
+    un créneau futur (positif) ou passé (négatif). None = résa legacy sans
+    claim ``slotStartAt``."""
     now = int(time.time())
-    return jose_jwt.encode(
-        {
-            "iss": JWT_ISSUER,
-            "aud": JWT_AUDIENCE,
-            "sub": "user-1",
-            "userId": "user-1",
-            "jti": jti,
-            "iat": now,
-            "nbf": now,
-            "exp": now + exp_offset,
-            "distributorId": device_id,
-            "lockerId": locker_id,
-            "reservationId": reservation_id,
-        },
-        secret,
-        algorithm=JWT_ALGORITHM,
-    )
+    claims: dict[str, object] = {
+        "iss": JWT_ISSUER,
+        "aud": JWT_AUDIENCE,
+        "sub": "user-1",
+        "userId": "user-1",
+        "jti": jti,
+        "iat": now,
+        "nbf": now,
+        "exp": now + exp_offset,
+        "distributorId": device_id,
+        "lockerId": locker_id,
+        "reservationId": reservation_id,
+    }
+    if slot_start_offset is not None:
+        claims["slotStartAt"] = now + slot_start_offset
+    return jose_jwt.encode(claims, secret, algorithm=JWT_ALGORITHM)
 
 
 @pytest.fixture
@@ -306,6 +309,108 @@ def test_internal_error_path_returns_internal_error(
     result = controller.handle_unlock("anything")
     assert result.outcome is UnlockOutcome.INTERNAL_ERROR
     assert "simulated_crash" in (result.detail or "")
+
+
+# ─── Modèle slots : check slot_start_at (PR 0010) ──────────────────────────
+
+
+def test_slot_scan_before_start_returns_slot_not_yet_open(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Un scan d'un QR slot AVANT son ``slot_start_at`` doit être refusé sans
+    consommer le nonce (le user pourra re-scanner à l'heure dite)."""
+    # Créneau dans 1h → bien au-delà de la tolérance d'horloge (60s).
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-too-early",
+        slot_start_offset=3600,
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SLOT_NOT_YET_OPEN
+    assert result.reservation_id == reservation_id
+    assert "wait_" in (result.detail or "")
+
+    # Le nonce n'a PAS été consommé : un retry à l'heure dite doit aboutir
+    # (on bypasse le check time avec un slot_start_offset = -10s = passé).
+    token2 = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-too-early",  # même jti
+        slot_start_offset=-10,
+    )
+    result2 = controller.handle_unlock(token2)
+    assert result2.outcome is UnlockOutcome.SUCCESS
+
+
+def test_slot_scan_within_tolerance_succeeds(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Tolérance d'horloge : un scan jusqu'à 60s avant ``slot_start_at`` est OK
+    (clock skew Pi/smartphone). Au-delà → refus."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-edge-tolerance",
+        slot_start_offset=30,  # 30s dans le futur < 60s tolérance
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SUCCESS
+
+
+def test_slot_scan_after_start_succeeds(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Scan à l'heure ou après : ouvre normalement."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-on-time",
+        slot_start_offset=-5,  # créneau a commencé il y a 5s
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SUCCESS
+
+
+def test_legacy_token_without_slot_claim_works_as_before(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Régression : un JWT sans claim ``slotStartAt`` (résa legacy
+    immédiate) doit toujours s'ouvrir sans passer par le check slot."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-legacy",
+        slot_start_offset=None,  # pas de claim
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SUCCESS
 
 
 # ─── Pulse GPIO : timeout + retry idempotent ────────────────────────────────
