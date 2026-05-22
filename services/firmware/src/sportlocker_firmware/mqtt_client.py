@@ -178,12 +178,16 @@ class MQTTClient:
         _client: mqtt.Client,
         _userdata: Any,
         _flags: dict[str, Any],
-        rc: int,
+        rc: Any,
         _props: Any = None,
     ) -> None:
-        log.info("mqtt_on_connect", rc=int(rc))
+        # En MQTTv5, paho passe un ``ReasonCode`` (pas un ``int``). ``_rc_value``
+        # absorbe les deux. Sans ça, ``int(rc)`` crash et paho considère le
+        # callback raté → les messages cmd/+ ne sont jamais dispatched.
+        rc_value = _rc_value(rc)
+        log.info("mqtt_on_connect", rc=rc_value)
         # En cas de reconnect spontané (paho), republier le status online.
-        if int(rc) == 0:
+        if rc_value == 0:
             try:
                 self._publish_status_online()
             except Exception as exc:  # noqa: BLE001
@@ -193,13 +197,28 @@ class MQTTClient:
         self,
         _client: mqtt.Client,
         _userdata: Any,
-        rc: int,
+        rc: Any,
         _props: Any = None,
     ) -> None:
-        if rc != 0:
-            log.warning("mqtt_disconnected_unexpectedly", rc=int(rc))
+        rc_value = _rc_value(rc)
+        if rc_value != 0:
+            log.warning("mqtt_disconnected_unexpectedly", rc=rc_value)
         else:
             log.info("mqtt_disconnected_clean")
+
+
+def _rc_value(rc: Any) -> int:
+    """Normalise un ``rc`` paho en ``int``.
+
+    En MQTTv5, paho passe un ``ReasonCode`` qui expose ``.value``. En MQTTv3,
+    c'est déjà un ``int``. Cette helper supporte les deux pour ne pas crasher
+    le callback ``on_connect``/``on_disconnect``.
+    """
+    value = getattr(rc, "value", rc)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return -1
 
 
 def _parse_mqtt_url(url: str) -> tuple[str, int]:
