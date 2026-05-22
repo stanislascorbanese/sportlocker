@@ -75,6 +75,42 @@ const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
   ),
 })
 
+/**
+ * DTO enrichi renvoyé par `GET /v1/reservations/active` : joint le distributeur
+ * (name, adresse) et le type d'item (nom affichable) attendus par les clients
+ * mobile/PWA pour rendre l'écran "réservation en cours" sans 2e round-trip.
+ *
+ * `qrToken` = JWT HS256 re-signé à la volée avec le `qr_jti` stable de la résa
+ * (réutilisation du nonce → le firmware accepte au 1er scan, anti-replay
+ * géré par `token_nonces`). TTL = secondes jusqu'à `expiresAt`.
+ *
+ * Les champs slot (`slotStartAt`, `slotEndAt`, `durationMinutes`, `priceCents`)
+ * sont nullables : peuplés UNIQUEMENT pour les résas créées via le flow
+ * `POST /v1/reservations/slots` (statut `scheduled`). Les résas legacy
+ * `pending`/`active` les ont à null.
+ */
+const ReservationActiveEnrichedDTO = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  dueAt: z.string().datetime().nullable(),
+  qrToken: z.string().describe('JWT HS256 prêt à afficher en QR, re-signé à chaque GET avec le qr_jti stable.'),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    addressLine: z.string().nullable(),
+  }),
+  item: z.object({
+    id: z.string().uuid(),
+    typeName: z.string(),
+  }),
+  slotStartAt: z.string().datetime().nullable(),
+  slotEndAt: z.string().datetime().nullable(),
+  durationMinutes: z.number().int().nullable(),
+  priceCents: z.number().int().nonnegative().nullable(),
+})
+
 const ErrorDTO = z.object({ error: z.string() })
 
 function readIdempotencyKey(headers: Record<string, unknown>): string | null {
@@ -499,27 +535,53 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
   })
 
   /**
-   * GET /v1/reservations/active — réservation pending ou active courante.
+   * GET /v1/reservations/active — réservation scheduled/pending/active courante.
    *
    * Pendant de la garde "une seule réservation vivante par user" : l'app
    * mobile interroge cet endpoint au boot pour savoir s'il y a un emprunt
    * en cours. Renvoie 404 sinon (plutôt que 200 avec null) pour éviter le
    * piège des clients qui oublient de check null.
+   *
+   * Le DTO est enrichi (distributor.name, item.typeName, slot fields) pour
+   * que l'écran "résa en cours" se rende sans 2e round-trip. Le `qrToken`
+   * est un JWT re-signé à la volée à partir du `qr_jti` stable — le firmware
+   * accepte au 1er scan, anti-replay via `token_nonces`.
    */
   app.get('/active', {
     onRequest: [app.authenticate],
     schema: {
       tags: ['Citoyens — Réservations'],
-      summary: 'Réservation pending/active du citoyen courant',
-      description: 'Renvoie la réservation vivante du user (au plus 1 par contrainte métier). '
+      summary: 'Réservation scheduled/pending/active du citoyen courant',
+      description: 'Renvoie la réservation vivante du user (au plus 1 par contrainte métier), '
+        + 'enrichie avec le nom du distributeur, le type d\'item et un qrToken JWT prêt à scanner. '
         + '404 `no_active_reservation` si aucune.',
       security: [{ bearerAuth: [] }],
-      response: { 200: ReservationBaseDTO, 404: ErrorDTO },
+      response: { 200: ReservationActiveEnrichedDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
     const [row] = await db
-      .select()
+      .select({
+        id: reservations.id,
+        status: reservations.status,
+        lockerId: reservations.lockerId,
+        itemId: reservations.itemId,
+        distributorId: reservations.distributorId,
+        qrJti: reservations.qrJti,
+        createdAt: reservations.createdAt,
+        expiresAt: reservations.expiresAt,
+        dueAt: reservations.dueAt,
+        slotStartAt: reservations.slotStartAt,
+        slotEndAt: reservations.slotEndAt,
+        durationMinutes: reservations.durationMinutes,
+        priceCents: reservations.priceCents,
+        distributorName: distributors.name,
+        distributorAddressLine: distributors.addressLine,
+        itemTypeName: itemTypes.name,
+      })
       .from(reservations)
+      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+      .innerJoin(items, eq(items.id, reservations.itemId))
+      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
       .where(and(
         eq(reservations.userId, req.user.sub),
         inArray(reservations.status, ['scheduled', 'pending', 'active']),
@@ -527,7 +589,37 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       .limit(1)
 
     if (!row) return reply.code(404).send({ error: 'no_active_reservation' })
-    return reply.code(200).send(toDto(row))
+
+    // Re-signe un device JWT avec le qr_jti stable. TTL = jusqu'à expiresAt
+    // (clamp à 60s minimum pour éviter un token déjà expiré sur un edge case).
+    const ttlSec = Math.max(60, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000))
+    const qrToken = await signDeviceToken({
+      reservationId: row.id,
+      lockerId: row.lockerId,
+      distributorId: row.distributorId,
+    }, ttlSec, row.qrJti)
+
+    return reply.code(200).send({
+      id: row.id,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+      dueAt: row.dueAt?.toISOString() ?? null,
+      qrToken,
+      distributor: {
+        id: row.distributorId,
+        name: row.distributorName,
+        addressLine: row.distributorAddressLine,
+      },
+      item: {
+        id: row.itemId,
+        typeName: row.itemTypeName,
+      },
+      slotStartAt: row.slotStartAt?.toISOString() ?? null,
+      slotEndAt: row.slotEndAt?.toISOString() ?? null,
+      durationMinutes: row.durationMinutes,
+      priceCents: row.priceCents,
+    })
   })
 
   /**
