@@ -494,7 +494,7 @@ describe('GET /v1/reservations/me', () => {
 })
 
 describe('GET /v1/reservations/active', () => {
-  it('renvoie la réservation pending courante du user', async () => {
+  it('renvoie la réservation pending courante du user, shape enrichi', async () => {
     const f = await seedAll()
 
     const created = await app.inject({
@@ -512,10 +512,28 @@ describe('GET /v1/reservations/active', () => {
       headers: { authorization: authHeader(f.userId) },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json()
+    const body = res.json() as {
+      id: string
+      status: string
+      qrToken: string
+      distributor: { id: string; name: string; addressLine: string | null }
+      item: { id: string; typeName: string }
+      slotStartAt: string | null
+      durationMinutes: number | null
+    }
     expect(body.id).toBe(createdId)
     expect(body.status).toBe('pending')
-    expect(body.lockerId).toBe(f.lockerId)
+    // Shape enrichi : qrToken JWT + nom distributeur + nom item type (joints
+    // côté API pour éviter un round-trip).
+    expect(body.qrToken).toMatch(/^eyJ/) // JWT commence par eyJ (base64 du header)
+    expect(body.distributor.id).toBe(f.distributorId)
+    expect(typeof body.distributor.name).toBe('string')
+    expect(body.distributor.name.length).toBeGreaterThan(0)
+    expect(body.item.id).toBe(f.itemId)
+    expect(typeof body.item.typeName).toBe('string')
+    // Résa legacy (POST /v1/reservations sans slot) → champs slot à null.
+    expect(body.slotStartAt).toBeNull()
+    expect(body.durationMinutes).toBeNull()
   })
 
   it("renvoie 404 no_active_reservation quand le user n'a aucune résa vivante", async () => {
