@@ -101,6 +101,8 @@ const ReservationActiveEnrichedDTO = z.object({
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable(),
+  extensionCount: z.number().int().min(0)
+    .describe('Nombre de prolongations utilisées (max ' + String(MAX_EXTENSIONS) + ')'),
   qrToken: z.string().describe('JWT HS256 prêt à afficher en QR, re-signé à chaque GET avec le qr_jti stable.'),
   distributor: z.object({
     id: z.string().uuid(),
@@ -579,6 +581,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
         createdAt: reservations.createdAt,
         expiresAt: reservations.expiresAt,
         dueAt: reservations.dueAt,
+        extensionCount: reservations.extensionCount,
         slotStartAt: reservations.slotStartAt,
         slotEndAt: reservations.slotEndAt,
         durationMinutes: reservations.durationMinutes,
@@ -617,6 +620,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       createdAt: row.createdAt.toISOString(),
       expiresAt: row.expiresAt.toISOString(),
       dueAt: row.dueAt?.toISOString() ?? null,
+      extensionCount: row.extensionCount,
       qrToken,
       distributor: {
         id: row.distributorId,
