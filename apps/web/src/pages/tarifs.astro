@@ -3,13 +3,18 @@ import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
 import PriceCalculator from '@/components/PriceCalculator.tsx'
-import { DEPOSITS, MARKETPLACE } from '@/data/site'
+import { DEPOSITS, MARKETPLACE, PRICING_TEMPLATES, SLOT_DURATIONS } from '@/data/site'
 
 const formatEur = (n: number): string =>
   new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n) + ' €'
 
-const tenantShare = MARKETPLACE.citoyenForfait * MARKETPLACE.tenantShareRate
-const commissionAmount = MARKETPLACE.citoyenForfait * MARKETPLACE.commissionRate
+// Illustration concrète du split — basée sur le template saisonnier
+// (un slot 2 h à 5 €) pour rester lisible. Le split 75/25 s'applique
+// quelle que soit la durée et le prix configurés par le tenant.
+const illustrationCitoyenPrice = 5
+const tenantShareExample = illustrationCitoyenPrice * MARKETPLACE.tenantShareRate
+const commissionExample = illustrationCitoyenPrice * MARKETPLACE.commissionRate
+const tenantShareAvg = MARKETPLACE.citoyenAvgPrice * MARKETPLACE.tenantShareRate
 
 const tenantIncluded = [
   {
@@ -54,7 +59,7 @@ const notIncluded = [
 const faqTarifs = [
   {
     q: 'Les citoyens paient à chaque emprunt ?',
-    a: 'Oui — 5 € TTC forfait journée par emprunt. L\'usager peut garder l\'item 24 h maximum (compté à compte depuis l\'heure d\'emprunt). Pas de tarif horaire, pas de surprise au retour.',
+    a: 'Oui — à la durée choisie au moment de la réservation : 30 min, 1 h, 1 h 30, 2 h ou la journée (1440 min). Le prix de chaque créneau est défini par vous via le dashboard /pricing. Quatre templates pré-configurés (communal léger, saisonnier, hôtel premium, forfait journée seul) permettent de démarrer en quelques clics. Vous pouvez n\'activer que les slots courts, que la journée, ou les deux.',
   },
   {
     q: 'Et la caution ?',
@@ -89,7 +94,7 @@ const faqTarifs = [
 
 <Base
   title="Tarifs — marketplace 3-flux : abonnement + locations citoyens"
-  description="Tarifs SportLocker : abonnement SaaS à partir de 400 € HT/mois par distributeur + 75 % des locations citoyens (forfait 5 €/jour) reversés via Stripe Connect. Caution préautorisée 30 à 150 €."
+  description="Tarifs SportLocker : abonnement SaaS à partir de 400 € HT/mois par distributeur + 75 % des locations citoyens reversés via Stripe Connect. Grille tarifaire flexible (30 min à la journée), 4 templates pré-configurés, caution préautorisée 30 à 150 €."
 >
   <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
     <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
@@ -101,9 +106,10 @@ const faqTarifs = [
           <span class="text-brand-500">3 flux, transparent.</span>
         </h1>
         <p class="text-[1.15rem] text-white/65 leading-loose font-light" data-reveal data-reveal-delay="2">
-          L'usager paie 5 € la journée. SportLocker prend 25 % de commission.
-          Vous gardez 75 % et payez l'abonnement SaaS qui finance le matériel, la
-          maintenance et la plateforme. Aucun coût caché.
+          L'usager paie à la durée — vous fixez votre propre grille (30 min,
+          1 h, 1 h 30, 2 h ou la journée). SportLocker prend 25 % de commission,
+          vous gardez 75 % et payez l'abonnement SaaS qui finance le matériel,
+          la maintenance et la plateforme. Aucun coût caché.
         </p>
       </div>
     </div>
@@ -116,12 +122,13 @@ const faqTarifs = [
         <div>
           <span class="eyebrow" data-reveal>Section A — Le citoyen</span>
           <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
-            5 € / journée<br/>tout simplement.
+            5 durées au choix.<br/>Le tenant fixe les prix.
           </h2>
           <p class="section-sub mb-6" data-reveal data-reveal-delay="2">
-            Forfait simple : 1 emprunt = 1 journée d'accès, peu importe le matériel choisi.
-            Restitution dans n'importe quel casier libre du réseau SportLocker, au plus tard
-            24 h après l'heure d'emprunt.
+            Slots de 30, 60, 90 ou 120 minutes, plus la journée entière.
+            Le citoyen choisit sa durée dans l'app, réserve un créneau (jusqu'à J+7),
+            scanne son QR au distributeur. Restitution dans n'importe quel casier
+            libre du réseau, au plus tard à la fin du slot réservé.
           </p>
           <p class="text-sm text-white/55 font-light leading-relaxed" data-reveal data-reveal-delay="3">
             <strong class="text-white/75 font-medium">Caution préautorisée</strong> sur la CB
@@ -156,6 +163,54 @@ const faqTarifs = [
           </p>
         </div>
       </div>
+
+      <!-- Templates tarifaires -->
+      <div class="mt-14">
+        <div class="text-center mb-10">
+          <span class="eyebrow" data-reveal>4 templates pour démarrer</span>
+          <h3 class="font-extrabold text-display-md text-white mt-3" data-reveal data-reveal-delay="1">
+            Choisissez votre grille,<br/>ou partez d'un template.
+          </h3>
+          <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+            Quatre grilles tarifaires pré-configurées, livrées avec le dashboard /pricing.
+            Vous pouvez les utiliser telles quelles ou les ajuster créneau par créneau.
+          </p>
+        </div>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {PRICING_TEMPLATES.map((tpl, i) => (
+            <div class="card-dark p-6 flex flex-col" data-reveal data-reveal-delay={String((i % 4) + 1)}>
+              <div class="text-xs uppercase tracking-[0.12em] text-brand-500/80 mb-2">
+                {tpl.targetSegment === 'mairie'  ? 'Mairie'
+                : tpl.targetSegment === 'camping' ? 'Camping & plage'
+                : tpl.targetSegment === 'hotel'   ? 'Hôtel premium'
+                : 'Tout type de site'}
+              </div>
+              <h4 class="font-extrabold text-white text-base mb-2">{tpl.label}</h4>
+              <p class="text-xs text-white/55 font-light leading-relaxed mb-4">{tpl.desc}</p>
+              <dl class="text-xs space-y-1.5 mt-auto">
+                {SLOT_DURATIONS.map((slot) => {
+                  const price = tpl.prices[slot.minutes as keyof typeof tpl.prices]
+                  return (
+                    <div class="flex justify-between gap-2 border-b border-white/5 last:border-b-0 py-1">
+                      <dt class="text-white/45">{slot.label}</dt>
+                      <dd class={`tabular-nums font-medium ${price ? 'text-white' : 'text-white/25'}`}>
+                        {price ? `${formatEur(price)}` : '—'}
+                      </dd>
+                    </div>
+                  )
+                })}
+              </dl>
+            </div>
+          ))}
+        </div>
+
+        <p class="text-[0.7rem] text-white/35 italic leading-relaxed mt-6 text-center max-w-2xl mx-auto">
+          Prix éditables à tout moment depuis votre dashboard. Aucun paiement réel
+          activé en MVP — les prix sont affichés au citoyen et utilisés pour le calcul
+          de revenu, l'encaissement Stripe sera ouvert en phase suivante.
+        </p>
+      </div>
     </div>
   </section>
 
@@ -179,13 +234,16 @@ const faqTarifs = [
           <div>
             <h3 class="font-extrabold text-white text-lg mb-2">Vous gardez 75 % des locations</h3>
             <p class="text-sm text-white/65 font-light leading-relaxed mb-3">
-              Chaque location citoyen génère <strong class="text-white/85 font-medium">{formatEur(tenantShare)}</strong>
-              de revenu pour vous. Reversement automatique sur votre compte bancaire à J+2 via
-              Stripe Connect Express. Aucune comptabilité manuelle, aucun chèque à éditer.
+              Sur chaque transaction, 75 % vous reviennent et 25 % vont à SportLocker.
+              Reversement automatique J+2 sur votre compte bancaire via Stripe Connect Express.
+              Aucune comptabilité manuelle, aucun chèque à éditer.
             </p>
             <p class="text-xs text-white/45 font-light leading-relaxed">
-              À titre indicatif : un distributeur mature génère ~ 10 locations/jour, soit
-              ~ 1 125 €/mois de revenu locations net pour vous.
+              À titre indicatif : un distributeur mature voit ~ 10 locations/jour. Avec
+              un panier moyen de {formatEur(MARKETPLACE.citoyenAvgPrice)}, ça vous fait
+              ~ {formatEur(tenantShareAvg * 10 * 30)}/mois de revenu locations net — la
+              fourchette varie selon votre grille tarifaire (template communal léger à
+              hôtel premium).
             </p>
           </div>
         </div>
@@ -207,9 +265,9 @@ const faqTarifs = [
         <div class="grid sm:grid-cols-[1fr_auto_1fr] gap-6 sm:gap-8 items-center">
           <div class="text-center">
             <div class="text-4xl mb-3">🧑</div>
-            <div class="text-xs uppercase tracking-[0.1em] text-white/40 mb-1">Citoyen paie</div>
-            <div class="font-extrabold text-3xl text-white tabular-nums">5 €</div>
-            <div class="text-[0.7rem] text-white/45 mt-1">forfait journée TTC</div>
+            <div class="text-xs uppercase tracking-[0.1em] text-white/40 mb-1">Citoyen paie (exemple)</div>
+            <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(illustrationCitoyenPrice)}</div>
+            <div class="text-[0.7rem] text-white/45 mt-1">1 slot, prix défini par le tenant</div>
           </div>
 
           <div class="text-center text-white/30 text-3xl rotate-90 sm:rotate-0 select-none">→</div>
@@ -225,15 +283,22 @@ const faqTarifs = [
         <div class="mt-8 pt-8 border-t border-white/10 grid sm:grid-cols-2 gap-5">
           <div class="bg-brand-500/[0.08] border border-brand-500/30 rounded-lg p-5">
             <div class="text-xs uppercase tracking-[0.1em] text-brand-500/80 mb-1.5">Pour vous (tenant)</div>
-            <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(tenantShare)}</div>
+            <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(tenantShareExample)}</div>
             <div class="text-xs text-white/50 mt-1.5 font-light">soit 75 % — versé J+2</div>
           </div>
           <div class="bg-white/5 border border-white/10 rounded-lg p-5">
             <div class="text-xs uppercase tracking-[0.1em] text-white/40 mb-1.5">Pour SportLocker</div>
-            <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(commissionAmount)}</div>
+            <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(commissionExample)}</div>
             <div class="text-xs text-white/50 mt-1.5 font-light">soit 25 % de commission</div>
           </div>
         </div>
+
+        <p class="text-[0.7rem] text-white/35 italic leading-relaxed mt-6">
+          Exemple basé sur un slot à 5 € (typique du template saisonnier ou du forfait
+          journée seul). Le ratio 75 / 25 s'applique à toute durée et à tout prix
+          configurés dans votre grille — d'un slot 30 min à 0,50 € à un slot journée
+          à 15 €.
+        </p>
       </div>
 
       <div class="max-w-3xl mx-auto card-dark p-7 sm:p-9" data-reveal>

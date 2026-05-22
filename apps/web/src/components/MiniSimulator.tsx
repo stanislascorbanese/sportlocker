@@ -127,11 +127,12 @@ export default function MiniSimulator(): JSX.Element {
 
         <div className="mt-5 pt-5 border-t border-white/10 text-xs text-white/55 font-light leading-relaxed">
           <span className="text-accent-500 font-medium">Année 2+</span> :
-          les locations citoyens couvrent l'abonnement et génèrent{' '}
+          à pleine charge, les locations citoyens (panier moyen indicatif, vous fixez votre grille)
+          tendent à couvrir l'abonnement, avec un excédent attendu de{' '}
           <strong className="text-white/85 font-medium tabular-nums">
             {formatEurApprox(result.steadySurplus)}/an
           </strong>{' '}
-          d'excédent reversé via Stripe Connect.
+          reversé via Stripe Connect.
         </div>
 
         <div className="flex-1" />

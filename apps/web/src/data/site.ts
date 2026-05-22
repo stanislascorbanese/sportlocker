@@ -26,13 +26,60 @@ export const PRICING = {
 
 export type TenantSegment = keyof typeof PRICING
 
-// Marketplace : forfait citoyen + split commission (CDC §4.3)
+// Marketplace : panier moyen citoyen + split commission (CDC §4.3 + §4.6).
+// Le tenant fixe sa propre grille via /pricing (slots de 30/60/90/120 min
+// + journée). citoyenAvgPrice est un panier moyen indicatif tous segments
+// confondus — sert uniquement à la simulation budget côté vitrine. Le split
+// 75/25 lui est appliqué à chaque transaction quelle que soit la durée.
 export const MARKETPLACE = {
-  citoyenForfait: 5,
+  citoyenAvgPrice: 2.5,
   commissionRate: 0.25,
   tenantShareRate: 0.75,
   stripePayoutDelayDays: 2,
 } as const
+
+// Durées proposées au citoyen (alignées sur la table pricing_rules — PR 0008).
+// Le tenant peut n'en activer qu'une partie via les templates pré-configurés.
+export const SLOT_DURATIONS = [
+  { minutes: 30,   label: '30 min' },
+  { minutes: 60,   label: '1 h' },
+  { minutes: 90,   label: '1 h 30' },
+  { minutes: 120,  label: '2 h' },
+  { minutes: 1440, label: 'Journée' },
+] as const
+
+// Templates tarifaires pré-configurés livrés avec le dashboard ops — exemples
+// de grilles concrètes citées sur la vitrine pour rendre le modèle palpable.
+export const PRICING_TEMPLATES = [
+  {
+    slug: 'communal-leger',
+    label: 'Communal léger',
+    targetSegment: 'mairie' as const,
+    desc: 'Tarif d\'appel pour les villes qui veulent maximiser l\'accès.',
+    prices: { 30: 0.5, 60: 1, 90: 1.5, 120: 2, 1440: 3 },
+  },
+  {
+    slug: 'saisonnier',
+    label: 'Saisonnier camping & plage',
+    targetSegment: 'camping' as const,
+    desc: 'Pratique courante en bord de mer : 30 min à la journée.',
+    prices: { 30: 1, 60: 2, 90: 3, 120: 5, 1440: 5 },
+  },
+  {
+    slug: 'hotel-premium',
+    label: 'Hôtel premium',
+    targetSegment: 'hotel' as const,
+    desc: 'Positionnement haut de gamme cohérent avec le standing 4★ / 5★.',
+    prices: { 30: 2, 60: 4, 90: 5, 120: 7, 1440: 15 },
+  },
+  {
+    slug: 'journee-seule',
+    label: 'Forfait journée seul',
+    targetSegment: null,
+    desc: 'Esprit day pass préservé pour les sites qui veulent migrer en douceur.',
+    prices: { 1440: 5 },
+  },
+] as const
 
 // Caution préautorisée par catégorie d'item (CDC §4.4)
 export const DEPOSITS = [
@@ -77,7 +124,9 @@ export const subsidyRate = (population: number): number => {
   return 0.1
 }
 
-// Hypothèse de charge mature d'un distributeur (CDC §6.2 — modèle financier)
+// Hypothèse de charge mature d'un distributeur (CDC §6.2 — modèle financier).
+// Indépendant du panier moyen : reste valide quel que soit le template tarifaire
+// que le tenant configure dans son dashboard.
 export const LOCATIONS_PER_DIST_PER_DAY = 10
 
 export interface SimulationResult {
@@ -104,7 +153,7 @@ export function computeSimulation(
   const cfg = PRICING[segment]
   const annualSubscription = cfg.monthlyPerDist * count * 12
   const setupOneShot = cfg.setupPerDist * count
-  const tenantSharePerLoc = MARKETPLACE.citoyenForfait * MARKETPLACE.tenantShareRate
+  const tenantSharePerLoc = MARKETPLACE.citoyenAvgPrice * MARKETPLACE.tenantShareRate
   const annualLocationRevenueMature = count * LOCATIONS_PER_DIST_PER_DAY * 365 * tenantSharePerLoc
 
   const rate = segment === 'mairie' ? subsidyRate(size) : 0

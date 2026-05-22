@@ -58,7 +58,7 @@ const usecases = [
 const faqHotel = [
   {
     q: 'Le service est-il facturé à mes clients ?',
-    a: 'Oui — modèle marketplace : 5 € forfait journée payé par le client via l\'app. Vous gardez 75 % (3,75 €), SportLocker prend 25 % de commission. La caution préautorisée (de 30 à 150 € selon l\'item) est libérée si retour OK.',
+    a: 'Oui — modèle marketplace. Vous définissez votre propre grille tarifaire dans le dashboard (slots 30 min / 1 h / 1 h 30 / 2 h / journée). Le template « Hôtel premium » livré par défaut propose 2 €/30 min, 4 €/1 h, 7 €/2 h et 15 €/journée — cohérent avec un standing 4★ / 5★. Sur chaque transaction, vous gardez 75 %, SportLocker prend 25 % de commission. La caution préautorisée (de 30 à 150 € selon l\'item) est libérée si retour OK.',
   },
   {
     q: 'Comment je récupère ma part des locations ?',
@@ -91,7 +91,7 @@ const proofs = [
 
 <Base
   title="Distributeurs de matériel sportif pour hôtels 3★ / 4★ / 5★"
-  description="Service premium 24/7 sans charge réception : matériel sportif (Wilson, équipement piscine) en libre-service pour vos clients. À partir de 475 € HT/mois/dist, score Booking en hausse, revenu partagé 75 % via marketplace."
+  description="Service premium 24/7 sans charge réception : matériel sportif (Wilson, équipement piscine) en libre-service pour vos clients. À partir de 475 € HT/mois/dist, grille tarifaire à la durée (template hôtel premium fourni), revenu partagé 75 % via marketplace."
   ogImage="/og/hotels.svg"
   extraJsonLd={buildSegmentSchemas('hotel')}
 >
@@ -106,8 +106,9 @@ const proofs = [
         </h1>
         <p class="text-[1.15rem] text-white/65 leading-loose font-light mb-9" data-reveal data-reveal-delay="2">
           Du matériel sportif premium en libre-service, disponible 24/7. Vos clients
-          jouent quand ils veulent, vous facturez 5 € la journée. Reversement automatique
-          à J+2, risque matériel zéro grâce à la caution Stripe.
+          jouent quand ils veulent, vous facturez à la durée selon votre grille
+          (30 min à la journée — template « Hôtel premium » livré par défaut).
+          Reversement automatique à J+2, risque matériel zéro grâce à la caution Stripe.
         </p>
         <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
           <a href="/contact?type=hotel#formulaire" class="btn btn-primary">Demander un devis pour mon hôtel →</a>
@@ -213,23 +214,24 @@ const proofs = [
             </div>
             <div class="flex justify-between text-sm">
               <span class="text-white/55 font-light">Revenu locations citoyens (75%)</span>
-              <span class="text-brand-500 font-medium tabular-nums">+ 280 € est.</span>
+              <span class="text-brand-500 font-medium tabular-nums">+ 220 € est.</span>
             </div>
             <div class="flex justify-between text-sm">
               <span class="text-white/55 font-light">Coût net mensuel</span>
-              <span class="text-white font-medium tabular-nums">~ 670 €</span>
+              <span class="text-white font-medium tabular-nums">~ 730 €</span>
             </div>
             <div class="mt-5 p-4 rounded-lg bg-brand-500/10 border border-brand-500/30">
-              <div class="text-xs text-brand-500 font-medium mb-1">≈ 8,40 € / chambre / mois</div>
+              <div class="text-xs text-brand-500 font-medium mb-1">≈ 9,15 € / chambre / mois</div>
               <div class="text-[0.7rem] text-white/50 leading-relaxed font-light">
-                Soit ~ 0,28 € par nuitée à 70 % de remplissage. Largement compensé par la hausse de score Booking.
+                Soit ~ 0,30 € par nuitée à 70 % de remplissage. Largement compensé par la hausse de score Booking.
               </div>
             </div>
           </div>
 
           <p class="mt-6 text-[0.7rem] text-white/30 italic leading-relaxed">
-            Hypothèse 50 locations/mois cumulées (chiffre conservateur sur établissement 80 chambres en saison).
-            Tarif final selon configuration et options.
+            Hypothèse 50 locations/mois cumulées avec un panier moyen ~5,90 € (template hôtel premium :
+            2 €/30 min, 4 €/1 h, 7 €/2 h, 15 €/journée). Chiffre conservateur sur un 80 chambres en saison —
+            tarif final selon configuration et grille choisies.
           </p>
         </div>
       </div>
