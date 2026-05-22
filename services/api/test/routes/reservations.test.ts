@@ -469,7 +469,7 @@ describe('POST /v1/reservations', () => {
 })
 
 describe('GET /v1/reservations/me', () => {
-  it("renvoie les réservations actives de l'utilisateur", async () => {
+  it("renvoie les réservations de l'utilisateur enrichies avec distributor + item", async () => {
     const f = await seedAll()
 
     // crée une réservation pending
@@ -487,9 +487,59 @@ describe('GET /v1/reservations/me', () => {
       headers: { authorization: authHeader(f.userId) },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json()
+    const body = res.json() as {
+      items: Array<{
+        status: string
+        distributor: { id: string; name: string }
+        item: { id: string; typeName: string }
+        createdAt: string
+        returnedAt: string | null
+      }>
+    }
     expect(body.items).toHaveLength(1)
-    expect(body.items[0].status).toBe('pending')
+    expect(body.items[0]!.status).toBe('pending')
+    expect(body.items[0]!.distributor.id).toBe(f.distributorId)
+    expect(body.items[0]!.distributor.name).toBe('Test Distributor')
+    expect(body.items[0]!.item.id).toBe(f.itemId)
+    expect(body.items[0]!.item.typeName).toBe('Ballon de foot')
+    expect(body.items[0]!.returnedAt).toBeNull()
+  })
+
+  it("trie createdAt DESC (la plus récente en premier)", async () => {
+    const f = await seedAll()
+
+    // 1ère résa (cancel pour libérer le live-quota, garder en historique)
+    const r1 = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    const r1Id = r1.json().id
+    await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${r1Id}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+
+    // 2e résa (la plus récente)
+    const r2 = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    const r2Id = r2.json().id
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reservations/me',
+      headers: { authorization: authHeader(f.userId) },
+    })
+    const body = res.json() as { items: Array<{ id: string; status: string }> }
+    expect(body.items[0]!.id).toBe(r2Id)
+    expect(body.items[1]!.id).toBe(r1Id)
+    expect(body.items[1]!.status).toBe('cancelled')
   })
 })
 

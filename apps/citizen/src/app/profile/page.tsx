@@ -7,7 +7,9 @@ import { useRouter } from 'next/navigation'
 
 import { useRequireAuth } from '../../lib/auth-context'
 import { getFirebaseAuth } from '../../lib/firebase'
+import { InstallButton } from './InstallButton'
 import { PushSubscribeButton } from './PushSubscribeButton'
+import { ReservationsHistory } from './ReservationsHistory'
 
 export default function ProfilePage() {
   const user = useRequireAuth()
@@ -38,6 +40,8 @@ export default function ProfilePage() {
       </section>
 
       <PushSubscribeButton />
+      <InstallButton />
+      <ReservationsHistory />
 
       <button
         type="button"

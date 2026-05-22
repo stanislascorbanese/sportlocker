@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
@@ -117,6 +117,39 @@ const ReservationActiveEnrichedDTO = z.object({
   slotEndAt: z.string().datetime().nullable(),
   durationMinutes: z.number().int().nullable(),
   priceCents: z.number().int().nonnegative().nullable(),
+})
+
+/**
+ * DTO enrichi pour `GET /v1/reservations/me` (historique).
+ *
+ * Inclut tous les statuts (vivants ET terminaux) et joint les noms du
+ * distributeur et du type d'item — la page /profile citizen affiche
+ * directement sans round-trip supplémentaire.
+ *
+ * Pas de qrToken ici (l'historique n'en a pas besoin ; pour scanner la
+ * résa vivante, le citoyen va sur /reservations/<id> qui appelle /active).
+ */
+const ReservationHistoryDTO = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  dueAt: z.string().datetime().nullable(),
+  openedAt: z.string().datetime().nullable(),
+  returnedAt: z.string().datetime().nullable(),
+  extensionCount: z.number().int().min(0),
+  slotStartAt: z.string().datetime().nullable(),
+  slotEndAt: z.string().datetime().nullable(),
+  durationMinutes: z.number().int().nullable(),
+  priceCents: z.number().int().nonnegative().nullable(),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+  }),
+  item: z.object({
+    id: z.string().uuid(),
+    typeName: z.string(),
+  }),
 })
 
 const ErrorDTO = z.object({ error: z.string() })
@@ -640,27 +673,69 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
 
   /**
    * GET /v1/reservations/me — historique de l'utilisateur courant.
+   *
+   * DTO enrichi (distributor.name, item.typeName, champs slot) pour permettre
+   * à la page /profile citizen d'afficher la liste sans round-trip
+   * supplémentaire. Trié createdAt DESC (la plus récente en premier).
    */
   app.get('/me', {
     onRequest: [app.authenticate],
     schema: {
       tags: ['Citoyens — Réservations'],
       summary: 'Historique du citoyen courant',
-      description: 'Renvoie les 50 dernières réservations du user authentifié (statuts pending/active/returned/overdue).',
+      description: 'Renvoie les 50 dernières réservations du user authentifié, '
+        + 'enrichies avec le nom du distributeur, le type d\'item et les champs slot, '
+        + 'triées par createdAt DESC. Inclut les statuts terminaux (returned/cancelled/'
+        + 'expired) en plus des vivants (scheduled/pending/active/overdue).',
       security: [{ bearerAuth: [] }],
-      response: { 200: z.object({ items: z.array(ReservationBaseDTO) }) },
+      response: { 200: z.object({ items: z.array(ReservationHistoryDTO) }) },
     },
   }, async (req) => {
     const rows = await db
-      .select()
+      .select({
+        id: reservations.id,
+        status: reservations.status,
+        createdAt: reservations.createdAt,
+        expiresAt: reservations.expiresAt,
+        dueAt: reservations.dueAt,
+        openedAt: reservations.openedAt,
+        returnedAt: reservations.returnedAt,
+        extensionCount: reservations.extensionCount,
+        slotStartAt: reservations.slotStartAt,
+        slotEndAt: reservations.slotEndAt,
+        durationMinutes: reservations.durationMinutes,
+        priceCents: reservations.priceCents,
+        distributorId: reservations.distributorId,
+        distributorName: distributors.name,
+        itemId: reservations.itemId,
+        itemTypeName: itemTypes.name,
+      })
       .from(reservations)
-      .where(and(eq(reservations.userId, req.user.sub), inArray(reservations.status, [
-        'scheduled', 'pending', 'active', 'returned', 'overdue',
-      ])))
-      .orderBy(reservations.createdAt)
+      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
+      .innerJoin(items, eq(items.id, reservations.itemId))
+      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
+      .where(eq(reservations.userId, req.user.sub))
+      .orderBy(desc(reservations.createdAt))
       .limit(50)
 
-    return { items: rows.map(toDto) }
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+        expiresAt: row.expiresAt.toISOString(),
+        dueAt: row.dueAt?.toISOString() ?? null,
+        openedAt: row.openedAt?.toISOString() ?? null,
+        returnedAt: row.returnedAt?.toISOString() ?? null,
+        extensionCount: row.extensionCount,
+        slotStartAt: row.slotStartAt?.toISOString() ?? null,
+        slotEndAt: row.slotEndAt?.toISOString() ?? null,
+        durationMinutes: row.durationMinutes,
+        priceCents: row.priceCents,
+        distributor: { id: row.distributorId, name: row.distributorName },
+        item: { id: row.itemId, typeName: row.itemTypeName },
+      })),
+    }
   })
 
   /**

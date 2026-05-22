@@ -348,6 +348,39 @@ export async function createReservation(input: {
   })
 }
 
+/**
+ * Réservation telle que renvoyée par `GET /v1/reservations/me` (historique).
+ * Shape enrichi (distributor.name, item.typeName) pour éviter un round-trip
+ * supplémentaire à l'affichage sur /profile. Pas de qrToken (l'historique
+ * n'en a pas besoin ; la résa vivante a son propre flow via /active).
+ */
+export const ReservationHistoryItem = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  dueAt: z.string().datetime().nullable(),
+  openedAt: z.string().datetime().nullable(),
+  returnedAt: z.string().datetime().nullable(),
+  extensionCount: z.number().int().min(0),
+  slotStartAt: z.string().datetime().nullable(),
+  slotEndAt: z.string().datetime().nullable(),
+  durationMinutes: z.number().int().nullable(),
+  priceCents: z.number().int().nonnegative().nullable(),
+  distributor: z.object({ id: z.string().uuid(), name: z.string() }),
+  item: z.object({ id: z.string().uuid(), typeName: z.string() }),
+})
+export type ReservationHistoryItem = z.infer<typeof ReservationHistoryItem>
+
+/** Liste des 50 dernières réservations du citoyen, triées createdAt DESC. */
+export async function fetchMyReservations(): Promise<ReservationHistoryItem[]> {
+  const data = await apiFetch(
+    `/v1/reservations/me`,
+    z.object({ items: z.array(ReservationHistoryItem) }),
+  )
+  return data.items
+}
+
 export async function fetchActiveReservation(): Promise<ReservationActive | null> {
   try {
     return await apiFetch(`/v1/reservations/active`, ReservationActive)
