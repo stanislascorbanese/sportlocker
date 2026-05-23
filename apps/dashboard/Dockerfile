@@ -47,6 +47,23 @@ COPY packages/types   packages/types
 # Désactive la télémétrie Next.js au build
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# NEXT_PUBLIC_* sont bakés dans le bundle client au build par Next.js.
+# Railway les injecte comme build args si on les déclare avec ARG ici.
+# Sans valeur, le build passe mais l'app cliente plante au runtime
+# (`Firebase config manquante`) → set ces variables dans Service →
+# Variables. Mêmes valeurs publiques que pour apps/citizen.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID \
+    NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
+
 # Compile (génère apps/dashboard/.next)
 RUN pnpm --filter @sportlocker/dashboard build
 
