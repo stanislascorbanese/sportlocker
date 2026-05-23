@@ -1,10 +1,21 @@
 # SportLocker firmware — image dev/simulation x86.
 #
-# Pour faire tourner l'agent sur une machine de dev (Mac/Linux x86) sans
-# Raspberry Pi : pas de RPi.GPIO (le firmware détecte son absence et passe
-# en mode pulse simulé), pas de caméra (cf qr_reader.py fail-soft).
+# Deux usages :
+#   1. Dev local — `docker-compose.dev.yml` lance ce conteneur avec un
+#      Mosquitto local en clair (`mqtt://`). Le firmware détecte l'absence
+#      de RPi.GPIO et passe en pulse simulé.
+#   2. Distributeur fantôme Railway — même image, mais avec
+#      `MQTT_URL=mqtts://…emqxsl.com:8883` et `MQTT_USERNAME/PASSWORD`
+#      pointés sur EMQX Cloud. Sert à valider le code firmware en
+#      conditions prod sans Raspberry Pi physique, et à démontrer le
+#      produit à un prospect commune avant l'achat du hardware.
 #
 # Le Dockerfile prod (ARM64 Balena) reste dans Dockerfile.
+#
+# IMPORTANT — build context : ce Dockerfile attend la **racine du repo**
+# comme contexte de build (pas `services/firmware/`). Idem côté
+# docker-compose.dev.yml. Ça permet à Railway et à Compose d'utiliser le
+# même Dockerfile sans variation de paths.
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
@@ -17,17 +28,24 @@ RUN apt-get update \
       libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/firmware/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
-COPY pyproject.toml ./
-COPY src/sportlocker_firmware ./sportlocker_firmware
+COPY services/firmware/pyproject.toml ./
+COPY services/firmware/src/sportlocker_firmware ./sportlocker_firmware
+
+# CA cert EMQX Cloud — bundlé pour valider le broker en TLS quand le
+# conteneur tourne en mode "distributeur fantôme" sur Railway. Inerte
+# (fichier juste posé) quand l'image est lancée sur Mosquitto local en
+# clair via docker-compose.
+COPY services/firmware/emqxsl-ca.crt /etc/sportlocker/emqxsl-ca.crt
 
 VOLUME ["/var/lib/sportlocker"]
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MQTT_CA_CERT_PATH=/etc/sportlocker/emqxsl-ca.crt
 
 CMD ["python", "-m", "sportlocker_firmware"]
