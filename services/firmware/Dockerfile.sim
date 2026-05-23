@@ -41,7 +41,15 @@ COPY services/firmware/src/sportlocker_firmware ./sportlocker_firmware
 # clair via docker-compose.
 COPY services/firmware/emqxsl-ca.crt /etc/sportlocker/emqxsl-ca.crt
 
-VOLUME ["/var/lib/sportlocker"]
+# Répertoire pour le SQLite anti-replay nonce (cf. nonce_store.py).
+# Pas de directive `VOLUME` — Railway l'interdit (`dockerfile invalid: docker
+# VOLUME is not supported, use Railway Volumes`). Pour le distributeur
+# fantôme, l'éphémère convient : un démarrage fresh repart d'une DB vide
+# (le pire qui peut arriver = un JWT légitime encore valide TTL 15min doit
+# être ré-émis — acceptable pour une démo). Sur Balena ARM/Pi physique, le
+# VOLUME reste dans le Dockerfile prod pour préserver le nonce_store entre
+# redémarrages.
+RUN mkdir -p /var/lib/sportlocker
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
