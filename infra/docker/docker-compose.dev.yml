@@ -30,8 +30,10 @@ services:
 
   firmware-sim:
     build:
-      context: ../../services/firmware
-      dockerfile: Dockerfile.sim
+      # Contexte = racine repo (idem Railway) — voir commentaire en tête
+      # de Dockerfile.sim. Permet le même Dockerfile pour Compose + Railway.
+      context: ../..
+      dockerfile: services/firmware/Dockerfile.sim
     container_name: sportlocker-firmware-sim
     depends_on:
       - mosquitto
