@@ -16,7 +16,7 @@
 # comme contexte de build (pas `services/firmware/`). Idem côté
 # docker-compose.dev.yml. Ça permet à Railway et à Compose d'utiliser le
 # même Dockerfile sans variation de paths.
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 WORKDIR /app
 
