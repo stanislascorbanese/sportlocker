@@ -54,6 +54,11 @@ export const communes = pgTable('communes', {
   monthlyFeeCents: integer('monthly_fee_cents').notNull().default(0),
   contactEmail: varchar('contact_email', { length: 180 }),
   contactPhone: varchar('contact_phone', { length: 20 }),
+  // Stripe Connect Express (migration 0013) — onboarding tenant + reversement 75/25.
+  stripeConnectAccountId: varchar('stripe_connect_account_id', { length: 255 }),
+  stripeConnectChargesEnabled: boolean('stripe_connect_charges_enabled').notNull().default(false),
+  stripeConnectPayoutsEnabled: boolean('stripe_connect_payouts_enabled').notNull().default(false),
+  stripeConnectOnboardedAt: timestamp('stripe_connect_onboarded_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
