@@ -16,6 +16,7 @@ import {
   Tag,
   BarChart3,
   Activity,
+  CreditCard,
   FileText,
   ShieldCheck,
   LogOut,
@@ -42,6 +43,7 @@ const COMMON_ITEMS: Item[] = [
   { href: '/stats',        label: 'Stats',         icon: BarChart3 },
   { href: '/reports',      label: 'Rapports',      icon: FileText },
   { href: '/audit',        label: 'Audit',         icon: Activity },
+  { href: '/settings/payments', label: 'Paiements', icon: CreditCard },
 ]
 
 const SUPER_ADMIN_ITEMS: Item[] = [
