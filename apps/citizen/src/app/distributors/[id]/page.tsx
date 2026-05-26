@@ -7,10 +7,11 @@ import { useParams, useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { Badge, type BadgeTone } from '../../../components/ui/Badge'
+import { buttonClassName } from '../../../components/ui/Button'
 import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
-import { buttonClassName } from '../../../components/ui/Button'
+import { Skeleton } from '../../../components/ui/Skeleton'
 import {
   createReservation,
   fetchDistributorDetail,
@@ -103,7 +104,16 @@ export default function DistributorDetailPage() {
       />
 
       {detailQuery.isLoading && (
-        <p className="text-sm text-gray-500 dark:text-white/50">{t('distributor.loading')}</p>
+        <div className="space-y-3" aria-label={t('distributor.loading')}>
+          <Skeleton height={72} rounded="card" />
+          <Skeleton height={80} rounded="card" />
+          <div className="grid grid-cols-2 gap-2">
+            <Skeleton height={66} rounded="lg" />
+            <Skeleton height={66} rounded="lg" />
+          </div>
+          <Skeleton height={48} rounded="lg" />
+          <Skeleton height={48} rounded="lg" />
+        </div>
       )}
       {detailQuery.error && (
         <ErrorState message={t('distributor.error', { message: (detailQuery.error as Error).message })} />

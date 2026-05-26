@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
+import { Skeleton } from '../../../components/ui/Skeleton'
 import {
   MAX_EXTENSIONS,
   cancelReservation,
@@ -78,7 +79,10 @@ export default function ReservationPage() {
       />
 
       {query.isLoading && (
-        <p className="text-sm text-gray-500 dark:text-white/50">{t('reservation.page.loading')}</p>
+        <div className="space-y-5" aria-label={t('reservation.page.loading')}>
+          <Skeleton height={300} rounded="card" />
+          <Skeleton height={140} rounded="card" />
+        </div>
       )}
       {!query.isLoading && !isCurrent && (
         <p className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
@@ -130,6 +134,13 @@ function ReservationContent({
   const expired = remaining <= 0
   const isScheduled = r.status === 'scheduled'
   const isDayPass = r.durationMinutes === 1440
+  // Tone du countdown — escalade visuelle quand on approche de l'expiration.
+  const countdownTone: 'urgent' | 'warning' | 'normal' =
+    !expired && remaining > 0 && remaining < 30_000
+      ? 'urgent'
+      : !expired && remaining < 120_000
+        ? 'warning'
+        : 'normal'
 
   const minutesUntilSlot = r.slotStartAt
     ? (new Date(r.slotStartAt).getTime() - Date.now()) / 60_000
@@ -140,7 +151,7 @@ function ReservationContent({
 
   return (
     <>
-      <section className="flex flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+      <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
         <QRCodeSVG
           value={r.qrToken}
           size={256}
@@ -174,12 +185,39 @@ function ReservationContent({
               value={fmtSlot(r.slotStartAt, r.slotEndAt ?? null, isDayPass, locale)}
             />
           ) : (
-            <Row
-              icon={<Clock className="h-4 w-4" />}
-              label={t('reservation.page.remaining')}
-              value={expired ? t('reservation.page.expired') : formatRemaining(remaining)}
-              highlight={!expired}
-            />
+            <div className="flex items-start gap-3">
+              <span
+                className={cn(
+                  'mt-0.5',
+                  countdownTone === 'urgent'
+                    ? 'text-rose-600 dark:text-rose-400'
+                    : countdownTone === 'warning'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-gray-400 dark:text-white/40',
+                )}
+              >
+                <Clock className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
+                  {t('reservation.page.remaining')}
+                </p>
+                <p
+                  className={cn(
+                    'text-sm font-mono font-semibold tabular-nums',
+                    countdownTone === 'urgent'
+                      ? 'animate-pulse text-rose-700 dark:text-rose-300'
+                      : countdownTone === 'warning'
+                        ? 'animate-pulse text-amber-700 dark:text-amber-300'
+                        : expired
+                          ? 'text-gray-500 dark:text-white/40'
+                          : 'text-emerald-700 dark:text-emerald-300',
+                  )}
+                >
+                  {expired ? t('reservation.page.expired') : formatRemaining(remaining)}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </Card>

@@ -34,7 +34,7 @@ export function ActiveReservationBanner({
       type="button"
       onClick={onClick}
       aria-label={t('reservation.banner.aria')}
-      className="mx-5 mb-3 flex animate-slide-up items-center gap-3 rounded-card border p-3 text-left transition-[border-color,transform] duration-base ease-out-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 border-emerald-300 bg-emerald-50 hover:border-emerald-400 dark:border-emerald-400/40 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:to-emerald-500/5 dark:hover:border-emerald-400/70"
+      className="mx-5 mb-3 flex animate-slide-up items-center gap-3 rounded-card border p-3 text-left transition-[border-color,transform,box-shadow] duration-base ease-out-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 border-emerald-300 bg-emerald-50 hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-pop dark:border-emerald-400/40 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:to-emerald-500/5 dark:hover:border-emerald-400/70"
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
         <QrCode className="h-5 w-5" aria-hidden="true" />
