@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 
 import './globals.css'
-import { BottomNav } from '../components/BottomNav'
 import { AuthProvider } from '../lib/auth-context'
+import { I18nProvider } from '../lib/i18n/I18nProvider'
 import { QueryProvider } from '../lib/query-provider'
+import { ThemeProvider } from '../lib/theme'
 import { ServiceWorkerRegister } from './ServiceWorkerRegister'
 
 export const metadata: Metadata = {
@@ -33,20 +34,50 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // theme-color initial = sombre (dark est le défaut quand aucune préférence
+  // stockée). ThemeProvider met à jour le meta dynamiquement au toggle.
   themeColor: '#0D1B2A',
   viewportFit: 'cover',
 }
 
+/**
+ * Script anti-FOUC. Lit la préférence theme stockée + système et pose la
+ * classe `dark` sur <html> AVANT le premier paint. Sans ça, l'utilisateur
+ * voit un flash blanc en mode dark (ou inversement) pendant l'hydratation
+ * React.
+ *
+ * IMPORTANT : la logique doit rester en sync avec `resolveTheme()` dans
+ * `lib/theme.tsx`. Si tu changes l'une, change l'autre.
+ */
+const themeBootstrapScript = `
+(function() {
+  try {
+    var stored = localStorage.getItem('sl-theme');
+    var theme;
+    if (stored === 'light' || stored === 'dark') {
+      theme = stored;
+    } else {
+      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    if (theme === 'dark') document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className="min-h-screen bg-navy-900 font-sans antialiased">
-        <AuthProvider>
-          <QueryProvider>
-            {children}
-            <BottomNav />
-          </QueryProvider>
-        </AuthProvider>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
+      <body className="min-h-screen bg-white font-sans antialiased dark:bg-navy-900">
+        <ThemeProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <QueryProvider>{children}</QueryProvider>
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

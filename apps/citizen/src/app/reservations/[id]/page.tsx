@@ -1,12 +1,14 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CalendarClock, Clock, MapPin, Package, Plus, X } from 'lucide-react'
-import Link from 'next/link'
+import { CalendarClock, Clock, MapPin, Package, Plus, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 
+import { Card } from '../../../components/ui/Card'
+import { ErrorState } from '../../../components/ui/ErrorState'
+import { PageHeader } from '../../../components/ui/PageHeader'
 import {
   MAX_EXTENSIONS,
   cancelReservation,
@@ -16,21 +18,19 @@ import {
 } from '../../../lib/api'
 import { useRequireAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/cn'
+import { useI18n, useT } from '../../../lib/i18n/I18nProvider'
 
 /**
- * Affiche la réservation active de l'utilisateur avec son QR code à
- * scanner sur la borne pour déverrouiller le casier.
+ * Affiche la réservation active avec son QR code à scanner sur la borne.
  *
- * Le QR contient un JWT HS256 signé par l'API (cf. règles métier
- * CLAUDE.md : valable 15 min, nonce anti-replay). On le rend en SVG pour
- * une netteté maximale même en zoom (impression écran).
+ * Le QR contient un JWT HS256 signé par l'API (cf. CLAUDE.md : valable
+ * 15 min, nonce anti-replay). Rendu en SVG (qualité au zoom).
  *
- * Refresh auto chaque 30s pour mettre à jour le timer et capter un
- * changement de statut (scheduled → pending → active dès que l'utilisateur scanne).
+ * Refresh auto chaque 30s pour le timer et le passage de statut
+ * (scheduled → pending → active dès que l'utilisateur scanne).
  *
- * Permet aussi d'annuler la résa : ouverture immédiate des `pending`
- * (legacy), jusqu'à 30 min avant slotStartAt pour les `scheduled` (cf. API
- * `POST /v1/reservations/:id/cancel`).
+ * Annulation : `pending` toujours possible, `scheduled` ssi > 30 min avant
+ * `slotStartAt`. L'API renforce la règle côté serveur.
  */
 const CANCEL_CUTOFF_MIN = 30
 
@@ -39,6 +39,7 @@ export default function ReservationPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const user = useRequireAuth()
+  const t = useT()
 
   const query = useQuery({
     queryKey: ['reservation-active'],
@@ -50,8 +51,6 @@ export default function ReservationPage() {
   const cancelMutation = useMutation({
     mutationFn: () => cancelReservation(params.id),
     onSuccess: () => {
-      // Invalide la résa active → la home redirige naturellement vers
-      // l'absence de banner. On rentre à l'accueil.
       queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
       router.replace('/')
     },
@@ -60,8 +59,6 @@ export default function ReservationPage() {
   const extendMutation = useMutation({
     mutationFn: () => extendReservation(params.id),
     onSuccess: () => {
-      // Refetch immédiat pour mettre à jour dueAt + extensionCount visibles
-      // sur cet écran (le compteur "X/2" se rafraîchit).
       queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
     },
   })
@@ -72,21 +69,20 @@ export default function ReservationPage() {
   const isCurrent = reservation?.id === params.id
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+5rem)] pt-[calc(var(--safe-top)+1rem)]">
-      <header className="flex items-center gap-3">
-        <Link href="/" aria-label="Retour" className="rounded-full bg-white/10 p-2 hover:bg-white/20">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <p className="text-[11px] uppercase tracking-wider text-emerald-300/80">Réservation active</p>
-          <h1 className="font-display text-xl font-semibold">Scanner pour déverrouiller</h1>
-        </div>
-      </header>
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
+      <PageHeader
+        eyebrow={t('reservation.page.eyebrow')}
+        title={t('reservation.page.title')}
+        backHref="/"
+        backLabel={t('nav.back')}
+      />
 
-      {query.isLoading && <p className="text-sm text-white/50">Chargement…</p>}
+      {query.isLoading && (
+        <p className="text-sm text-gray-500 dark:text-white/50">{t('reservation.page.loading')}</p>
+      )}
       {!query.isLoading && !isCurrent && (
-        <p className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-          Aucune réservation active ne correspond à cet ID. Elle a peut-être expiré ou été annulée.
+        <p className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+          {t('reservation.page.not_found')}
         </p>
       )}
       {isCurrent && reservation && (
@@ -121,6 +117,8 @@ function ReservationContent({
   extending: boolean
   extendError: Error | null
 }) {
+  const t = useT()
+  const { locale } = useI18n()
   const [remaining, setRemaining] = useState(() => msUntil(r.expiresAt))
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
@@ -133,9 +131,6 @@ function ReservationContent({
   const isScheduled = r.status === 'scheduled'
   const isDayPass = r.durationMinutes === 1440
 
-  // Cancel logique : `pending` toujours possible, `scheduled` ssi
-  // slotStartAt - now > 30 min. L'API renforce la même règle côté serveur
-  // — ce check ici sert juste à griser le bouton dans l'UI.
   const minutesUntilSlot = r.slotStartAt
     ? (new Date(r.slotStartAt).getTime() - Date.now()) / 60_000
     : Infinity
@@ -145,7 +140,7 @@ function ReservationContent({
 
   return (
     <>
-      <section className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6">
+      <section className="flex flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
         <QRCodeSVG
           value={r.qrToken}
           size={256}
@@ -153,51 +148,61 @@ function ReservationContent({
           marginSize={0}
           className={cn(expired && 'opacity-30')}
         />
-        <p className="text-[11px] font-mono text-navy-900/50 text-center max-w-[256px] truncate">
+        <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
           {r.qrToken.slice(0, 32)}…
         </p>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-        <Row icon={<MapPin className="h-4 w-4" />} label="Distributeur" value={r.distributor.name} />
-        <Row icon={<Package className="h-4 w-4" />} label="Article" value={r.item.typeName} />
-        {isScheduled && r.slotStartAt ? (
-          // Pour les résas scheduled, le countdown vers expiresAt (slotEnd
-          // + grâce 15min) peut être >24h → afficher "4777:49" est aberrant.
-          // On affiche le créneau directement ; le countdown ne devient
-          // utile qu'au moment où le slot démarre (status passe à pending).
+      <Card>
+        <div className="space-y-3">
           <Row
-            icon={<CalendarClock className="h-4 w-4" />}
-            label={isDayPass ? 'Date réservée' : 'Créneau'}
-            value={fmtSlot(r.slotStartAt, r.slotEndAt ?? null, isDayPass)}
+            icon={<MapPin className="h-4 w-4" />}
+            label={t('reservation.page.distributor')}
+            value={r.distributor.name}
           />
-        ) : (
-          // pending : QR avec TTL court (15 min), countdown pertinent
           <Row
-            icon={<Clock className="h-4 w-4" />}
-            label="Temps restant"
-            value={expired ? 'Expiré' : formatRemaining(remaining)}
-            highlight={!expired}
+            icon={<Package className="h-4 w-4" />}
+            label={t('reservation.page.item')}
+            value={r.item.typeName}
           />
-        )}
-      </section>
+          {isScheduled && r.slotStartAt ? (
+            <Row
+              icon={<CalendarClock className="h-4 w-4" />}
+              label={
+                isDayPass ? t('reservation.page.scheduled_date') : t('reservation.page.slot')
+              }
+              value={fmtSlot(r.slotStartAt, r.slotEndAt ?? null, isDayPass, locale)}
+            />
+          ) : (
+            <Row
+              icon={<Clock className="h-4 w-4" />}
+              label={t('reservation.page.remaining')}
+              value={expired ? t('reservation.page.expired') : formatRemaining(remaining)}
+              highlight={!expired}
+            />
+          )}
+        </div>
+      </Card>
 
-      <p className="text-center text-[11px] leading-relaxed text-white/40">
-        {isScheduled
-          ? 'Présente ce QR au scanner du distributeur à l\'heure du créneau.'
-          : 'Présente ce QR au scanner du distributeur. Le casier s\'ouvre automatiquement.'}
+      <p className="text-center text-meta leading-relaxed text-gray-500 dark:text-white/40">
+        {isScheduled ? t('reservation.page.help.scheduled') : t('reservation.page.help.pending')}
       </p>
 
       {/* Bloc prolongation — uniquement actif quand l'emprunt est réellement
           en cours (status 'active' = casier ouvert, item sorti). Pour les
           'pending' ou 'scheduled', l'API refuse 409 reservation_not_extendable. */}
       {r.status === 'active' && (
-        <section className="rounded-xl border border-emerald-400/20 bg-white/5 p-3 space-y-2">
-          <div className="flex items-center justify-between">
+        <Card variant="accent" className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-white/85">Prolonger l'emprunt</p>
-              <p className="text-[11px] text-white/45">
-                {r.extensionCount} / {MAX_EXTENSIONS} prolongations utilisées
+              <p className="text-sm font-medium text-navy-900 dark:text-white/85">
+                {t('reservation.page.extend_title')}
+              </p>
+              <p className="text-meta text-gray-500 dark:text-white/45">
+                {t('reservation.page.extend_count', {
+                  used: r.extensionCount,
+                  max: MAX_EXTENSIONS,
+                })}
               </p>
             </div>
             <button
@@ -205,62 +210,68 @@ function ReservationContent({
               onClick={onExtend}
               disabled={extending || r.extensionCount >= MAX_EXTENSIONS}
               className={cn(
-                'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition',
+                'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-base',
                 r.extensionCount >= MAX_EXTENSIONS
-                  ? 'cursor-not-allowed bg-white/[0.02] text-white/30'
-                  : 'bg-emerald-500 text-navy-900 hover:bg-emerald-400 disabled:opacity-50',
+                  ? 'cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-white/[0.02] dark:text-white/30'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400',
               )}
             >
-              <Plus className="h-4 w-4" />
-              {extending ? 'Prolongation…' : r.extensionCount >= MAX_EXTENSIONS ? 'Max atteint' : 'Prolonger'}
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {extending
+                ? t('reservation.page.extending')
+                : r.extensionCount >= MAX_EXTENSIONS
+                  ? t('reservation.page.extend_max')
+                  : t('reservation.page.extend_btn')}
             </button>
           </div>
           {extendError && (
-            <p className="text-[11px] text-rose-200">
+            <p className="text-meta text-rose-700 dark:text-rose-200">
               {extendError.message.includes('max_extensions_reached')
-                ? `Tu as déjà utilisé tes ${MAX_EXTENSIONS} prolongations.`
+                ? t('reservation.page.extend.max_reached', { max: MAX_EXTENSIONS })
                 : extendError.message.includes('reservation_not_extendable')
-                  ? 'Prolongation possible uniquement pendant l\'emprunt actif.'
+                  ? t('reservation.page.extend.not_extendable')
                   : extendError.message.includes('locker_conflict')
-                    ? 'Un autre créneau est réservé juste après — impossible de prolonger.'
+                    ? t('reservation.page.extend.locker_conflict')
                     : extendError.message}
             </p>
           )}
-        </section>
+        </Card>
       )}
 
-      {/* Bloc annulation — gris si trop tard pour scheduled */}
+      {/* Bloc annulation */}
       <section className="space-y-2">
         {confirmingCancel ? (
-          <div className="rounded-xl border border-rose-400/30 bg-rose-500/5 p-3">
-            <p className="text-sm text-rose-100">Annuler cette réservation ?</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-white/55">
+          <div className="rounded-card border p-3 border-rose-300 bg-rose-50 dark:border-rose-400/30 dark:bg-rose-500/5">
+            <p className="text-sm text-rose-800 dark:text-rose-100">
+              {t('reservation.page.cancel.confirm_title')}
+            </p>
+            <p className="mt-1 text-meta leading-relaxed text-gray-600 dark:text-white/55">
               {isScheduled
-                ? 'Tu pourras en refaire une nouvelle ensuite tant que des créneaux sont libres.'
-                : 'Le casier sera libéré immédiatement.'}
+                ? t('reservation.page.cancel.confirm_help.scheduled')
+                : t('reservation.page.cancel.confirm_help.pending')}
             </p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmingCancel(false)}
                 disabled={cancelling}
-                className="flex-1 rounded-lg border border-white/15 bg-white/5 py-2 text-sm font-medium hover:border-white/30"
+                className="flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors duration-base border-gray-200 bg-white hover:border-gray-300 dark:border-white/15 dark:bg-white/5 dark:hover:border-white/30"
               >
-                Garder
+                {t('reservation.page.cancel.keep')}
               </button>
               <button
                 type="button"
                 onClick={onCancel}
                 disabled={cancelling}
-                className="flex-1 rounded-lg bg-rose-500 py-2 text-sm font-semibold text-navy-900 hover:bg-rose-400 disabled:opacity-50"
+                className="flex-1 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition-colors duration-base hover:bg-rose-500 disabled:opacity-50 dark:bg-rose-500 dark:text-navy-900 dark:hover:bg-rose-400"
               >
-                {cancelling ? 'Annulation…' : 'Confirmer'}
+                {cancelling ? t('reservation.page.cancel.cancelling') : t('reservation.page.cancel.confirm')}
               </button>
             </div>
             {cancelError && (
-              <p className="mt-2 text-[11px] text-rose-200">
+              <p className="mt-2 text-meta text-rose-700 dark:text-rose-200">
                 {cancelError.message.includes('too_late_to_cancel')
-                  ? 'Trop tard : il reste moins de 30 min avant le début du créneau.'
+                  ? t('reservation.page.cancel.too_late')
                   : cancelError.message}
               </p>
             )}
@@ -270,18 +281,17 @@ function ReservationContent({
             type="button"
             onClick={() => setConfirmingCancel(true)}
             disabled={!canCancel}
-            title={!canCancel ? `Annulation possible jusqu'à ${CANCEL_CUTOFF_MIN} min avant le créneau` : undefined}
             className={cn(
-              'flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition',
+              'flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-colors duration-base',
               canCancel
-                ? 'border-white/15 bg-white/5 text-white/80 hover:border-rose-400/40 hover:text-rose-200'
-                : 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30',
+                ? 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:text-rose-700 dark:border-white/15 dark:bg-white/5 dark:text-white/80 dark:hover:border-rose-400/40 dark:hover:text-rose-200'
+                : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/30',
             )}
           >
             <X className="h-4 w-4" />
             {canCancel
-              ? 'Annuler la réservation'
-              : `Annulation fermée (— ${CANCEL_CUTOFF_MIN} min avant le créneau)`}
+              ? t('reservation.page.cancel_btn')
+              : t('reservation.page.cancel_closed', { minutes: CANCEL_CUTOFF_MIN })}
           </button>
         )}
       </section>
@@ -302,10 +312,17 @@ function Row({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="mt-0.5 text-white/40">{icon}</span>
+      <span className="mt-0.5 text-gray-400 dark:text-white/40">{icon}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wider text-white/50">{label}</p>
-        <p className={cn('text-sm', highlight && 'font-mono font-semibold text-emerald-300')}>{value}</p>
+        <p className="text-eyebrow uppercase text-gray-500 dark:text-white/50">{label}</p>
+        <p
+          className={cn(
+            'text-sm',
+            highlight && 'font-mono font-semibold text-emerald-700 dark:text-emerald-300',
+          )}
+        >
+          {value}
+        </p>
       </div>
     </div>
   )
@@ -324,13 +341,22 @@ function formatRemaining(ms: number): string {
   return `${min}:${String(sec).padStart(2, '0')}`
 }
 
-function fmtSlot(startIso: string, endIso: string | null, isDayPass: boolean): string {
+function fmtSlot(
+  startIso: string,
+  endIso: string | null,
+  isDayPass: boolean,
+  locale: 'fr' | 'en',
+): string {
+  const intlLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
   const start = new Date(startIso)
-  const dateStr = start.toLocaleDateString('fr-FR', {
+  const dateStr = start.toLocaleDateString(intlLocale, {
     weekday: 'long', day: 'numeric', month: 'long',
   })
   if (isDayPass || !endIso) return dateStr
-  const startTime = start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  const endTime = new Date(endIso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  const startTime = start.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' })
+  const endTime = new Date(endIso).toLocaleTimeString(intlLocale, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
   return `${dateStr} · ${startTime} – ${endTime}`
 }

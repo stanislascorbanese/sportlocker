@@ -18,8 +18,10 @@ export interface PageHeaderProps {
  * back button optionnel (rendu en `<Link>` Next pour la prefetch) et un slot
  * `actions` à droite.
  *
- * Toutes les pages doivent l'utiliser — pour qu'un changement de design
- * (hauteur, eyebrow color, sticky behavior…) se propage en un seul endroit.
+ * Le slot `actions` est typiquement rempli avec `<HeaderActions />` (qui
+ * porte les boutons Profile + Theme + Language + Ma résa conditionnel).
+ * Chaque page doit le passer explicitement pour rester découpée — PageHeader
+ * est un atome neutre qui n'importe pas i18n/auth.
  */
 export function PageHeader({
   title,
@@ -41,14 +43,14 @@ export function PageHeader({
           <Link
             href={backHref}
             aria-label={backLabel}
-            className="rounded-full bg-white/10 p-2 text-white transition-colors duration-base ease-out-soft hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+            className="rounded-full bg-gray-100 p-2 text-navy-900 transition-colors duration-base ease-out-soft hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
         )}
         <div className="min-w-0">
           {eyebrow && (
-            <p className="text-eyebrow font-medium uppercase text-emerald-300/80">
+            <p className="text-eyebrow font-medium uppercase text-emerald-700 dark:text-emerald-300/80">
               {eyebrow}
             </p>
           )}

@@ -60,18 +60,20 @@ export function Sheet({
         aria-label="Fermer"
         onClick={onClose}
         tabIndex={-1}
-        className="absolute inset-0 bg-navy-900/70 backdrop-blur-sm animate-fade-in cursor-default"
+        className="absolute inset-0 cursor-default animate-fade-in bg-black/40 backdrop-blur-sm dark:bg-navy-900/70"
       />
       <div
         className={cn(
-          'relative mx-auto w-full max-w-lg border-t border-white/10 bg-navy-800 text-white shadow-elevated rounded-t-sheet animate-slide-up',
+          'relative mx-auto w-full max-w-lg border-t shadow-elevated rounded-t-sheet animate-slide-up',
+          'border-gray-200 bg-white text-navy-900',
+          'dark:border-white/10 dark:bg-navy-800 dark:text-white',
           className,
         )}
         style={{ maxHeight: `${maxHeight}vh` }}
       >
         <div className="flex items-center justify-between gap-2 px-5 pb-2 pt-4">
           {title ? (
-            <p className="font-display text-sm font-semibold uppercase tracking-wider text-white/85">
+            <p className="font-display text-sm font-semibold uppercase tracking-wider text-navy-900/85 dark:text-white/85">
               {title}
             </p>
           ) : (
@@ -81,7 +83,7 @@ export function Sheet({
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="rounded-full bg-white/10 p-1.5 text-white/80 transition-colors duration-base hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+            className="rounded-full bg-gray-100 p-1.5 text-navy-900 transition-colors duration-base hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/20"
           >
             <X className="h-4 w-4" />
           </button>

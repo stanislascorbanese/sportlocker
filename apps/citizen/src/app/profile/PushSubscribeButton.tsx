@@ -3,8 +3,11 @@
 import { Bell, BellOff, BellRing } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { Card } from '../../components/ui/Card'
 import { fetchReminderPreferences } from '../../lib/api'
 import { cn } from '../../lib/cn'
+import { useT } from '../../lib/i18n/I18nProvider'
+import type { MessageKey } from '../../lib/i18n/messages'
 import {
   REMINDER_MINUTES_CHOICES,
   currentPermission,
@@ -21,34 +24,27 @@ import {
  * Bouton "Activer les notifications" pour /profile citoyen.
  *
  * États visuels :
- *   - **unsupported / insecure-context** : message grisé "non disponible"
- *   - **denied** : message rouge + lien vers les réglages browser
- *   - **default + pas de sub** : dropdown délai + bouton vert "Activer"
- *   - **granted + sub active** : badge vert + dropdown délai (modifiable) +
- *     bouton "Désactiver". Changer la valeur du dropdown re-POST la sub
- *     pour mettre à jour la préférence côté backend.
- *   - **pending** : spinner inline pendant subscribe/unsubscribe.
- *
- * Le délai du rappel est stocké côté `users.reminder_minutes_before` (donc
- * partagé entre devices du même user). UI propose 15/30/60/120 min, 15 min
- * en défaut (cf. PR 0011).
+ *   - unsupported / insecure-context : message grisé
+ *   - denied : message rouge
+ *   - default + pas de sub : dropdown délai + bouton "Activer"
+ *   - granted + sub active : badge actif + dropdown modifiable + "Désactiver"
  */
-const REMINDER_LABELS: Record<ReminderMinutesBefore, string> = {
-  15: '15 minutes',
-  30: '30 minutes',
-  60: '1 heure',
-  120: '2 heures',
+const REMINDER_LABEL_KEYS: Record<ReminderMinutesBefore, MessageKey> = {
+  15: 'profile.push.minutes_15_full',
+  30: 'profile.push.minutes_30_full',
+  60: 'profile.push.minutes_60_full',
+  120: 'profile.push.minutes_120_full',
 }
 
-/** Libellé court pour les pills (gain de place sur mobile). */
-const REMINDER_LABELS_SHORT: Record<ReminderMinutesBefore, string> = {
-  15: '15 min',
-  30: '30 min',
-  60: '1 h',
-  120: '2 h',
+const REMINDER_LABEL_SHORT_KEYS: Record<ReminderMinutesBefore, MessageKey> = {
+  15: 'profile.push.minutes_15',
+  30: 'profile.push.minutes_30',
+  60: 'profile.push.minutes_60',
+  120: 'profile.push.minutes_120',
 }
 
 export function PushSubscribeButton() {
+  const t = useT()
   const [support, setSupport] = useState<PushSupportStatus>('unsupported')
   const [permission, setPermission] = useState<PushPermission>('unsupported')
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null)
@@ -57,15 +53,12 @@ export function PushSubscribeButton() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Init : détecte le support + l'état de subscription + la préférence user.
   useEffect(() => {
     setSupport(detectPushSupport())
     setPermission(currentPermission())
     getCurrentSubscription()
       .then((sub) => setHasSubscription(sub !== null))
       .catch(() => setHasSubscription(false))
-    // Charge la préf user pour pré-sélectionner le dropdown. Si l'API
-    // tombe ou si user pas connecté, on garde 15 min par défaut.
     fetchReminderPreferences()
       .then((p) => {
         if ((REMINDER_MINUTES_CHOICES as readonly number[]).includes(p.reminderMinutesBefore)) {
@@ -84,16 +77,20 @@ export function PushSubscribeButton() {
       if (res.ok) {
         setHasSubscription(true)
         setPermission('granted')
-        setSuccess(`Rappels activés. Tu recevras une notif ${REMINDER_LABELS[reminderMinutes]} avant chaque créneau réservé.`)
+        setSuccess(
+          t('profile.push.activate_success', {
+            label: t(REMINDER_LABEL_KEYS[reminderMinutes]),
+          }),
+        )
       } else {
-        const map: Record<typeof res.reason, string> = {
-          unsupported: 'Ton navigateur ne supporte pas les notifications push.',
-          permission_denied: 'Tu as refusé les notifications. Réactive-les dans les réglages du navigateur.',
-          vapid_missing: 'Les notifications ne sont pas encore configurées côté serveur. Réessaie plus tard.',
-          subscribe_failed: 'Échec de l\'abonnement. Recharge la page et réessaie.',
-          register_failed: 'L\'abonnement est créé côté navigateur mais le serveur n\'a pas pu l\'enregistrer. Réessaie.',
+        const reasonKey: Record<typeof res.reason, MessageKey> = {
+          unsupported: 'profile.push.reason.unsupported',
+          permission_denied: 'profile.push.reason.permission_denied',
+          vapid_missing: 'profile.push.reason.vapid_missing',
+          subscribe_failed: 'profile.push.reason.subscribe_failed',
+          register_failed: 'profile.push.reason.register_failed',
         }
-        setError(map[res.reason] ?? 'Erreur inattendue.')
+        setError(t(reasonKey[res.reason] ?? 'profile.push.reason.unknown'))
         setPermission(currentPermission())
       }
     } finally {
@@ -108,28 +105,27 @@ export function PushSubscribeButton() {
     try {
       await unsubscribePush()
       setHasSubscription(false)
-      setSuccess('Rappels désactivés.')
+      setSuccess(t('profile.push.deactivate_success'))
     } finally {
       setPending(false)
     }
   }
 
-  /**
-   * Changement du dropdown délai alors qu'une sub existe déjà : on re-POST
-   * pour update la préférence côté backend (et lastUsedAt du token). Pas de
-   * re-subscribe browser nécessaire — c'est la même PushSubscription.
-   */
   async function onChangeReminder(value: ReminderMinutesBefore) {
     setReminderMinutes(value)
-    if (!hasSubscription) return  // pré-selection avant activation, rien à push
+    if (!hasSubscription) return // pré-selection avant activation
     setError(null)
     setPending(true)
     try {
       const res = await subscribePush({ reminderMinutesBefore: value })
       if (res.ok) {
-        setSuccess(`Préférence mise à jour : ${REMINDER_LABELS[value]} avant le créneau.`)
+        setSuccess(
+          t('profile.push.update_success', {
+            label: t(REMINDER_LABEL_KEYS[value]),
+          }),
+        )
       } else {
-        setError('Impossible de mettre à jour la préférence. Réessaie.')
+        setError(t('profile.push.reason.update_failed'))
       }
     } finally {
       setPending(false)
@@ -138,18 +134,24 @@ export function PushSubscribeButton() {
 
   if (support === 'insecure-context') {
     return (
-      <Card>
-        <Header icon={<BellOff className="h-4 w-4 text-white/40" />} title="Notifications indisponibles">
-          Le navigateur exige une connexion HTTPS pour activer les notifications.
+      <Card padding="lg">
+        <Header
+          icon={<BellOff className="h-4 w-4 text-gray-400 dark:text-white/40" />}
+          title={t('profile.push.unavailable_title')}
+        >
+          {t('profile.push.insecure_help')}
         </Header>
       </Card>
     )
   }
   if (support === 'unsupported') {
     return (
-      <Card>
-        <Header icon={<BellOff className="h-4 w-4 text-white/40" />} title="Notifications indisponibles">
-          Ce navigateur ne supporte pas les notifications push. Essaie avec Chrome, Firefox ou Safari 16+.
+      <Card padding="lg">
+        <Header
+          icon={<BellOff className="h-4 w-4 text-gray-400 dark:text-white/40" />}
+          title={t('profile.push.unavailable_title')}
+        >
+          {t('profile.push.unsupported_help')}
         </Header>
       </Card>
     )
@@ -157,10 +159,12 @@ export function PushSubscribeButton() {
 
   if (permission === 'denied') {
     return (
-      <Card>
-        <Header icon={<BellOff className="h-4 w-4 text-rose-300" />} title="Notifications bloquées">
-          Tu as refusé les notifications pour SportLocker. Pour les réactiver, ouvre les réglages du
-          site dans ton navigateur (icône de cadenas dans la barre d'adresse).
+      <Card padding="lg">
+        <Header
+          icon={<BellOff className="h-4 w-4 text-rose-600 dark:text-rose-300" />}
+          title={t('profile.push.denied_title')}
+        >
+          {t('profile.push.denied_help')}
         </Header>
       </Card>
     )
@@ -168,30 +172,37 @@ export function PushSubscribeButton() {
 
   if (hasSubscription === null) {
     return (
-      <Card>
-        <Header icon={<Bell className="h-4 w-4 text-white/40" />} title="Notifications">
-          Chargement…
+      <Card padding="lg">
+        <Header
+          icon={<Bell className="h-4 w-4 text-gray-400 dark:text-white/40" />}
+          title={t('profile.push.loading_title')}
+        >
+          {t('ui.loading')}
         </Header>
       </Card>
     )
   }
 
   return (
-    <Card>
+    <Card padding="lg">
       <Header
         icon={
-          hasSubscription
-            ? <BellRing className="h-4 w-4 text-emerald-300" />
-            : <Bell className="h-4 w-4 text-white/70" />
+          hasSubscription ? (
+            <BellRing className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+          ) : (
+            <Bell className="h-4 w-4 text-gray-600 dark:text-white/70" />
+          )
         }
-        title={hasSubscription ? 'Rappels activés' : 'Activer les rappels'}
+        title={
+          hasSubscription ? t('profile.push.subscribed_title') : t('profile.push.subscribe_title')
+        }
       >
-        Reçois une notif avant chaque créneau réservé. Tu peux désactiver à tout moment.
+        {t('profile.push.subscribe_help')}
       </Header>
 
       <div className="mt-4">
-        <p className="text-[11px] uppercase tracking-wider text-white/50">
-          Recevoir le rappel avant le créneau
+        <p className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
+          {t('profile.push.reminder_label')}
         </p>
         <div className="mt-2 grid grid-cols-4 gap-1.5">
           {REMINDER_MINUTES_CHOICES.map((m) => {
@@ -203,16 +214,18 @@ export function PushSubscribeButton() {
                 onClick={() => onChangeReminder(m)}
                 disabled={pending}
                 className={cn(
-                  'rounded-lg border px-2 py-2 text-sm font-medium tabular-nums transition',
+                  'rounded-lg border px-2 py-2 text-sm font-medium tabular-nums transition-colors duration-base',
                   isSelected
-                    ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                    : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white',
+                    ? 'border-emerald-400 bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-navy-900 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white',
                   'disabled:cursor-not-allowed disabled:opacity-50',
                 )}
                 aria-pressed={isSelected}
-                aria-label={`${REMINDER_LABELS[m]} avant le créneau`}
+                aria-label={t('profile.push.reminder_aria', {
+                  label: t(REMINDER_LABEL_KEYS[m]),
+                })}
               >
-                {REMINDER_LABELS_SHORT[m]}
+                {t(REMINDER_LABEL_SHORT_KEYS[m])}
               </button>
             )
           })}
@@ -220,12 +233,12 @@ export function PushSubscribeButton() {
       </div>
 
       {error && (
-        <p className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">
+        <p className="mt-3 rounded-lg border p-2 text-meta border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           {error}
         </p>
       )}
       {success && (
-        <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-[11px] text-emerald-200">
+        <p className="mt-3 rounded-lg border p-2 text-meta border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
           {success}
         </p>
       )}
@@ -235,26 +248,20 @@ export function PushSubscribeButton() {
         onClick={hasSubscription ? onDeactivate : onActivate}
         disabled={pending}
         className={cn(
-          'mt-3 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition',
+          'mt-3 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors duration-base',
           hasSubscription
-            ? 'border-white/15 bg-white/5 text-white/85 hover:border-white/30'
-            : 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25',
+            ? 'border-gray-200 bg-white text-navy-900 hover:border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-white/85 dark:hover:border-white/30'
+            : 'border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100 dark:hover:bg-emerald-500/25',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >
         {pending
           ? '…'
           : hasSubscription
-            ? 'Désactiver les rappels'
-            : 'Activer les rappels'}
+            ? t('profile.push.deactivate_btn')
+            : t('profile.push.activate_btn')}
       </button>
     </Card>
-  )
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-white/10 bg-white/5 p-5">{children}</section>
   )
 }
 
@@ -271,9 +278,9 @@ function Header({
     <>
       <div className="flex items-center gap-2">
         {icon}
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-semibold text-navy-900 dark:text-white">{title}</h2>
       </div>
-      <p className="mt-1 text-[12px] leading-relaxed text-white/60">{children}</p>
+      <p className="mt-1 text-meta leading-relaxed text-gray-600 dark:text-white/60">{children}</p>
     </>
   )
 }

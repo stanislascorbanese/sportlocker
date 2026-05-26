@@ -10,6 +10,7 @@ import {
   DistributorListItem,
   type DistributorWithDistance,
 } from '../components/DistributorListItem'
+import { HeaderActions } from '../components/HeaderActions'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ErrorState } from '../components/ui/ErrorState'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -19,41 +20,41 @@ import {
   fetchAllDistributors,
 } from '../lib/api'
 import { useRequireAuth } from '../lib/auth-context'
+import { useT } from '../lib/i18n/I18nProvider'
 import { MapView } from './map/MapView'
 
 /**
- * Écran d'accueil — carte interactive avec TOUS les distributeurs du parc.
+ * Écran d'accueil — carte interactive + liste triée par distance.
  *
  *   1. Géoloc browser → centre la carte sur l'utilisateur (zoom 13).
  *      Fallback Paris si refusé / indispo.
  *   2. Fetch /v1/distributors (liste complète, pas de filtre rayon).
- *   3. Distance Haversine calculée client-side pour le tri du bottom-sheet.
- *   4. Clic marker / carte → /distributors/:id
- *
- * Les boutons globaux (History/Profile/Logout) qui squattaient le header
- * vivent maintenant dans `<BottomNav>` (rendu globalement via layout.tsx).
+ *   3. Distance Haversine calculée client-side pour le tri.
+ *   4. Clic marker / cellule → /distributors/:id
  */
 export default function HomePage() {
   const user = useRequireAuth()
   const router = useRouter()
+  const t = useT()
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [geoError, setGeoError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!('geolocation' in navigator)) {
-      setGeoError('Géolocalisation indisponible sur cet appareil.')
+      setGeoError(t('home.geo_error', { error: 'Géolocalisation indisponible' }))
       setCoords({ lat: 48.8566, lng: 2.3522 })
       return
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => {
-        setGeoError(err.message)
+        setGeoError(t('home.geo_error', { error: err.message }))
         setCoords({ lat: 48.8566, lng: 2.3522 })
       },
       { enableHighAccuracy: true, timeout: 8_000, maximumAge: 30_000 },
     )
-  }, [])
+    // t change quand la locale change — recalcule le message.
+  }, [t])
 
   const distributorsQuery = useQuery({
     queryKey: ['distributors-all'],
@@ -94,20 +95,22 @@ export default function HomePage() {
 
   if (!user) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-white/40">Chargement…</p>
+      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-navy-900">
+        <p className="text-sm text-gray-400 dark:text-white/40">{t('home.loading')}</p>
       </main>
     )
   }
 
   const displayName = user.displayName || user.email || user.phoneNumber || 'sportif'
-  const firstName = displayName.split(' ')[0]
+  const firstName = displayName.split(' ')[0] ?? displayName
+  const count = sorted.length
 
   return (
-    <main className="flex min-h-screen flex-col bg-navy-900 pb-[calc(var(--safe-bottom)+5rem)]">
+    <main className="flex min-h-screen flex-col bg-white pb-[calc(var(--safe-bottom)+1rem)] dark:bg-navy-900">
       <PageHeader
-        eyebrow={`Bonjour ${firstName}`}
-        title="Distributeurs disponibles"
+        eyebrow={t('home.greeting', { name: firstName })}
+        title={t('home.title')}
+        actions={<HeaderActions />}
       />
 
       {activeReservationQuery.data && (
@@ -125,27 +128,29 @@ export default function HomePage() {
             onPick={(id) => router.push(`/distributors/${id}`)}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-white/50">
-            Localisation en cours…
+          <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-white/50">
+            {t('home.locating')}
           </div>
         )}
       </div>
 
-      <section className="flex-1 rounded-t-3xl border-t border-white/10 bg-navy-800 px-5 py-5">
+      <section className="flex-1 rounded-t-3xl border-t bg-gray-50 px-5 py-5 border-gray-200 dark:border-white/10 dark:bg-navy-800">
         {geoError && (
-          <p className="mb-3 rounded-card border border-amber-400/30 bg-amber-500/10 p-2 text-meta text-amber-200">
-            ⚠️ {geoError}. On affiche Paris par défaut.
+          <p className="mb-3 rounded-card border p-2 text-meta border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+            ⚠️ {geoError}
           </p>
         )}
 
-        <h2 className="mb-3 text-eyebrow font-medium uppercase text-white/55">
+        <h2 className="mb-3 text-eyebrow font-medium uppercase text-gray-500 dark:text-white/55">
           {distributorsQuery.isLoading
-            ? 'Chargement…'
-            : `${sorted.length} distributeur${sorted.length > 1 ? 's' : ''}`}
+            ? t('home.loading')
+            : count === 1
+              ? t('home.count_one')
+              : t('home.count_many', { count })}
         </h2>
 
         {distributorsQuery.isLoading && (
-          <ul className="space-y-2" aria-label="Chargement de la liste">
+          <ul className="space-y-2" aria-label={t('home.loading')}>
             {[0, 1, 2].map((i) => (
               <li key={i}>
                 <Skeleton height={68} rounded="card" />
@@ -156,8 +161,10 @@ export default function HomePage() {
 
         {distributorsQuery.error && (
           <ErrorState
+            title={t('ui.error.generic_title')}
             message={(distributorsQuery.error as Error).message}
             onRetry={() => distributorsQuery.refetch()}
+            retryLabel={t('ui.error.retry')}
           />
         )}
 
@@ -166,8 +173,8 @@ export default function HomePage() {
           && sorted.length === 0 && (
             <EmptyState
               icon={<Package className="h-5 w-5" />}
-              title="Aucun distributeur déployé"
-              description="Reviens bientôt — on installe de nouveaux distributeurs chaque semaine."
+              title={t('home.empty.title')}
+              description={t('home.empty.description')}
             />
           )}
 

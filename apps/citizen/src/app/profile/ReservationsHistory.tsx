@@ -4,68 +4,34 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, History } from 'lucide-react'
 import Link from 'next/link'
 
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { fetchMyReservations, type ReservationHistoryItem } from '../../lib/api'
-import { cn } from '../../lib/cn'
+import { useI18n, useT } from '../../lib/i18n/I18nProvider'
+import type { MessageKey } from '../../lib/i18n/messages'
 
 /**
  * Section "Mes emprunts" affichée sur /profile.
  *
- * Liste les 50 dernières réservations du user, enrichies avec le nom du
- * distributeur et le type d'item (GET /v1/reservations/me, shape enrichi
- * Phase /profile). Trié createdAt DESC côté API.
- *
- * Les statuts "vivants" (scheduled/pending/active/overdue) sont cliquables
- * et redirigent vers /reservations/<id> pour récupérer le qrToken (via
- * /active enrichi). Les statuts terminaux (returned/cancelled/expired) sont
- * non-cliquables (rien d'utile à faire derrière).
+ * Liste les 50 dernières réservations du user (GET /v1/reservations/me).
+ * Statuts "vivants" (scheduled/pending/active/overdue) cliquables vers
+ * /reservations/<id>. Statuts terminaux (returned/cancelled/expired)
+ * non-cliquables — rien d'utile à faire derrière.
  */
-const STATUS_META: Record<
-  ReservationHistoryItem['status'],
-  { label: string; badge: string; live: boolean }
-> = {
-  scheduled: { label: 'Planifiée', badge: 'bg-sky-500/15 text-sky-300 border-sky-400/30', live: true },
-  pending:   { label: 'En attente', badge: 'bg-amber-500/15 text-amber-300 border-amber-400/30', live: true },
-  active:    { label: 'En cours', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/30', live: true },
-  overdue:   { label: 'En retard', badge: 'bg-rose-500/15 text-rose-300 border-rose-400/30', live: true },
-  returned:  { label: 'Rendue', badge: 'bg-white/10 text-white/60 border-white/15', live: false },
-  cancelled: { label: 'Annulée', badge: 'bg-white/10 text-white/50 border-white/15', live: false },
-  expired:   { label: 'Expirée', badge: 'bg-white/10 text-white/50 border-white/15', live: false },
-}
+type StatusMeta = { tone: BadgeTone; live: boolean; labelKey: MessageKey }
 
-function formatRange(item: ReservationHistoryItem): string {
-  // Modèle slots (PR 0008) : on a slotStartAt + slotEndAt.
-  if (item.slotStartAt && item.slotEndAt) {
-    return formatDateTimeRange(new Date(item.slotStartAt), new Date(item.slotEndAt))
-  }
-  // Legacy pending/active : on tombe sur openedAt → dueAt si dispos, sinon
-  // createdAt pour situer dans le temps.
-  if (item.openedAt && item.dueAt) {
-    return formatDateTimeRange(new Date(item.openedAt), new Date(item.dueAt))
-  }
-  return formatDateTime(new Date(item.createdAt))
-}
-
-const DATE_FMT = new Intl.DateTimeFormat('fr-FR', {
-  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-})
-const TIME_FMT = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' })
-
-function formatDateTime(d: Date): string {
-  return DATE_FMT.format(d)
-}
-
-function formatDateTimeRange(start: Date, end: Date): string {
-  // Même jour → "12 juin, 14:00–15:00"
-  // Jour différent → "12 juin 14:00 → 13 juin 09:00"
-  const sameDay =
-    start.getFullYear() === end.getFullYear() &&
-    start.getMonth() === end.getMonth() &&
-    start.getDate() === end.getDate()
-  if (sameDay) return `${DATE_FMT.format(start)} – ${TIME_FMT.format(end)}`
-  return `${DATE_FMT.format(start)} → ${DATE_FMT.format(end)}`
+const STATUS_META: Record<ReservationHistoryItem['status'], StatusMeta> = {
+  scheduled: { tone: 'info',    live: true,  labelKey: 'reservation.status_long.scheduled' },
+  pending:   { tone: 'warning', live: true,  labelKey: 'reservation.status_long.pending' },
+  active:    { tone: 'success', live: true,  labelKey: 'reservation.status_long.active' },
+  overdue:   { tone: 'danger',  live: true,  labelKey: 'reservation.status_long.overdue' },
+  returned:  { tone: 'neutral', live: false, labelKey: 'reservation.status_long.returned' },
+  cancelled: { tone: 'neutral', live: false, labelKey: 'reservation.status_long.cancelled' },
+  expired:   { tone: 'neutral', live: false, labelKey: 'reservation.status_long.expired' },
 }
 
 export function ReservationsHistory() {
+  const t = useT()
+  const { locale } = useI18n()
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-reservations'],
     queryFn: fetchMyReservations,
@@ -73,35 +39,36 @@ export function ReservationsHistory() {
   })
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <section className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
       <header className="mb-3 flex items-center gap-2">
-        <History className="h-4 w-4 text-white/60" />
-        <h2 className="font-display text-sm font-semibold text-white/80">Mes emprunts</h2>
+        <History className="h-4 w-4 text-gray-500 dark:text-white/60" aria-hidden="true" />
+        <h2 className="font-display text-sm font-semibold text-navy-900/80 dark:text-white/80">
+          {t('profile.history.title')}
+        </h2>
       </header>
 
       {isLoading && (
-        <p className="text-sm text-white/50">Chargement…</p>
+        <p className="text-sm text-gray-500 dark:text-white/50">{t('profile.history.loading')}</p>
       )}
       {isError && (
         <div className="space-y-2 text-sm">
-          <p className="text-rose-300">Impossible de charger l'historique.</p>
+          <p className="text-rose-700 dark:text-rose-300">{t('profile.history.error')}</p>
           <button
+            type="button"
             onClick={() => refetch()}
-            className="text-xs text-emerald-300 hover:underline"
+            className="text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-300"
           >
-            Réessayer
+            {t('profile.history.retry')}
           </button>
         </div>
       )}
       {data && data.length === 0 && (
-        <p className="text-sm text-white/50">
-          Aucun emprunt pour l'instant. Réserve un équipement depuis la carte d'accueil.
-        </p>
+        <p className="text-sm text-gray-500 dark:text-white/50">{t('profile.history.empty')}</p>
       )}
       {data && data.length > 0 && (
-        <ul className="-mx-2 divide-y divide-white/5">
+        <ul className="-mx-2 divide-y divide-gray-200 dark:divide-white/5">
           {data.map((item) => (
-            <ReservationRow key={item.id} item={item} />
+            <ReservationRow key={item.id} item={item} locale={locale} />
           ))}
         </ul>
       )}
@@ -109,29 +76,36 @@ export function ReservationsHistory() {
   )
 }
 
-function ReservationRow({ item }: { item: ReservationHistoryItem }) {
+function ReservationRow({
+  item,
+  locale,
+}: {
+  item: ReservationHistoryItem
+  locale: 'fr' | 'en'
+}) {
+  const t = useT()
   const meta = STATUS_META[item.status]
-  const range = formatRange(item)
+  const range = formatRange(item, locale)
 
   const inner = (
     <div className="flex items-center gap-3 px-2 py-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-white">
+        <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
           {item.item.typeName}
         </p>
-        <p className="truncate text-xs text-white/60">
+        <p className="truncate text-meta text-gray-600 dark:text-white/60">
           {item.distributor.name} · {range}
         </p>
       </div>
-      <span
-        className={cn(
-          'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
-          meta.badge,
-        )}
-      >
-        {meta.label}
-      </span>
-      {meta.live && <ChevronRight className="h-4 w-4 shrink-0 text-white/40" aria-hidden />}
+      <Badge tone={meta.tone} size="xs" className="shrink-0">
+        {t(meta.labelKey)}
+      </Badge>
+      {meta.live && (
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/40"
+          aria-hidden="true"
+        />
+      )}
     </div>
   )
 
@@ -140,8 +114,11 @@ function ReservationRow({ item }: { item: ReservationHistoryItem }) {
       <li>
         <Link
           href={`/reservations/${item.id}`}
-          className="block transition hover:bg-white/5"
-          aria-label={`Voir la réservation ${item.item.typeName} chez ${item.distributor.name}`}
+          className="block transition-colors duration-base hover:bg-white dark:hover:bg-white/5"
+          aria-label={t('profile.history.aria', {
+            item: item.item.typeName,
+            distributor: item.distributor.name,
+          })}
         >
           {inner}
         </Link>
@@ -149,4 +126,30 @@ function ReservationRow({ item }: { item: ReservationHistoryItem }) {
     )
   }
   return <li>{inner}</li>
+}
+
+function formatRange(item: ReservationHistoryItem, locale: 'fr' | 'en'): string {
+  const fmtDate = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  })
+  const fmtTime = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+    hour: '2-digit', minute: '2-digit',
+  })
+
+  const formatRange = (start: Date, end: Date) => {
+    const sameDay =
+      start.getFullYear() === end.getFullYear()
+      && start.getMonth() === end.getMonth()
+      && start.getDate() === end.getDate()
+    if (sameDay) return `${fmtDate.format(start)} – ${fmtTime.format(end)}`
+    return `${fmtDate.format(start)} → ${fmtDate.format(end)}`
+  }
+
+  if (item.slotStartAt && item.slotEndAt) {
+    return formatRange(new Date(item.slotStartAt), new Date(item.slotEndAt))
+  }
+  if (item.openedAt && item.dueAt) {
+    return formatRange(new Date(item.openedAt), new Date(item.dueAt))
+  }
+  return fmtDate.format(new Date(item.createdAt))
 }
