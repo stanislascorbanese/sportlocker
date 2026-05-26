@@ -57,3 +57,31 @@
 .maplibregl-map {
   font-family: inherit;
 }
+
+/* ─── View Transitions API ────────────────────────────────────────────────
+ *
+ * Active le cross-fade natif entre les routes Next.js. Chrome 111+ et
+ * Safari 18+ le supportent ; Firefox dégrade silencieusement (no-op).
+ *
+ * Next.js 15 App Router wrappe automatiquement `router.push()` dans
+ * `document.startViewTransition()` quand cette CSS est présente.
+ *
+ * Durée volontairement courte (180ms) pour ne pas ralentir la navigation
+ * perçue. Easing aligné sur `--ease-out-soft`.
+ */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}

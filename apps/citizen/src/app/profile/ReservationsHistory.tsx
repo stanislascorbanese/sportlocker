@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { Skeleton } from '../../components/ui/Skeleton'
 import { fetchMyReservations, type ReservationHistoryItem } from '../../lib/api'
 import { useI18n, useT } from '../../lib/i18n/I18nProvider'
 import type { MessageKey } from '../../lib/i18n/messages'
@@ -60,7 +61,20 @@ export function ReservationsHistory() {
       </header>
 
       {isLoading && (
-        <p className="text-sm text-gray-500 dark:text-white/50">{t('profile.history.loading')}</p>
+        <ul
+          className="-mx-2 divide-y divide-gray-200 dark:divide-white/5"
+          aria-label={t('profile.history.loading')}
+        >
+          {[0, 1, 2, 3, 4].map((i) => (
+            <li key={i} className="flex items-center gap-3 px-2 py-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton width="60%" height={14} />
+                <Skeleton width="85%" height={11} />
+              </div>
+              <Skeleton width={56} height={18} rounded="full" />
+            </li>
+          ))}
+        </ul>
       )}
       {isError && (
         <div className="space-y-2 text-sm">

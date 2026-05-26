@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card } from '../../../../components/ui/Card'
 import { ErrorState } from '../../../../components/ui/ErrorState'
 import { PageHeader } from '../../../../components/ui/PageHeader'
+import { Skeleton } from '../../../../components/ui/Skeleton'
 import {
   DAY_PASS_MINUTES,
   SLOT_DURATIONS,
@@ -330,9 +331,14 @@ export default function BookingPage() {
             {t('booking.step3')}
           </h2>
           {availabilityQuery.isLoading && (
-            <p className="text-sm text-gray-500 dark:text-white/50">
-              {t('booking.loading_slots')}
-            </p>
+            <div className="space-y-3" aria-label={t('booking.loading_slots')}>
+              <div className="flex gap-2 overflow-hidden">
+                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                  <Skeleton key={i} width={60} height={64} rounded="lg" />
+                ))}
+              </div>
+              <Skeleton height={220} rounded="lg" className="mx-auto max-w-xs" />
+            </div>
           )}
           {availabilityQuery.error && (
             <ErrorState message={(availabilityQuery.error as Error).message} />
@@ -449,7 +455,7 @@ function ConfirmationView({
         backLabel={t('nav.back')}
       />
 
-      <Card variant="accent">
+      <Card variant="accent" className="animate-scale-in">
         <div className="flex items-start gap-3">
           <Check
             className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300"
@@ -472,7 +478,7 @@ function ConfirmationView({
         </div>
       </Card>
 
-      <section className="flex flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+      <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
         <QRCodeSVG value={reservation.deviceToken} size={256} level="H" marginSize={0} />
         <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
           {reservation.deviceToken.slice(0, 32)}…

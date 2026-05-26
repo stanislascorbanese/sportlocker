@@ -31,7 +31,7 @@ export function DistributorListItem({
       <button
         type="button"
         onClick={() => onPick(d.id)}
-        className="group flex w-full items-center gap-3 rounded-card border p-4 text-left transition-[border-color,background-color,transform] duration-base ease-out-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/40 dark:border-white/10 dark:bg-white/5 dark:hover:border-emerald-400/40 dark:hover:bg-white/[0.07]"
+        className="group flex w-full items-center gap-3 rounded-card border p-4 text-left transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 border-gray-200 bg-white hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50/40 hover:shadow-card dark:border-white/10 dark:bg-white/5 dark:hover:border-emerald-400/40 dark:hover:bg-white/[0.07] dark:hover:shadow-elevated"
       >
         <div className="min-w-0 flex-1 space-y-1">
           <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
