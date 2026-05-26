@@ -2,19 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Safe areas iOS — respecter les notchs/home indicator des iPhone */
-:root {
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-}
+@layer base {
+  :root {
+    /* Safe areas iOS — respecter les notchs/home indicator des iPhone */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-html,
-body {
-  background: #0d1b2a;
-  color: #fff;
-  /* Désactive le bounce iOS et le zoom sur double tap */
-  overscroll-behavior: none;
-  touch-action: manipulation;
+    /* Tokens motion exposés en CSS vars pour usage hors classes Tailwind
+       (animations inline, librairies tierces type MapLibre, etc.). */
+    --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --duration-fast: 100ms;
+    --duration-base: 150ms;
+    --duration-slow: 250ms;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    background: #0d1b2a;
+    color: #fff;
+    /* Désactive le bounce iOS et le zoom sur double tap */
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: none;
+  }
+
+  /* Respecte la préférence "réduction des animations" (iOS/Android a11y). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 /* Reset MapLibre canvas pour qu'il puisse occuper 100% */
