@@ -10,7 +10,7 @@ export default function HistoryPage() {
   if (!user) return null
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-8 pt-[calc(var(--safe-top)+1rem)]">
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+5rem)] pt-[calc(var(--safe-top)+1rem)]">
       <header className="flex items-center gap-3">
         <Link href="/" aria-label="Retour" className="rounded-full bg-white/10 p-2 hover:bg-white/20">
           <ArrowLeft className="h-4 w-4" />

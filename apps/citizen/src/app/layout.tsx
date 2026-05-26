@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 
 import './globals.css'
+import { BottomNav } from '../components/BottomNav'
 import { AuthProvider } from '../lib/auth-context'
 import { QueryProvider } from '../lib/query-provider'
 import { ServiceWorkerRegister } from './ServiceWorkerRegister'
@@ -41,7 +42,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body className="min-h-screen bg-navy-900 font-sans antialiased">
         <AuthProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            {children}
+            <BottomNav />
+          </QueryProvider>
         </AuthProvider>
         <ServiceWorkerRegister />
       </body>
