@@ -119,11 +119,51 @@ const faq = [
     a: 'De la signature à la mise en service : 4 à 6 semaines en moyenne. Cela inclut la fabrication, l\'installation et la formation.',
   },
 ]
+
+// JSON-LD additionnels pour la home — exposent l'offre Service à Google et
+// la FAQ dans les rich results (cards avec questions extensibles dans les
+// SERPs). Ces schemas sont surchargés par-dessus l'`Organization` global
+// de Base.astro.
+const serviceJsonLd = {
+  '@type': 'Service',
+  name: 'Distributeurs de matériel sportif en libre-service',
+  serviceType: 'SaaS · IoT · marketplace location matériel sportif',
+  description:
+    'Solution clé en main pour mairies, campings et hôtels : distributeurs IoT 24/7 + dashboard ops + app citoyen avec créneaux 30 min à journée. Vous gardez 75 % de chaque location.',
+  provider: {
+    '@type': 'Organization',
+    name: 'SportLocker SAS',
+    url: 'https://sportlocker.fr',
+  },
+  areaServed: { '@type': 'Country', name: 'France' },
+  audience: { '@type': 'BusinessAudience', name: 'Mairies, campings, hôtels' },
+  offers: {
+    '@type': 'AggregateOffer',
+    priceCurrency: 'EUR',
+    lowPrice: 400,
+    highPrice: 475,
+    offerCount: 3,
+    description: 'Abonnement SaaS mensuel par distributeur, tout inclus.',
+  },
+}
+
+const faqJsonLd = {
+  '@type': 'FAQPage',
+  mainEntity: faq.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: item.a,
+    },
+  })),
+}
 ---
 
 <Base
   title="Distributeurs de matériel sportif en libre-service 24/7"
   description="SportLocker installe des distributeurs IoT de matériel sportif sur vos sites. Marketplace 3-flux : abonnement SaaS, locations citoyens à la durée (30 min à la journée, prix paramétrable), vous gardez 75 %. Solution clé en main pour mairies, campings et hôtels."
+  extraJsonLd={[serviceJsonLd, faqJsonLd]}
 >
   <Hero
     tag="Premier réseau marketplace en France · 2026"
