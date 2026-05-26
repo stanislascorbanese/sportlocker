@@ -86,7 +86,7 @@ export function MapView({
       const el = document.createElement('button')
       el.type = 'button'
       el.className =
-        'flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-navy-900 text-xs font-bold shadow-lg ring-2 ring-emerald-200/40 transition hover:scale-110'
+        'flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-navy-900 text-sm font-bold shadow-pop ring-2 ring-emerald-200/50 transition-transform duration-base ease-out-soft hover:scale-110 active:scale-95'
       el.textContent = String(d.idleLockers)
       el.setAttribute('aria-label', `${d.name} — ${d.idleLockers} casiers libres`)
       el.addEventListener('click', () => onPick(d.id))
