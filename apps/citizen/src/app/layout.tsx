@@ -125,11 +125,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <I18nProvider>
             <AuthProvider>
+              <SplashHide />
               <QueryProvider>{children}</QueryProvider>
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>
-        <SplashHide />
         <ServiceWorkerRegister />
       </body>
     </html>
