@@ -11,6 +11,7 @@ import {
   type DistributorWithDistance,
 } from '../components/DistributorListItem'
 import { HeaderActions } from '../components/HeaderActions'
+import { OnboardingSheet } from '../components/OnboardingSheet'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ErrorState } from '../components/ui/ErrorState'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -190,6 +191,10 @@ export default function HomePage() {
           </ul>
         )}
       </section>
+
+      {/* Tour guidé 3 étapes — déclenché au premier visit, persisté en
+          localStorage. Self-rendering (gère son propre open state). */}
+      <OnboardingSheet />
     </main>
   )
 }
