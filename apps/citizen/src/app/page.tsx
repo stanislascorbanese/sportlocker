@@ -249,9 +249,12 @@ function fmtTime(iso: string): string {
 }
 
 function fmtSlotStart(r: ReservationActive): string {
-  // Pour les résas scheduled, expiresAt = slotEndAt + grâce (15 min après
-  // le créneau). On ne sait pas slotStartAt exact côté front. Faute de
-  // mieux, on affiche l'expiration comme "fenêtre fin".
+  // Les résas scheduled exposent `slotStartAt` (DTO enrichi côté
+  // /v1/reservations/active). On affiche bien l'heure de début du
+  // créneau — pas `expiresAt` qui correspond à slotEndAt + grâce.
+  // Fallback sur expiresAt pour les résas legacy (pending) qui n'ont
+  // pas de slotStartAt.
+  if (r.slotStartAt) return fmtTime(r.slotStartAt)
   return fmtTime(r.expiresAt)
 }
 
