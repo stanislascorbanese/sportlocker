@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEffect, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
+import { useT } from '../../lib/i18n/I18nProvider'
 
 /**
  * Wrapper React autour de MapLibre GL JS.
@@ -30,6 +31,7 @@ export function MapView({
   distributors: Distributor[]
   onPick: (id: string) => void
 }) {
+  const t = useT()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<Marker[]>([])
@@ -88,7 +90,10 @@ export function MapView({
       el.className =
         'flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-navy-900 text-sm font-bold shadow-pop ring-2 ring-emerald-200/50 transition-transform duration-base ease-out-soft hover:scale-110 active:scale-95'
       el.textContent = String(d.idleLockers)
-      el.setAttribute('aria-label', `${d.name} — ${d.idleLockers} casiers libres`)
+      el.setAttribute(
+        'aria-label',
+        `${d.name} — ${d.idleLockers} ${t('distributor.lockers_free')}`,
+      )
       el.addEventListener('click', () => onPick(d.id))
 
       const marker = new maplibregl.Marker({ element: el })
@@ -97,14 +102,14 @@ export function MapView({
           new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(
             `<div style="color:#0D1B2A;padding:4px 2px;">
               <div style="font-weight:600;font-size:13px;">${escapeHtml(d.name)}</div>
-              <div style="font-size:11px;opacity:0.7;">${d.idleLockers}/${d.lockerCount} casiers libres</div>
+              <div style="font-size:11px;opacity:0.7;">${d.idleLockers}/${d.lockerCount} ${escapeHtml(t('distributor.lockers_free'))}</div>
             </div>`,
           ),
         )
         .addTo(map)
       markersRef.current.push(marker)
     })
-  }, [distributors, onPick])
+  }, [distributors, onPick, t])
 
   // Recentrer la carte si le centre change (re-géoloc).
   useEffect(() => {
@@ -116,20 +121,19 @@ export function MapView({
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       {contextLost && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-navy-900/95 px-6 text-center backdrop-blur-sm">
-          <p className="text-sm font-medium text-white">
-            Affichage de la carte interrompu
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur-sm bg-white/95 dark:bg-navy-900/95">
+          <p className="text-sm font-medium text-navy-900 dark:text-white">
+            {t('distributor.map.error')}
           </p>
-          <p className="max-w-xs text-xs leading-relaxed text-white/60">
-            Safari a fermé le contexte graphique (souvent après mise en veille).
-            Rechargez la page pour relancer la carte.
+          <p className="max-w-xs text-xs leading-relaxed text-gray-600 dark:text-white/60">
+            {t('distributor.map.error_help')}
           </p>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-1 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow-lg hover:bg-emerald-400"
+            className="mt-1 rounded-full px-4 py-2 text-sm font-semibold shadow-pop transition-colors duration-base bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
           >
-            Recharger la page
+            {t('distributor.map.reload')}
           </button>
         </div>
       )}

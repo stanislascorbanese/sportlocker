@@ -2,17 +2,18 @@
 
 import { ChevronRight, QrCode } from 'lucide-react'
 
+import { useT } from '../lib/i18n/I18nProvider'
 import type { ReservationActive } from '../lib/api'
 
-const STATUS_LABELS: Record<ReservationActive['status'], string> = {
-  scheduled: 'à venir',
-  pending: 'à scanner',
-  active: 'en cours',
-  returned: 'rendue',
-  overdue: 'en retard',
-  cancelled: 'annulée',
-  expired: 'expirée',
-}
+const STATUS_KEY_BY_STATUS = {
+  scheduled: 'reservation.status.scheduled',
+  pending: 'reservation.status.pending',
+  active: 'reservation.status.active',
+  returned: 'reservation.status.returned',
+  overdue: 'reservation.status.overdue',
+  cancelled: 'reservation.status.cancelled',
+  expired: 'reservation.status.expired',
+} as const
 
 /**
  * Banner épinglée au-dessus de la carte de la home quand l'utilisateur a
@@ -26,37 +27,43 @@ export function ActiveReservationBanner({
   reservation: ReservationActive
   onClick: () => void
 }) {
+  const t = useT()
   const isScheduled = reservation.status === 'scheduled'
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Voir mon QR code de réservation"
-      className="mx-5 mb-3 flex animate-slide-up items-center gap-3 rounded-card border border-emerald-400/40 bg-gradient-to-r from-emerald-500/15 to-emerald-500/5 p-3 text-left transition-[border-color,transform] duration-base ease-out-soft hover:border-emerald-400/70 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+      aria-label={t('reservation.banner.aria')}
+      className="mx-5 mb-3 flex animate-slide-up items-center gap-3 rounded-card border p-3 text-left transition-[border-color,transform] duration-base ease-out-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 border-emerald-300 bg-emerald-50 hover:border-emerald-400 dark:border-emerald-400/40 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:to-emerald-500/5 dark:hover:border-emerald-400/70"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
         <QrCode className="h-5 w-5" aria-hidden="true" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-eyebrow font-medium text-emerald-300/80">
-          Réservation {STATUS_LABELS[reservation.status] ?? reservation.status}
+        <p className="text-eyebrow font-medium uppercase text-emerald-700 dark:text-emerald-300/80">
+          {t('reservation.banner.label', {
+            status: t(STATUS_KEY_BY_STATUS[reservation.status]),
+          })}
         </p>
-        <p className="truncate text-sm font-medium">
+        <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
           {reservation.item.typeName} · {reservation.distributor.name}
         </p>
-        <p className="text-meta text-white/55">
+        <p className="text-meta text-gray-600 dark:text-white/55">
           {isScheduled
-            ? `Présente ton QR à ${fmtTime(reservation.expiresAt)}`
-            : `QR valide jusqu'à ${fmtTime(reservation.expiresAt)}`}
+            ? t('reservation.banner.scheduled_at', { time: fmtTime(reservation.expiresAt) })
+            : t('reservation.banner.valid_until', { time: fmtTime(reservation.expiresAt) })}
         </p>
       </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-emerald-300/70" aria-hidden="true" />
+      <ChevronRight
+        className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300/70"
+        aria-hidden="true"
+      />
     </button>
   )
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('fr-FR', {
+  return new Date(iso).toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
   })

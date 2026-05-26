@@ -1,11 +1,16 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Package } from 'lucide-react'
+import { Package } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { Badge, type BadgeTone } from '../../../components/ui/Badge'
+import { Card } from '../../../components/ui/Card'
+import { ErrorState } from '../../../components/ui/ErrorState'
+import { PageHeader } from '../../../components/ui/PageHeader'
+import { buttonClassName } from '../../../components/ui/Button'
 import {
   createReservation,
   fetchDistributorDetail,
@@ -14,20 +19,20 @@ import {
 } from '../../../lib/api'
 import { useRequireAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/cn'
+import { useT } from '../../../lib/i18n/I18nProvider'
+import type { MessageKey } from '../../../lib/i18n/messages'
 
 /**
- * Détail d'un distributeur : affiche le statut, le nombre de casiers idle,
- * la liste des matériels disponibles (regroupés par type) et la liste des
- * casiers physiques (état + contenu).
- *
- * L'utilisateur choisit un type de matériel à emprunter parmi ceux qui ont
- * au moins un casier `idle`. L'API choisit ensuite le casier le plus ancien.
+ * Détail d'un distributeur : statut, casiers idle, matériels groupés par
+ * type, et grille des casiers physiques. L'utilisateur choisit un type, l'API
+ * pick le casier disponible le plus ancien.
  */
 export default function DistributorDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
   const user = useRequireAuth()
+  const t = useT()
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
 
   const detailQuery = useQuery({
@@ -36,9 +41,9 @@ export default function DistributorDetailPage() {
     enabled: Boolean(user && params.id),
   })
 
-  // Sélectionne un locker idle du type demandé (premier match par position
-  // pour la prévisibilité). Le backend exige lockerId + itemId + communeId,
-  // contrairement au flow `scheduled` où il pick lui-même.
+  // Sélectionne un locker idle du type demandé (premier match par position).
+  // Le backend exige lockerId + itemId + communeId pour le flow "borrow now",
+  // contrairement au flow `scheduled` qui pick lui-même.
   const targetLocker = (() => {
     if (!detailQuery.data) return null
     const lockers = detailQuery.data.lockers
@@ -46,8 +51,6 @@ export default function DistributorDetailPage() {
     if (selectedTypeId) {
       return lockers.find((l) => l.itemType?.id === selectedTypeId) ?? null
     }
-    // Pas de selection → si un seul type est dispo, on tente quand même
-    // (autre lane peut décider de hardcoder vs cliquer).
     return lockers[0] ?? null
   })()
 
@@ -63,11 +66,10 @@ export default function DistributorDetailPage() {
       })
     },
     onSuccess: async (reservation) => {
-      // Invalidation cruciale : la home page (et la page /reservations/<id>)
-      // utilisent queryKey: ['reservation-active'] avec le résultat précédent
-      // (null si pas de résa au chargement initial). Sans invalidation, la
-      // redirection affiche "Aucune réservation active ne correspond à cet ID"
-      // pendant 30s (refetchInterval) malgré le POST réussi.
+      // Invalidation cruciale : la home (et /reservations/<id>) utilisent
+      // queryKey: ['reservation-active'] avec le résultat précédent. Sans
+      // invalidation, la redirection affiche "Aucune réservation active ne
+      // correspond" pendant 30s (refetchInterval) malgré le POST réussi.
       await queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
       router.push(`/reservations/${reservation.id}`)
     },
@@ -77,31 +79,34 @@ export default function DistributorDetailPage() {
 
   const groups = detailQuery.data ? groupAvailableByType(detailQuery.data) : []
   const canReserve =
-    detailQuery.data != null &&
-    !reserveMutation.isPending &&
-    detailQuery.data.idleLockers > 0 &&
-    targetLocker != null &&
-    (groups.length === 0 || selectedTypeId != null)
+    detailQuery.data != null
+    && !reserveMutation.isPending
+    && detailQuery.data.idleLockers > 0
+    && targetLocker != null
+    && (groups.length === 0 || selectedTypeId != null)
+
+  const borrowLabel = reserveMutation.isPending
+    ? t('distributor.reserving')
+    : detailQuery.data && detailQuery.data.idleLockers === 0
+      ? t('distributor.no_locker')
+      : groups.length > 0 && selectedTypeId == null
+        ? t('distributor.borrow_now_pick')
+        : t('distributor.borrow_now')
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+5rem)] pt-[calc(var(--safe-top)+1rem)]">
-      <header className="flex items-center gap-3">
-        <Link href="/" aria-label="Retour" className="rounded-full bg-white/10 p-2 hover:bg-white/20">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <p className="text-[11px] uppercase tracking-wider text-white/50">Distributeur</p>
-          <h1 className="font-display text-xl font-semibold">
-            {detailQuery.data?.name ?? '…'}
-          </h1>
-        </div>
-      </header>
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
+      <PageHeader
+        eyebrow={t('distributor.label')}
+        title={detailQuery.data?.name ?? '…'}
+        backHref="/"
+        backLabel={t('nav.back')}
+      />
 
-      {detailQuery.isLoading && <p className="text-sm text-white/50">Chargement…</p>}
+      {detailQuery.isLoading && (
+        <p className="text-sm text-gray-500 dark:text-white/50">{t('distributor.loading')}</p>
+      )}
       {detailQuery.error && (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
-          Erreur : {(detailQuery.error as Error).message}
-        </p>
+        <ErrorState message={t('distributor.error', { message: (detailQuery.error as Error).message })} />
       )}
 
       {detailQuery.data && (
@@ -117,28 +122,23 @@ export default function DistributorDetailPage() {
         <>
           <Link
             href={`/distributors/${params.id}/book`}
-            className="rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-semibold text-navy-900 transition hover:bg-emerald-400"
+            className={buttonClassName({ variant: 'primary', size: 'lg', fullWidth: true })}
           >
-            Réserver un créneau →
+            {t('distributor.book_slot')}
           </Link>
           <button
             type="button"
             disabled={!canReserve}
             onClick={() => reserveMutation.mutate()}
-            className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 transition hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-40"
+            className={cn(
+              buttonClassName({ variant: 'secondary', size: 'lg', fullWidth: true }),
+              'disabled:opacity-40',
+            )}
           >
-            {reserveMutation.isPending
-              ? 'Réservation…'
-              : detailQuery.data.idleLockers === 0
-                ? 'Aucun casier disponible'
-                : groups.length > 0 && selectedTypeId == null
-                  ? 'Emprunter maintenant — choisis un matériel'
-                  : 'Emprunter maintenant'}
+            {borrowLabel}
           </button>
           {reserveMutation.error && (
-            <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">
-              {(reserveMutation.error as Error).message}
-            </p>
+            <ErrorState message={(reserveMutation.error as Error).message} />
           )}
         </>
       )}
@@ -146,10 +146,7 @@ export default function DistributorDetailPage() {
   )
 }
 
-type AvailableGroup = {
-  itemType: LockerItemType
-  count: number
-}
+type AvailableGroup = { itemType: LockerItemType; count: number }
 
 /** Regroupe les casiers `idle` qui contiennent un item par type de matériel. */
 function groupAvailableByType(d: DistributorDetail): AvailableGroup[] {
@@ -163,6 +160,28 @@ function groupAvailableByType(d: DistributorDetail): AvailableGroup[] {
   return [...map.values()].sort((a, b) => a.itemType.name.localeCompare(b.itemType.name))
 }
 
+const STATUS_TONE: Record<DistributorDetail['status'], BadgeTone> = {
+  online: 'success',
+  offline: 'danger',
+  maintenance: 'warning',
+  decommissioned: 'neutral',
+}
+
+const STATUS_KEY: Record<DistributorDetail['status'], MessageKey> = {
+  online: 'distributor.status.online',
+  offline: 'distributor.status.offline',
+  maintenance: 'distributor.status.maintenance',
+  decommissioned: 'distributor.status.decommissioned',
+}
+
+const LOCKER_STATE_KEY: Record<DistributorDetail['lockers'][number]['state'], MessageKey> = {
+  idle: 'distributor.locker.idle',
+  reserved: 'distributor.locker.reserved',
+  active: 'distributor.locker.active',
+  returning: 'distributor.locker.returning',
+  fault: 'distributor.locker.fault',
+}
+
 function DetailContent({
   d,
   groups,
@@ -174,42 +193,44 @@ function DetailContent({
   selectedTypeId: string | null
   onSelect: (id: string) => void
 }) {
+  const t = useT()
   return (
     <>
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-white/50">Adresse</p>
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
+              {t('distributor.address')}
+            </p>
             <p className="text-sm">{d.addressLine ?? '—'}</p>
-            {d.latitude != null && d.longitude != null && (
-              <p className="mt-1 font-mono text-[10px] text-white/40">
-                {d.latitude.toFixed(5)}, {d.longitude.toFixed(5)}
-              </p>
-            )}
           </div>
-          <StatusBadge status={d.status} />
+          <Badge tone={STATUS_TONE[d.status]} size="sm">
+            {t(STATUS_KEY[d.status])}
+          </Badge>
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
+      <Card variant="accent">
         <div className="flex items-center gap-3">
-          <Package className="h-5 w-5 text-emerald-300" />
+          <Package className="h-5 w-5 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
           <div>
-            <p className="text-2xl font-bold">
+            <p className="text-2xl font-bold text-navy-900 dark:text-white">
               {d.idleLockers}
-              <span className="text-white/40 text-sm font-normal">/{d.lockerCount}</span>
+              <span className="text-sm font-normal text-gray-400 dark:text-white/40">
+                /{d.lockerCount}
+              </span>
             </p>
-            <p className="text-[11px] uppercase tracking-wider text-emerald-300/80">
-              casiers libres
+            <p className="text-eyebrow uppercase text-emerald-700 dark:text-emerald-300/80">
+              {t('distributor.lockers_free')}
             </p>
           </div>
         </div>
-      </section>
+      </Card>
 
       {groups.length > 0 && (
         <section>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
-            Matériel disponible
+          <h2 className="mb-2 text-eyebrow font-medium uppercase text-gray-500 dark:text-white/55">
+            {t('distributor.available_items')}
           </h2>
           <ul className="grid grid-cols-2 gap-2">
             {groups.map((g) => {
@@ -220,10 +241,10 @@ function DetailContent({
                     type="button"
                     onClick={() => onSelect(g.itemType.id)}
                     className={cn(
-                      'flex w-full items-center gap-3 rounded-xl border p-3 text-left transition',
+                      'flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors duration-base ease-out-soft',
                       isSelected
-                        ? 'border-emerald-400 bg-emerald-500/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/30',
+                        ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
+                        : 'border-gray-200 bg-white hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/30',
                     )}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -234,14 +255,19 @@ function DetailContent({
                         className="h-10 w-10 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
-                        <Package className="h-5 w-5 text-white/60" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10">
+                        <Package
+                          className="h-5 w-5 text-gray-500 dark:text-white/60"
+                          aria-hidden="true"
+                        />
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{g.itemType.name}</p>
-                      <p className="text-[11px] text-white/50">
-                        {g.count} dispo{g.count > 1 ? 's' : ''}
+                      <p className="text-meta text-gray-500 dark:text-white/50">
+                        {g.count === 1
+                          ? t('distributor.available_count_one')
+                          : t('distributor.available_count_many', { count: g.count })}
                       </p>
                     </div>
                   </button>
@@ -254,8 +280,8 @@ function DetailContent({
 
       {d.lockers.length > 0 && (
         <section>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
-            Casiers ({d.lockers.length})
+          <h2 className="mb-2 text-eyebrow font-medium uppercase text-gray-500 dark:text-white/55">
+            {t('distributor.lockers_count', { count: d.lockers.length })}
           </h2>
           <ul className="grid grid-cols-4 gap-2">
             {d.lockers.map((l) => (
@@ -264,22 +290,24 @@ function DetailContent({
                 className={cn(
                   'flex flex-col items-center gap-1 rounded-lg border p-2 text-center',
                   l.state === 'idle'
-                    ? 'border-emerald-400/30 bg-emerald-500/5'
-                    : 'border-white/10 bg-white/5 opacity-70',
+                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-400/30 dark:bg-emerald-500/5'
+                    : 'border-gray-200 bg-gray-50 opacity-70 dark:border-white/10 dark:bg-white/5',
                 )}
-                title={l.itemType?.name ?? 'Vide'}
+                title={l.itemType?.name ?? '—'}
               >
-                <span className="text-[10px] text-white/40">#{l.position + 1}</span>
-                <span className="truncate text-[11px] font-medium">
-                  {l.itemType?.name ?? '—'}
+                <span className="text-[10px] text-gray-400 dark:text-white/40">
+                  #{l.position + 1}
                 </span>
+                <span className="truncate text-[11px] font-medium">{l.itemType?.name ?? '—'}</span>
                 <span
                   className={cn(
                     'text-[9px] uppercase tracking-wider',
-                    l.state === 'idle' ? 'text-emerald-300' : 'text-white/40',
+                    l.state === 'idle'
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-gray-400 dark:text-white/40',
                   )}
                 >
-                  {LOCKER_STATE_LABELS[l.state]}
+                  {t(LOCKER_STATE_KEY[l.state])}
                 </span>
               </li>
             ))}
@@ -287,38 +315,5 @@ function DetailContent({
         </section>
       )}
     </>
-  )
-}
-
-const LOCKER_STATE_LABELS: Record<DistributorDetail['lockers'][number]['state'], string> = {
-  idle: 'Libre',
-  reserved: 'Réservé',
-  active: 'Emprunté',
-  returning: 'Retour',
-  fault: 'Panne',
-}
-
-function StatusBadge({ status }: { status: DistributorDetail['status'] }) {
-  const styles: Record<DistributorDetail['status'], string> = {
-    online: 'bg-emerald-500/20 text-emerald-200',
-    offline: 'bg-rose-500/20 text-rose-200',
-    maintenance: 'bg-amber-500/20 text-amber-200',
-    decommissioned: 'bg-white/10 text-white/50',
-  }
-  const labels: Record<DistributorDetail['status'], string> = {
-    online: 'En ligne',
-    offline: 'Hors ligne',
-    maintenance: 'Maintenance',
-    decommissioned: 'Retiré',
-  }
-  return (
-    <span
-      className={cn(
-        'rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider',
-        styles[status],
-      )}
-    >
-      {labels[status]}
-    </span>
   )
 }

@@ -8,8 +8,7 @@
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-    /* Tokens motion exposés en CSS vars pour usage hors classes Tailwind
-       (animations inline, librairies tierces type MapLibre, etc.). */
+    /* Tokens motion exposés en CSS vars pour usage hors classes Tailwind. */
     --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-out-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --duration-fast: 100ms;
@@ -21,10 +20,17 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  html,
-  body {
+  html {
+    background: #ffffff;
+    color: #0D1B2A;
+  }
+
+  html.dark {
     background: #0d1b2a;
-    color: #fff;
+    color: #ffffff;
+  }
+
+  body {
     /* Désactive le bounce iOS et le zoom sur double tap */
     overscroll-behavior: none;
     touch-action: manipulation;

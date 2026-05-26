@@ -2,6 +2,9 @@ import type { Config } from 'tailwindcss'
 
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
+  // Mode 'class' : la classe `dark` sur <html> active les variants `dark:`.
+  // ThemeProvider gère le toggle via document.documentElement.classList.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -15,8 +18,6 @@ const config: Config = {
         display: ['Syne', 'system-ui', 'sans-serif'],
       },
       fontSize: {
-        // Aliases sémantiques UI. Toujours préférer `text-eyebrow` à
-        // `text-[10px] uppercase tracking-wider` ad-hoc qui pullule en legacy.
         eyebrow: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.08em' }],
         meta: ['0.75rem', { lineHeight: '1rem' }],
       },

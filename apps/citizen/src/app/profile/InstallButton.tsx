@@ -3,19 +3,18 @@
 import { Smartphone } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { Card } from '../../components/ui/Card'
+import { useT } from '../../lib/i18n/I18nProvider'
+
 /**
  * Bouton "Installer l'app sur ton écran d'accueil" — affiché uniquement
  * quand le navigateur supporte la PWA et que l'app n'est pas déjà installée.
  *
  * Branches :
- *   - Chrome / Edge / Brave / Samsung Internet : fire `beforeinstallprompt`,
- *     on capture l'event et l'appelle au clic → modal natif Chrome.
- *   - iOS Safari : ne fire JAMAIS `beforeinstallprompt`. On le détecte via
- *     userAgent et on affiche un encart explicatif avec les étapes manuelles
- *     (Partager → "Sur l'écran d'accueil"). C'est pénible mais Apple l'a
- *     décidé ainsi.
- *   - Déjà installée (mode `standalone`) : on ne rend rien.
- *   - Autre browser (Firefox desktop, vieux WebView…) : on ne rend rien.
+ *   - Chrome / Edge / Brave / Samsung Internet : `beforeinstallprompt`
+ *   - iOS Safari : ne fire jamais l'event → on affiche les étapes manuelles
+ *   - Déjà installée (`standalone`) : rien
+ *   - Firefox desktop / vieux WebView : rien
  */
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -24,9 +23,7 @@ type BeforeInstallPromptEvent = Event & {
 
 function isStandaloneMode(): boolean {
   if (typeof window === 'undefined') return false
-  // 1. Media query officielle (Chrome, Edge, Firefox)
   if (window.matchMedia?.('(display-mode: standalone)').matches) return true
-  // 2. Vieux iOS Safari : `navigator.standalone` (non standard mais utilisé)
   type IosNavigator = Navigator & { standalone?: boolean }
   if ((window.navigator as IosNavigator).standalone === true) return true
   return false
@@ -41,6 +38,7 @@ function isIosSafari(): boolean {
 }
 
 export function InstallButton() {
+  const t = useT()
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null)
   const [showIosHint, setShowIosHint] = useState(false)
   const [installed, setInstalled] = useState(false)
@@ -50,23 +48,17 @@ export function InstallButton() {
       setInstalled(true)
       return
     }
-
     if (isIosSafari()) {
       setShowIosHint(true)
       return
     }
-
     const handler = (e: Event) => {
       e.preventDefault()
       setPromptEvent(e as BeforeInstallPromptEvent)
     }
     window.addEventListener('beforeinstallprompt', handler)
-
-    // Détecte si l'utilisateur installe pendant la session (l'event
-    // `appinstalled` clôt notre prompt).
     const installedHandler = () => setInstalled(true)
     window.addEventListener('appinstalled', installedHandler)
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
       window.removeEventListener('appinstalled', installedHandler)
@@ -77,18 +69,22 @@ export function InstallButton() {
 
   if (showIosHint) {
     return (
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <Card>
         <div className="flex items-start gap-3">
-          <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
+          <Smartphone
+            className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300"
+            aria-hidden="true"
+          />
           <div className="space-y-1">
-            <p className="text-sm font-medium text-white">Installer l'app sur ton iPhone</p>
-            <p className="text-xs leading-relaxed text-white/60">
-              Appuie sur <span className="font-medium text-white/80">Partager</span> en bas
-              de Safari, puis <span className="font-medium text-white/80">« Sur l'écran d'accueil »</span>.
+            <p className="text-sm font-medium text-navy-900 dark:text-white">
+              {t('profile.install.label')}
+            </p>
+            <p className="text-meta leading-relaxed text-gray-600 dark:text-white/60">
+              {t('profile.install.ios_only')}
             </p>
           </div>
         </div>
-      </section>
+      </Card>
     )
   }
 
@@ -98,8 +94,6 @@ export function InstallButton() {
     if (!promptEvent) return
     await promptEvent.prompt()
     const { outcome } = await promptEvent.userChoice
-    // Outcome possible : 'accepted' | 'dismissed'. Dans les deux cas le prompt
-    // ne peut être réinvoqué — on le décharge pour cacher le bouton.
     setPromptEvent(null)
     if (outcome === 'accepted') setInstalled(true)
   }
@@ -108,13 +102,18 @@ export function InstallButton() {
     <button
       type="button"
       onClick={onInstall}
-      className="flex w-full items-center gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-left transition hover:bg-emerald-500/20"
+      className="flex w-full items-center gap-3 rounded-card border px-4 py-3 text-left transition-colors duration-base ease-out-soft border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20"
     >
-      <Smartphone className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
+      <Smartphone
+        className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300"
+        aria-hidden="true"
+      />
       <span className="flex-1">
-        <span className="block text-sm font-medium text-white">Installer l'app</span>
-        <span className="block text-xs text-white/60">
-          Accès direct depuis ton écran d'accueil, sans navigateur.
+        <span className="block text-sm font-medium text-navy-900 dark:text-white">
+          {t('profile.install.install')}
+        </span>
+        <span className="block text-meta text-gray-600 dark:text-white/60">
+          {t('profile.install.help')}
         </span>
       </span>
     </button>

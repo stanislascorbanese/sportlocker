@@ -1,12 +1,15 @@
 'use client'
 
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CalendarClock, Check, Clock } from 'lucide-react'
+import { CalendarClock, Check, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { Card } from '../../../../components/ui/Card'
+import { ErrorState } from '../../../../components/ui/ErrorState'
+import { PageHeader } from '../../../../components/ui/PageHeader'
 import {
   DAY_PASS_MINUTES,
   SLOT_DURATIONS,
@@ -22,55 +25,77 @@ import {
 } from '../../../../lib/api'
 import { useRequireAuth } from '../../../../lib/auth-context'
 import { cn } from '../../../../lib/cn'
+import { useI18n, useT } from '../../../../lib/i18n/I18nProvider'
+import type { MessageKey } from '../../../../lib/i18n/messages'
 
 /**
  * Flow de réservation par créneaux (modèle slots PR 0008).
  *
  *   1. Choix du sport (item_type) — chips horizontaux
- *   2. Choix de la durée — 30/60/90/120 min
- *   3. Grille des créneaux disponibles J→J+7 — colonnes = jours, cellules = slots
- *   4. Récap (prix figé) + bouton "Réserver ce créneau"
+ *   2. Choix de la durée — 30/60/90/120 min + journée
+ *   3. Grille des créneaux disponibles J→J+7
+ *   4. Récap (prix figé) + bouton "Réserver"
  *
- * Le calendrier ne s'affiche qu'après les 2 premiers choix (cascade
- * dépendante). Si pas de pricing_rule pour le triplet courant, l'API
- * renvoie une grille avec `priceCents=null` et `available=false` → on
- * affiche "Pas de tarif configuré".
+ * Le calendrier ne s'affiche qu'après les 2 premiers choix (cascade). Si pas
+ * de pricing_rule pour le triplet courant, l'API renvoie une grille avec
+ * `priceCents=null` → on affiche "Pas de tarif configuré".
  */
 
-function fmtDurationMinutes(d: SlotDurationMinutes): string {
-  if (d === DAY_PASS_MINUTES) return 'Journée'
-  if (d < 60) return `${d} min`
+type TFn = (key: MessageKey, vars?: Record<string, string | number>) => string
+
+function fmtDurationMinutes(d: SlotDurationMinutes, t: TFn): string {
+  if (d === DAY_PASS_MINUTES) return t('booking.day_pass_label')
+  if (d < 60) return t('booking.duration_min', { count: d })
   const h = Math.floor(d / 60)
   const r = d % 60
-  return r === 0 ? `${h} h` : `${h} h ${r}`
+  return r === 0
+    ? t('booking.duration_hour', { count: h })
+    : t('booking.duration_hour_min', { hours: h, minutes: r })
 }
 
-function fmtPrice(cents: number | null): string {
+function fmtPrice(cents: number | null, locale: 'fr' | 'en', tFree: string): string {
   if (cents === null) return '—'
-  if (cents === 0) return 'Gratuit'
-  return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`
+  if (cents === 0) return tFree
+  return `${(cents / 100).toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+    maximumFractionDigits: 2,
+  })} €`
 }
 
-function fmtHour(iso: string): string {
-  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+function fmtHour(iso: string, locale: 'fr' | 'en'): string {
+  return new Date(iso).toLocaleTimeString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
-function fmtDayShort(isoDay: string): { weekday: string; day: number; month: string } {
+function fmtDayShort(
+  isoDay: string,
+  locale: 'fr' | 'en',
+): { weekday: string; day: number; month: string } {
+  const intlLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
   const d = new Date(`${isoDay}T12:00:00Z`)
   return {
-    weekday: d.toLocaleDateString('fr-FR', { weekday: 'short' }),
+    weekday: d.toLocaleDateString(intlLocale, { weekday: 'short' }),
     day: d.getUTCDate(),
-    month: d.toLocaleDateString('fr-FR', { month: 'short' }),
+    month: d.toLocaleDateString(intlLocale, { month: 'short' }),
   }
 }
 
-function fmtFullSlot(slot: AvailabilitySlot, duration: SlotDurationMinutes): string {
+function fmtFullSlot(
+  slot: AvailabilitySlot,
+  duration: SlotDurationMinutes,
+  locale: 'fr' | 'en',
+  tDayPass: string,
+): string {
+  const intlLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
   const d = new Date(slot.startsAt)
-  const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  // Forfait journée : on n'affiche pas la fourchette horaire (peu utile,
-  // car le citoyen vient quand il veut dans les heures d'ouverture).
-  if (duration === DAY_PASS_MINUTES) return `${dateStr} · Forfait journée`
-  return `${dateStr} · ${fmtHour(slot.startsAt)} – ${fmtHour(slot.endsAt)}`
+  const dateStr = d.toLocaleDateString(intlLocale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+  if (duration === DAY_PASS_MINUTES) return `${dateStr} · ${tDayPass}`
+  return `${dateStr} · ${fmtHour(slot.startsAt, locale)} – ${fmtHour(slot.endsAt, locale)}`
 }
 
 function groupAvailableTypes(d: DistributorDetail): LockerItemType[] {
@@ -85,6 +110,8 @@ export default function BookingPage() {
   const params = useParams<{ id: string }>()
   const queryClient = useQueryClient()
   const user = useRequireAuth()
+  const t = useT()
+  const { locale } = useI18n()
 
   const [itemTypeId, setItemTypeId] = useState<string | null>(null)
   const [duration, setDuration] = useState<SlotDurationMinutes>(60)
@@ -103,17 +130,11 @@ export default function BookingPage() {
       itemTypeId: itemTypeId!,
       durationMinutes: duration,
     }),
-    // Pas de fetch tant que pas d'itemType choisi : économise une requête
-    // qui renverrait 422 de toute façon (itemTypeId obligatoire).
     enabled: Boolean(user && params.id && itemTypeId),
     staleTime: 30_000,
   })
 
-  // Pour afficher le prix sous chaque bouton de durée, on fetch availability
-  // en parallèle pour les 5 durées. React-query dédupe la requête en cours
-  // (celle de la durée sélectionnée) automatiquement via queryKey identique.
-  // Le prix est extrait du premier slot avec priceCents non-null — la grille
-  // pricing_rules garantit un prix unique par triplet (commune × item × duration).
+  // Fetch prix pour les 5 durées en parallèle (queryKey identique = dédupé).
   const priceQueries = useQueries({
     queries: SLOT_DURATIONS.map((d) => ({
       queryKey: ['availability', params.id, itemTypeId, d],
@@ -135,8 +156,6 @@ export default function BookingPage() {
         out[d] = null
         return
       }
-      // Premier slot avec un prix dans les 7 jours — null si toute la grille
-      // est à priceCents=null (= pricing_rule absente pour ce triplet).
       let found: number | null = null
       for (const dayKey of Object.keys(data.days)) {
         for (const slot of data.days[dayKey] ?? []) {
@@ -160,14 +179,8 @@ export default function BookingPage() {
       durationMinutes: duration,
     }),
     onSuccess: () => {
-      // Invalide la résa active : la bannière home + la page /reservations/<id>
-      // doivent voir la nouvelle résa scheduled au prochain accès. Sans ça,
-      // le cache renvoie le précédent `null` jusqu'au refetchInterval (60s).
       queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
     },
-    // Pas de redirect vers /reservations/[id] depuis ici : on rend
-    // ConfirmationView in-page (QR + détails) car POST /slots renvoie déjà
-    // le deviceToken + slot fields nécessaires.
   })
 
   const types = useMemo(
@@ -179,64 +192,54 @@ export default function BookingPage() {
 
   if (!user) return null
 
-  // État succès : on remplace tout le flux par un récap + QR.
   if (reserveMutation.data) {
     return (
       <ConfirmationView
         reservation={reserveMutation.data}
         distributorName={detailQuery.data?.name ?? ''}
-        itemTypeName={types.find((t) => t.id === itemTypeId)?.name ?? ''}
+        itemTypeName={types.find((tt) => tt.id === itemTypeId)?.name ?? ''}
       />
     )
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+5rem)] pt-[calc(var(--safe-top)+1rem)]">
-      <header className="flex items-center gap-3">
-        <Link
-          href={`/distributors/${params.id}`}
-          aria-label="Retour"
-          className="rounded-full bg-white/10 p-2 hover:bg-white/20"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <p className="text-[11px] uppercase tracking-wider text-white/50">Réserver un créneau</p>
-          <h1 className="font-display text-xl font-semibold">
-            {detailQuery.data?.name ?? '…'}
-          </h1>
-        </div>
-      </header>
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
+      <PageHeader
+        eyebrow={t('booking.title')}
+        title={detailQuery.data?.name ?? '…'}
+        backHref={`/distributors/${params.id}`}
+        backLabel={t('nav.back')}
+      />
 
       {/* Étape 1 : sport */}
       <section>
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
-          1. Choisis ton sport
+        <h2 className="mb-2 text-eyebrow font-medium uppercase text-gray-500 dark:text-white/55">
+          {t('booking.step1')}
         </h2>
         {types.length === 0 ? (
-          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-            Ce distributeur ne contient aucun matériel pour le moment.
+          <p className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+            {t('distributor.no_items')}
           </p>
         ) : (
           <ul className="flex flex-wrap gap-2">
-            {types.map((t) => {
-              const isSel = itemTypeId === t.id
+            {types.map((type) => {
+              const isSel = itemTypeId === type.id
               return (
-                <li key={t.id}>
+                <li key={type.id}>
                   <button
                     type="button"
                     onClick={() => {
-                      setItemTypeId(t.id)
+                      setItemTypeId(type.id)
                       setSelectedSlot(null)
                     }}
                     className={cn(
-                      'rounded-full border px-3 py-1.5 text-sm transition',
+                      'rounded-full border px-3 py-1.5 text-sm transition-colors duration-base ease-out-soft',
                       isSel
-                        ? 'border-emerald-400 bg-emerald-500/10 text-emerald-100'
-                        : 'border-white/15 bg-white/5 text-white/80 hover:border-white/40',
+                        ? 'border-emerald-400 bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-100'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-white/80 dark:hover:border-white/40',
                     )}
                   >
-                    {t.name}
+                    {type.name}
                   </button>
                 </li>
               )
@@ -245,11 +248,11 @@ export default function BookingPage() {
         )}
       </section>
 
-      {/* Étape 2 : durée — liste verticale avec prix prominent à droite */}
+      {/* Étape 2 : durée */}
       {itemTypeId && (
         <section>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
-            2. Combien de temps ?
+          <h2 className="mb-2 text-eyebrow font-medium uppercase text-gray-500 dark:text-white/55">
+            {t('booking.step2')}
           </h2>
           <ul className="space-y-1.5">
             {SLOT_DURATIONS.map((d) => {
@@ -268,38 +271,48 @@ export default function BookingPage() {
                       setSelectedSlot(null)
                     }}
                     className={cn(
-                      'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition',
+                      'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-base ease-out-soft',
                       unavailable
-                        ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30'
+                        ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/30'
                         : isSel
-                          ? 'border-emerald-400 bg-emerald-500/10'
-                          : 'border-white/10 bg-white/5 hover:border-white/30',
+                          ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
+                          : 'border-gray-200 bg-white hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/30',
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         'flex h-9 w-9 items-center justify-center rounded-full',
-                        isSel ? 'bg-emerald-500/25 text-emerald-200' : 'bg-white/10 text-white/60',
+                        isSel
+                          ? 'bg-emerald-200 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-200'
+                          : 'bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-white/60',
                       )}>
-                        <Clock className="h-4 w-4" />
+                        <Clock className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium tabular-nums">{fmtDurationMinutes(d)}</p>
+                        <p className="text-sm font-medium tabular-nums">
+                          {fmtDurationMinutes(d, t)}
+                        </p>
                         {isDay && (
-                          <p className="text-[10px] text-white/45">Forfait journalier</p>
+                          <p className="text-[10px] text-gray-500 dark:text-white/45">
+                            {t('booking.day_pass_long')}
+                          </p>
                         )}
                       </div>
                     </div>
                     {priceLoading ? (
-                      <span className="text-xs text-white/30 tabular-nums">…</span>
+                      <span className="text-xs tabular-nums text-gray-400 dark:text-white/30">
+                        …
+                      </span>
                     ) : (
                       <span
                         className={cn(
                           'text-sm font-semibold tabular-nums',
-                          unavailable ? 'text-white/30' : 'text-emerald-300',
+                          unavailable
+                            ? 'text-gray-400 dark:text-white/30'
+                            : 'text-emerald-700 dark:text-emerald-300',
                         )}
                       >
-                        {price == null ? '—' : fmtPrice(price)}
+                        {price == null ? '—' : fmtPrice(price, locale, t('booking.free'))}
                       </span>
                     )}
                   </button>
@@ -313,35 +326,31 @@ export default function BookingPage() {
       {/* Étape 3 : créneau */}
       {itemTypeId && (
         <section>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-white/55">
-            3. Choisis un créneau
+          <h2 className="mb-2 text-eyebrow font-medium uppercase text-gray-500 dark:text-white/55">
+            {t('booking.step3')}
           </h2>
           {availabilityQuery.isLoading && (
-            <p className="text-sm text-white/50">Chargement des dispos…</p>
-          )}
-          {availabilityQuery.error && (
-            <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
-              Erreur : {(availabilityQuery.error as Error).message}
+            <p className="text-sm text-gray-500 dark:text-white/50">
+              {t('booking.loading_slots')}
             </p>
           )}
+          {availabilityQuery.error && (
+            <ErrorState message={(availabilityQuery.error as Error).message} />
+          )}
           {availabilityQuery.data && dayKeys.length === 0 && (
-            <p className="text-sm text-white/50">Aucun créneau dans la fenêtre J→J+7.</p>
+            <p className="text-sm text-gray-500 dark:text-white/50">
+              {t('booking.empty_slots')}
+            </p>
           )}
           {availabilityQuery.data && dayKeys.length > 0 && (() => {
-            // Détecte le cas "aucun tarif configuré" : tous les slots ont
-            // priceCents=null, càd aucune pricing_rule pour ce triplet
-            // (commune × item_type × durée). Plutôt qu'un tooltip par
-            // cellule (peu visible), on bannerise au-dessus de la grille.
             const allWithoutPrice = dayKeys.every((dk) =>
               (days[dk] ?? []).every((s) => s.priceCents === null),
             )
             return (
               <>
                 {allWithoutPrice && (
-                  <p className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-[12px] leading-relaxed text-amber-200">
-                    Aucun tarif <strong>{fmtDurationMinutes(duration)}</strong> n'est configuré
-                    pour ce sport sur ce distributeur. Demande à l'opérateur d'ajouter ce créneau
-                    dans le dashboard, ou essaie une autre durée ci-dessus.
+                  <p className="mb-3 rounded-card border p-3 text-[12px] leading-relaxed border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+                    {t('booking.no_pricing', { duration: fmtDurationMinutes(duration, t) })}
                   </p>
                 )}
                 {isDayPassDuration(duration) ? (
@@ -350,6 +359,7 @@ export default function BookingPage() {
                     dayKeys={dayKeys}
                     selected={selectedSlot}
                     onSelect={setSelectedSlot}
+                    locale={locale}
                   />
                 ) : (
                   <SlotGrid
@@ -357,6 +367,7 @@ export default function BookingPage() {
                     dayKeys={dayKeys}
                     selected={selectedSlot}
                     onSelect={setSelectedSlot}
+                    locale={locale}
                   />
                 )}
               </>
@@ -367,18 +378,23 @@ export default function BookingPage() {
 
       {/* Étape 4 : récap + confirmation */}
       {selectedSlot && (
-        <section className="rounded-2xl border border-emerald-400/30 bg-emerald-500/5 p-4">
+        <Card variant="accent">
           <div className="flex items-start gap-3">
-            <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+            <CalendarClock
+              className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300"
+              aria-hidden="true"
+            />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium capitalize">{fmtFullSlot(selectedSlot, duration)}</p>
-              <p className="mt-1 text-[12px] text-white/60">
-                {fmtDurationMinutes(duration)} · {fmtPrice(selectedSlot.priceCents)}
+              <p className="text-sm font-medium capitalize text-navy-900 dark:text-white">
+                {fmtFullSlot(selectedSlot, duration, locale, t('booking.day_pass_label'))}
               </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+              <p className="mt-1 text-meta text-gray-600 dark:text-white/60">
+                {fmtDurationMinutes(duration, t)} · {fmtPrice(selectedSlot.priceCents, locale, t('booking.free'))}
+              </p>
+              <p className="mt-2 text-meta leading-relaxed text-gray-500 dark:text-white/40">
                 {isDayPassDuration(duration)
-                  ? 'Aucun débit (MVP) — le prix est affiché à titre indicatif. Tu peux récupérer ton item à tout moment dans les heures d\'ouverture le jour réservé.'
-                  : 'Aucun débit (MVP) — le prix est affiché à titre indicatif. Tu pourras ouvrir le casier en scannant ton QR le jour J, dans la fenêtre de 15 min après l\'heure de début.'}
+                  ? t('booking.notice.day_pass')
+                  : t('booking.notice.slot')}
               </p>
             </div>
           </div>
@@ -386,16 +402,16 @@ export default function BookingPage() {
             type="button"
             disabled={reserveMutation.isPending}
             onClick={() => reserveMutation.mutate()}
-            className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-colors duration-base bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
           >
-            {reserveMutation.isPending ? 'Réservation…' : 'Réserver ce créneau'}
+            {reserveMutation.isPending ? t('distributor.reserving') : t('booking.confirm_btn')}
           </button>
           {reserveMutation.error && (
-            <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">
+            <p className="mt-2 rounded-card border p-2 text-meta border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
               {(reserveMutation.error as Error).message}
             </p>
           )}
-        </section>
+        </Card>
       )}
     </main>
   )
@@ -410,65 +426,70 @@ function ConfirmationView({
   distributorName: string
   itemTypeName: string
 }) {
+  const t = useT()
+  const { locale } = useI18n()
+  const intlLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
   const slotStart = new Date(reservation.slotStartAt)
   const slotEnd = new Date(reservation.slotEndAt)
   const isDayPass = reservation.durationMinutes === DAY_PASS_MINUTES
-  const dateStr = slotStart.toLocaleDateString('fr-FR', {
+  const dateStr = slotStart.toLocaleDateString(intlLocale, {
     weekday: 'long', day: 'numeric', month: 'long',
   })
   const timeRange = isDayPass
-    ? 'Forfait journée'
-    : `${slotStart.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} – `
-    + `${slotEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+    ? t('booking.day_pass_label')
+    : `${slotStart.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' })} – `
+    + `${slotEnd.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' })}`
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+5rem)] pt-[calc(var(--safe-top)+1rem)]">
-      <header className="flex items-center gap-3">
-        <Link href="/" aria-label="Accueil" className="rounded-full bg-white/10 p-2 hover:bg-white/20">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <p className="text-[11px] uppercase tracking-wider text-emerald-300/80">Créneau réservé</p>
-          <h1 className="font-display text-xl font-semibold">Présente ton QR le jour J</h1>
-        </div>
-      </header>
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
+      <PageHeader
+        eyebrow={t('booking.confirmation.eyebrow')}
+        title={t('booking.confirmation.title')}
+        backHref="/"
+        backLabel={t('nav.back')}
+      />
 
-      <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4">
+      <Card variant="accent">
         <div className="flex items-start gap-3">
-          <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+          <Check
+            className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300"
+            aria-hidden="true"
+          />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium capitalize text-emerald-100">{dateStr}</p>
-            <p className="mt-0.5 text-sm text-emerald-200/80">{timeRange}</p>
-            <p className="mt-2 text-[12px] text-white/65">
+            <p className="text-sm font-medium capitalize text-emerald-800 dark:text-emerald-100">
+              {dateStr}
+            </p>
+            <p className="mt-0.5 text-sm text-emerald-700 dark:text-emerald-200/80">{timeRange}</p>
+            <p className="mt-2 text-meta text-gray-600 dark:text-white/65">
               {itemTypeName} · {distributorName}
             </p>
-            <p className="mt-1 text-[12px] font-medium text-white/85">
+            <p className="mt-1 text-meta font-medium text-navy-900 dark:text-white/85">
               {reservation.priceCents === 0
-                ? 'Gratuit'
-                : `${(reservation.priceCents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`}
+                ? t('booking.free')
+                : `${(reservation.priceCents / 100).toLocaleString(intlLocale, { maximumFractionDigits: 2 })} €`}
             </p>
           </div>
         </div>
-      </section>
+      </Card>
 
-      <section className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6">
+      <section className="flex flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
         <QRCodeSVG value={reservation.deviceToken} size={256} level="H" marginSize={0} />
-        <p className="max-w-[256px] truncate text-center font-mono text-[11px] text-navy-900/50">
+        <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
           {reservation.deviceToken.slice(0, 32)}…
         </p>
       </section>
 
-      <p className="text-center text-[11px] leading-relaxed text-white/40">
+      <p className="text-center text-meta leading-relaxed text-gray-500 dark:text-white/40">
         {isDayPass
-          ? 'Scanne ce QR sur le distributeur pour ouvrir le casier. Tu peux venir à tout moment dans les heures d\'ouverture le jour réservé.'
-          : 'Scanne ce QR sur le distributeur pour ouvrir le casier. Le QR reste valide jusqu\'à 15 min après l\'heure de début. Au-delà, le créneau est libéré et la réservation expire.'}
+          ? t('booking.confirmation.help.day_pass')
+          : t('booking.confirmation.help.slot')}
       </p>
 
       <Link
         href="/"
-        className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-center text-sm font-medium text-white/85 transition hover:border-white/30"
+        className="rounded-xl border px-4 py-3 text-center text-sm font-medium transition-colors duration-base border-gray-200 bg-white text-navy-900 hover:border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-white/85 dark:hover:border-white/30"
       >
-        Retour à l'accueil
+        {t('booking.confirmation.back_home')}
       </Link>
     </main>
   )
@@ -479,30 +500,24 @@ function SlotGrid({
   dayKeys,
   selected,
   onSelect,
+  locale,
 }: {
   days: Record<string, AvailabilitySlot[]>
   dayKeys: string[]
   selected: AvailabilitySlot | null
   onSelect: (s: AvailabilitySlot) => void
+  locale: 'fr' | 'en'
 }) {
-  // Picker en 2 étapes (vs grille dense de 5×N cellules avant) :
-  //   3a. Sélection du jour via chips horizontaux. Défaut = 1er jour avec
-  //       au moins un créneau libre, sinon 1er jour de la fenêtre.
-  //   3b. Grille 3 colonnes des heures du jour choisi.
-  //
-  // Gain UX : ~30 boutons visibles à la fois contre ~150 avant.
+  const t = useT()
   const firstDayWithSlots = dayKeys.find((dk) =>
     (days[dk] ?? []).some((s) => s.available && s.priceCents !== null),
   ) ?? dayKeys[0] ?? null
 
   const [activeDay, setActiveDay] = useState<string | null>(firstDayWithSlots)
-  // Si le 1er jour dispo change (autre durée), on resynchronise.
   useEffect(() => {
     setActiveDay(firstDayWithSlots)
   }, [firstDayWithSlots])
 
-  // Bascule auto sur le jour du slot sélectionné si l'user re-clique sur
-  // un autre jour avant de finaliser (préserve l'ergonomie).
   useEffect(() => {
     if (selected) {
       const sel = new Date(selected.startsAt)
@@ -516,10 +531,9 @@ function SlotGrid({
 
   return (
     <div className="space-y-3">
-      {/* 3a. Chips jours, scrollable horizontalement */}
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {dayKeys.map((dk) => {
-          const d = fmtDayShort(dk)
+          const d = fmtDayShort(dk, locale)
           const slots = days[dk] ?? []
           const hasFree = slots.some((s) => s.available && s.priceCents !== null)
           const isActive = activeDay === dk
@@ -529,12 +543,12 @@ function SlotGrid({
               type="button"
               onClick={() => setActiveDay(dk)}
               className={cn(
-                'flex shrink-0 flex-col items-center gap-0 rounded-xl border px-3.5 py-2 transition',
+                'flex shrink-0 flex-col items-center gap-0 rounded-xl border px-3.5 py-2 transition-colors duration-base',
                 isActive
-                  ? 'border-emerald-400 bg-emerald-500/10'
+                  ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
                   : hasFree
-                    ? 'border-white/10 bg-white/5 hover:border-white/30'
-                    : 'border-white/[0.06] bg-white/[0.02] text-white/35',
+                    ? 'border-gray-200 bg-white hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/30'
+                    : 'border-gray-100 bg-gray-50 text-gray-400 dark:border-white/[0.06] dark:bg-white/[0.02] dark:text-white/35',
               )}
             >
               <span className="text-[10px] uppercase tracking-wider opacity-70">{d.weekday}</span>
@@ -545,36 +559,27 @@ function SlotGrid({
         })}
       </div>
 
-      {/* 3b. Wheel picker des heures du jour sélectionné (style iOS Clock) */}
       {!hasAvailableInActiveDay ? (
-        <p className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center text-[12px] text-white/45">
-          Aucun créneau libre ce jour-là. Choisis un autre jour ci-dessus.
+        <p className="rounded-lg border p-3 text-center text-meta border-gray-200 bg-gray-50 text-gray-500 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/45">
+          {t('booking.no_slot_day')}
         </p>
       ) : (
-        <TimeWheel slots={currentSlots} selected={selected} onSelect={onSelect} />
+        <TimeWheel slots={currentSlots} selected={selected} onSelect={onSelect} locale={locale} />
       )}
     </div>
   )
 }
 
-/**
- * Wheel picker style iPhone Clock : liste verticale snap-y avec bande
- * centrale fixe qui surligne le créneau choisi. L'utilisateur scrolle
- * et le slot au centre devient sélectionné automatiquement (debounce 100ms).
- * Tap direct sur un slot → scroll smooth pour le centrer.
- *
- * On filtre les slots indisponibles (pas dans la liste défilante) — sinon
- * le wheel pourrait s'arrêter sur un slot qu'on ne peut pas réserver, ce
- * qui rend l'UX confuse.
- */
 function TimeWheel({
   slots,
   selected,
   onSelect,
+  locale,
 }: {
   slots: AvailabilitySlot[]
   selected: AvailabilitySlot | null
   onSelect: (s: AvailabilitySlot) => void
+  locale: 'fr' | 'en'
 }) {
   const ITEM_HEIGHT = 44
   const VISIBLE = 5
@@ -588,8 +593,6 @@ function TimeWheel({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const debounceRef = useRef<number | null>(null)
 
-  // Centre le slot sélectionné quand il change depuis l'extérieur (ex.
-  // changement de durée ou re-bascule de jour qui re-mappe la sélection).
   useEffect(() => {
     if (!containerRef.current || !selected) return
     const idx = available.findIndex((s) => s.startsAt === selected.startsAt)
@@ -598,8 +601,6 @@ function TimeWheel({
     }
   }, [selected, available])
 
-  // Auto-sélectionne le premier slot dispo au montage si rien n'est choisi
-  // (sinon le bouton "Réserver" reste désactivé sans qu'on comprenne pourquoi).
   useEffect(() => {
     if (!selected && available.length > 0 && available[0]) {
       onSelect(available[0])
@@ -623,14 +624,12 @@ function TimeWheel({
 
   return (
     <div className="relative mx-auto w-full max-w-xs select-none" style={{ height: HEIGHT }}>
-      {/* Bande de sélection centrale */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 rounded-xl border border-emerald-400/60 bg-emerald-500/10"
+        className="pointer-events-none absolute inset-x-0 rounded-xl border border-emerald-400/60 bg-emerald-50 dark:bg-emerald-500/10"
         style={{ top: PAD, height: ITEM_HEIGHT }}
       />
 
-      {/* Wheel scrollable */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
@@ -657,50 +656,49 @@ function TimeWheel({
               style={{ height: ITEM_HEIGHT, scrollSnapAlign: 'center', scrollSnapStop: 'always' }}
               className={cn(
                 'flex w-full items-center justify-center text-lg tabular-nums transition-colors',
-                isSel ? 'font-semibold text-emerald-100' : 'text-white/45',
+                isSel
+                  ? 'font-semibold text-emerald-800 dark:text-emerald-100'
+                  : 'text-gray-500 dark:text-white/45',
               )}
             >
-              {fmtHour(s.startsAt)}
+              {fmtHour(s.startsAt, locale)}
             </button>
           )
         })}
       </div>
 
-      {/* Dégradés fade haut/bas pour l'effet "wheel" iOS */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-navy-900 via-navy-900/85 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white via-white/85 to-transparent dark:from-navy-900 dark:via-navy-900/85"
         style={{ height: PAD - 6 }}
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-900 via-navy-900/85 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-white via-white/85 to-transparent dark:from-navy-900 dark:via-navy-900/85"
         style={{ height: PAD - 6 }}
       />
     </div>
   )
 }
 
-/**
- * Variante "forfait journée" : 1 carte par jour (le slot enumerator API
- * n'émet qu'un seul créneau par jour quand duration=1440). Pas de grille
- * d'horaires — on affiche juste le jour + le prix.
- */
 function DayPassGrid({
   days,
   dayKeys,
   selected,
   onSelect,
+  locale,
 }: {
   days: Record<string, AvailabilitySlot[]>
   dayKeys: string[]
   selected: AvailabilitySlot | null
   onSelect: (s: AvailabilitySlot) => void
+  locale: 'fr' | 'en'
 }) {
+  const t = useT()
   return (
     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {dayKeys.map((dk) => {
-        const d = fmtDayShort(dk)
+        const d = fmtDayShort(dk, locale)
         const slot = days[dk]?.[0]
         if (!slot) return null
         const isSel = selected?.startsAt === slot.startsAt
@@ -711,27 +709,25 @@ function DayPassGrid({
               type="button"
               disabled={!slot.available || noPrice}
               onClick={() => onSelect(slot)}
-              title={noPrice ? 'Pas de tarif "Journée" configuré pour ce sport' : undefined}
+              title={noPrice ? t('booking.no_day_pass_tooltip') : undefined}
               className={cn(
-                'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition',
+                'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-base',
                 !slot.available || noPrice
-                  ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30'
+                  ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/30'
                   : isSel
-                    ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                    : 'border-white/10 bg-white/5 text-white/85 hover:border-emerald-400/40',
+                    ? 'border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100'
+                    : 'border-gray-200 bg-white text-navy-900 hover:border-emerald-400 dark:border-white/10 dark:bg-white/5 dark:text-white/85 dark:hover:border-emerald-400/40',
               )}
             >
               <div className="flex items-baseline gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-white/50">{d.weekday}</span>
+                <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/50">
+                  {d.weekday}
+                </span>
                 <span className="text-base font-semibold tabular-nums">{d.day}</span>
-                <span className="text-[10px] text-white/40">{d.month}</span>
+                <span className="text-[10px] text-gray-400 dark:text-white/40">{d.month}</span>
               </div>
               <span className="text-sm tabular-nums">
-                {slot.priceCents === null
-                  ? '—'
-                  : slot.priceCents === 0
-                    ? 'Gratuit'
-                    : `${(slot.priceCents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`}
+                {fmtPrice(slot.priceCents, locale, t('booking.free'))}
               </span>
             </button>
           </li>

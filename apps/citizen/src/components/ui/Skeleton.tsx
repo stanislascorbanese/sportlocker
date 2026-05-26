@@ -36,7 +36,9 @@ export function Skeleton({
       role="status"
       aria-label="Chargement"
       className={cn(
-        'bg-[length:200%_100%] bg-gradient-to-r from-white/5 via-white/15 to-white/5 animate-shimmer',
+        'bg-[length:200%_100%] animate-shimmer',
+        'bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100',
+        'dark:from-white/5 dark:via-white/15 dark:to-white/5',
         ROUNDED[rounded],
         className,
       )}
