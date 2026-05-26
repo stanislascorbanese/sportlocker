@@ -224,11 +224,6 @@ export const fr = {
   'profile.push.reason.unknown': 'Erreur inattendue.',
   'profile.push.reason.update_failed': 'Impossible de mettre à jour la préférence. Réessaie.',
 
-  // ─── History page (cul-de-sac existant) ────────────────────────────────
-  'history.title': 'Historique',
-  'history.empty.title': 'Tu n\'as pas encore d\'emprunts passés.',
-  'history.empty.description': 'Ils apparaîtront ici après ta première réservation.',
-
   // ─── Onboarding (3-step tour à la première visite home) ───────────────
   'onboarding.welcome': 'Bienvenue',
   'onboarding.skip': 'Passer',
@@ -453,11 +448,6 @@ export const en: Record<MessageKey, string> = {
   'profile.push.reason.register_failed': 'Subscription created in the browser but the server couldn\'t register it. Try again.',
   'profile.push.reason.unknown': 'Unexpected error.',
   'profile.push.reason.update_failed': 'Couldn\'t update the preference. Try again.',
-
-  // History (dead-end)
-  'history.title': 'History',
-  'history.empty.title': 'You don\'t have any past loans yet.',
-  'history.empty.description': 'They\'ll appear here after your first booking.',
 
   // Onboarding (3-step tour on first home visit)
   'onboarding.welcome': 'Welcome',
