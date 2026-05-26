@@ -377,9 +377,13 @@ CREATE TABLE push_tokens (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Index UNIQUE non-partial : nécessaire pour que Drizzle `onConflictDoUpdate`
+-- puisse l'utiliser comme target d'`ON CONFLICT (endpoint)`. Un partial index
+-- (avec `WHERE endpoint IS NOT NULL`) ne match pas sans clause WHERE explicite
+-- côté INSERT. NULL traité comme distinct par PG par défaut → safe pour les
+-- vieilles rows endpoint=NULL (vestige Expo Push). Cf. migration 0012.
 CREATE UNIQUE INDEX idx_push_tokens_endpoint
-  ON push_tokens(endpoint)
-  WHERE endpoint IS NOT NULL;
+  ON push_tokens(endpoint);
 CREATE INDEX idx_push_tokens_user ON push_tokens(user_id);
 
 -- ─── 14. notification_logs ─────────────────────────────────────────────────
