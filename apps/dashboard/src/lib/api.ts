@@ -940,6 +940,82 @@ export async function deletePricingRule(id: string): Promise<void> {
   if (!res.ok) await throwApiError(res)
 }
 
+// ─── Stripe Connect (PR G1) ──────────────────────────────────────────────
+
+export const StripeConnectStatus = z.object({
+  connected: z.boolean(),
+  accountId: z.string().nullable(),
+  chargesEnabled: z.boolean(),
+  payoutsEnabled: z.boolean(),
+  onboardedAt: z.string().datetime().nullable(),
+})
+
+export type StripeConnectStatus = z.infer<typeof StripeConnectStatus>
+
+export const StripeConnectOnboardResponse = z.object({
+  url: z.string().url(),
+  accountId: z.string(),
+  expiresAt: z.number().int(),
+})
+
+export type StripeConnectOnboardResponse = z.infer<typeof StripeConnectOnboardResponse>
+
+/**
+ * Récupère l'état Stripe Connect de la commune scopée (admin) ou explicite
+ * (super_admin → `communeId` requis).
+ *
+ * Renvoie 503 silencieux si l'API n'a pas STRIPE_SECRET_KEY configuré côté
+ * serveur — le caller doit gérer (UI "Stripe non configuré côté serveur").
+ */
+export async function fetchStripeConnectStatus(
+  communeId?: string,
+): Promise<StripeConnectStatus | { notConfigured: true }> {
+  const qs = communeId ? `?communeId=${encodeURIComponent(communeId)}` : ''
+  const res = await fetch(`${API_URL}/v1/admin/stripe-connect/status${qs}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (res.status === 503) return { notConfigured: true }
+  if (!res.ok) await throwApiError(res)
+  return StripeConnectStatus.parse(await res.json())
+}
+
+/**
+ * Démarre l'onboarding Stripe Connect : crée l'Account Express si manquant
+ * et retourne un AccountLink hosted (URL Stripe vers laquelle le caller
+ * redirige immédiatement le user).
+ */
+export async function startStripeConnectOnboarding(
+  communeId?: string,
+): Promise<StripeConnectOnboardResponse> {
+  const res = await fetch(`${API_URL}/v1/admin/stripe-connect/onboard`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(communeId ? { communeId } : {}),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return StripeConnectOnboardResponse.parse(await res.json())
+}
+
+/**
+ * Pull le status Stripe depuis l'API Stripe et met à jour les flags en DB.
+ * À appeler quand le user revient du flow Stripe-hosted (return URL) ou via
+ * un bouton "Rafraîchir le statut" dans l'UI.
+ */
+export async function refreshStripeConnectStatus(
+  communeId?: string,
+): Promise<StripeConnectStatus> {
+  const res = await fetch(`${API_URL}/v1/admin/stripe-connect/refresh`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(communeId ? { communeId } : {}),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return StripeConnectStatus.parse(await res.json())
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
     super(`API ${status}: ${detail}`)
