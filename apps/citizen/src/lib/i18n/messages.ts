@@ -229,6 +229,19 @@ export const fr = {
   'history.empty.title': 'Tu n\'as pas encore d\'emprunts passés.',
   'history.empty.description': 'Ils apparaîtront ici après ta première réservation.',
 
+  // ─── Onboarding (3-step tour à la première visite home) ───────────────
+  'onboarding.welcome': 'Bienvenue',
+  'onboarding.skip': 'Passer',
+  'onboarding.next': 'Suivant',
+  'onboarding.done': 'C\'est parti !',
+  'onboarding.progress': 'Étape {current} sur {total}',
+  'onboarding.step1.title': 'Trouve un distributeur',
+  'onboarding.step1.description': 'Repère les distributeurs SportLocker sur la carte. Plus tu es proche, plus la liste les remonte en haut.',
+  'onboarding.step2.title': 'Réserve un créneau',
+  'onboarding.step2.description': 'Choisis ton sport, ta durée et ton créneau. Jusqu\'à 7 jours à l\'avance, gratuit pendant le MVP.',
+  'onboarding.step3.title': 'Scanne ton QR',
+  'onboarding.step3.description': 'À l\'heure du créneau, présente ton QR au scanner du distributeur. Le casier s\'ouvre tout seul.',
+
   // ─── Generic UI ────────────────────────────────────────────────────────
   'ui.error.generic_title': 'Une erreur est survenue',
   'ui.error.retry': 'Réessayer',
@@ -445,6 +458,19 @@ export const en: Record<MessageKey, string> = {
   'history.title': 'History',
   'history.empty.title': 'You don\'t have any past loans yet.',
   'history.empty.description': 'They\'ll appear here after your first booking.',
+
+  // Onboarding (3-step tour on first home visit)
+  'onboarding.welcome': 'Welcome',
+  'onboarding.skip': 'Skip',
+  'onboarding.next': 'Next',
+  'onboarding.done': 'Let\'s go!',
+  'onboarding.progress': 'Step {current} of {total}',
+  'onboarding.step1.title': 'Find a distributor',
+  'onboarding.step1.description': 'Spot SportLocker distributors on the map. The closer they are, the higher they appear in the list.',
+  'onboarding.step2.title': 'Book a slot',
+  'onboarding.step2.description': 'Pick your sport, duration and time slot. Up to 7 days in advance, free during MVP.',
+  'onboarding.step3.title': 'Scan your QR',
+  'onboarding.step3.description': 'At slot time, show your QR to the distributor scanner. The locker opens automatically.',
 
   // Generic UI
   'ui.error.generic_title': 'Something went wrong',
