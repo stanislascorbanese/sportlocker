@@ -1,8 +1,9 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, History } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, History } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
 
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { fetchMyReservations, type ReservationHistoryItem } from '../../lib/api'
@@ -16,7 +17,13 @@ import type { MessageKey } from '../../lib/i18n/messages'
  * Statuts "vivants" (scheduled/pending/active/overdue) cliquables vers
  * /reservations/<id>. Statuts terminaux (returned/cancelled/expired)
  * non-cliquables — rien d'utile à faire derrière.
+ *
+ * **Limite par défaut** : 5 emprunts. Au-delà, un bouton "Voir tout (N)"
+ * révèle le reste. Évite d'avoir une scroll de 50 lignes sur /profile pour
+ * les users prolifiques tout en gardant l'historique accessible à 1 tap.
  */
+const VISIBLE_BY_DEFAULT = 5
+
 type StatusMeta = { tone: BadgeTone; live: boolean; labelKey: MessageKey }
 
 const STATUS_META: Record<ReservationHistoryItem['status'], StatusMeta> = {
@@ -32,11 +39,16 @@ const STATUS_META: Record<ReservationHistoryItem['status'], StatusMeta> = {
 export function ReservationsHistory() {
   const t = useT()
   const { locale } = useI18n()
+  const [expanded, setExpanded] = useState(false)
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-reservations'],
     queryFn: fetchMyReservations,
     staleTime: 30 * 1000,
   })
+
+  const total = data?.length ?? 0
+  const canCollapse = total > VISIBLE_BY_DEFAULT
+  const visible = !canCollapse || expanded ? data ?? [] : (data ?? []).slice(0, VISIBLE_BY_DEFAULT)
 
   return (
     <section className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
@@ -66,11 +78,33 @@ export function ReservationsHistory() {
         <p className="text-sm text-gray-500 dark:text-white/50">{t('profile.history.empty')}</p>
       )}
       {data && data.length > 0 && (
-        <ul className="-mx-2 divide-y divide-gray-200 dark:divide-white/5">
-          {data.map((item) => (
-            <ReservationRow key={item.id} item={item} locale={locale} />
-          ))}
-        </ul>
+        <>
+          <ul className="-mx-2 divide-y divide-gray-200 dark:divide-white/5">
+            {visible.map((item) => (
+              <ReservationRow key={item.id} item={item} locale={locale} />
+            ))}
+          </ul>
+          {canCollapse && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-meta font-medium transition-colors duration-base ease-out-soft border-gray-200 bg-white text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50 dark:border-white/10 dark:bg-white/5 dark:text-emerald-300 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-500/10"
+            >
+              {expanded ? (
+                <>
+                  {t('profile.history.show_less')}
+                  <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                </>
+              ) : (
+                <>
+                  {t('profile.history.show_all', { count: total })}
+                  <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                </>
+              )}
+            </button>
+          )}
+        </>
       )}
     </section>
   )
