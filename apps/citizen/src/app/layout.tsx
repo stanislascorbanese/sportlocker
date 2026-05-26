@@ -6,6 +6,7 @@ import { I18nProvider } from '../lib/i18n/I18nProvider'
 import { QueryProvider } from '../lib/query-provider'
 import { ThemeProvider } from '../lib/theme'
 import { ServiceWorkerRegister } from './ServiceWorkerRegister'
+import { SplashHide } from './SplashHide'
 
 export const metadata: Metadata = {
   title: 'SportLocker — Emprunter du matériel sport',
@@ -64,13 +65,63 @@ const themeBootstrapScript = `
 })();
 `
 
+/**
+ * Fallback : si l'hydratation React n'a jamais lieu (erreur JS, JS bloqué,
+ * réseau lent au-delà du raisonnable), retire le splash après 4s pour ne pas
+ * laisser l'utilisateur bloqué sur le logo. Le chemin nominal passe par
+ * <SplashHide /> qui pose l'attribut dès le premier paint React (≈ 50-300ms).
+ */
+const splashFallbackScript = `
+(function() {
+  try {
+    setTimeout(function() {
+      document.documentElement.setAttribute('data-splash-done', 'true');
+    }, 4000);
+  } catch (e) {}
+})();
+`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <script dangerouslySetInnerHTML={{ __html: splashFallbackScript }} />
       </head>
       <body className="min-h-screen bg-white font-sans antialiased dark:bg-navy-900">
+        <div id="sl-splash" aria-hidden="true">
+          <div className="sl-splash-inner">
+            <svg
+              className="sl-splash-mark"
+              width="64"
+              height="64"
+              viewBox="0 0 64 64"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <defs>
+                <linearGradient id="sl-splash-grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#15785A" />
+                  <stop offset="100%" stopColor="#34D399" />
+                </linearGradient>
+              </defs>
+              <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#sl-splash-grad)" />
+              <path
+                d="M22 28v-4a10 10 0 0 1 20 0v4"
+                stroke="#ffffff"
+                strokeWidth="3"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <rect x="18" y="28" width="28" height="20" rx="4" fill="#ffffff" />
+              <circle cx="32" cy="38" r="2.4" fill="#15785A" />
+            </svg>
+            <div className="sl-splash-word">SportLocker</div>
+            <div className="sl-splash-bar" role="presentation">
+              <span />
+            </div>
+          </div>
+        </div>
         <ThemeProvider>
           <I18nProvider>
             <AuthProvider>
@@ -78,6 +129,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>
+        <SplashHide />
         <ServiceWorkerRegister />
       </body>
     </html>
