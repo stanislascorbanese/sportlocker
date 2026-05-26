@@ -24,9 +24,16 @@ const STORAGE_KEY = 'sl-locale'
 
 function detectInitialLocale(): Locale {
   if (typeof window === 'undefined') return 'fr'
-  const stored = window.localStorage.getItem(STORAGE_KEY)
-  if (stored === 'fr' || stored === 'en') return stored
-  const lang = window.navigator.language?.toLowerCase() ?? ''
+  // try/catch + optional chaining : Safari mode privé throw sur l'accès au
+  // storage ; certains environnements de test n'instancient pas window.localStorage
+  // → on dégrade gracieusement plutôt que de crasher.
+  try {
+    const stored = window.localStorage?.getItem(STORAGE_KEY)
+    if (stored === 'fr' || stored === 'en') return stored
+  } catch {
+    // ignore
+  }
+  const lang = window.navigator?.language?.toLowerCase() ?? ''
   if (lang.startsWith('en')) return 'en'
   return 'fr'
 }
@@ -52,10 +59,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((l: Locale) => {
     if (!SUPPORTED_LOCALES.includes(l)) return
-    window.localStorage.setItem(STORAGE_KEY, l)
+    try {
+      window.localStorage?.setItem(STORAGE_KEY, l)
+    } catch {
+      // mode privé Safari : on perd la persistence, mais on n'empêche pas
+      // le switch en session.
+    }
     setLocaleState(l)
     // Met à jour l'attribut lang sur <html> pour les screen readers + a11y.
-    document.documentElement.lang = l
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = l
+    }
   }, [])
 
   const t = useCallback(
