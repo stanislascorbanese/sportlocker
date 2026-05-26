@@ -61,6 +61,14 @@ const themeBootstrapScript = `
       theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     if (theme === 'dark') document.documentElement.classList.add('dark');
+    // Préchargement opportuniste du logo splash dans la bonne variante.
+    // Le CSS le déclencherait de toute façon, mais préfetcher dès le <head>
+    // raccourcit la fenêtre où le splash s'affiche sans son logo.
+    var link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = theme === 'dark' ? '/splash-logo-dark.png' : '/splash-logo-light.png';
+    document.head.appendChild(link);
   } catch (e) {}
 })();
 `
@@ -91,31 +99,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-white font-sans antialiased dark:bg-navy-900">
         <div id="sl-splash" aria-hidden="true">
           <div className="sl-splash-inner">
-            <svg
-              className="sl-splash-mark"
-              width="64"
-              height="64"
-              viewBox="0 0 64 64"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <defs>
-                <linearGradient id="sl-splash-grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#15785A" />
-                  <stop offset="100%" stopColor="#34D399" />
-                </linearGradient>
-              </defs>
-              <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#sl-splash-grad)" />
-              <path
-                d="M22 28v-4a10 10 0 0 1 20 0v4"
-                stroke="#ffffff"
-                strokeWidth="3"
-                strokeLinecap="round"
-                fill="none"
-              />
-              <rect x="18" y="28" width="28" height="20" rx="4" fill="#ffffff" />
-              <circle cx="32" cy="38" r="2.4" fill="#15785A" />
-            </svg>
+            {/* Logo officiel SportLocker — la bonne version (sombre/blanche) est
+             * sélectionnée via CSS selon la classe `dark` sur <html>. Le browser
+             * ne télécharge que l'image qui matche, grâce au comportement des
+             * background-image en CSS. */}
+            <div className="sl-splash-mark" role="img" aria-label="SportLocker" />
             <div className="sl-splash-word">SportLocker</div>
             <div className="sl-splash-bar" role="presentation">
               <span />
