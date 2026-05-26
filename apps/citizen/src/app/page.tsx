@@ -95,11 +95,12 @@ export default function HomePage() {
   }, [distributorsQuery.data, coords])
 
   if (!user) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-navy-900">
-        <p className="text-sm text-gray-400 dark:text-white/40">{t('home.loading')}</p>
-      </main>
-    )
+    // Le splash overlay (cf. layout.tsx) couvre cet état tant que Firebase
+    // Auth n'a pas répondu. Si on arrive ici splash levé, c'est qu'on est
+    // dans la micro-fenêtre avant la redirection /login déclenchée par
+    // useRequireAuth — on rend juste le background pour ne pas faire flasher
+    // un texte « Chargement… » sous le splash en train de fade out.
+    return <main className="min-h-screen bg-white dark:bg-navy-900" />
   }
 
   const displayName = user.displayName || user.email || user.phoneNumber || 'sportif'
