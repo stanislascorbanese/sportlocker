@@ -41,6 +41,34 @@ queues.rgpdAnonymize.on('error', swallow)
 queues.slotReminders.on('error', swallow)
 
 /**
+ * Logger les jobs qui ont planté côté worker.
+ *
+ * Historiquement on `swallow`ait toutes les erreurs (errors connexion Redis
+ * + jobs failed confondus) pour éviter de polluer stderr en cas de Redis
+ * inaccessible. Conséquence : un bug dans un handler de cron disparaissait
+ * sans laisser de trace, et on apprenait son existence en regardant Redis
+ * (`ZRANGE bull:<queue>:failed`).
+ *
+ * Le compromis ici : on garde le `swallow` sur les `error` (connexion), mais
+ * on log proprement les `failed` (job exécuté + handler throw). Ça donne la
+ * stack via Pino dans Railway logs sans noyer les ECONNREFUSED.
+ */
+function attachJobFailureLogger(log: FastifyBaseLogger, worker: Worker, name: string): void {
+  worker.on('failed', (job, err) => {
+    log.error(
+      {
+        queue: name,
+        jobId: job?.id,
+        attemptsMade: job?.attemptsMade,
+        failedReason: job?.failedReason,
+        err,
+      },
+      'cron_job_failed',
+    )
+  })
+}
+
+/**
  * Démarre les workers et programme les jobs récurrents.
  * Cadence (cf. CLAUDE.md) :
  *   - expire-reservations : 2 min
@@ -50,14 +78,25 @@ queues.slotReminders.on('error', swallow)
  *   - slot-reminders      : 15 min (fenêtre H-1 des résas scheduled)
  */
 export function startQueues(log: FastifyBaseLogger): void {
-  const workers = [
-    new Worker('expire-reservations', async () => runExpireReservations(log), { connection }),
-    new Worker('detect-overdue', async () => runDetectOverdue(log), { connection }),
-    new Worker('heartbeat-watchdog', async () => runHeartbeatWatchdog(log), { connection }),
-    new Worker('rgpd-anonymize', async () => runRgpdAnonymize(log), { connection }),
-    new Worker('slot-reminders', async () => runSlotReminders(log), { connection }),
+  const workersByName: Array<[string, Worker]> = [
+    ['expire-reservations',
+      new Worker('expire-reservations', async () => runExpireReservations(log), { connection })],
+    ['detect-overdue',
+      new Worker('detect-overdue', async () => runDetectOverdue(log), { connection })],
+    ['heartbeat-watchdog',
+      new Worker('heartbeat-watchdog', async () => runHeartbeatWatchdog(log), { connection })],
+    ['rgpd-anonymize',
+      new Worker('rgpd-anonymize', async () => runRgpdAnonymize(log), { connection })],
+    ['slot-reminders',
+      new Worker('slot-reminders', async () => runSlotReminders(log), { connection })],
   ]
-  workers.forEach((w) => w.on('error', swallow))
+  for (const [name, w] of workersByName) {
+    // Connexion Redis : swallow (sinon stderr noyé en cas d'ECONNREFUSED,
+    // déjà loggé throttlé par redis/client.ts).
+    w.on('error', swallow)
+    // Jobs qui throw dans leur handler : log la stack pour debug.
+    attachJobFailureLogger(log, w, name)
+  }
 
   void queues.expireReservations.add('cron', {}, {
     repeat: { every: 2 * 60 * 1000 },
