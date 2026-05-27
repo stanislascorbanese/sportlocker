@@ -125,7 +125,7 @@ export default function LoginPage() {
 
         {error && <ErrorState className="mt-4" message={error} />}
       </div>
-      <p className="mt-6 text-center text-meta text-gray-500 dark:text-white/40">
+      <p className="mt-6 text-center text-meta text-gray-600 dark:text-white/60">
         {t('auth.terms')}
       </p>
     </main>
@@ -214,7 +214,7 @@ function EmailLinkForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={t('auth.email_placeholder')}
-          className="mt-1.5 w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors duration-base border-gray-300 bg-white text-navy-900 placeholder:text-gray-400 focus:border-emerald-500 dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60"
+          className="mt-1.5 w-full rounded-lg border px-3 py-2.5 text-base outline-none transition-colors duration-base border-gray-300 bg-white text-navy-900 placeholder:text-gray-400 focus:border-emerald-500 dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60"
         />
       </label>
       <button
