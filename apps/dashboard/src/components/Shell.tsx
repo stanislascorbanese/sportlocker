@@ -49,7 +49,7 @@ export function Shell({
         onClick={() => setMobileOpen(true)}
         aria-label="Ouvrir le menu"
         aria-expanded={mobileOpen}
-        className="fixed left-3 top-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-navy-800/90 text-white/80 backdrop-blur transition hover:bg-navy-700 md:hidden"
+        className="fixed left-3 top-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-base ease-out-soft backdrop-blur md:hidden border-gray-200 bg-white/90 text-navy-900 hover:bg-gray-100 dark:border-white/10 dark:bg-navy-800/90 dark:text-white/80 dark:hover:bg-navy-700"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -58,7 +58,8 @@ export function Shell({
       <div
         onClick={() => setMobileOpen(false)}
         className={cn(
-          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 md:hidden',
+          'fixed inset-0 z-40 backdrop-blur-sm transition-opacity duration-base md:hidden',
+          'bg-navy-900/40 dark:bg-black/60',
           mobileOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
         )}
         aria-hidden="true"
@@ -79,7 +80,7 @@ export function Shell({
           type="button"
           onClick={() => setMobileOpen(false)}
           aria-label="Fermer le menu"
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white md:hidden"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors duration-base md:hidden text-gray-500 hover:bg-gray-100 hover:text-navy-900 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>
