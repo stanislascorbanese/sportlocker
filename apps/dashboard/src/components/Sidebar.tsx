@@ -27,6 +27,7 @@ import { cn } from '../lib/cn'
 import { getFirebaseAuth } from '../lib/firebase'
 import type { SessionPayload } from '../lib/session'
 import { LanguageSelector } from './LanguageSelector'
+import { ThemeToggle } from './ThemeToggle'
 
 type Item = { href: string; label: string; icon: LucideIcon }
 
@@ -136,8 +137,9 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
             </p>
           </Link>
         )}
-        <div className="mb-2 px-1">
+        <div className="mb-2 flex items-center gap-1.5 px-1">
           <LanguageSelector />
+          <ThemeToggle />
         </div>
         <button
           type="button"
