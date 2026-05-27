@@ -1,5 +1,8 @@
 import { CreditCard, AlertTriangle, CheckCircle2, Clock, XCircle, Info } from 'lucide-react'
 
+import { Badge, type BadgeTone } from '../../../components/ui/Badge'
+import { Card } from '../../../components/ui/Card'
+import { PageHeader } from '../../../components/ui/PageHeader'
 import { fetchStripeConnectStatus, type StripeConnectStatus } from '../../../lib/api'
 import { cn } from '../../../lib/cn'
 import { StripeConnectActions } from './StripeConnectActions'
@@ -14,20 +17,13 @@ export const metadata = { title: 'Paiements · SportLocker ops' }
  *   - server_not_configured : l'API n'a pas STRIPE_SECRET_KEY → on affiche
  *     un message clair "configurer côté serveur" sans casser la page.
  *   - not_started           : pas de Stripe account associé. CTA "Connecter".
- *   - pending_verification  : account créé mais Stripe pas encore validé
- *     (KYC en cours OU abandonnée). CTA "Continuer la vérification".
- *   - charges_only          : charges OK mais payouts pas encore (rare,
- *     Stripe pause parfois payouts pour AML). CTA "Continuer".
- *   - payouts_only          : inverse (rare aussi).
- *   - fully_verified        : les deux flags green. Plus de CTA, juste
- *     "Rafraîchir le statut" pour pull les derniers changements.
+ *   - pending_verification  : account créé mais Stripe pas encore validé.
+ *   - charges_only          : charges OK mais payouts pas encore (AML pause).
+ *   - payouts_only          : inverse (rare).
+ *   - fully_verified        : les deux flags green.
  *
- * Le scoping est implicite : l'admin scoped voit sa commune, le super_admin
- * voit... rien tant qu'on n'a pas de selector de commune. À ajouter dans
- * un follow-up si super_admin a besoin de toucher le Stripe d'un tenant
- * spécifique (rare en pratique — c'est le tenant qui onboarde son propre
- * Stripe). Pour l'instant super_admin verra le 400 "missing commune_id"
- * → on l'intercepte et on affiche un message dédié.
+ * Refactor C2 : utilise les atomes (PageHeader, Card, Badge) du design system
+ * dashboard (PR #204). Light/dark mode automatique via les variants `dark:`.
  */
 
 type DisplayState =
@@ -54,41 +50,41 @@ function classify(
 
 const STATE_META: Record<
   DisplayState['kind'],
-  { label: string; cls: string; icon: typeof CheckCircle2 }
+  { label: string; tone: BadgeTone; icon: typeof CheckCircle2 }
 > = {
   server_not_configured: {
     label: 'Non configuré côté serveur',
-    cls: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30',
+    tone: 'neutral',
     icon: AlertTriangle,
   },
   super_admin_no_commune: {
     label: 'Sélectionne une commune',
-    cls: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30',
+    tone: 'neutral',
     icon: Info,
   },
   not_started: {
     label: 'Non configuré',
-    cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    tone: 'warning',
     icon: XCircle,
   },
   pending_verification: {
     label: 'Vérification en cours',
-    cls: 'bg-sky-500/10 text-sky-300 border-sky-500/30',
+    tone: 'info',
     icon: Clock,
   },
   charges_only: {
     label: 'Payouts bloqués',
-    cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    tone: 'warning',
     icon: AlertTriangle,
   },
   payouts_only: {
     label: 'Paiements bloqués',
-    cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    tone: 'warning',
     icon: AlertTriangle,
   },
   fully_verified: {
     label: 'Connecté',
-    cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+    tone: 'success',
     icon: CheckCircle2,
   },
 }
@@ -116,33 +112,27 @@ export default async function PaymentsPage() {
 
   return (
     <main className="space-y-6">
-      <header className="flex items-center gap-3">
-        <div className="rounded-lg bg-brand-500/10 border border-brand-500/30 p-2.5">
-          <CreditCard className="h-5 w-5 text-brand-400" aria-hidden />
-        </div>
-        <div>
-          <p className="text-[11px] uppercase tracking-wider text-white/50">Paramètres</p>
-          <h1 className="font-display text-2xl font-bold">Paiements & reversements</h1>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Paramètres"
+        title="Paiements & reversements"
+        icon={<CreditCard className="h-5 w-5" aria-hidden="true" />}
+      />
 
       {/* Status card principal */}
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider',
-                meta.cls,
-              )}
-            >
-              <StateIcon className="h-3.5 w-3.5" aria-hidden />
-              {meta.label}
+      <Card variant="elevated" padding="lg" className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge
+            tone={meta.tone}
+            size="sm"
+            icon={<StateIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+          >
+            {meta.label}
+          </Badge>
+          {status?.accountId && (
+            <span className="font-mono text-meta text-gray-400 dark:text-white/40">
+              {status.accountId}
             </span>
-            {status?.accountId && (
-              <span className="font-mono text-[11px] text-white/40">{status.accountId}</span>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Help text contextuel */}
@@ -158,7 +148,7 @@ export default async function PaymentsPage() {
 
         {/* Flags détails — visible quand un account existe */}
         {status && (
-          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+          <div className="grid grid-cols-1 gap-3 border-t pt-2 sm:grid-cols-2 border-gray-200 dark:border-white/5">
             <FlagRow
               label="Paiements entrants"
               enabled={status.chargesEnabled}
@@ -170,54 +160,62 @@ export default async function PaymentsPage() {
               hint="Stripe peut envoyer les fonds vers ton compte bancaire (J+2)."
             />
             {status.onboardedAt && (
-              <div className="col-span-2 text-[11px] text-white/40 pt-2">
+              <div className="pt-2 text-meta text-gray-500 dark:text-white/40 sm:col-span-2">
                 Première vérification complète :{' '}
-                <span className="text-white/60">{fmtDate(status.onboardedAt)}</span>
+                <span className="text-navy-900 dark:text-white/60">
+                  {fmtDate(status.onboardedAt)}
+                </span>
               </div>
             )}
           </div>
         )}
-      </section>
+      </Card>
 
       {/* Comment ça marche — pédagogique */}
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-4">
-        <h2 className="font-display text-lg font-semibold">Comment fonctionne le reversement ?</h2>
-        <ol className="space-y-3 text-sm text-white/70 leading-relaxed">
-          <li className="flex gap-3">
-            <span className="font-mono text-brand-400 shrink-0">01.</span>
-            <span>
-              Tu connectes ton compte Stripe Express via le bouton ci-dessus — Stripe te guide
-              pour ton KYC entreprise + RIB. ~10 min pour un dossier complet.
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-mono text-brand-400 shrink-0">02.</span>
-            <span>
-              Chaque réservation citoyenne sur tes distributeurs déclenche un paiement Stripe.
-              <span className="text-white"> Tu reçois 75 %</span>, SportLocker prend 25 % de
-              commission marketplace.
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-mono text-brand-400 shrink-0">03.</span>
-            <span>
-              Reversement automatique <span className="text-white">en J+2</span> sur ton RIB via
-              Stripe Express. Suivi temps réel des transferts dans ton dashboard.
-            </span>
-          </li>
+      <Card variant="elevated" padding="lg" className="space-y-4">
+        <h2 className="font-display text-lg font-semibold text-navy-900 dark:text-white">
+          Comment fonctionne le reversement ?
+        </h2>
+        <ol className="space-y-3 text-sm leading-relaxed text-gray-700 dark:text-white/70">
+          <Step n="01">
+            Tu connectes ton compte Stripe Express via le bouton ci-dessus — Stripe te guide
+            pour ton KYC entreprise + RIB. ~10 min pour un dossier complet.
+          </Step>
+          <Step n="02">
+            Chaque réservation citoyenne sur tes distributeurs déclenche un paiement Stripe.
+            <strong className="font-semibold text-navy-900 dark:text-white"> Tu reçois 75 %</strong>,
+            SportLocker prend 25 % de commission marketplace.
+          </Step>
+          <Step n="03">
+            Reversement automatique{' '}
+            <strong className="font-semibold text-navy-900 dark:text-white">en J+2</strong> sur ton
+            RIB via Stripe Express. Suivi temps réel des transferts dans ton dashboard.
+          </Step>
         </ol>
-      </section>
+      </Card>
     </main>
   )
 }
 
+function Step({ n, children }: { n: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <span className="shrink-0 font-mono text-brand-400">{n}.</span>
+      <span>{children}</span>
+    </li>
+  )
+}
+
 function StateHelp({ state }: { state: DisplayState }) {
-  const cls = 'text-sm leading-relaxed text-white/70'
+  const cls = 'text-sm leading-relaxed text-gray-700 dark:text-white/70'
   switch (state.kind) {
     case 'server_not_configured':
       return (
         <p className={cls}>
-          La clé <code className="font-mono text-[12px] text-white/90">STRIPE_SECRET_KEY</code>{' '}
+          La clé{' '}
+          <code className="font-mono text-meta text-navy-900 dark:text-white/90">
+            STRIPE_SECRET_KEY
+          </code>{' '}
           n&apos;est pas configurée côté serveur. Pose-la sur Railway → @sportlocker/api →
           Variables pour activer cette page. Sans elle, aucun reversement n&apos;est possible.
         </p>
@@ -286,17 +284,25 @@ function FlagRow({
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         {enabled ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" aria-hidden />
+          <CheckCircle2
+            className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
+            aria-hidden="true"
+          />
         ) : (
-          <Clock className="h-4 w-4 text-amber-400" aria-hidden />
+          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
         )}
         <span
-          className={cn('text-sm font-medium', enabled ? 'text-white' : 'text-white/75')}
+          className={cn(
+            'text-sm font-medium',
+            enabled
+              ? 'text-navy-900 dark:text-white'
+              : 'text-gray-700 dark:text-white/75',
+          )}
         >
           {label}
         </span>
       </div>
-      <p className="text-[11px] leading-relaxed text-white/45">{hint}</p>
+      <p className="text-meta leading-relaxed text-gray-500 dark:text-white/45">{hint}</p>
     </div>
   )
 }

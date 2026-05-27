@@ -3,7 +3,7 @@
 import { ArrowRight, RefreshCw } from 'lucide-react'
 import { useTransition } from 'react'
 
-import { cn } from '../../../lib/cn'
+import { Button } from '../../../components/ui/Button'
 import { refreshStatusAction, startOnboardingAction } from './_actions'
 
 /**
@@ -13,6 +13,9 @@ import { refreshStatusAction, startOnboardingAction } from './_actions'
  * un état `isPending` pendant que la server action s'exécute (la version
  * `<form>` ne donne pas d'état chargement intermédiaire fiable sans
  * `useFormStatus` qui doit vivre dans un form, ce qui complique le layout).
+ *
+ * Refactor C2 : utilise l'atome `<Button>` du design system dashboard
+ * (variant primary / secondary, loading state intégré).
  *
  * Props :
  *   - `connected`  : true si la commune a déjà un Stripe account. Change
@@ -46,38 +49,29 @@ export function StripeConnectActions({
   return (
     <div className="flex flex-wrap items-center gap-3">
       {!fullyVerified && (
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={onOnboard}
-          disabled={isPendingOnboard}
-          className={cn(
-            'inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition',
-            'bg-brand-500 text-white hover:bg-brand-400',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-          )}
+          loading={isPendingOnboard}
+          icon={!isPendingOnboard ? undefined : undefined}
         >
           {isPendingOnboard
             ? 'Redirection vers Stripe…'
             : connected
               ? 'Continuer la vérification'
               : 'Connecter mon compte Stripe'}
-          {!isPendingOnboard && <ArrowRight className="h-4 w-4" aria-hidden />}
-        </button>
+          {!isPendingOnboard && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+        </Button>
       )}
       {connected && (
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={onRefresh}
-          disabled={isPendingRefresh}
-          className={cn(
-            'inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition',
-            'border-white/15 bg-white/5 text-white/85 hover:border-white/30 hover:bg-white/10',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-          )}
+          loading={isPendingRefresh}
+          icon={!isPendingRefresh ? <RefreshCw className="h-4 w-4" aria-hidden="true" /> : undefined}
         >
-          <RefreshCw className={cn('h-4 w-4', isPendingRefresh && 'animate-spin')} aria-hidden />
           {isPendingRefresh ? 'Rafraîchissement…' : 'Rafraîchir le statut'}
-        </button>
+        </Button>
       )}
     </div>
   )
