@@ -33,8 +33,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // maximumScale=5 + userScalable=true → respecte WCAG 1.4.4 "Resize Text"
+  // qui exige que les users puissent zoomer jusqu'à 200 %. Avant ce
+  // changement, Lighthouse a11y notait 88 et flaggait `meta-viewport`.
+  // Trade-off iOS : les inputs < 16px peuvent maintenant déclencher
+  // l'auto-zoom sur focus → tous les inputs critiques (login email) sont
+  // passés à `text-base` (16px) pour éviter le re-zoom involontaire.
+  maximumScale: 5,
+  userScalable: true,
   // theme-color initial = sombre (dark est le défaut quand aucune préférence
   // stockée). ThemeProvider met à jour le meta dynamiquement au toggle.
   themeColor: '#0D1B2A',
