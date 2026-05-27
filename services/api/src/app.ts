@@ -28,6 +28,7 @@ import { adminItemRoutes } from './routes/admin-items.js'
 import { adminPricingRuleRoutes } from './routes/admin-pricing-rules.js'
 import { adminStripeConnectRoutes } from './routes/admin-stripe-connect.js'
 import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
+import { webhooksStripeRoutes } from './routes/webhooks-stripe.js'
 import { devRoutes } from './routes/dev.js'
 
 export async function buildApp() {
@@ -67,6 +68,7 @@ export async function buildApp() {
   await app.register(adminItemRoutes,         { prefix: '/v1/admin/items' })
   await app.register(adminPricingRuleRoutes,  { prefix: '/v1/admin/pricing-rules' })
   await app.register(adminStripeConnectRoutes, { prefix: '/v1/admin/stripe-connect' })
+  await app.register(webhooksStripeRoutes,    { prefix: '/v1/webhooks' })
 
   // Routes de dev/simulation — register UNIQUEMENT hors production.
   // La route refuse aussi en interne si NODE_ENV=production (defense-in-depth),
