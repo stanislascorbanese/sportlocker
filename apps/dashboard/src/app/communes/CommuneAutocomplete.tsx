@@ -116,12 +116,12 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
   }
 
   return (
-    <div className="relative rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-4">
+    <div className="relative rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-400/30 dark:bg-emerald-500/5">
       <label className="block">
-        <span className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-emerald-300/90">
+        <span className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-emerald-800 dark:text-emerald-300/90">
           <span>🔎 Rechercher une commune (auto-remplit le formulaire)</span>
           {picked && (
-            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+            <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200">
               ✓ Auto-rempli depuis INSEE
             </span>
           )}
@@ -139,8 +139,9 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Paris 11e, 75011, Lyon, Marseille…"
           className={cn(
-            'mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none transition',
-            'placeholder:text-white/30 focus:border-emerald-400/60',
+            'mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-navy-900 outline-none transition-colors duration-base',
+            'border-gray-300 placeholder:text-gray-400 focus:border-emerald-500',
+            'dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60',
           )}
           aria-autocomplete="list"
           aria-expanded={open}
@@ -152,10 +153,10 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute left-4 right-4 z-10 mt-1 max-h-72 overflow-auto rounded-lg border border-white/15 bg-navy-800 shadow-xl"
+          className="absolute left-4 right-4 z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-white shadow-elevated dark:border-white/15 dark:bg-navy-800 dark:shadow-xl"
         >
           {loading && (
-            <li className="px-3 py-2 text-xs text-white/40">Recherche…</li>
+            <li className="px-3 py-2 text-xs text-gray-500 dark:text-white/40">Recherche…</li>
           )}
           {results.map((c, i) => (
             <li key={c.code} id={`commune-opt-${c.code}`} role="option" aria-selected={i === activeIndex}>
@@ -169,12 +170,14 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
                   pick(c)
                 }}
                 className={cn(
-                  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-white/90 transition',
-                  i === activeIndex ? 'bg-emerald-500/15' : 'hover:bg-emerald-500/10',
+                  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-navy-900 transition-colors duration-base dark:text-white/90',
+                  i === activeIndex
+                    ? 'bg-emerald-100 dark:bg-emerald-500/15'
+                    : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
                 )}
               >
                 <span>{c.nom}</span>
-                <span className="font-mono text-[11px] text-white/40">
+                <span className="font-mono text-meta text-gray-500 dark:text-white/40">
                   {c.code} · {c.codesPostaux[0] ?? '—'} · {c.departement.code}
                 </span>
               </button>
@@ -182,14 +185,14 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
           ))}
         </ul>
       )}
-      <p className="mt-2 flex items-center justify-between text-[11px] text-white/40">
+      <p className="mt-2 flex items-center justify-between text-meta text-gray-600 dark:text-white/40">
         <span>
           Source : <span className="font-mono">geo.api.gouv.fr</span> · données officielles INSEE
         </span>
         <span className="hidden sm:inline">
-          <kbd className="rounded border border-white/20 px-1">↑↓</kbd> naviguer ·{' '}
-          <kbd className="rounded border border-white/20 px-1">↵</kbd> sélectionner ·{' '}
-          <kbd className="rounded border border-white/20 px-1">Esc</kbd> fermer
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↑↓</kbd> naviguer ·{' '}
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↵</kbd> sélectionner ·{' '}
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">Esc</kbd> fermer
         </span>
       </p>
     </div>
