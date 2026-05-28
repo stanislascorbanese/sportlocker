@@ -95,10 +95,46 @@ const splashFallbackScript = `
 })();
 `
 
+/**
+ * Origines critiques qu'on contacte au premier paint :
+ *   - api.sportlocker.fr  → toutes les data calls (React Query + form posts)
+ *   - tiles.openfreemap.org → tuiles MapLibre (style + raster/vector tiles)
+ *   - googleapis.com + firebaseapp.com → Firebase Auth (REST + popup)
+ *
+ * `preconnect` ouvre le TCP+TLS handshake en avance (gros gain mobile 4G/3G).
+ * `dns-prefetch` est le fallback pour les browsers qui ignorent preconnect.
+ *
+ * `crossOrigin="anonymous"` requis pour les origines qu'on appelle en CORS
+ * (fetch/XHR sans credentials) — sinon le preconnect est ignoré silencieusement.
+ *
+ * NEXT_PUBLIC_API_BASE peut pointer vers localhost en dev → la directive
+ * preconnect deviendra un no-op silencieux côté browser. Pas grave.
+ */
+const API_ORIGIN = (() => {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_BASE
+    if (!base) return null
+    return new URL(base).origin
+  } catch {
+    return null
+  }
+})()
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
       <head>
+        {API_ORIGIN && (
+          <>
+            <link rel="preconnect" href={API_ORIGIN} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={API_ORIGIN} />
+          </>
+        )}
+        <link rel="preconnect" href="https://tiles.openfreemap.org" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://tiles.openfreemap.org" />
+        <link rel="preconnect" href="https://www.googleapis.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://www.googleapis.com" />
+        <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         <script dangerouslySetInnerHTML={{ __html: splashFallbackScript }} />
       </head>
