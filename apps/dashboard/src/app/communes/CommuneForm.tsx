@@ -133,8 +133,8 @@ export function CommuneForm({
         error={state.fieldErrors?.['population']}
       />
 
-      <fieldset className="rounded-lg border border-white/10 bg-navy-900/50 p-4">
-        <legend className="px-2 text-[11px] uppercase tracking-wider text-white/50">Contrat</legend>
+      <fieldset className="rounded-lg border bg-gray-50 p-4 dark:border-white/10 dark:bg-navy-900/50">
+        <legend className="px-2 text-eyebrow text-gray-500 dark:text-white/50">Contrat</legend>
         <div className="grid grid-cols-2 gap-4">
           <Field
             name="contractStart"
@@ -164,8 +164,8 @@ export function CommuneForm({
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-white/10 bg-navy-900/50 p-4">
-        <legend className="px-2 text-[11px] uppercase tracking-wider text-white/50">Contact</legend>
+      <fieldset className="rounded-lg border bg-gray-50 p-4 dark:border-white/10 dark:bg-navy-900/50">
+        <legend className="px-2 text-eyebrow text-gray-500 dark:text-white/50">Contact</legend>
         <Field
           name="contactEmail"
           label="Email"
@@ -186,7 +186,7 @@ export function CommuneForm({
       </fieldset>
 
       {state.status === 'error' && state.message && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+        <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           {state.message}
         </div>
       )}
@@ -194,7 +194,7 @@ export function CommuneForm({
       <div className="flex items-center justify-end gap-3 pt-2">
         <Link
           href="/communes"
-          className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:border-white/30 hover:text-white"
+          className="rounded-lg border px-4 py-2 text-sm text-gray-700 transition-colors duration-base ease-out-soft hover:border-gray-400 hover:text-navy-900 dark:border-white/15 dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white"
         >
           Annuler
         </Link>
@@ -212,8 +212,9 @@ function SubmitButton({ mode }: { mode: 'create' | 'edit' }) {
       type="submit"
       disabled={pending}
       className={cn(
-        'rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-navy-900 transition',
-        'hover:bg-emerald-400 disabled:opacity-50',
+        'rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-base ease-out-soft',
+        'hover:bg-emerald-500 disabled:opacity-50',
+        'dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400',
       )}
     >
       {pending ? `${label}…` : label}
@@ -232,22 +233,28 @@ type FieldProps = {
 function Field({ name, label, hint, error, mono, ...rest }: FieldProps) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium uppercase tracking-wide text-white/55">
+      <span className="block text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-white/55">
         {label}
       </span>
       <input
         name={name}
         {...rest}
         className={cn(
-          'mt-1.5 w-full rounded-lg border border-white/15 bg-navy-800 px-3 py-2 text-sm text-white outline-none transition',
-          'placeholder:text-white/30 focus:border-emerald-400/60',
-          'read-only:cursor-not-allowed read-only:bg-navy-900 read-only:text-white/50',
+          'mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-navy-900 outline-none transition-colors duration-base',
+          'border-gray-300 placeholder:text-gray-400 focus:border-emerald-500',
+          'read-only:cursor-not-allowed read-only:bg-gray-100 read-only:text-gray-500',
+          'dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60',
+          'dark:read-only:bg-navy-900 dark:read-only:text-white/50',
           mono && 'font-mono text-xs',
-          error && 'border-rose-500/50',
+          error && 'border-rose-400 dark:border-rose-500/50',
         )}
       />
-      {hint && !error && <span className="mt-1 block text-[11px] text-white/40">{hint}</span>}
-      {error && <span className="mt-1 block text-[11px] text-rose-300">{error}</span>}
+      {hint && !error && (
+        <span className="mt-1 block text-meta text-gray-500 dark:text-white/40">{hint}</span>
+      )}
+      {error && (
+        <span className="mt-1 block text-meta text-rose-700 dark:text-rose-300">{error}</span>
+      )}
     </label>
   )
 }

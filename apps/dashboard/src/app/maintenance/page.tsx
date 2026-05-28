@@ -9,9 +9,24 @@ export const metadata = { title: 'Maintenance · SportLocker ops' }
 type ColumnKey = 'open' | 'in_progress' | 'done'
 
 const COLUMNS: Array<{ key: ColumnKey; label: string; description: string; accent: string }> = [
-  { key: 'open',        label: 'Ouverts',     description: 'À prendre en charge', accent: 'border-rose-500/30' },
-  { key: 'in_progress', label: 'En cours',    description: 'Assigné, en travail', accent: 'border-amber-500/30' },
-  { key: 'done',        label: 'Terminés',    description: 'Résolus / abandonnés', accent: 'border-emerald-500/30' },
+  {
+    key: 'open',
+    label: 'Ouverts',
+    description: 'À prendre en charge',
+    accent: 'border-rose-300 dark:border-rose-500/30',
+  },
+  {
+    key: 'in_progress',
+    label: 'En cours',
+    description: 'Assigné, en travail',
+    accent: 'border-amber-300 dark:border-amber-500/30',
+  },
+  {
+    key: 'done',
+    label: 'Terminés',
+    description: 'Résolus / abandonnés',
+    accent: 'border-emerald-300 dark:border-emerald-500/30',
+  },
 ]
 
 function bucket(t: MaintenanceTicket): ColumnKey {
@@ -45,18 +60,20 @@ export default async function MaintenancePage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-2xl sm:text-3xl">Tickets de maintenance</h2>
+            <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
+              Tickets de maintenance
+            </h2>
             {useDemo && (
-              <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+              <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-eyebrow text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
                 Démo
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-white/55">
+          <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
             {tickets.length} ticket{tickets.length > 1 ? 's' : ''} ·{' '}
-            <span className="text-rose-300">{grouped.open.length} ouvert{grouped.open.length > 1 ? 's' : ''}</span>
+            <span className="text-rose-700 dark:text-rose-300">{grouped.open.length} ouvert{grouped.open.length > 1 ? 's' : ''}</span>
             {' · '}
-            <span className="text-amber-300">{grouped.in_progress.length} en cours</span>
+            <span className="text-amber-700 dark:text-amber-300">{grouped.in_progress.length} en cours</span>
             {useDemo && ' · données fictives'}
           </p>
         </div>
@@ -64,9 +81,9 @@ export default async function MaintenancePage() {
       </header>
 
       {fetchError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
           <p className="font-medium">API admin indisponible — affichage en mode démo</p>
-          <p className="mt-1 font-mono text-[11px] text-amber-300/70">{fetchError}</p>
+          <p className="mt-1 font-mono text-meta text-amber-700 dark:text-amber-300/70">{fetchError}</p>
         </div>
       )}
 
@@ -74,17 +91,17 @@ export default async function MaintenancePage() {
         {COLUMNS.map((col) => (
           <section
             key={col.key}
-            className={`rounded-xl border-t-2 ${col.accent} bg-navy-800/40 p-3`}
+            className={`rounded-card border-t-2 ${col.accent} bg-white p-3 shadow-card dark:bg-navy-800/40 dark:shadow-none`}
           >
             <header className="mb-3 flex items-baseline justify-between">
-              <h3 className="font-medium text-white">{col.label}</h3>
-              <span className="text-xs text-white/40">{grouped[col.key].length}</span>
+              <h3 className="font-medium text-navy-900 dark:text-white">{col.label}</h3>
+              <span className="text-xs text-gray-500 dark:text-white/40">{grouped[col.key].length}</span>
             </header>
-            <p className="mb-3 text-[11px] text-white/40">{col.description}</p>
+            <p className="mb-3 text-meta text-gray-500 dark:text-white/40">{col.description}</p>
 
             <div className="space-y-2">
               {grouped[col.key].length === 0 ? (
-                <div className="rounded-lg border border-dashed border-white/10 p-4 text-center text-xs text-white/30">
+                <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center text-xs text-gray-400 dark:border-white/10 dark:text-white/30">
                   aucun ticket
                 </div>
               ) : (
