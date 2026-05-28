@@ -5,7 +5,10 @@ import ContactForm from '@/components/ContactForm.astro'
 import Faq from '@/components/Faq.astro'
 import MiniSimulator from '@/components/MiniSimulator.tsx'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import { SITE } from '@/data/site'
+import { PRICING_TEMPLATES, SITE, SLOT_DURATIONS } from '@/data/site'
+
+const formatEur = (n: number): string =>
+  new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n) + ' €'
 
 const problems = [
   {
@@ -64,7 +67,7 @@ const useCases = [
 
 const citoyenSteps = [
   { n: '01', title: 'Je trouve un casier', desc: 'L\'app affiche les distributeurs proches avec le stock en temps réel.' },
-  { n: '02', title: 'Je choisis ma durée', desc: '30 min, 1 h, 1 h 30, 2 h ou la journée. Prix fixé par l\'opérateur du site. Caution préautorisée sur la CB (libérée si retour OK).' },
+  { n: '02', title: 'Je choisis ma durée', desc: '5 slots possibles (30 min, 1 h, 1 h 30, 2 h ou la journée) — l\'opérateur du site active ceux qu\'il propose. Caution préautorisée sur la CB (libérée si retour OK).' },
   { n: '03', title: 'J\'ouvre avec mon QR', desc: 'Scan devant le casier, ouverture en moins d\'une seconde. Fonctionne sans réseau.' },
 ]
 
@@ -344,6 +347,70 @@ const faqJsonLd = {
       <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
         <LockerDistributor3D />
       </div>
+    </div>
+  </section>
+
+  <!-- MODÈLE TARIFAIRE — section visuelle compacte des 5 durées + 4 templates.
+       Donne une intuition immédiate du modèle slots avant que le visiteur n'aille
+       sur /tarifs pour le détail complet. -->
+  <section class="section bg-navy-900 border-t border-white/[0.04]">
+    <div class="container-x">
+      <div class="text-center mb-12 max-w-2xl mx-auto">
+        <span class="eyebrow" data-reveal>Modèle tarifaire en un coup d'œil</span>
+        <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+          Cinq durées au choix.<br/><span class="text-brand-500">Vous fixez les prix.</span>
+        </h2>
+        <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
+          Pas de forfait journée imposé, pas de tarif unique national. Chaque tenant configure
+          sa grille (slots de 30 min à la journée) et active seulement les durées qui ont du
+          sens pour son site. Quatre templates livrés pour démarrer en 2 clics.
+        </p>
+      </div>
+
+      <!-- 5 durées disponibles -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-4xl mx-auto mb-10" data-reveal data-reveal-delay="3">
+        {SLOT_DURATIONS.map((slot) => (
+          <div class="card-dark p-4 text-center">
+            <div class="font-extrabold text-white text-lg">{slot.label}</div>
+            <div class="text-[0.65rem] uppercase tracking-wider text-brand-500/70 mt-1.5">
+              {slot.minutes === 1440 ? 'Forfait jour' : `${slot.minutes} min`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <!-- 4 templates pré-configurés -->
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto" data-reveal data-reveal-delay="4">
+        {PRICING_TEMPLATES.map((tpl) => (
+          <div class="card-dark p-5 flex flex-col">
+            <div class="text-xs uppercase tracking-[0.1em] text-brand-500/80 mb-2">
+              {tpl.targetSegment === 'mairie'  ? 'Mairie'
+              : tpl.targetSegment === 'camping' ? 'Camping'
+              : tpl.targetSegment === 'hotel'   ? 'Hôtel'
+              : 'Tout type de site'}
+            </div>
+            <h3 class="font-bold text-white text-base mb-3">{tpl.label}</h3>
+            <dl class="text-xs space-y-1 mt-auto">
+              {SLOT_DURATIONS.map((slot) => {
+                const price = tpl.prices[slot.minutes as keyof typeof tpl.prices]
+                return (
+                  <div class="flex justify-between gap-2">
+                    <dt class="text-white/45">{slot.label}</dt>
+                    <dd class={`tabular-nums font-medium ${price ? 'text-white/85' : 'text-white/20'}`}>
+                      {price ? formatEur(price) : '—'}
+                    </dd>
+                  </div>
+                )
+              })}
+            </dl>
+          </div>
+        ))}
+      </div>
+
+      <p class="mt-8 text-center text-xs text-white/45 font-light" data-reveal data-reveal-delay="5">
+        Reversement automatique J+2 sur votre compte bancaire via Stripe Connect.
+        <a href="/tarifs#simulateur" class="text-brand-500 hover:underline">Détail du split 75/25 et simulation budgétée →</a>
+      </p>
     </div>
   </section>
 
