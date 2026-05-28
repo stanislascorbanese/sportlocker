@@ -39,10 +39,12 @@ export default async function DistributorsListPage() {
     <div className="space-y-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h2 className="font-display text-2xl sm:text-3xl">Parc de distributeurs</h2>
-          <p className="mt-1 text-sm text-white/55">
+          <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
+            Parc de distributeurs
+          </h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
             {distributors.length} distributeur{distributors.length > 1 ? 's' : ''} ·{' '}
-            <span className="text-emerald-300">{online} online</span> ·{' '}
+            <span className="text-emerald-700 dark:text-emerald-300">{online} online</span> ·{' '}
             {totalIdle} / {totalLockers} casiers libres
           </p>
         </div>
@@ -50,7 +52,7 @@ export default async function DistributorsListPage() {
           <RefreshButton />
           <Link
             href="/distributors/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-base ease-out-soft bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
           >
             + Nouveau
           </Link>
@@ -58,25 +60,27 @@ export default async function DistributorsListPage() {
       </header>
 
       {fetchError && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+        <div className="rounded-card border p-4 text-sm border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           <p className="font-semibold">API injoignable</p>
-          <p className="mt-1 font-mono text-xs text-rose-300/80">{fetchError}</p>
+          <p className="mt-1 font-mono text-meta text-rose-700/80 dark:text-rose-300/80">
+            {fetchError}
+          </p>
         </div>
       )}
 
       {!fetchError && distributors.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-8 text-center text-sm text-white/55">
+        <div className="rounded-card border p-8 text-center text-sm border-gray-200 bg-gray-50 text-gray-600 dark:border-white/10 dark:bg-navy-800 dark:text-white/55">
           Aucun distributeur en base. Créez-en un via{' '}
-          <code className="rounded bg-navy-700 px-1.5 py-0.5 font-mono text-xs text-white/80">
+          <code className="rounded px-1.5 py-0.5 font-mono text-meta bg-gray-200 text-navy-900 dark:bg-navy-700 dark:text-white/80">
             POST /v1/distributors
           </code>
         </div>
       )}
 
       {distributors.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+        <div className="overflow-x-auto rounded-card border border-gray-200 bg-white dark:border-white/10 dark:bg-navy-800">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
+            <thead className="text-left text-eyebrow uppercase bg-gray-100 text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
                 <th className="px-4 py-3 font-medium">Distributeur</th>
                 <th className="px-4 py-3 font-medium">Statut</th>
@@ -84,51 +88,60 @@ export default async function DistributorsListPage() {
                 <th className="px-4 py-3 font-medium">Batterie</th>
                 <th className="px-4 py-3 font-medium">Position</th>
                 <th className="px-4 py-3 font-medium">Dernier signe</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-gray-200 dark:divide-white/5">
               {distributors.map((d) => (
-                <tr key={d.id} className="transition hover:bg-white/[0.02]">
+                <tr
+                  key={d.id}
+                  className="transition-colors duration-base hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                >
                   <td className="px-4 py-3">
-                    <div className="font-medium text-white">{d.name}</div>
-                    <div className="mt-0.5 font-mono text-[11px] text-white/40">{d.serialNumber}</div>
+                    <div className="font-medium text-navy-900 dark:text-white">{d.name}</div>
+                    <div className="mt-0.5 font-mono text-meta text-gray-500 dark:text-white/40">
+                      {d.serialNumber}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <StatusPill status={d.status} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-baseline gap-1">
-                      <span className={
-                        d.idleLockers === 0 ? 'text-rose-300 font-semibold' :
-                        d.idleLockers === 1 ? 'text-amber-300 font-semibold' :
-                        'text-emerald-300 font-semibold'
-                      }>
+                      <span
+                        className={
+                          d.idleLockers === 0
+                            ? 'font-semibold text-rose-700 dark:text-rose-300'
+                            : d.idleLockers === 1
+                              ? 'font-semibold text-amber-700 dark:text-amber-300'
+                              : 'font-semibold text-emerald-700 dark:text-emerald-300'
+                        }
+                      >
                         {d.idleLockers}
                       </span>
-                      <span className="text-white/40">/ {d.lockerCount}</span>
+                      <span className="text-gray-500 dark:text-white/40">/ {d.lockerCount}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <BatteryGauge percent={d.batteryPercent} />
                   </td>
-                  <td className="px-4 py-3 font-mono text-[11px] tabular-nums text-white/70">
+                  <td className="px-4 py-3 font-mono text-meta tabular-nums text-gray-700 dark:text-white/70">
                     {fmtCoord(d.latitude)}, {fmtCoord(d.longitude)}
                   </td>
-                  <td className="px-4 py-3 text-white/60">
+                  <td className="px-4 py-3 text-gray-600 dark:text-white/60">
                     {fmtRelative(d.lastSeenAt)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <Link
                         href={`/distributors/${d.id}`}
-                        className="text-xs text-emerald-300 transition hover:text-emerald-200"
+                        className="text-meta transition-colors duration-base text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                       >
                         Détail
                       </Link>
                       <Link
                         href={`/distributors/${d.id}/edit`}
-                        className="text-xs text-white/55 transition hover:text-white"
+                        className="text-meta transition-colors duration-base text-gray-500 hover:text-navy-900 dark:text-white/55 dark:hover:text-white"
                       >
                         Modifier
                       </Link>

@@ -165,25 +165,27 @@ export async function TenantHome({ communeId }: { communeId: string }) {
   return (
     <div className="space-y-6">
       {/* Header personnalisé tenant — gradient emerald = signature visuelle */}
-      <header className="overflow-hidden rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-navy-800 to-navy-800 p-4 sm:p-6">
+      <header className="overflow-hidden rounded-card border p-4 sm:p-6 border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-white dark:border-emerald-500/20 dark:from-emerald-500/[0.06] dark:via-navy-800 dark:to-navy-800">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-2xl">👋</span>
-              <h1 className="font-display text-2xl sm:text-3xl">
-                Bonjour, <span className="text-emerald-300">{commune.name}</span>
+              <h1 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
+                Bonjour,{' '}
+                <span className="text-emerald-700 dark:text-emerald-300">{commune.name}</span>
               </h1>
               {useDemo && (
-                <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                <span className="rounded-md border px-2 py-0.5 text-eyebrow font-semibold uppercase border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
                   Démo
                 </span>
               )}
             </div>
-            <p className="mt-2 text-sm text-white/65">
+            <p className="mt-2 text-sm text-gray-700 dark:text-white/65">
               {displayDistributors.length} distributeur{displayDistributors.length > 1 ? 's' : ''} en service ·{' '}
-              <span className="text-emerald-300 tabular-nums">{totalIdle}</span>
-              <span className="text-white/40"> / {totalLockers}</span> casiers libres ·{' '}
-              taux d'occupation <span className="tabular-nums text-white">{fillRate}%</span>
+              <span className="tabular-nums text-emerald-700 dark:text-emerald-300">{totalIdle}</span>
+              <span className="text-gray-500 dark:text-white/40"> / {totalLockers}</span> casiers libres ·{' '}
+              taux d'occupation{' '}
+              <span className="tabular-nums text-navy-900 dark:text-white">{fillRate}%</span>
             </p>
           </div>
           <RefreshButton />
@@ -191,7 +193,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       </header>
 
       {data.hadError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
+        <div className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
           <p className="font-medium">API admin indisponible — affichage en mode démo</p>
         </div>
       )}
@@ -199,12 +201,12 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       {/* Aujourd'hui / Cette semaine */}
       <section className="grid gap-4 lg:grid-cols-2">
         {/* Aujourd'hui */}
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
+        <div className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
+            <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
               Aujourd'hui
             </h2>
-            <span className="text-[11px] text-white/40">
+            <span className="text-meta text-gray-500 dark:text-white/40">
               {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
           </div>
@@ -236,12 +238,15 @@ export async function TenantHome({ communeId }: { communeId: string }) {
         </div>
 
         {/* Cette semaine */}
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
+        <div className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
+            <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
               Cette semaine
             </h2>
-            <Link href="/stats?days=30" className="text-[11px] text-emerald-300 hover:text-emerald-200">
+            <Link
+              href="/stats?days=30"
+              className="text-meta text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+            >
               voir stats détaillées →
             </Link>
           </div>
@@ -251,19 +256,19 @@ export async function TenantHome({ communeId }: { communeId: string }) {
 
       {/* Distributeurs */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
+        <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
           Vos distributeurs
           {(offlineCount > 0) && (
-            <span className="ml-2 normal-case text-rose-300/80">
+            <span className="ml-2 normal-case text-rose-700/80 dark:text-rose-300/80">
               · {offlineCount} hors ligne
             </span>
           )}
         </h2>
         {displayDistributors.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 bg-navy-800/50 p-8 text-center text-sm text-white/55">
+          <div className="rounded-card border border-dashed p-8 text-center text-sm border-gray-300 bg-gray-50 text-gray-600 dark:border-white/15 dark:bg-navy-800/50 dark:text-white/55">
             Aucun distributeur installé sur votre commune pour l'instant.
             <br />
-            <span className="mt-2 inline-block text-[12px] text-white/40">
+            <span className="mt-2 inline-block text-meta text-gray-500 dark:text-white/40">
               Contactez votre référent SportLocker pour planifier l'installation.
             </span>
           </div>
@@ -284,7 +289,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       {/* Alertes à traiter */}
       {(overdueReservations.length > 0 || criticalTickets.length > 0) && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
+          <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
             Alertes à traiter
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
@@ -292,8 +297,8 @@ export async function TenantHome({ communeId }: { communeId: string }) {
               <AlertList
                 title="Réservations en retard"
                 href="/reservations?status=overdue"
-                borderClass="border-rose-500/20"
-                accentClass="text-rose-300"
+                borderClass="border-rose-300 dark:border-rose-500/20"
+                accentClass="text-rose-700 dark:text-rose-300"
                 items={overdueReservations.slice(0, 4).map((r) => ({
                   key: r.id,
                   primary: r.user.displayName ?? r.user.email,
@@ -306,8 +311,8 @@ export async function TenantHome({ communeId }: { communeId: string }) {
               <AlertList
                 title="Tickets critiques"
                 href="/maintenance"
-                borderClass="border-orange-500/20"
-                accentClass="text-orange-300"
+                borderClass="border-orange-300 dark:border-orange-500/20"
+                accentClass="text-orange-700 dark:text-orange-300"
                 items={criticalTickets.slice(0, 4).map((t) => ({
                   key: t.id,
                   primary: t.title,
@@ -321,13 +326,19 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       )}
 
       {/* Footer onboarding-friendly */}
-      <footer className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center text-[12px] text-white/50">
+      <footer className="rounded-card border p-4 text-center text-meta border-gray-200 bg-gray-50 text-gray-600 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/50">
         Besoin d'aide ? Un casier bloqué, un distributeur hors ligne ?{' '}
-        <Link href="/maintenance" className="text-emerald-300 hover:text-emerald-200">
+        <Link
+          href="/maintenance"
+          className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+        >
           Ouvrez un ticket de maintenance
         </Link>
         {' '}ou contactez{' '}
-        <a href="mailto:support@sportlocker.fr" className="text-emerald-300 hover:text-emerald-200">
+        <a
+          href="mailto:support@sportlocker.fr"
+          className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+        >
           support@sportlocker.fr
         </a>.
       </footer>
@@ -351,18 +362,18 @@ function KpiRow({
   href?: string
 }) {
   const valueColor =
-    tone === 'good' ? 'text-emerald-300'
-    : tone === 'warn' ? 'text-amber-300'
-    : tone === 'bad' ? 'text-rose-300'
-    : 'text-white/80'
+    tone === 'good' ? 'text-emerald-700 dark:text-emerald-300'
+    : tone === 'warn' ? 'text-amber-700 dark:text-amber-300'
+    : tone === 'bad' ? 'text-rose-700 dark:text-rose-300'
+    : 'text-navy-900 dark:text-white/80'
 
   const content = (
-    <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.03]">
+    <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition-colors duration-base hover:bg-white dark:hover:bg-white/[0.03]">
       <div className="flex items-center gap-3">
         <span className="text-xl">{icon}</span>
         <div>
-          <p className="text-sm text-white/85">{label}</p>
-          {hint && <p className="text-[11px] text-white/45">{hint}</p>}
+          <p className="text-sm text-navy-900 dark:text-white/85">{label}</p>
+          {hint && <p className="text-meta text-gray-500 dark:text-white/45">{hint}</p>}
         </div>
       </div>
       <span className={cn('font-display text-2xl tabular-nums', valueColor)}>{value}</span>
@@ -387,23 +398,23 @@ function AlertList({
   items: { key: string; primary: string; secondary: string; right: string }[]
 }) {
   return (
-    <div className={cn('overflow-hidden rounded-xl border bg-navy-800', borderClass)}>
-      <header className="flex items-baseline justify-between border-b border-white/5 px-4 py-2.5">
-        <h3 className="text-sm font-medium text-white">{title}</h3>
-        <Link href={href} className={cn('text-xs hover:underline', accentClass)}>
+    <div className={cn('overflow-hidden rounded-card border bg-gray-50 dark:bg-navy-800', borderClass)}>
+      <header className="flex items-baseline justify-between border-b px-4 py-2.5 border-gray-200 dark:border-white/5">
+        <h3 className="text-sm font-medium text-navy-900 dark:text-white">{title}</h3>
+        <Link href={href} className={cn('text-meta hover:underline', accentClass)}>
           voir tout →
         </Link>
       </header>
-      <ul className="divide-y divide-white/5">
+      <ul className="divide-y divide-gray-200 dark:divide-white/5">
         {items.map((it) => (
           <li key={it.key} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-white">{it.primary}</div>
-              <div className="truncate text-[11px] text-white/50">{it.secondary}</div>
+              <div className="truncate text-navy-900 dark:text-white">{it.primary}</div>
+              <div className="truncate text-meta text-gray-500 dark:text-white/50">
+                {it.secondary}
+              </div>
             </div>
-            <span className={cn('shrink-0 text-[11px] tabular-nums', accentClass)}>
-              {it.right}
-            </span>
+            <span className={cn('shrink-0 tabular-nums text-meta', accentClass)}>{it.right}</span>
           </li>
         ))}
       </ul>
