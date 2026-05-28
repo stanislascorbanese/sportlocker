@@ -25,35 +25,39 @@ import {
 
 import { cn } from '../lib/cn'
 import { getFirebaseAuth } from '../lib/firebase'
+import { useLang } from '../lib/lang-client'
 import type { SessionPayload } from '../lib/session'
+import { sidebarStrings } from '../lib/sidebar-i18n'
 import { LanguageSelector } from './LanguageSelector'
 import { ThemeToggle } from './ThemeToggle'
 
-type Item = { href: string; label: string; icon: LucideIcon }
+type Item = { href: string; labelKey: keyof ReturnType<typeof sidebarStrings>; icon: LucideIcon }
 
 const COMMON_ITEMS: Item[] = [
-  { href: '/',             label: 'Accueil',       icon: Home },
-  { href: '/map',          label: 'Carte',         icon: Map },
-  { href: '/distributors', label: 'Distributeurs', icon: Server },
-  { href: '/items',        label: 'Articles',      icon: Package },
-  { href: '/pricing',      label: 'Tarification',  icon: Tag },
-  { href: '/communes',     label: 'Communes',      icon: Building2 },
-  { href: '/users',        label: 'Utilisateurs',  icon: Users },
-  { href: '/reservations', label: 'Réservations',  icon: CalendarClock },
-  { href: '/maintenance',  label: 'Maintenance',   icon: Wrench },
-  { href: '/stats',        label: 'Stats',         icon: BarChart3 },
-  { href: '/reports',      label: 'Rapports',      icon: FileText },
-  { href: '/audit',        label: 'Audit',         icon: Activity },
-  { href: '/settings/payments', label: 'Paiements', icon: CreditCard },
+  { href: '/',             labelKey: 'navHome',          icon: Home },
+  { href: '/map',          labelKey: 'navMap',           icon: Map },
+  { href: '/distributors', labelKey: 'navDistributors',  icon: Server },
+  { href: '/items',        labelKey: 'navItems',         icon: Package },
+  { href: '/pricing',      labelKey: 'navPricing',       icon: Tag },
+  { href: '/communes',     labelKey: 'navCommunes',      icon: Building2 },
+  { href: '/users',        labelKey: 'navUsers',         icon: Users },
+  { href: '/reservations', labelKey: 'navReservations',  icon: CalendarClock },
+  { href: '/maintenance',  labelKey: 'navMaintenance',   icon: Wrench },
+  { href: '/stats',        labelKey: 'navStats',         icon: BarChart3 },
+  { href: '/reports',      labelKey: 'navReports',       icon: FileText },
+  { href: '/audit',        labelKey: 'navAudit',         icon: Activity },
+  { href: '/settings/payments', labelKey: 'navPayments', icon: CreditCard },
 ]
 
 const SUPER_ADMIN_ITEMS: Item[] = [
-  { href: '/super-admin/tenants', label: 'Tenants', icon: ShieldCheck },
+  { href: '/super-admin/tenants', labelKey: 'navTenants', icon: ShieldCheck },
 ]
 
 export function Sidebar({ user }: { user: SessionPayload | null }) {
   const pathname = usePathname() ?? '/'
   const router = useRouter()
+  const lang = useLang()
+  const t = sidebarStrings(lang)
   const [loggingOut, setLoggingOut] = useState(false)
 
   const items = user?.role === 'super_admin'
@@ -79,17 +83,20 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
           <img src="/brand/logo-mark-outline.png" alt="" className="h-9 w-9 shrink-0" width={36} height={36} />
           <span className="font-display text-lg tracking-tight">
             <span className="text-navy-900 dark:text-white">Sport</span>
-            <span className="text-brand-500">Locker</span>
+            {/* emerald-500 plutôt que brand-500 (= bleu legacy) pour cohérence
+                avec le reste de la marque (vitrine = emerald, accents partout
+                dans le dashboard = emerald-500/600). */}
+            <span className="text-emerald-500">Locker</span>
             <span className="ml-1 text-emerald-600 dark:text-emerald-400">· ops</span>
           </span>
         </Link>
         <p className="mt-0.5 pl-9 text-eyebrow uppercase text-gray-400 dark:text-white/30">
-          Console opérateur
+          {t.consoleSubtitle}
         </p>
       </div>
 
       <nav className="mt-2 flex flex-col gap-0.5 px-3">
-        {items.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active = href === '/'
             ? pathname === '/'
             : pathname.startsWith(href)
@@ -116,7 +123,7 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
                     : 'text-gray-400 dark:text-white/50',
                 )}
               />
-              <span>{label}</span>
+              <span>{t[labelKey]}</span>
             </Link>
           )
         })}
@@ -145,8 +152,8 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
               {user.email}
             </p>
             <p className="mt-0.5 text-eyebrow uppercase text-gray-500 dark:text-white/40">
-              {roleLabel(user.role)}
-              {user.communeId && user.role !== 'super_admin' ? ' · 1 commune' : ''}
+              {roleLabel(user.role, t)}
+              {user.communeId && user.role !== 'super_admin' ? ` · ${t.oneCommune}` : ''}
             </p>
           </Link>
         )}
@@ -161,7 +168,7 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
           className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs transition-colors duration-base disabled:opacity-50 text-gray-600 hover:bg-gray-100 hover:text-navy-900 dark:text-white/60 dark:hover:bg-white/[0.04] dark:hover:text-white"
         >
           <LogOut className="h-3.5 w-3.5" />
-          {loggingOut ? 'Déconnexion…' : 'Se déconnecter'}
+          {loggingOut ? t.loggingOut : t.logout}
         </button>
         <p className="mt-2 px-3 text-eyebrow text-gray-400 dark:text-white/30">
           v0.1 · build {process.env.NEXT_PUBLIC_BUILD_SHA?.slice(0, 7) ?? 'dev'}
@@ -171,10 +178,13 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
   )
 }
 
-function roleLabel(role: SessionPayload['role']): string {
+function roleLabel(
+  role: SessionPayload['role'],
+  t: ReturnType<typeof sidebarStrings>,
+): string {
   switch (role) {
-    case 'super_admin': return 'Super-admin'
-    case 'admin':       return 'Admin'
-    case 'operator':    return 'Opérateur'
+    case 'super_admin': return t.roleSuperAdmin
+    case 'admin':       return t.roleAdmin
+    case 'operator':    return t.roleOperator
   }
 }
