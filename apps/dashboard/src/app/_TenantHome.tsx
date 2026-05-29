@@ -25,14 +25,9 @@ import { DistributorCard } from '../components/DistributorCard'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
 import { cn } from '../lib/cn'
-
-function fmtRelative(iso: string): string {
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return `il y a ${Math.round(diffSec / 86_400)}j`
-}
+import { getLang } from '../lib/lang-server'
+import { commonStrings, fmtRelative, fmtToday } from '../lib/i18n/common'
+import { homeStrings } from '../lib/i18n/home'
 
 type TenantSnapshot = {
   commune: Commune | null
@@ -90,6 +85,9 @@ async function loadTenant(communeId: string): Promise<TenantSnapshot> {
 }
 
 export async function TenantHome({ communeId }: { communeId: string }) {
+  const lang = await getLang()
+  const t = homeStrings(lang)
+  const c = commonStrings(lang)
   const data = await loadTenant(communeId)
 
   const everythingEmpty = data.distributors.length === 0
@@ -171,20 +169,20 @@ export async function TenantHome({ communeId }: { communeId: string }) {
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-2xl">👋</span>
               <h1 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
-                Bonjour,{' '}
+                {t.tenantGreeting}{' '}
                 <span className="text-emerald-700 dark:text-emerald-300">{commune.name}</span>
               </h1>
               {useDemo && (
                 <span className="rounded-md border px-2 py-0.5 text-eyebrow font-semibold uppercase border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                  Démo
+                  {c.demo}
                 </span>
               )}
             </div>
             <p className="mt-2 text-sm text-gray-700 dark:text-white/65">
-              {displayDistributors.length} distributeur{displayDistributors.length > 1 ? 's' : ''} en service ·{' '}
+              {displayDistributors.length} {displayDistributors.length > 1 ? t.tenantDistributorsInServiceMany : t.tenantDistributorsInService1} ·{' '}
               <span className="tabular-nums text-emerald-700 dark:text-emerald-300">{totalIdle}</span>
-              <span className="text-gray-500 dark:text-white/40"> / {totalLockers}</span> casiers libres ·{' '}
-              taux d'occupation{' '}
+              <span className="text-gray-500 dark:text-white/40"> / {totalLockers}</span> {t.tenantLockersFree} ·{' '}
+              {t.tenantFillRate}{' '}
               <span className="tabular-nums text-navy-900 dark:text-white">{fillRate}%</span>
             </p>
           </div>
@@ -194,7 +192,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
 
       {data.hadError && (
         <div className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
-          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
+          <p className="font-medium">{c.apiErrorTitle}</p>
         </div>
       )}
 
@@ -204,33 +202,37 @@ export async function TenantHome({ communeId }: { communeId: string }) {
         <div className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-              Aujourd'hui
+              {t.tenantToday}
             </h2>
             <span className="text-meta text-gray-500 dark:text-white/40">
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {fmtToday(lang)}
             </span>
           </div>
           <div className="space-y-3">
             <KpiRow
               icon="🟢"
-              label="Réservations en cours"
+              label={t.tenantOngoingReservations}
               value={activeReservations.length}
               tone="good"
             />
             <KpiRow
               icon="🟠"
-              label="En retard"
+              label={t.tenantOverdue}
               value={overdueReservations.length}
               tone={overdueReservations.length > 0 ? 'bad' : 'neutral'}
               href="/reservations?status=overdue"
             />
             <KpiRow
               icon="🔧"
-              label="Tickets ouverts"
+              label={t.tenantOpenTickets}
               value={openTickets.length}
               tone={criticalTickets.length > 0 ? 'bad' : openTickets.length > 0 ? 'warn' : 'neutral'}
               {...(criticalTickets.length > 0
-                ? { hint: `dont ${criticalTickets.length} critique${criticalTickets.length > 1 ? 's' : ''}` }
+                ? {
+                    hint: criticalTickets.length === 1
+                      ? t.tenantCriticalOfOne
+                      : t.tenantCriticalOf.replace('%d', String(criticalTickets.length)),
+                  }
                 : {})}
               href="/maintenance"
             />
@@ -241,13 +243,13 @@ export async function TenantHome({ communeId }: { communeId: string }) {
         <div className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-              Cette semaine
+              {t.tenantThisWeek}
             </h2>
             <Link
               href="/stats?days=30"
               className="text-meta text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
             >
-              voir stats détaillées →
+              {t.tenantViewDetailedStats}
             </Link>
           </div>
           <Sparkline points={dailySeries} width={420} />
@@ -257,19 +259,19 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       {/* Distributeurs */}
       <section className="space-y-3">
         <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-          Vos distributeurs
+          {t.tenantYourDistributors}
           {(offlineCount > 0) && (
             <span className="ml-2 normal-case text-rose-700/80 dark:text-rose-300/80">
-              · {offlineCount} hors ligne
+              · {offlineCount} {t.tenantOfflineSuffix}
             </span>
           )}
         </h2>
         {displayDistributors.length === 0 ? (
           <div className="rounded-card border border-dashed p-8 text-center text-sm border-gray-300 bg-gray-50 text-gray-600 dark:border-white/15 dark:bg-navy-800/50 dark:text-white/55">
-            Aucun distributeur installé sur votre commune pour l'instant.
+            {t.tenantNoDistributors}
             <br />
             <span className="mt-2 inline-block text-meta text-gray-500 dark:text-white/40">
-              Contactez votre référent SportLocker pour planifier l'installation.
+              {t.tenantNoDistributorsHint}
             </span>
           </div>
         ) : (
@@ -290,12 +292,13 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       {(overdueReservations.length > 0 || criticalTickets.length > 0) && (
         <section className="space-y-3">
           <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-            Alertes à traiter
+            {t.sectionAlerts}
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {overdueReservations.length > 0 && (
               <AlertList
-                title="Réservations en retard"
+                title={t.overdueReservations}
+                viewAllLabel={t.seeAll}
                 href="/reservations?status=overdue"
                 borderClass="border-rose-300 dark:border-rose-500/20"
                 accentClass="text-rose-700 dark:text-rose-300"
@@ -303,21 +306,22 @@ export async function TenantHome({ communeId }: { communeId: string }) {
                   key: r.id,
                   primary: r.user.displayName ?? r.user.email,
                   secondary: `${r.item.typeName} · ${r.distributor.name}`,
-                  right: r.dueAt ? `dû ${fmtRelative(r.dueAt)}` : '—',
+                  right: r.dueAt ? `${t.duePrefix} ${fmtRelative(lang, r.dueAt)}` : '—',
                 }))}
               />
             )}
             {criticalTickets.length > 0 && (
               <AlertList
-                title="Tickets critiques"
+                title={t.tenantCriticalTickets}
+                viewAllLabel={t.seeAll}
                 href="/maintenance"
                 borderClass="border-orange-300 dark:border-orange-500/20"
                 accentClass="text-orange-700 dark:text-orange-300"
-                items={criticalTickets.slice(0, 4).map((t) => ({
-                  key: t.id,
-                  primary: t.title,
-                  secondary: t.distributor.name,
-                  right: `S${t.severity}`,
+                items={criticalTickets.slice(0, 4).map((tk) => ({
+                  key: tk.id,
+                  primary: tk.title,
+                  secondary: tk.distributor.name,
+                  right: `S${tk.severity}`,
                 }))}
               />
             )}
@@ -327,14 +331,14 @@ export async function TenantHome({ communeId }: { communeId: string }) {
 
       {/* Footer onboarding-friendly */}
       <footer className="rounded-card border p-4 text-center text-meta border-gray-200 bg-gray-50 text-gray-600 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/50">
-        Besoin d'aide ? Un casier bloqué, un distributeur hors ligne ?{' '}
+        {t.tenantFooterPart1}{' '}
         <Link
           href="/maintenance"
           className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
         >
-          Ouvrez un ticket de maintenance
+          {t.tenantFooterOpenTicket}
         </Link>
-        {' '}ou contactez{' '}
+        {' '}{t.tenantFooterOrContact}{' '}
         <a
           href="mailto:support@sportlocker.fr"
           className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
@@ -386,12 +390,14 @@ function KpiRow({
 
 function AlertList({
   title,
+  viewAllLabel,
   href,
   borderClass,
   accentClass,
   items,
 }: {
   title: string
+  viewAllLabel: string
   href: string
   borderClass: string
   accentClass: string
@@ -402,7 +408,7 @@ function AlertList({
       <header className="flex items-baseline justify-between border-b px-4 py-2.5 border-gray-200 dark:border-white/5">
         <h3 className="text-sm font-medium text-navy-900 dark:text-white">{title}</h3>
         <Link href={href} className={cn('text-meta hover:underline', accentClass)}>
-          voir tout →
+          {viewAllLabel}
         </Link>
       </header>
       <ul className="divide-y divide-gray-200 dark:divide-white/5">
