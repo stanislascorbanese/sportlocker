@@ -49,8 +49,16 @@ function decodeFirebaseTokenUnsafe(idToken: string): FirebaseClaims | null {
   }
 }
 
+type AuthLogger = {
+  warn: (obj: unknown, msg: string) => void
+  error: (obj: unknown, msg: string) => void
+}
+
 let firebaseInitialized = false
-async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaims | null> {
+async function verifyFirebaseTokenSecure(
+  idToken: string,
+  log: AuthLogger,
+): Promise<FirebaseClaims | null> {
   if (!env.FIREBASE_SERVICE_ACCOUNT_KEY || !env.FIREBASE_PROJECT_ID) return null
   try {
     const admin = (await import('firebase-admin')).default
@@ -67,7 +75,18 @@ async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaim
       ...(decoded.email !== undefined && { email: decoded.email }),
       ...(decoded.name !== undefined && { name: decoded.name as string }),
     }
-  } catch {
+  } catch (err) {
+    // Surface la vraie cause : sinon `invalid_id_token` est opaque et masque
+    // aussi bien une clé de service account mal formée (PEM newlines cassés à
+    // l'init) qu'un token rejeté (audience/signature). Sans ce log, le bug est
+    // invisible en prod.
+    log.error(
+      {
+        err: err instanceof Error ? err.message : String(err),
+        projectId: env.FIREBASE_PROJECT_ID,
+      },
+      'admin-auth: vérification Firebase sécurisée échouée',
+    )
     return null
   }
 }
@@ -76,9 +95,9 @@ async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaim
  *  partagé avec le flow accept-invite. */
 export async function verifyFirebaseToken(
   idToken: string,
-  log: { warn: (obj: unknown, msg: string) => void },
+  log: AuthLogger,
 ): Promise<FirebaseClaims | null> {
-  const secure = await verifyFirebaseTokenSecure(idToken)
+  const secure = await verifyFirebaseTokenSecure(idToken, log)
   if (secure) return secure
   if (env.NODE_ENV === 'production') return null
   const unsafe = decodeFirebaseTokenUnsafe(idToken)
