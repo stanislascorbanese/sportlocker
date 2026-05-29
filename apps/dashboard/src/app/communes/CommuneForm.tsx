@@ -5,6 +5,9 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { commonStrings } from '../../lib/i18n/common'
+import { communesStrings } from '../../lib/i18n/communes'
 import { createCommuneAction, updateCommuneAction, type FormState } from './_actions'
 import { CommuneAutocomplete, type CommuneAutofill } from './CommuneAutocomplete'
 
@@ -28,11 +31,15 @@ export function CommuneForm({
   mode,
   initial,
   id,
+  lang,
 }: {
   mode: 'create' | 'edit'
   initial?: CommuneInitial
   id?: string
+  lang: Lang
 }) {
+  const t = communesStrings(lang)
+  const c = commonStrings(lang)
   const action = mode === 'create'
     ? createCommuneAction
     : (prev: FormState, fd: FormData) => updateCommuneAction(id ?? '', prev, fd)
@@ -58,30 +65,30 @@ export function CommuneForm({
     setFields((prev) => ({ ...prev, [key]: value }))
   }
 
-  function applyAutofill(c: CommuneAutofill) {
-    setFields(c)
+  function applyAutofill(co: CommuneAutofill) {
+    setFields(co)
   }
 
   return (
     <form action={formAction} className="space-y-5">
-      {mode === 'create' && <CommuneAutocomplete onSelect={applyAutofill} />}
+      {mode === 'create' && <CommuneAutocomplete lang={lang} onSelect={applyAutofill} />}
 
       <div className="grid grid-cols-2 gap-4">
         <Field
           name="inseeCode"
-          label="Code INSEE"
+          label={t.fieldInseeCode}
           placeholder="75111"
           value={fields.inseeCode}
           onChange={(e) => setField('inseeCode', e.target.value)}
           error={state.fieldErrors?.['inseeCode']}
           required
           readOnly={mode === 'edit'}
-          hint={mode === 'edit' ? 'Non modifiable après création' : '5 chiffres'}
+          hint={mode === 'edit' ? t.fieldInseeHintImmutable : t.fieldInseeHint5}
           mono
         />
         <Field
           name="postalCode"
-          label="Code postal"
+          label={t.fieldPostalCode}
           placeholder="75011"
           value={fields.postalCode}
           onChange={(e) => setField('postalCode', e.target.value)}
@@ -92,7 +99,7 @@ export function CommuneForm({
 
       <Field
         name="name"
-        label="Nom"
+        label={t.fieldName}
         placeholder="Paris 11e"
         value={fields.name}
         onChange={(e) => setField('name', e.target.value)}
@@ -103,7 +110,7 @@ export function CommuneForm({
       <div className="grid grid-cols-3 gap-4">
         <Field
           name="department"
-          label="Département"
+          label={t.fieldDepartment}
           placeholder="75"
           value={fields.department}
           onChange={(e) => setField('department', e.target.value)}
@@ -113,7 +120,7 @@ export function CommuneForm({
         <div className="col-span-2">
           <Field
             name="region"
-            label="Région"
+            label={t.fieldRegion}
             placeholder="Île-de-France"
             value={fields.region}
             onChange={(e) => setField('region', e.target.value)}
@@ -125,7 +132,7 @@ export function CommuneForm({
 
       <Field
         name="population"
-        label="Population (optionnel)"
+        label={t.fieldPopulation}
         type="number"
         placeholder="147017"
         value={fields.population}
@@ -134,18 +141,18 @@ export function CommuneForm({
       />
 
       <fieldset className="rounded-lg border bg-gray-50 p-4 dark:border-white/10 dark:bg-navy-900/50">
-        <legend className="px-2 text-eyebrow text-gray-500 dark:text-white/50">Contrat</legend>
+        <legend className="px-2 text-eyebrow text-gray-500 dark:text-white/50">{t.fieldsetContract}</legend>
         <div className="grid grid-cols-2 gap-4">
           <Field
             name="contractStart"
-            label="Début"
+            label={t.fieldStart}
             type="date"
             defaultValue={v.contractStart ?? ''}
             error={state.fieldErrors?.['contractStart']}
           />
           <Field
             name="contractEnd"
-            label="Fin"
+            label={t.fieldEnd}
             type="date"
             defaultValue={v.contractEnd ?? ''}
             error={state.fieldErrors?.['contractEnd']}
@@ -154,7 +161,7 @@ export function CommuneForm({
         <div className="mt-4">
           <Field
             name="monthlyFeeEuros"
-            label="Fee mensuel (€)"
+            label={t.fieldMonthlyFee}
             type="number"
             step="1"
             placeholder="1500"
@@ -165,19 +172,19 @@ export function CommuneForm({
       </fieldset>
 
       <fieldset className="rounded-lg border bg-gray-50 p-4 dark:border-white/10 dark:bg-navy-900/50">
-        <legend className="px-2 text-eyebrow text-gray-500 dark:text-white/50">Contact</legend>
+        <legend className="px-2 text-eyebrow text-gray-500 dark:text-white/50">{t.fieldsetContact}</legend>
         <Field
           name="contactEmail"
-          label="Email"
+          label={t.fieldEmail}
           type="email"
-          placeholder="contrats@mairie.fr"
+          placeholder="contact@mairie.fr"
           defaultValue={v.contactEmail ?? ''}
           error={state.fieldErrors?.['contactEmail']}
         />
         <div className="mt-4">
           <Field
             name="contactPhone"
-            label="Téléphone"
+            label={t.fieldPhone}
             placeholder="+33 1 53 27 11 00"
             defaultValue={v.contactPhone ?? ''}
             error={state.fieldErrors?.['contactPhone']}
@@ -196,17 +203,25 @@ export function CommuneForm({
           href="/communes"
           className="rounded-lg border px-4 py-2 text-sm text-gray-700 transition-colors duration-base ease-out-soft hover:border-gray-400 hover:text-navy-900 dark:border-white/15 dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white"
         >
-          Annuler
+          {c.cancel}
         </Link>
-        <SubmitButton mode={mode} />
+        <SubmitButton mode={mode} createLabel={t.createCommune} saveLabel={t.saveCommune} />
       </div>
     </form>
   )
 }
 
-function SubmitButton({ mode }: { mode: 'create' | 'edit' }) {
+function SubmitButton({
+  mode,
+  createLabel,
+  saveLabel,
+}: {
+  mode: 'create' | 'edit'
+  createLabel: string
+  saveLabel: string
+}) {
   const { pending } = useFormStatus()
-  const label = mode === 'create' ? 'Créer la commune' : 'Enregistrer'
+  const label = mode === 'create' ? createLabel : saveLabel
   return (
     <button
       type="submit"

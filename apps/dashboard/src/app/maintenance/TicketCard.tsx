@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 
 import { cn } from '../../lib/cn'
 import type { MaintenanceStatus, MaintenanceTicket } from '../../lib/api'
+import type { Lang } from '../../lib/lang'
+import { fmtDateTime } from '../../lib/i18n/common'
+import { maintenanceStrings } from '../../lib/i18n/maintenance'
 import { changeTicketStatusAction } from './_actions'
 
 // Échelle de sévérité 1→5 (zinc/sky/amber/orange/rose), chaque tone
@@ -17,19 +20,22 @@ const SEVERITY_STYLE: Record<number, string> = {
   5: 'border-rose-200 text-rose-700 bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:bg-rose-500/10',
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-  })
-}
-
-export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket; demo?: boolean }) {
+export function TicketCard({
+  ticket,
+  demo = false,
+  lang,
+}: {
+  ticket: MaintenanceTicket
+  demo?: boolean
+  lang: Lang
+}) {
+  const t = maintenanceStrings(lang)
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const transition = (next: MaintenanceStatus) => {
     if (demo) {
-      alert('Mode démo — branchez un token admin valide pour modifier les tickets.')
+      alert(t.demoBlocker)
       return
     }
     startTransition(() => {
@@ -54,7 +60,7 @@ export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket
           'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
           sev,
         )}>
-          S{ticket.severity}
+          {t.severityPrefix}{ticket.severity}
         </span>
       </div>
 
@@ -64,10 +70,10 @@ export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket
           <span className="mx-1 text-gray-400 dark:text-white/30">·</span>
           <span className="font-mono text-gray-500 dark:text-white/40">{ticket.distributor.serialNumber}</span>
         </div>
-        <div>Ouvert le {fmtDate(ticket.createdAt)}</div>
+        <div>{t.openedOn} {fmtDateTime(lang, ticket.createdAt)}</div>
         {ticket.assignee && (
           <div className="text-emerald-700 dark:text-emerald-300/80">
-            → {ticket.assignee.displayName ?? ticket.assignee.email}
+            {t.arrowTo} {ticket.assignee.displayName ?? ticket.assignee.email}
           </div>
         )}
       </div>
@@ -90,7 +96,7 @@ export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket
             onClick={() => transition('in_progress')}
             className="flex-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-meta font-medium text-emerald-700 transition-colors duration-base hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
           >
-            Prendre en charge →
+            {t.takeOver}
           </button>
         )}
         {ticket.status === 'in_progress' && (
@@ -101,14 +107,14 @@ export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket
               onClick={() => transition('resolved')}
               className="flex-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-meta font-medium text-emerald-700 transition-colors duration-base hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
             >
-              ✓ Résoudre
+              {t.resolve}
             </button>
             <button
               type="button"
               disabled={isPending}
               onClick={() => transition('open')}
               className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-meta text-gray-600 transition-colors duration-base hover:bg-gray-100 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:bg-white/10"
-              title="Renvoyer dans la pile des tickets ouverts"
+              title={t.titleSendBack}
             >
               ←
             </button>
@@ -121,7 +127,7 @@ export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket
             onClick={() => transition('open')}
             className="flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-meta text-gray-600 transition-colors duration-base hover:bg-gray-100 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:bg-white/10"
           >
-            Rouvrir
+            {t.reopen}
           </button>
         )}
         {ticket.status === 'open' && (
@@ -130,7 +136,7 @@ export function TicketCard({ ticket, demo = false }: { ticket: MaintenanceTicket
             disabled={isPending}
             onClick={() => transition('wontfix')}
             className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-meta text-gray-500 transition-colors duration-base hover:bg-gray-100 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/40 dark:hover:bg-white/10"
-            title="Ne pas traiter"
+            title={t.titleWontfix}
           >
             ✕
           </button>
