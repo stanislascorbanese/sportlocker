@@ -16,6 +16,9 @@ import { ClickableRow } from './ClickableRow'
 import { ExportCsvButton } from './ExportCsvButton'
 import { ReservationDrawer } from './ReservationDrawer'
 import { cn } from '../../lib/cn'
+import { getLang } from '../../lib/lang-server'
+import { commonStrings, fmtDateTime } from '../../lib/i18n/common'
+import { reservationsStrings, reservationStatusLabel } from '../../lib/i18n/reservations'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Réservations · SportLocker ops' }
@@ -60,7 +63,13 @@ const STATUS_STYLE: Record<ReservationStatus, { bg: string; border: string; text
   },
 }
 
-function StatusBadge({ status }: { status: ReservationStatus }) {
+function StatusBadge({
+  status,
+  label,
+}: {
+  status: ReservationStatus
+  label: string
+}) {
   const s = STATUS_STYLE[status]
   return (
     <span
@@ -71,17 +80,9 @@ function StatusBadge({ status }: { status: ReservationStatus }) {
         s.text,
       )}
     >
-      {status}
+      {label}
     </span>
   )
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', year: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
 }
 
 function fmtUser(r: Reservation): string {
@@ -123,6 +124,9 @@ export default async function ReservationsPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const lang = await getLang()
+  const t = reservationsStrings(lang)
+  const c = commonStrings(lang)
   const status = (RESERVATION_STATUSES as readonly string[]).includes(params.status ?? '')
     ? (params.status as ReservationStatus)
     : undefined
@@ -175,17 +179,17 @@ export default async function ReservationsPage({
     if (useDemo) {
       const demoMatch = DEMO_RESERVATIONS.find((r) => r.id === detailId)
       if (demoMatch) detail = demoReservationDetail(demoMatch)
-      else detailError = 'Réservation introuvable dans les données démo.'
+      else detailError = t.distributorNotFoundDemo
     } else {
       try {
         detail = await fetchReservationDetail(detailId)
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          detailError = 'Réservation introuvable.'
+          detailError = t.reservationNotFound
         } else if (err instanceof Error) {
           detailError = err.message
         } else {
-          detailError = 'Erreur de chargement du détail.'
+          detailError = t.detailLoadError
         }
       }
     }
@@ -199,18 +203,18 @@ export default async function ReservationsPage({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
-              Réservations
+              {t.pageTitle}
             </h2>
             {useDemo && (
               <span className="rounded-md border px-2 py-0.5 text-eyebrow font-semibold uppercase border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                Démo
+                {c.demo}
               </span>
             )}
           </div>
           <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
-            {items.length} affichée{items.length > 1 ? 's' : ''}
-            {!useDemo && page?.nextCursor ? ' · pagination disponible' : ''}
-            {useDemo && ' · données fictives — branchez un token admin valide pour voir les vraies'}
+            {items.length} {items.length > 1 ? t.displayedMany : t.displayed1}
+            {!useDemo && page?.nextCursor ? ` · ${t.paginationAvailable}` : ''}
+            {useDemo && ` · ${c.demoFootnote}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -232,7 +236,7 @@ export default async function ReservationsPage({
             htmlFor="status"
             className="text-eyebrow uppercase text-gray-500 dark:text-white/50"
           >
-            Statut
+            {c.status}
           </label>
           <select
             id="status"
@@ -240,9 +244,9 @@ export default async function ReservationsPage({
             defaultValue={status ?? ''}
             className="min-w-[140px] rounded-lg border px-2 py-1.5 text-sm border-gray-300 bg-white text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Tous</option>
+            <option value="">{c.all}</option>
             {RESERVATION_STATUSES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{reservationStatusLabel(lang, s)}</option>
             ))}
           </select>
         </div>
@@ -252,7 +256,7 @@ export default async function ReservationsPage({
             htmlFor="distributorId"
             className="text-eyebrow uppercase text-gray-500 dark:text-white/50"
           >
-            Distributeur
+            {t.filterDistributor}
           </label>
           <select
             id="distributorId"
@@ -260,7 +264,7 @@ export default async function ReservationsPage({
             defaultValue={distributorId ?? ''}
             className="min-w-[200px] rounded-lg border px-2 py-1.5 text-sm border-gray-300 bg-white text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Tous</option>
+            <option value="">{c.all}</option>
             {distributors.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -269,7 +273,7 @@ export default async function ReservationsPage({
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="from" className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
-            Du
+            {c.from}
           </label>
           <input
             id="from"
@@ -282,7 +286,7 @@ export default async function ReservationsPage({
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="to" className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
-            Au
+            {c.to}
           </label>
           <input
             id="to"
@@ -297,7 +301,7 @@ export default async function ReservationsPage({
           type="submit"
           className="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-base ease-out-soft bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
         >
-          Filtrer
+          {c.filter}
         </button>
 
         {(status || distributorId || from || to) && (
@@ -305,14 +309,14 @@ export default async function ReservationsPage({
             href="/reservations"
             className="text-meta underline-offset-2 transition-colors duration-base text-gray-500 hover:text-navy-900 hover:underline dark:text-white/50 dark:hover:text-white/80"
           >
-            Réinitialiser
+            {c.reset}
           </Link>
         )}
       </form>
 
       {fetchError && (
         <div className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
-          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
+          <p className="font-medium">{c.apiErrorTitle}</p>
           <p className="mt-1 font-mono text-meta text-amber-700/80 dark:text-amber-300/70">
             {fetchError}
           </p>
@@ -321,7 +325,7 @@ export default async function ReservationsPage({
 
       {!useDemo && items.length === 0 && (
         <div className="rounded-card border p-8 text-center text-sm border-gray-200 bg-gray-50 text-gray-600 dark:border-white/10 dark:bg-navy-800 dark:text-white/55">
-          Aucune réservation pour ces filtres.
+          {t.emptyForFilters}
         </div>
       )}
 
@@ -330,13 +334,13 @@ export default async function ReservationsPage({
           <table className="w-full min-w-[860px] text-sm">
             <thead className="text-left text-eyebrow uppercase bg-gray-100 text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
-                <th className="px-4 py-3 font-medium">Créée le</th>
-                <th className="px-4 py-3 font-medium">Utilisateur</th>
-                <th className="px-4 py-3 font-medium">Distributeur</th>
-                <th className="px-4 py-3 font-medium">Article</th>
-                <th className="px-4 py-3 font-medium">Statut</th>
-                <th className="px-4 py-3 font-medium">Échéance</th>
-                <th className="px-4 py-3 text-right font-medium">Prolong.</th>
+                <th className="px-4 py-3 font-medium">{t.colCreatedAt}</th>
+                <th className="px-4 py-3 font-medium">{t.colUser}</th>
+                <th className="px-4 py-3 font-medium">{t.colDistributor}</th>
+                <th className="px-4 py-3 font-medium">{t.colItem}</th>
+                <th className="px-4 py-3 font-medium">{t.colStatus}</th>
+                <th className="px-4 py-3 font-medium">{t.colDueAt}</th>
+                <th className="px-4 py-3 text-right font-medium">{t.colExtensions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-white/5">
@@ -347,7 +351,7 @@ export default async function ReservationsPage({
                   selected={r.id === detailId}
                 >
                   <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-white/80">
-                    {fmtDate(r.createdAt)}
+                    {fmtDateTime(lang, r.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-navy-900 dark:text-white">{fmtUser(r)}</div>
@@ -364,9 +368,11 @@ export default async function ReservationsPage({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-white/80">{r.item.typeName}</td>
-                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={r.status} label={reservationStatusLabel(lang, r.status)} />
+                  </td>
                   <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-white/70">
-                    {r.status === 'pending' ? fmtDate(r.expiresAt) : fmtDate(r.dueAt)}
+                    {r.status === 'pending' ? fmtDateTime(lang, r.expiresAt) : fmtDateTime(lang, r.dueAt)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-white/70">
                     {r.extensionCount > 0 ? `×${r.extensionCount}` : '—'}
@@ -384,7 +390,7 @@ export default async function ReservationsPage({
             href={buildHref(params, { cursor: page.nextCursor }, ['detail'])}
             className="inline-flex items-center rounded-lg border px-3 py-1.5 text-sm transition-colors duration-base border-gray-200 bg-white text-navy-900 hover:border-gray-300 dark:border-white/15 dark:bg-navy-800 dark:text-white/80 dark:hover:border-white/30 dark:hover:text-white"
           >
-            Page suivante →
+            {c.nextPage} →
           </Link>
         </div>
       )}

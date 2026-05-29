@@ -20,6 +20,9 @@ import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
 import { StatCard } from '../components/StatCard'
 import { cn } from '../lib/cn'
+import { getLang } from '../lib/lang-server'
+import { commonStrings, fmtRelative, fmtToday } from '../lib/i18n/common'
+import { homeStrings } from '../lib/i18n/home'
 import { TenantHome } from './_TenantHome'
 
 export const dynamic = 'force-dynamic'
@@ -31,14 +34,6 @@ const SEVERITY_STYLE: Record<number, string> = {
   3: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30',
   4: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-500/30',
   5: 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30',
-}
-
-function fmtRelative(iso: string): string {
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return `il y a ${Math.round(diffSec / 86_400)}j`
 }
 
 type FetchResults = {
@@ -82,6 +77,9 @@ export default async function HomePage() {
     return <TenantHome communeId={user.communeId} />
   }
 
+  const lang = await getLang()
+  const t = homeStrings(lang)
+  const c = commonStrings(lang)
   const data = await loadAll()
 
   // Mode démo si l'API admin a planté OU si tout est vide (table neuve)
@@ -123,17 +121,17 @@ export default async function HomePage() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
-              Vue d&apos;ensemble
+              {t.pageTitleOverview}
             </h2>
             {useDemo && (
               <span className="rounded-md border px-2 py-0.5 text-eyebrow font-semibold uppercase border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                Démo
+                {c.demo}
               </span>
             )}
           </div>
           <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
-            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            {useDemo && ' · données fictives — branchez un token admin valide pour voir le vivant'}
+            {fmtToday(lang)}
+            {useDemo && ` · ${c.demoFootnote}`}
           </p>
         </div>
         <RefreshButton />
@@ -143,9 +141,9 @@ export default async function HomePage() {
       <section className="rounded-card border p-4 sm:p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-            Tendance · réservations
+            {t.trendLabel}
           </h3>
-          <span className="text-meta text-gray-500 dark:text-white/40">7 derniers jours</span>
+          <span className="text-meta text-gray-500 dark:text-white/40">{t.trendLast7Days}</span>
         </div>
         <Sparkline points={dailySeries} width={520} />
       </section>
@@ -153,19 +151,19 @@ export default async function HomePage() {
       {/* Bloc 1 — Parc */}
       <section className="space-y-3">
         <h3 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-          Parc
+          {t.sectionPark}
         </h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="Distributeurs"
+            label={t.kpiDistributors}
             value={totalDistributors}
             hint={
               <span>
-                <span className="text-emerald-700 dark:text-emerald-300">{onlineDistributors} online</span>
+                <span className="text-emerald-700 dark:text-emerald-300">{onlineDistributors} {t.kpiOnline}</span>
                 {' · '}
-                <span className="text-rose-700 dark:text-rose-300">{offlineDistributors} offline</span>
+                <span className="text-rose-700 dark:text-rose-300">{offlineDistributors} {t.kpiOffline}</span>
                 {maintDistributors > 0 && (
-                  <>{' · '}<span className="text-amber-700 dark:text-amber-300">{maintDistributors} maintenance</span></>
+                  <>{' · '}<span className="text-amber-700 dark:text-amber-300">{maintDistributors} {t.kpiMaintenanceLabel}</span></>
                 )}
               </span>
             }
@@ -173,22 +171,22 @@ export default async function HomePage() {
             href="/distributors"
           />
           <StatCard
-            label="Casiers libres"
+            label={t.kpiLockersFree}
             value={`${totalIdle} / ${totalLockers}`}
-            hint={`Taux d'occupation ${fillRate}%`}
+            hint={`${t.kpiFillRate} ${fillRate}%`}
             tone={fillRate > 80 ? 'warn' : 'neutral'}
           />
           <StatCard
-            label="Réservations actives"
+            label={t.kpiActiveReservations}
             value={activeReservations.length}
-            hint={activeReservations.length > 0 ? 'Emprunts en cours' : 'Aucun emprunt en cours'}
+            hint={activeReservations.length > 0 ? t.kpiActiveHintActive : t.kpiActiveHintNone}
             tone="good"
             href="/reservations?status=active"
           />
           <StatCard
-            label="En retard"
+            label={t.kpiOverdueShort}
             value={overdueReservations.length}
-            hint={overdueReservations.length > 0 ? 'Item non rendu après deadline' : 'Tout est rentré dans les temps'}
+            hint={overdueReservations.length > 0 ? t.kpiOverdueHint : t.kpiOverdueAllGood}
             tone={overdueReservations.length > 0 ? 'bad' : 'good'}
             href="/reservations?status=overdue"
           />
@@ -198,35 +196,35 @@ export default async function HomePage() {
       {/* Bloc 2 — Maintenance */}
       <section className="space-y-3">
         <h3 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-          Maintenance
+          {t.sectionMaintenance}
         </h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="Tickets ouverts"
+            label={t.kpiOpenTickets}
             value={openTickets.length}
-            hint={`${criticalTickets.length} critique${criticalTickets.length > 1 ? 's' : ''} (sév. ≥ 4)`}
+            hint={`${criticalTickets.length} ${criticalTickets.length > 1 ? t.kpiOpenTicketsHint : t.kpiOpenTicketsHint1}`}
             tone={criticalTickets.length > 0 ? 'bad' : openTickets.length > 0 ? 'warn' : 'good'}
             href="/maintenance"
           />
           <StatCard
-            label="Sévérité moyenne"
+            label={t.kpiAvgSeverity}
             value={openTickets.length > 0
               ? (openTickets.reduce((a, t) => a + t.severity, 0) / openTickets.length).toFixed(1)
               : '—'
             }
-            hint="Tickets ouverts uniquement, échelle 1–5"
+            hint={t.kpiAvgSeverityHint}
             tone="neutral"
           />
           <StatCard
-            label="Sites impactés"
+            label={t.kpiImpactedSites}
             value={new Set(openTickets.map((t) => t.distributor.id)).size}
-            hint="Distributeurs avec ≥ 1 ticket ouvert"
+            hint={t.kpiImpactedSitesHint}
             tone="neutral"
           />
           <StatCard
-            label="Non assignés"
+            label={t.kpiUnassigned}
             value={openTickets.filter((t) => !t.assignee).length}
-            hint="Tickets ouverts sans technicien"
+            hint={t.kpiUnassignedHint}
             tone={openTickets.filter((t) => !t.assignee).length > 0 ? 'warn' : 'good'}
           />
         </div>
@@ -236,7 +234,7 @@ export default async function HomePage() {
       {(overdueReservations.length > 0 || criticalTickets.length > 0) && (
         <section className="space-y-3">
           <h3 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
-            Alertes à traiter
+            {t.sectionAlerts}
           </h3>
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Overdue reservations */}
@@ -244,13 +242,13 @@ export default async function HomePage() {
               <div className="overflow-hidden rounded-card border border-rose-300 bg-gray-50 dark:border-rose-500/20 dark:bg-navy-800">
                 <header className="flex items-baseline justify-between border-b px-4 py-3 border-gray-200 dark:border-white/5">
                   <h4 className="text-sm font-medium text-navy-900 dark:text-white">
-                    Réservations en retard
+                    {t.overdueReservations}
                   </h4>
                   <Link
                     href="/reservations?status=overdue"
                     className="text-meta text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200"
                   >
-                    voir tout →
+                    {t.seeAll}
                   </Link>
                 </header>
                 <ul className="divide-y divide-gray-200 dark:divide-white/5">
@@ -268,7 +266,7 @@ export default async function HomePage() {
                         </div>
                       </div>
                       <span className="shrink-0 tabular-nums text-meta text-rose-700/90 dark:text-rose-300/90">
-                        {r.dueAt ? `dû ${fmtRelative(r.dueAt)}` : '—'}
+                        {r.dueAt ? `${t.duePrefix} ${fmtRelative(lang, r.dueAt)}` : '—'}
                       </span>
                     </li>
                   ))}
@@ -281,13 +279,13 @@ export default async function HomePage() {
               <div className="overflow-hidden rounded-card border border-orange-300 bg-gray-50 dark:border-orange-500/20 dark:bg-navy-800">
                 <header className="flex items-baseline justify-between border-b px-4 py-3 border-gray-200 dark:border-white/5">
                   <h4 className="text-sm font-medium text-navy-900 dark:text-white">
-                    Tickets critiques ouverts
+                    {t.criticalTickets}
                   </h4>
                   <Link
                     href="/maintenance"
                     className="text-meta text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200"
                   >
-                    voir kanban →
+                    {t.seeKanban}
                   </Link>
                 </header>
                 <ul className="divide-y divide-gray-200 dark:divide-white/5">

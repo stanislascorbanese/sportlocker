@@ -4,24 +4,22 @@ import { fetchDistributors } from '../../lib/api'
 import { StatusPill } from '../../components/StatusPill'
 import { BatteryGauge } from '../../components/BatteryGauge'
 import { RefreshButton } from '../../components/RefreshButton'
+import { getLang } from '../../lib/lang-server'
+import { commonStrings, fmtRelative } from '../../lib/i18n/common'
+import { distributorsStrings } from '../../lib/i18n/distributors'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Distributeurs · SportLocker ops' }
-
-function fmtRelative(iso: string | null): string {
-  if (!iso) return '—'
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return new Date(iso).toLocaleDateString('fr-FR')
-}
 
 function fmtCoord(coord: number | null): string {
   return coord == null ? '—' : coord.toFixed(4)
 }
 
 export default async function DistributorsListPage() {
+  const lang = await getLang()
+  const t = distributorsStrings(lang)
+  const c = commonStrings(lang)
+
   let distributors: Awaited<ReturnType<typeof fetchDistributors>> = []
   let fetchError: string | null = null
 
@@ -34,18 +32,19 @@ export default async function DistributorsListPage() {
   const online = distributors.filter((d) => d.status === 'online').length
   const totalIdle = distributors.reduce((acc, d) => acc + d.idleLockers, 0)
   const totalLockers = distributors.reduce((acc, d) => acc + d.lockerCount, 0)
+  const countLabel = distributors.length > 1 ? t.distributorsCountMany : t.distributorsCount1
 
   return (
     <div className="space-y-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
-            Parc de distributeurs
+            {t.pageTitle}
           </h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
-            {distributors.length} distributeur{distributors.length > 1 ? 's' : ''} ·{' '}
-            <span className="text-emerald-700 dark:text-emerald-300">{online} online</span> ·{' '}
-            {totalIdle} / {totalLockers} casiers libres
+            {distributors.length} {countLabel} ·{' '}
+            <span className="text-emerald-700 dark:text-emerald-300">{online} {c.statusOnline}</span> ·{' '}
+            {totalIdle} / {totalLockers} {t.lockersFreeOf}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -54,14 +53,14 @@ export default async function DistributorsListPage() {
             href="/distributors/new"
             className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-base ease-out-soft bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
           >
-            + Nouveau
+            {t.newDistributor}
           </Link>
         </div>
       </header>
 
       {fetchError && (
         <div className="rounded-card border p-4 text-sm border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
-          <p className="font-semibold">API injoignable</p>
+          <p className="font-semibold">{c.apiErrorFallback}</p>
           <p className="mt-1 font-mono text-meta text-rose-700/80 dark:text-rose-300/80">
             {fetchError}
           </p>
@@ -70,9 +69,9 @@ export default async function DistributorsListPage() {
 
       {!fetchError && distributors.length === 0 && (
         <div className="rounded-card border p-8 text-center text-sm border-gray-200 bg-gray-50 text-gray-600 dark:border-white/10 dark:bg-navy-800 dark:text-white/55">
-          Aucun distributeur en base. Créez-en un via{' '}
+          {t.emptyState}{' '}
           <code className="rounded px-1.5 py-0.5 font-mono text-meta bg-gray-200 text-navy-900 dark:bg-navy-700 dark:text-white/80">
-            POST /v1/distributors
+            {t.emptyHint}
           </code>
         </div>
       )}
@@ -82,13 +81,13 @@ export default async function DistributorsListPage() {
           <table className="w-full min-w-[720px] text-sm">
             <thead className="text-left text-eyebrow uppercase bg-gray-100 text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
-                <th className="px-4 py-3 font-medium">Distributeur</th>
-                <th className="px-4 py-3 font-medium">Statut</th>
-                <th className="px-4 py-3 font-medium">Casiers libres</th>
-                <th className="px-4 py-3 font-medium">Batterie</th>
-                <th className="px-4 py-3 font-medium">Position</th>
-                <th className="px-4 py-3 font-medium">Dernier signe</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 font-medium">{t.colDistributor}</th>
+                <th className="px-4 py-3 font-medium">{t.colStatus}</th>
+                <th className="px-4 py-3 font-medium">{t.colLockersFree}</th>
+                <th className="px-4 py-3 font-medium">{t.colBattery}</th>
+                <th className="px-4 py-3 font-medium">{t.colPosition}</th>
+                <th className="px-4 py-3 font-medium">{t.colLastSeen}</th>
+                <th className="px-4 py-3 text-right font-medium">{t.colActions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-white/5">
@@ -129,7 +128,7 @@ export default async function DistributorsListPage() {
                     {fmtCoord(d.latitude)}, {fmtCoord(d.longitude)}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-white/60">
-                    {fmtRelative(d.lastSeenAt)}
+                    {fmtRelative(lang, d.lastSeenAt)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
@@ -137,13 +136,13 @@ export default async function DistributorsListPage() {
                         href={`/distributors/${d.id}`}
                         className="text-meta transition-colors duration-base text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                       >
-                        Détail
+                        {c.detail}
                       </Link>
                       <Link
                         href={`/distributors/${d.id}/edit`}
                         className="text-meta transition-colors duration-base text-gray-500 hover:text-navy-900 dark:text-white/55 dark:hover:text-white"
                       >
-                        Modifier
+                        {c.modify}
                       </Link>
                     </div>
                   </td>
