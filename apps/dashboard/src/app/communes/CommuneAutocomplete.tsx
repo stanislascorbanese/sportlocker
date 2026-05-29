@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { communesStrings } from '../../lib/i18n/communes'
 
 /**
  * Réponse de l'API publique gouv.fr — geo.api.gouv.fr/communes.
@@ -35,7 +37,14 @@ export type CommuneAutofill = {
  * sinon → recherche par nom (boosté par population pour faire remonter les
  * grandes villes en premier).
  */
-export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofill) => void }) {
+export function CommuneAutocomplete({
+  lang,
+  onSelect,
+}: {
+  lang: Lang
+  onSelect: (c: CommuneAutofill) => void
+}) {
+  const t = communesStrings(lang)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GovCommune[]>([])
   const [loading, setLoading] = useState(false)
@@ -119,10 +128,10 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
     <div className="relative rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-400/30 dark:bg-emerald-500/5">
       <label className="block">
         <span className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-emerald-800 dark:text-emerald-300/90">
-          <span>🔎 Rechercher une commune (auto-remplit le formulaire)</span>
+          <span>{t.autocompleteLabel}</span>
           {picked && (
             <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200">
-              ✓ Auto-rempli depuis INSEE
+              {t.autocompleteAutoFilled}
             </span>
           )}
         </span>
@@ -137,7 +146,7 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
           onKeyDown={onKeyDown}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Paris 11e, 75011, Lyon, Marseille…"
+          placeholder={t.autocompletePlaceholder}
           className={cn(
             'mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-navy-900 outline-none transition-colors duration-base',
             'border-gray-300 placeholder:text-gray-400 focus:border-emerald-500',
@@ -156,7 +165,7 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
           className="absolute left-4 right-4 z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-white shadow-elevated dark:border-white/15 dark:bg-navy-800 dark:shadow-xl"
         >
           {loading && (
-            <li className="px-3 py-2 text-xs text-gray-500 dark:text-white/40">Recherche…</li>
+            <li className="px-3 py-2 text-xs text-gray-500 dark:text-white/40">{t.autocompleteLoading}</li>
           )}
           {results.map((c, i) => (
             <li key={c.code} id={`commune-opt-${c.code}`} role="option" aria-selected={i === activeIndex}>
@@ -187,12 +196,12 @@ export function CommuneAutocomplete({ onSelect }: { onSelect: (c: CommuneAutofil
       )}
       <p className="mt-2 flex items-center justify-between text-meta text-gray-600 dark:text-white/40">
         <span>
-          Source : <span className="font-mono">geo.api.gouv.fr</span> · données officielles INSEE
+          {t.autocompleteSource} <span className="font-mono">geo.api.gouv.fr</span>
         </span>
         <span className="hidden sm:inline">
-          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↑↓</kbd> naviguer ·{' '}
-          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↵</kbd> sélectionner ·{' '}
-          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">Esc</kbd> fermer
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↑↓</kbd> {t.autocompleteKbdNavigate} ·{' '}
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↵</kbd> {t.autocompleteKbdSelect} ·{' '}
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">Esc</kbd> {t.autocompleteKbdClose}
         </span>
       </p>
     </div>

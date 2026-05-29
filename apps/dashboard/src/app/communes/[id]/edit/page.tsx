@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { ApiError, fetchCommune } from '../../../../lib/api'
+import { getLang } from '../../../../lib/lang-server'
+import { commonStrings } from '../../../../lib/i18n/common'
+import { communesStrings } from '../../../../lib/i18n/communes'
 import { CommuneForm } from '../../CommuneForm'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +16,9 @@ export default async function EditCommunePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const lang = await getLang()
+  const t = communesStrings(lang)
+  const c = commonStrings(lang)
 
   try {
     const commune = await fetchCommune(id)
@@ -25,14 +31,14 @@ export default async function EditCommunePage({
             <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
               INSEE <span className="font-mono">{commune.inseeCode}</span>
               {' · '}
-              {commune.distributorCount} distributeur{commune.distributorCount > 1 ? 's' : ''} rattaché{commune.distributorCount > 1 ? 's' : ''}
+              {commune.distributorCount} {t.distrubutorsAbbrev}
             </p>
           </div>
           <Link
             href="/communes"
             className="text-sm text-gray-600 transition-colors duration-base hover:text-navy-900 dark:text-white/60 dark:hover:text-white"
           >
-            ← Retour
+            ← {c.back}
           </Link>
         </header>
 
@@ -40,6 +46,7 @@ export default async function EditCommunePage({
           <CommuneForm
             mode="edit"
             id={commune.id}
+            lang={lang}
             initial={{
               inseeCode:       commune.inseeCode,
               name:            commune.name,

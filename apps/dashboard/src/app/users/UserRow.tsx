@@ -6,6 +6,9 @@ import { ShieldOff, ShieldCheck, Trash2, Undo2 } from 'lucide-react'
 
 import type { AdminUser, UserRole } from '../../lib/api'
 import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { fmtRelative } from '../../lib/i18n/common'
+import { usersStrings } from '../../lib/i18n/users'
 import {
   banUserAction,
   cancelGdprDeleteAction,
@@ -25,28 +28,28 @@ const ROLE_STYLE: Record<UserRole, string> = {
     'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-500/10 dark:text-fuchsia-300 dark:border-fuchsia-500/30',
 }
 
-function fmtRelative(iso: string | null): string {
-  if (!iso) return '—'
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return `il y a ${Math.round(diffSec / 86_400)}j`
-}
-
 function trustToneClass(score: number): string {
   if (score >= 90) return 'text-emerald-700 dark:text-emerald-300'
   if (score >= 60) return 'text-amber-700 dark:text-amber-300'
   return 'text-rose-700 dark:text-rose-300'
 }
 
-export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolean }) {
+export function UserRow({
+  user,
+  demo = false,
+  lang,
+}: {
+  user: AdminUser
+  demo?: boolean
+  lang: Lang
+}) {
+  const t = usersStrings(lang)
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const guard = () => {
     if (demo) {
-      alert('Mode démo — branchez un token admin valide pour modifier les utilisateurs.')
+      alert(t.demoBlocker)
       return false
     }
     return true
@@ -54,7 +57,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
 
   const ban = () => {
     if (!guard()) return
-    const reason = window.prompt('Raison du bannissement (min. 4 caractères) :', '')
+    const reason = window.prompt(t.promptBanReason, '')
     if (!reason) return
     startTransition(() => {
       void (async () => {
@@ -67,7 +70,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
 
   const unban = () => {
     if (!guard()) return
-    if (!window.confirm(`Débannir ${user.email} ?`)) return
+    if (!window.confirm(t.confirmUnban.replace('%s', user.email))) return
     startTransition(() => {
       void (async () => {
         const r = await unbanUserAction(user.id)
@@ -80,7 +83,9 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
   const setRole = (role: UserRole) => {
     if (!guard()) return
     if (role === user.role) return
-    if (!window.confirm(`Passer ${user.email} en rôle "${role}" ?`)) return
+    if (!window.confirm(
+      t.confirmRole.replace('%s', user.email).replace('%r', role),
+    )) return
     startTransition(() => {
       void (async () => {
         const r = await setRoleAction(user.id, role)
@@ -92,11 +97,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
 
   const requestGdpr = () => {
     if (!guard()) return
-    if (!window.confirm(
-      `Demander la suppression RGPD de ${user.email} ?\n\n` +
-      `Les données seront anonymisées automatiquement après 30 jours. ` +
-      `Cette demande peut être annulée tant que la suppression effective n'a pas eu lieu.`,
-    )) return
+    if (!window.confirm(t.confirmGdprRequest.replace('%s', user.email))) return
     startTransition(() => {
       void (async () => {
         const r = await requestGdprDeleteAction(user.id)
@@ -108,7 +109,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
 
   const cancelGdpr = () => {
     if (!guard()) return
-    if (!window.confirm(`Annuler la demande RGPD pour ${user.email} ?`)) return
+    if (!window.confirm(t.confirmCancelGdpr.replace('%s', user.email))) return
     startTransition(() => {
       void (async () => {
         const r = await cancelGdprDeleteAction(user.id)
@@ -134,12 +135,12 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
           <span className="text-navy-900 dark:text-white">{user.displayName ?? user.email}</span>
           {user.isBanned && (
             <span className="rounded-full border border-rose-300 bg-rose-100 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wider text-rose-800 dark:border-rose-500/40 dark:bg-rose-500/15 dark:text-rose-200">
-              banni
+              {t.badgeBanned}
             </span>
           )}
           {hasGdprRequest && (
             <span className="rounded-full border border-amber-300 bg-amber-100 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wider text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200">
-              RGPD
+              {t.badgeGdpr}
             </span>
           )}
         </div>
@@ -179,7 +180,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
         {user.commune?.name ?? <span className="text-gray-400 dark:text-white/30">—</span>}
       </td>
       <td className="px-4 py-3 text-[12px] tabular-nums text-gray-600 dark:text-white/55">
-        {fmtRelative(user.lastActiveAt)}
+        {fmtRelative(lang, user.lastActiveAt)}
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1.5">
@@ -188,7 +189,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
               type="button"
               onClick={unban}
               disabled={isPending}
-              title="Débannir"
+              title={t.titleUnban}
               className="rounded-md border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 transition-colors duration-base hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
             >
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -198,7 +199,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
               type="button"
               onClick={ban}
               disabled={isPending}
-              title="Bannir"
+              title={t.titleBan}
               className="rounded-md border border-gray-200 bg-gray-50 p-1.5 text-gray-500 transition-colors duration-base hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
             >
               <ShieldOff className="h-3.5 w-3.5" />
@@ -209,7 +210,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
               type="button"
               onClick={cancelGdpr}
               disabled={isPending}
-              title="Annuler la demande RGPD"
+              title={t.titleCancelGdpr}
               className="rounded-md border border-gray-200 bg-gray-50 p-1.5 text-amber-700 transition-colors duration-base hover:bg-gray-100 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-amber-300 dark:hover:bg-white/10"
             >
               <Undo2 className="h-3.5 w-3.5" />
@@ -219,7 +220,7 @@ export function UserRow({ user, demo = false }: { user: AdminUser; demo?: boolea
               type="button"
               onClick={requestGdpr}
               disabled={isPending}
-              title="Déclencher suppression RGPD"
+              title={t.titleRequestGdpr}
               className="rounded-md border border-gray-200 bg-gray-50 p-1.5 text-gray-500 transition-colors duration-base hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
             >
               <Trash2 className="h-3.5 w-3.5" />
