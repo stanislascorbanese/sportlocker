@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@sentry/nextjs": "^8.0.0",
-    "@tanstack/react-query": "^5.100.11",
-    "firebase": "^12.13.0",
+    "@tanstack/react-query": "^5.100.14",
+    "firebase": "^12.14.0",
     "lucide-react": "^0.395.0",
     "maplibre-gl": "^4.7.0",
     "next": "^15.3.0",
