@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
+import { getFirebaseAdmin } from '../lib/firebase-admin.js'
 
 const LoginBody = z.object({
   firebaseIdToken: z.string().min(20)
@@ -54,21 +55,13 @@ type AuthLogger = {
   error: (obj: unknown, msg: string) => void
 }
 
-let firebaseInitialized = false
 async function verifyFirebaseTokenSecure(
   idToken: string,
   log: AuthLogger,
 ): Promise<FirebaseClaims | null> {
-  if (!env.FIREBASE_SERVICE_ACCOUNT_KEY || !env.FIREBASE_PROJECT_ID) return null
+  const admin = await getFirebaseAdmin()
+  if (!admin) return null
   try {
-    const admin = (await import('firebase-admin')).default
-    if (!firebaseInitialized) {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-        projectId: env.FIREBASE_PROJECT_ID,
-      })
-      firebaseInitialized = true
-    }
     const decoded = await admin.auth().verifyIdToken(idToken)
     return {
       sub: decoded.uid,

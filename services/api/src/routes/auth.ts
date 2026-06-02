@@ -5,6 +5,9 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
+import { getFirebaseAdmin } from '../lib/firebase-admin.js'
+import { sendEmail, isEmailConfigured } from '../lib/email.js'
+import { renderPasswordResetEmail } from '../emails/password-reset.js'
 
 const RegisterBody = z.object({
   idToken: z.string().min(20)
@@ -26,6 +29,15 @@ const RegisterResponse = z.object({
 })
 
 const ErrorDTO = z.object({ error: z.string() })
+
+const PasswordResetBody = z.object({
+  email: z.string().email()
+    .describe('Adresse e-mail du compte dont on veut réinitialiser le mot de passe.'),
+})
+
+// Réponse volontairement neutre : on renvoie toujours `ok: true`, même si
+// l'e-mail ne correspond à aucun compte. Évite l'énumération de comptes.
+const PasswordResetResponse = z.object({ ok: z.literal(true) })
 
 interface FirebaseClaims {
   sub: string
@@ -51,18 +63,10 @@ function decodeFirebaseTokenUnsafe(idToken: string): FirebaseClaims | null {
   }
 }
 
-let firebaseInitialized = false
 async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaims | null> {
-  if (!env.FIREBASE_SERVICE_ACCOUNT_KEY || !env.FIREBASE_PROJECT_ID) return null
+  const admin = await getFirebaseAdmin()
+  if (!admin) return null
   try {
-    const admin = (await import('firebase-admin')).default
-    if (!firebaseInitialized) {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-        projectId: env.FIREBASE_PROJECT_ID,
-      })
-      firebaseInitialized = true
-    }
     const decoded = await admin.auth().verifyIdToken(idToken)
     return {
       sub: decoded.uid,
@@ -160,5 +164,71 @@ export async function authRoutes(rawApp: FastifyInstance) {
         communeId: u!.communeId,
       },
     })
+  })
+
+  /**
+   * POST /v1/auth/password-reset — déclenche l'envoi d'un e-mail de
+   * réinitialisation de mot de passe brandé SportLocker.
+   *
+   * Pourquoi côté serveur plutôt que `sendPasswordResetEmail()` côté client ?
+   * Firebase envoie sinon un e-mail générique en anglais depuis
+   * `noreply@<projet>.firebaseapp.com` — non brandé et systématiquement classé
+   * en spam par Gmail. Ici on génère le lien d'action via l'Admin SDK
+   * (`generatePasswordResetLink`) puis on envoie NOTRE e-mail FR via Resend,
+   * depuis un domaine vérifié (SPF/DKIM) → délivrabilité correcte.
+   *
+   * Anti-énumération : on renvoie TOUJOURS `200 { ok: true }`, que l'e-mail
+   * existe ou non, et on avale `auth/user-not-found`. Un attaquant ne peut pas
+   * distinguer un compte valide d'un compte inexistant.
+   */
+  app.post('/password-reset', {
+    schema: {
+      tags: ['Citoyens — Auth', 'Auth admin'],
+      summary: 'Envoie un e-mail brandé de réinitialisation de mot de passe',
+      description: 'Génère un lien de reset Firebase (Admin SDK) et envoie un e-mail FR brandé via Resend. '
+        + 'Réponse neutre `{ ok: true }` dans tous les cas (anti-énumération de comptes).\n\n'
+        + 'Prérequis env : `FIREBASE_*` (génération du lien) + `RESEND_API_KEY` / `EMAIL_FROM` (envoi). '
+        + 'Si non configuré, la route répond quand même `200` et logge un warning (aucun e-mail envoyé).\n\n'
+        + '**Exemple body** : `{ "email": "admin@sportlocker.fr" }`',
+      body: PasswordResetBody,
+      response: {
+        200: PasswordResetResponse,
+        400: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const email = req.body.email.trim().toLowerCase()
+
+    const admin = await getFirebaseAdmin()
+    if (!admin) {
+      req.log.warn({ email }, 'auth/password-reset: Firebase non configuré — aucun e-mail envoyé')
+      return reply.code(200).send({ ok: true })
+    }
+    if (!isEmailConfigured()) {
+      req.log.warn({ email }, 'auth/password-reset: RESEND_API_KEY absent — aucun e-mail envoyé')
+      return reply.code(200).send({ ok: true })
+    }
+
+    try {
+      const resetUrl = await admin.auth().generatePasswordResetLink(email)
+      const { subject, html, text } = renderPasswordResetEmail({ resetUrl, email })
+      await sendEmail({ to: email, subject, html, text })
+      req.log.info({ email }, 'auth/password-reset: e-mail de réinitialisation envoyé')
+    } catch (err) {
+      const code = (err as { code?: string }).code
+      // Compte inexistant : silencieux (anti-énumération).
+      if (code === 'auth/user-not-found' || code === 'auth/email-not-found') {
+        req.log.info({ email }, 'auth/password-reset: aucun compte (réponse neutre)')
+      } else {
+        // Vraie défaillance (Resend down, lien non généré…) : on logge pour
+        // l'observabilité mais on garde une réponse neutre côté client.
+        req.log.error(
+          { email, err: err instanceof Error ? err.message : String(err) },
+          'auth/password-reset: échec de l\'envoi',
+        )
+      }
+    }
+
+    return reply.code(200).send({ ok: true })
   })
 }
