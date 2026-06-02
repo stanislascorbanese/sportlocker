@@ -37,6 +37,14 @@ const EnvSchema = z.object({
 
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
+  // Resend — e-mails transactionnels brandés (reset password, etc.).
+  // Clé créée sur resend.com → API Keys. Si absente, les routes d'e-mail
+  // répondent quand même 200 mais loggent un warning (aucun envoi).
+  RESEND_API_KEY: z.string().optional(),
+  // Expéditeur des e-mails (RFC 5322 : "Nom <adresse@domaine>"). Le domaine
+  // DOIT être vérifié dans Resend (SPF/DKIM) sinon l'envoi est rejeté.
+  EMAIL_FROM: z.string().default('SportLocker <noreply@sportlocker.fr>'),
+
   // Web Push VAPID — clé de signature + identité du push agent.
   // Génération : `npx web-push generate-vapid-keys` puis copier les valeurs
   // dans les env Railway. Si absentes, l'API démarre quand même mais les
