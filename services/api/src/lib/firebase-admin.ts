@@ -1,6 +1,14 @@
 import { env } from '../config/env.js'
 
-type FirebaseAdmin = (typeof import('firebase-admin'))['default']
+// `firebase-admin` est un module CommonJS : l'objet `admin` est exposé via le
+// `default` du namespace une fois importé dynamiquement (interop esModule). On
+// dérive le type depuis cette MÊME expression de valeur — `(typeof import(...))
+// ['default']` échoue au niveau type car le `default` synthétique n'existe qu'au
+// niveau valeur (TS2339).
+async function importFirebaseAdmin() {
+  return (await import('firebase-admin')).default
+}
+type FirebaseAdmin = Awaited<ReturnType<typeof importFirebaseAdmin>>
 
 let cached: FirebaseAdmin | null = null
 
@@ -20,7 +28,7 @@ let cached: FirebaseAdmin | null = null
 export async function getFirebaseAdmin(): Promise<FirebaseAdmin | null> {
   if (cached) return cached
   if (!env.FIREBASE_SERVICE_ACCOUNT_KEY || !env.FIREBASE_PROJECT_ID) return null
-  const admin = (await import('firebase-admin')).default
+  const admin = await importFirebaseAdmin()
   if (admin.apps.length === 0) {
     admin.initializeApp({
       credential: admin.credential.cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_KEY)),
