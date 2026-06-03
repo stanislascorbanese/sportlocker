@@ -4,7 +4,6 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   isSignInWithEmailLink,
-  sendSignInLinkToEmail,
   signInWithEmailLink,
   signInWithPopup,
 } from 'firebase/auth'
@@ -15,7 +14,7 @@ import { useEffect, useState } from 'react'
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { ErrorState } from '../../components/ui/ErrorState'
-import { registerCurrentUser } from '../../lib/api'
+import { registerCurrentUser, sendSignInLink } from '../../lib/api'
 import { useAuth } from '../../lib/auth-context'
 import { cn } from '../../lib/cn'
 import { getFirebaseAuth } from '../../lib/firebase'
@@ -171,10 +170,11 @@ function EmailLinkForm({
     setError(null)
     setBusy(true)
     try {
-      await sendSignInLinkToEmail(getFirebaseAuth(), email, {
-        url: `${window.location.origin}/login`,
-        handleCodeInApp: true,
-      })
+      // Envoi déporté vers l'API backend (e-mail FR brandé via Resend) plutôt
+      // que `sendSignInLinkToEmail` du SDK Firebase (e-mail générique anglais →
+      // spam). Le lien reçu reste un vrai lien Firebase email-link : la
+      // finalisation ci-dessus (`signInWithEmailLink`) est inchangée.
+      await sendSignInLink(email)
       window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, email)
       setSent(true)
     } catch (err) {
