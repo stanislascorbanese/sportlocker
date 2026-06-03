@@ -2,12 +2,11 @@
 
 import {
   GoogleAuthProvider,
-  OAuthProvider,
   isSignInWithEmailLink,
   signInWithEmailLink,
   signInWithPopup,
 } from 'firebase/auth'
-import { Apple, Mail } from 'lucide-react'
+import { Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -25,8 +24,12 @@ const EMAIL_LINK_STORAGE_KEY = 'sl-emailForSignIn'
 /**
  * Méthodes d'authentification actives côté citoyen :
  *   - Google (gratuit)
- *   - Apple (gratuit)
- *   - Email magic link via `sendSignInLinkToEmail` (gratuit)
+ *   - Email magic link via `/v1/auth/signin-link` (gratuit, e-mail brandé Resend)
+ *
+ * **Apple masqué** : Sign in with Apple exige un compte Apple Developer
+ * Program payant (99 €/an). Le provider reste « Activé » côté Firebase mais
+ * non configuré → un clic planterait. On le réaffichera une fois le compte
+ * Apple Developer souscrit et le provider configuré (clé + Service ID).
  *
  * **Phone Auth désactivé** : Firebase Phone Auth exige le plan Blaze
  * (facturation activée), ce qui n'est pas le cas du projet pour le moment.
@@ -96,14 +99,6 @@ export default function LoginPage() {
             </ProviderButton>
 
             <ProviderButton
-              label={t('auth.with_apple')}
-              onClick={() => handleOAuth(new OAuthProvider('apple.com'), setBusy, setError, router)}
-              disabled={busy}
-            >
-              <Apple className="h-4 w-4" />
-            </ProviderButton>
-
-            <ProviderButton
               label={t('auth.with_email')}
               onClick={() => { setError(null); setMethod('email') }}
               disabled={busy}
@@ -132,7 +127,7 @@ export default function LoginPage() {
 }
 
 async function handleOAuth(
-  provider: GoogleAuthProvider | OAuthProvider,
+  provider: GoogleAuthProvider,
   setBusy: (b: boolean) => void,
   setError: (e: string | null) => void,
   router: ReturnType<typeof useRouter>,
