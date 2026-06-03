@@ -210,7 +210,13 @@ export async function authRoutes(rawApp: FastifyInstance) {
     }
 
     try {
-      const resetUrl = await admin.auth().generatePasswordResetLink(email)
+      const rawUrl = await admin.auth().generatePasswordResetLink(email)
+      // La page d'action Firebase suit le param `lang` de l'URL ; par défaut
+      // elle renvoie `lang=en`. On force `fr` pour rester cohérent avec notre
+      // e-mail FR (sinon la page de choix du mot de passe s'affiche en anglais).
+      const url = new URL(rawUrl)
+      url.searchParams.set('lang', 'fr')
+      const resetUrl = url.toString()
       const { subject, html, text } = renderPasswordResetEmail({ resetUrl, email })
       await sendEmail({ to: email, subject, html, text })
       req.log.info({ email }, 'auth/password-reset: e-mail de réinitialisation envoyé')
