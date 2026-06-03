@@ -309,6 +309,30 @@ export async function registerCurrentUser(idToken?: string): Promise<void> {
 }
 
 /**
+ * Déclenche l'envoi d'un e-mail de connexion magic-link brandé SportLocker.
+ *
+ * Remplace `sendSignInLinkToEmail()` du SDK Firebase : l'envoi est déporté
+ * vers l'API backend qui génère le lien via l'Admin SDK et envoie un e-mail FR
+ * brandé via Resend (vs e-mail Firebase générique en anglais → spam). Le lien
+ * reste un vrai lien Firebase email-link, donc la finalisation côté client
+ * (`isSignInWithEmailLink` / `signInWithEmailLink`) ne change pas.
+ *
+ * Le backend répond toujours `200` (même si l'e-mail ne mène à rien) ; on lève
+ * seulement sur erreur réseau/HTTP pour que le formulaire affiche un message.
+ */
+export async function sendSignInLink(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/auth/signin-link`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body?.error ?? `http_${res.status}`)
+  }
+}
+
+/**
  * Réponse de `POST /v1/reservations` — shape "base + nonce + deviceToken",
  * différent du shape enrichi de `GET /v1/reservations/active`. Pas de
  * `distributor.name` / `item.typeName` ici ; le caller redirige vers
