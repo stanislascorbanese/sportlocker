@@ -3,6 +3,8 @@
 import { Download, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
+import type { Lang } from '../../lib/lang'
+import { reportsStrings } from '../../lib/i18n/reports'
 import { generateReportAction, type ReportFilters } from './_actions'
 
 type State =
@@ -10,14 +12,14 @@ type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
 
-/**
- * Bouton "Télécharger PDF" — invoque la Server Action `generateReportAction`,
- * décode la base64 reçue en Blob, force le téléchargement côté navigateur.
- *
- * On garde l'erreur en local pour pouvoir l'afficher discrètement sans
- * casser le reste de la page.
- */
-export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
+export function DownloadPdfButton({
+  filters,
+  lang,
+}: {
+  filters: ReportFilters
+  lang: Lang
+}) {
+  const t = reportsStrings(lang)
   const [state, setState] = useState<State>({ kind: 'idle' })
 
   async function onClick() {
@@ -33,7 +35,7 @@ export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
     } catch (err) {
       setState({
         kind: 'error',
-        message: err instanceof Error ? err.message : 'Erreur inconnue',
+        message: err instanceof Error ? err.message : t.pdfUnknownError,
       })
     }
   }
@@ -53,7 +55,7 @@ export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
         ) : (
           <Download className="h-4 w-4" />
         )}
-        {busy ? 'Génération…' : 'Télécharger PDF'}
+        {busy ? t.pdfGenerating : t.pdfDownload}
       </button>
       {state.kind === 'error' && (
         <p className="max-w-[280px] text-right text-[11px] text-rose-300">
@@ -65,7 +67,6 @@ export function DownloadPdfButton({ filters }: { filters: ReportFilters }) {
 }
 
 function triggerDownload(base64: string, filename: string): void {
-  // base64 → Uint8Array → Blob (PDF) → ObjectURL → click sur <a download>
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) {
@@ -79,6 +80,5 @@ function triggerDownload(base64: string, filename: string): void {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  // Revoke après un petit délai pour laisser le navigateur initier le download.
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
