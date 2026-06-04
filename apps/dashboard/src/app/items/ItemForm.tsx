@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { useFormState, useFormStatus } from 'react-dom'
 
 import { cn } from '../../lib/cn'
-// Important : importer depuis api-enums (client-safe), PAS depuis ../../lib/api
-// qui embarquerait next/headers côté client et casserait le build Next.js.
-// cf. apps/dashboard/src/lib/api-enums.ts pour le contexte.
 import { ITEM_CONDITIONS, type ItemCondition } from '../../lib/api-enums'
+import type { Lang } from '../../lib/lang'
+import { commonStrings } from '../../lib/i18n/common'
+import { itemsStrings, conditionLabel } from '../../lib/i18n/items'
 import {
   createItemAction,
   updateItemAction,
@@ -15,14 +15,6 @@ import {
 } from './_actions'
 
 const INITIAL: FormState = { status: 'idle' }
-
-const CONDITION_LABEL: Record<ItemCondition, string> = {
-  new: 'Neuf',
-  good: 'Bon état',
-  worn: 'Usé',
-  damaged: 'Endommagé',
-  lost: 'Perdu',
-}
 
 export type LockerOption = {
   id: string
@@ -47,13 +39,17 @@ export function ItemForm({
   id,
   itemTypes,
   lockers,
+  lang,
 }: {
   mode: 'create' | 'edit'
   initial?: ItemInitial
   id?: string
   itemTypes: Array<{ id: string; name: string; category: string }>
   lockers: LockerOption[]
+  lang: Lang
 }) {
+  const t = itemsStrings(lang)
+  const c = commonStrings(lang)
   const action = mode === 'create'
     ? createItemAction
     : (prev: FormState, fd: FormData) => updateItemAction(id ?? '', prev, fd)
@@ -61,62 +57,61 @@ export function ItemForm({
   const [state, formAction] = useFormState(action, INITIAL)
 
   const v = initial ?? {}
-  // lastInspectedAt API renvoie ISO datetime, on extrait juste la date pour l'input.
   const lastInspectedDate = v.lastInspectedAt ? v.lastInspectedAt.slice(0, 10) : ''
+  const submitLabel = mode === 'create' ? t.btnSubmitCreateInstance : t.btnSubmitSaveInstance
 
   return (
     <form action={formAction} className="space-y-5">
       <Select
         name="itemTypeId"
-        label="Type d'article"
+        label={t.formItemType}
         defaultValue={v.itemTypeId ?? ''}
         disabled={mode === 'edit'}
-        hint={mode === 'edit' ? 'Non modifiable après création — un article = instance figée d\'un type' : undefined}
+        hint={mode === 'edit' ? '—' : undefined}
         error={state.fieldErrors?.['itemTypeId']}
         required
       >
-        <option value="" disabled>— Choisir un type —</option>
-        {itemTypes.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name} ({t.category})
+        <option value="" disabled>{lang === 'fr' ? '— Choisir un type —' : '— Choose a type —'}</option>
+        {itemTypes.map((tp) => (
+          <option key={tp.id} value={tp.id}>
+            {tp.name} ({tp.category})
           </option>
         ))}
       </Select>
 
       <Field
         name="rfidTag"
-        label="Tag RFID"
+        label={t.formRfid}
         placeholder="RFID-BB-0001"
         defaultValue={v.rfidTag ?? ''}
         error={state.fieldErrors?.['rfidTag']}
         required
         mono
-        hint="Identifiant unique inscrit sur la puce — minimum 4 caractères"
       />
 
       <Select
         name="condition"
-        label="État"
+        label={t.formCondition}
         defaultValue={v.condition ?? 'new'}
         error={state.fieldErrors?.['condition']}
         required
       >
-        {ITEM_CONDITIONS.map((c) => (
-          <option key={c} value={c}>{CONDITION_LABEL[c]}</option>
+        {ITEM_CONDITIONS.map((cond) => (
+          <option key={cond} value={cond}>{conditionLabel(lang, cond)}</option>
         ))}
       </Select>
 
       <Select
         name="currentLockerId"
-        label="Casier actuel"
+        label={t.formLocker}
         defaultValue={v.currentLockerId ?? ''}
         error={state.fieldErrors?.['currentLockerId']}
-        hint="Choisir un casier vacant. Laisse vide pour stock atelier (super-admin uniquement)."
+        hint={t.formLockerHint}
       >
-        <option value="">— Stock atelier (orphelin) —</option>
+        <option value="">{t.formNoLocker}</option>
         {lockers.map((l) => (
           <option key={l.id} value={l.id}>
-            {l.distributorName} · casier #{l.position + 1} ({l.distributorSerial})
+            {l.distributorName} · {t.lockerHash}{l.position + 1} ({l.distributorSerial})
             {l.state !== 'idle' ? ` — ${l.state}` : ''}
           </option>
         ))}
@@ -125,11 +120,11 @@ export function ItemForm({
       {mode === 'edit' && (
         <Field
           name="lastInspectedAt"
-          label="Dernière inspection"
+          label={t.formInspected}
           type="date"
           defaultValue={lastInspectedDate}
           error={state.fieldErrors?.['lastInspectedAt']}
-          hint="Date du dernier contrôle physique. Laisse vide si jamais inspecté."
+          hint={t.formInspectedHint}
         />
       )}
 
@@ -144,17 +139,16 @@ export function ItemForm({
           href="/items?tab=instances"
           className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:border-white/30 hover:text-white"
         >
-          Annuler
+          {c.cancel}
         </Link>
-        <SubmitButton mode={mode} />
+        <SubmitButton label={submitLabel} submitting={t.btnSubmitSubmitting} />
       </div>
     </form>
   )
 }
 
-function SubmitButton({ mode }: { mode: 'create' | 'edit' }) {
+function SubmitButton({ label, submitting }: { label: string; submitting: string }) {
   const { pending } = useFormStatus()
-  const label = mode === 'create' ? 'Créer l\'article' : 'Enregistrer'
   return (
     <button
       type="submit"
@@ -164,7 +158,7 @@ function SubmitButton({ mode }: { mode: 'create' | 'edit' }) {
         'hover:bg-emerald-400 disabled:opacity-50',
       )}
     >
-      {pending ? `${label}…` : label}
+      {pending ? `${submitting}` : label}
     </button>
   )
 }

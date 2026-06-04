@@ -4,22 +4,18 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 
 import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { pricingStrings } from '../../lib/i18n/pricing'
 import { upsertPricingRuleAction, deletePricingRuleAction } from './_actions'
 import type { SlotDurationMinutes } from '../../lib/api'
 
 type Props = {
   itemTypeId: string
   durationMinutes: SlotDurationMinutes
-  /** Prix initial en cents, ou null si aucune règle n'existe encore. */
   initialPriceCents: number | null
-  /** ID de la règle si elle existe (pour la suppression). */
   ruleId: string | null
-  /**
-   * Override commune (super_admin uniquement). null = admin scopé, l'API
-   * utilisera la session. Super_admin doit transmettre le communeId
-   * sélectionné dans le picker pour passer le guard `commune_id_required`.
-   */
   communeId: string | null
+  lang: Lang
 }
 
 /**
@@ -59,6 +55,7 @@ function formatCents(cents: number): string {
  */
 export function PriceCell(props: Props) {
   const router = useRouter()
+  const t = pricingStrings(props.lang)
   const [draft, setDraft] = useState<string>(
     props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents),
   )
@@ -97,7 +94,7 @@ export function PriceCell(props: Props) {
 
     const parsed = Number(trimmed)
     if (!Number.isFinite(parsed) || parsed < 0) {
-      setError('invalid')
+      setError(t.priceInvalid)
       setDraft(props.initialPriceCents === null ? '' : formatCents(props.initialPriceCents))
       return
     }
@@ -137,7 +134,7 @@ export function PriceCell(props: Props) {
         }}
         placeholder="—"
         disabled={isPending}
-        aria-label={`Prix ${props.durationMinutes} min en euros`}
+        aria-label={t.priceAria.replace('%d', String(props.durationMinutes))}
         className={cn(
           // 6rem au lieu de 5rem pour laisser la place au "€" sans
           // chevauchement du nombre — utile pour 1234 (= 12,34 €).

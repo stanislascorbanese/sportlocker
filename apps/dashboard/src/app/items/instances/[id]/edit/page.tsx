@@ -3,6 +3,9 @@ import { notFound } from 'next/navigation'
 
 import { ApiError, fetchAdminItemTypes, fetchItem } from '../../../../../lib/api'
 import { DEMO_ITEM_TYPES } from '../../../../../lib/demo-data'
+import { getLang } from '../../../../../lib/lang-server'
+import { commonStrings } from '../../../../../lib/i18n/common'
+import { itemsStrings } from '../../../../../lib/i18n/items'
 import { ItemForm } from '../../../ItemForm'
 import { fetchAllLockerOptions } from '../../_lockers'
 
@@ -15,6 +18,9 @@ export default async function EditItemPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const lang = await getLang()
+  const t = itemsStrings(lang)
+  const c = commonStrings(lang)
 
   try {
     const item = await fetchItem(id)
@@ -40,14 +46,14 @@ export default async function EditItemPage({
             <p className="mt-1 text-sm text-white/55">
               RFID <span className="font-mono">{item.rfidTag}</span>
               {' · '}
-              {item.totalLoans} emprunt{item.totalLoans > 1 ? 's' : ''}
+              {item.totalLoans} {lang === 'fr' ? `emprunt${item.totalLoans > 1 ? 's' : ''}` : `loan${item.totalLoans > 1 ? 's' : ''}`}
               {item.currentLocker && (
-                <> · actuellement dans {item.currentLocker.distributor.name} (casier #{item.currentLocker.position + 1})</>
+                <> · {lang === 'fr' ? 'actuellement dans' : 'currently in'} {item.currentLocker.distributor.name} ({t.lockerHash}{item.currentLocker.position + 1})</>
               )}
             </p>
           </div>
           <Link href="/items?tab=instances" className="text-sm text-white/60 transition hover:text-white">
-            ← Retour
+            ← {c.back}
           </Link>
         </header>
 
@@ -55,7 +61,8 @@ export default async function EditItemPage({
           <ItemForm
             mode="edit"
             id={item.id}
-            itemTypes={types.map((t) => ({ id: t.id, name: t.name, category: t.category }))}
+            lang={lang}
+            itemTypes={types.map((tp) => ({ id: tp.id, name: tp.name, category: tp.category }))}
             lockers={lockers}
             initial={{
               itemTypeId:      item.itemType.id,
