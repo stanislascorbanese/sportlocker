@@ -139,6 +139,12 @@ export default async function DistributorsListPage() {
                         {c.detail}
                       </Link>
                       <Link
+                        href={`/distributors/${d.id}/health`}
+                        className="text-meta transition-colors duration-base text-sky-600 hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-200"
+                      >
+                        {c.health}
+                      </Link>
+                      <Link
                         href={`/distributors/${d.id}/edit`}
                         className="text-meta transition-colors duration-base text-gray-500 hover:text-navy-900 dark:text-white/55 dark:hover:text-white"
                       >

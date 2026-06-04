@@ -16,7 +16,7 @@ type CommonKey =
   | 'demo' | 'all' | 'none' | 'unknown'
   // Boutons partagés
   | 'refresh' | 'filter' | 'reset' | 'cancel' | 'save' | 'create' | 'edit' | 'delete' | 'back'
-  | 'detail' | 'modify' | 'export' | 'viewAll' | 'nextPage' | 'previousPage' | 'new'
+  | 'detail' | 'modify' | 'export' | 'viewAll' | 'nextPage' | 'previousPage' | 'new' | 'health'
   // Form labels génériques
   | 'search' | 'status' | 'from' | 'to' | 'date' | 'name' | 'email'
   // Demo banner
@@ -46,6 +46,7 @@ const STRINGS: Record<Lang, Record<CommonKey, string>> = {
     back:                'Retour',
     detail:              'Détail',
     modify:              'Modifier',
+    health:              'Santé',
     export:              'Exporter',
     viewAll:             'Voir tout',
     nextPage:            'Page suivante',
@@ -89,6 +90,7 @@ const STRINGS: Record<Lang, Record<CommonKey, string>> = {
     back:                'Back',
     detail:              'Detail',
     modify:              'Edit',
+    health:              'Health',
     export:              'Export',
     viewAll:             'View all',
     nextPage:            'Next page',

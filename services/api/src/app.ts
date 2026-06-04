@@ -15,6 +15,7 @@ import { distributorRoutes } from './routes/distributors.js'
 import { reservationRoutes } from './routes/reservations.js'
 import { adminReservationRoutes } from './routes/admin-reservations.js'
 import { adminMaintenanceRoutes } from './routes/admin-maintenance.js'
+import { adminDistributorHealthRoutes } from './routes/admin-distributor-health.js'
 import { adminStatsRoutes } from './routes/admin-stats.js'
 import { adminCommuneRoutes } from './routes/admin-communes.js'
 import { adminUserRoutes } from './routes/admin-users.js'
@@ -60,6 +61,7 @@ export async function buildApp() {
   await app.register(adminInviteRoutes,       { prefix: '/v1/admin/invites' })
   await app.register(adminReservationRoutes,  { prefix: '/v1/admin/reservations' })
   await app.register(adminMaintenanceRoutes,  { prefix: '/v1/admin/maintenance-tickets' })
+  await app.register(adminDistributorHealthRoutes, { prefix: '/v1/admin/distributors' })
   await app.register(adminStatsRoutes,        { prefix: '/v1/admin/stats' })
   await app.register(adminCommuneRoutes,      { prefix: '/v1/admin/communes' })
   await app.register(adminUserRoutes,         { prefix: '/v1/admin/users' })
