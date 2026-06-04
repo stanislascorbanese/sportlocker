@@ -71,7 +71,8 @@ type SummaryRow = {
 }
 
 type LatestRow = {
-  received_at: Date
+  // postgres-js (config main) renvoie les timestamps en string, pas en Date.
+  received_at: Date | string
   rssi_dbm: number | null
   cpu_temp_c: number | null
   uptime_seconds: number | null
@@ -79,7 +80,7 @@ type LatestRow = {
 }
 
 type SeriesRow = {
-  bucket: Date
+  bucket: Date | string
   avg_cpu: number | null
   avg_rssi: number | null
   avg_free_mem: number | null
@@ -195,7 +196,7 @@ export async function adminDistributorHealthRoutes(rawApp: FastifyInstance) {
       },
       latest: latestRow
         ? {
-            receivedAt: latestRow.received_at.toISOString(),
+            receivedAt: new Date(latestRow.received_at).toISOString(),
             rssiDbm: latestRow.rssi_dbm,
             cpuTempC: latestRow.cpu_temp_c,
             uptimeSeconds: latestRow.uptime_seconds,
@@ -203,7 +204,7 @@ export async function adminDistributorHealthRoutes(rawApp: FastifyInstance) {
           }
         : null,
       series: (seriesRows as unknown as SeriesRow[]).map((r) => ({
-        bucket: r.bucket.toISOString(),
+        bucket: new Date(r.bucket).toISOString(),
         avgCpuTempC: r.avg_cpu,
         avgRssiDbm: r.avg_rssi,
         avgFreeMemMb: r.avg_free_mem,
