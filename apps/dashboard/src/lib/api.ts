@@ -712,6 +712,53 @@ export async function fetchAuditEvents(filters: AuditFilters = {}): Promise<Audi
   return AuditEventsPage.parse(await res.json())
 }
 
+export const DistributorHealth = z.object({
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    firmwareVersion: z.string().nullable(),
+    lastSeenAt: z.string().datetime().nullable(),
+  }),
+  summary: z.object({
+    windowHours: z.number().int(),
+    heartbeatCount: z.number().int(),
+    availabilityPct: z.number().min(0).max(100).nullable(),
+    avgCpuTempC: z.number().nullable(),
+    maxCpuTempC: z.number().nullable(),
+    avgRssiDbm: z.number().nullable(),
+    minFreeMemMb: z.number().int().nullable(),
+  }),
+  latest: z.object({
+    receivedAt: z.string().datetime(),
+    rssiDbm: z.number().int().nullable(),
+    cpuTempC: z.number().nullable(),
+    uptimeSeconds: z.number().int().nullable(),
+    freeMemMb: z.number().int().nullable(),
+  }).nullable(),
+  series: z.array(z.object({
+    bucket: z.string().datetime(),
+    avgCpuTempC: z.number().nullable(),
+    avgRssiDbm: z.number().nullable(),
+    avgFreeMemMb: z.number().nullable(),
+    count: z.number().int(),
+  })),
+})
+
+export type DistributorHealth = z.infer<typeof DistributorHealth>
+
+export async function fetchDistributorHealth(id: string, hours = 24): Promise<DistributorHealth> {
+  const res = await fetch(`${API_URL}/v1/admin/distributors/${id}/health?hours=${hours}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['distributors', `distributor:${id}`, `distributor-health:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'distributor_not_found')
+  if (!res.ok) await throwApiError(res)
+  return DistributorHealth.parse(await res.json())
+}
+
 export const Invite = z.object({
   token: z.string().min(20),
   inviteUrl: z.string().url(),
