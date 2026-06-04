@@ -9,7 +9,7 @@ const VARIANT_CLASSES: Record<CardVariant, string> = {
   default:
     'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5',
   elevated:
-    'border-gray-200 bg-white shadow-card dark:border-white/10 dark:bg-gradient-to-br dark:from-white/[0.08] dark:to-white/[0.02] dark:shadow-elevated',
+    'border-gray-200 bg-white shadow-card dark:border-white/10 dark:bg-navy-800 dark:bg-gradient-to-br dark:from-white/[0.08] dark:to-white/[0.02] dark:shadow-elevated',
   accent:
     'border-emerald-200 bg-emerald-50 dark:border-emerald-400/30 dark:bg-emerald-500/[0.06]',
 }
