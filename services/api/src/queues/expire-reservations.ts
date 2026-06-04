@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import type { FastifyBaseLogger } from 'fastify'
 
+import { env } from '../config/env.js'
 import { db } from '../db/client.js'
-import { lockers, reservations } from '../db/schema.js'
+import { lockers, payments, reservations } from '../db/schema.js'
 import { NO_SHOW_GRACE_MINUTES } from '../lib/slots.js'
 
 /**
@@ -36,11 +37,16 @@ export async function runExpireReservations(log: FastifyBaseLogger): Promise<num
   // dans des comparaisons paramétrées directement par Drizzle (le template
   // `sql` avec `${date}` côté postgres-js ne sérialise pas un Date en bind).
   const graceCutoff = new Date(now.getTime() - NO_SHOW_GRACE_MINUTES * 60 * 1000)
+  // Résa créée mais jamais payée : on libère le slot/item après ce délai pour
+  // ne pas qu'un panier abandonné tienne un créneau indéfiniment.
+  const paymentCutoff = new Date(now.getTime() - env.PAYMENT_TTL_MINUTES * 60 * 1000)
 
-  // Predicate combiné pour traiter pending + scheduled en un seul UPDATE.
+  // Predicate combiné pour traiter pending + scheduled + pending_payment en un
+  // seul UPDATE.
   // - pending : expires_at < now
   // - scheduled : slot_start_at < (now - grâce) ET pas de check-in
   //   (`opened_at IS NULL` — sinon la résa est déjà passée à `active`)
+  // - pending_payment : créée il y a plus de PAYMENT_TTL_MINUTES sans paiement
   const expired = await db
     .update(reservations)
     .set({ status: 'expired', updatedAt: now })
@@ -54,11 +60,28 @@ export async function runExpireReservations(log: FastifyBaseLogger): Promise<num
         isNull(reservations.openedAt),
         lt(reservations.slotStartAt, graceCutoff),
       ),
+      and(
+        eq(reservations.status, 'pending_payment'),
+        lt(reservations.createdAt, paymentCutoff),
+      ),
     ))
     .returning({
       id: reservations.id,
       lockerId: reservations.lockerId,
     })
+
+  // Annule les paiements `pending` des résas qu'on vient d'expirer (les
+  // pending_payment abandonnées). No-op pour pending/scheduled (pas de
+  // paiement pending rattaché). Filtre sur status='pending' → idempotent.
+  if (expired.length > 0) {
+    await db
+      .update(payments)
+      .set({ status: 'cancelled', updatedAt: now })
+      .where(and(
+        inArray(payments.reservationId, expired.map((r) => r.id)),
+        eq(payments.status, 'pending'),
+      ))
+  }
 
   // Pour les pending legacy, libérer le casier (state reserved → idle).
   // Pour les scheduled, le casier n'est jamais passé en 'reserved' au moment

@@ -404,7 +404,9 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
         .from(reservations)
         .where(and(
           inArray(reservations.itemId, itemIds),
-          inArray(reservations.status, ['scheduled', 'pending', 'active']),
+          // pending_payment inclus : une résa en attente de paiement tient déjà
+          // l'item, le créneau ne doit donc pas réapparaître dispo.
+          inArray(reservations.status, ['pending_payment', 'scheduled', 'pending', 'active']),
           // Overlap test : début de la résa avant fin de la fenêtre, ET fin
           // de la résa après début de la fenêtre. NULL impossibles côté
           // scheduled (CHECK reservations_slot_range_check), mais filtre

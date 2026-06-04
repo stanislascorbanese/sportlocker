@@ -6,6 +6,7 @@ import { useT } from '../lib/i18n/I18nProvider'
 import type { ReservationActive } from '../lib/api'
 
 const STATUS_KEY_BY_STATUS = {
+  pending_payment: 'reservation.status.pending_payment',
   scheduled: 'reservation.status.scheduled',
   pending: 'reservation.status.pending',
   active: 'reservation.status.active',

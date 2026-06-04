@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
+import { PaymentStep } from '../../../components/PaymentStep'
 import { Skeleton } from '../../../components/ui/Skeleton'
 import {
   MAX_EXTENSIONS,
@@ -46,7 +47,10 @@ export default function ReservationPage() {
     queryKey: ['reservation-active'],
     queryFn: fetchActiveReservation,
     enabled: Boolean(user),
-    refetchInterval: 30_000,
+    // Polling rapide tant que le paiement n'est pas réglé : après confirmation
+    // Stripe, le passage `pending_payment → scheduled` (webhook) arrive vite.
+    refetchInterval: (q) =>
+      q.state.data?.status === 'pending_payment' ? 3_000 : 30_000,
   })
 
   const cancelMutation = useMutation({
@@ -145,25 +149,32 @@ function ReservationContent({
   const minutesUntilSlot = r.slotStartAt
     ? (new Date(r.slotStartAt).getTime() - Date.now()) / 60_000
     : Infinity
+  const isPendingPayment = r.status === 'pending_payment'
   const canCancel =
-    r.status === 'pending'
+    isPendingPayment
+    || r.status === 'pending'
     || (isScheduled && minutesUntilSlot > CANCEL_CUTOFF_MIN)
 
   return (
     <>
-      <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
-        <QRCodeSVG
-          value={r.qrToken}
-          size={256}
-          level="H"
-          marginSize={0}
-          className={cn(expired && 'opacity-30')}
-        />
-        <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
-          {r.qrToken.slice(0, 32)}…
-        </p>
-      </section>
+      {isPendingPayment ? (
+        <PaymentStep reservation={r} />
+      ) : (
+        <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+          <QRCodeSVG
+            value={r.qrToken ?? ''}
+            size={256}
+            level="H"
+            marginSize={0}
+            className={cn(expired && 'opacity-30')}
+          />
+          <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
+            {(r.qrToken ?? '').slice(0, 32)}…
+          </p>
+        </section>
+      )}
 
+      {!isPendingPayment && (
       <Card>
         <div className="space-y-3">
           <Row
@@ -221,10 +232,13 @@ function ReservationContent({
           )}
         </div>
       </Card>
+      )}
 
-      <p className="text-center text-meta leading-relaxed text-gray-500 dark:text-white/40">
-        {isScheduled ? t('reservation.page.help.scheduled') : t('reservation.page.help.pending')}
-      </p>
+      {!isPendingPayment && (
+        <p className="text-center text-meta leading-relaxed text-gray-500 dark:text-white/40">
+          {isScheduled ? t('reservation.page.help.scheduled') : t('reservation.page.help.pending')}
+        </p>
+      )}
 
       {/* Bloc prolongation — uniquement actif quand l'emprunt est réellement
           en cours (status 'active' = casier ouvert, item sorti). Pour les

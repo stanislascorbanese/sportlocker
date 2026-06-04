@@ -34,6 +34,17 @@ const EnvSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Clé publishable Stripe (pk_test_… / pk_live_…). Exposée au client via
+  // NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY côté PWA — déclarée ici uniquement pour
+  // documentation/validation, l'API ne s'en sert pas directement.
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  // Provider de paiement. `simulate` (défaut) = aucun appel Stripe, le paiement
+  // auto-réussit (dev offline, même esprit que les routes /v1/dev). `stripe` =
+  // vraie API Stripe (clés requises, cf. garde-fou boot plus bas).
+  PAYMENTS_PROVIDER: z.enum(['stripe', 'simulate']).default('simulate'),
+  // Délai (minutes) au-delà duquel une résa `pending_payment` impayée est
+  // expirée par le cron, libérant le slot/item.
+  PAYMENT_TTL_MINUTES: z.coerce.number().int().positive().default(15),
 
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
@@ -79,6 +90,25 @@ if (env.NODE_ENV === 'production') {
       `[boot] DASHBOARD_INVITE_BASE_URL="${url}" est un loopback alors que NODE_ENV=production. ` +
       `Les invitations admin tenant généreront des liens injouables. ` +
       `Pose la vraie URL publique du dashboard (ex: https://app.sportlocker.fr) sur Railway → @sportlocker/api → Variables.`,
+    )
+    process.exit(1)
+  }
+}
+
+// Garde-fou : si PAYMENTS_PROVIDER=stripe, les clés Stripe (secret + webhook)
+// sont obligatoires. Sinon l'API démarrerait avec un provider stripe incapable
+// de créer un PaymentIntent ou de vérifier les webhooks — les citoyens
+// resteraient bloqués en `pending_payment`. On échoue au boot plutôt que de
+// laisser passer une config silencieusement cassée.
+if (env.PAYMENTS_PROVIDER === 'stripe') {
+  const missing: string[] = []
+  if (!env.STRIPE_SECRET_KEY) missing.push('STRIPE_SECRET_KEY')
+  if (!env.STRIPE_WEBHOOK_SECRET) missing.push('STRIPE_WEBHOOK_SECRET')
+  if (missing.length > 0) {
+    console.error(
+      `[boot] PAYMENTS_PROVIDER=stripe mais ${missing.join(', ')} manquant(s). ` +
+      `Pose ces variables sur Railway → @sportlocker/api → Variables, ` +
+      `ou bascule PAYMENTS_PROVIDER=simulate pour le dev offline.`,
     )
     process.exit(1)
   }

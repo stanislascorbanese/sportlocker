@@ -1,10 +1,8 @@
 'use client'
 
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, Check, Clock } from 'lucide-react'
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { QRCodeSVG } from 'qrcode.react'
+import { CalendarClock, Clock } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Card } from '../../../../components/ui/Card'
@@ -15,7 +13,6 @@ import {
   DAY_PASS_MINUTES,
   SLOT_DURATIONS,
   type SlotDurationMinutes,
-  type SlotReservationCreated,
   createSlotReservation,
   fetchAvailability,
   fetchDistributorDetail,
@@ -109,6 +106,7 @@ function groupAvailableTypes(d: DistributorDetail): LockerItemType[] {
 
 export default function BookingPage() {
   const params = useParams<{ id: string }>()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const user = useRequireAuth()
   const t = useT()
@@ -179,8 +177,11 @@ export default function BookingPage() {
       slotStartAt: selectedSlot!.startsAt,
       durationMinutes: duration,
     }),
-    onSuccess: () => {
+    onSuccess: (created) => {
+      // Résa créée en `pending_payment` (slot tenu, pas encore de QR). On
+      // redirige vers le détail qui prend en charge l'étape de paiement.
       queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
+      router.push(`/reservations/${created.id}`)
     },
   })
 
@@ -192,16 +193,6 @@ export default function BookingPage() {
   const dayKeys = Object.keys(days).sort()
 
   if (!user) return null
-
-  if (reserveMutation.data) {
-    return (
-      <ConfirmationView
-        reservation={reserveMutation.data}
-        distributorName={detailQuery.data?.name ?? ''}
-        itemTypeName={types.find((tt) => tt.id === itemTypeId)?.name ?? ''}
-      />
-    )
-  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
@@ -419,84 +410,6 @@ export default function BookingPage() {
           )}
         </Card>
       )}
-    </main>
-  )
-}
-
-function ConfirmationView({
-  reservation,
-  distributorName,
-  itemTypeName,
-}: {
-  reservation: SlotReservationCreated
-  distributorName: string
-  itemTypeName: string
-}) {
-  const t = useT()
-  const { locale } = useI18n()
-  const intlLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
-  const slotStart = new Date(reservation.slotStartAt)
-  const slotEnd = new Date(reservation.slotEndAt)
-  const isDayPass = reservation.durationMinutes === DAY_PASS_MINUTES
-  const dateStr = slotStart.toLocaleDateString(intlLocale, {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
-  const timeRange = isDayPass
-    ? t('booking.day_pass_label')
-    : `${slotStart.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' })} – `
-    + `${slotEnd.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' })}`
-
-  return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
-      <PageHeader
-        eyebrow={t('booking.confirmation.eyebrow')}
-        title={t('booking.confirmation.title')}
-        backHref="/"
-        backLabel={t('nav.back')}
-      />
-
-      <Card variant="accent" className="animate-scale-in">
-        <div className="flex items-start gap-3">
-          <Check
-            className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300"
-            aria-hidden="true"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium capitalize text-emerald-800 dark:text-emerald-100">
-              {dateStr}
-            </p>
-            <p className="mt-0.5 text-sm text-emerald-700 dark:text-emerald-200/80">{timeRange}</p>
-            <p className="mt-2 text-meta text-gray-600 dark:text-white/65">
-              {itemTypeName} · {distributorName}
-            </p>
-            <p className="mt-1 text-meta font-medium text-navy-900 dark:text-white/85">
-              {reservation.priceCents === 0
-                ? t('booking.free')
-                : `${(reservation.priceCents / 100).toLocaleString(intlLocale, { maximumFractionDigits: 2 })} €`}
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
-        <QRCodeSVG value={reservation.deviceToken} size={256} level="H" marginSize={0} />
-        <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
-          {reservation.deviceToken.slice(0, 32)}…
-        </p>
-      </section>
-
-      <p className="text-center text-meta leading-relaxed text-gray-500 dark:text-white/40">
-        {isDayPass
-          ? t('booking.confirmation.help.day_pass')
-          : t('booking.confirmation.help.slot')}
-      </p>
-
-      <Link
-        href="/"
-        className="rounded-xl border px-4 py-3 text-center text-sm font-medium transition-colors duration-base border-gray-200 bg-white text-navy-900 hover:border-gray-300 dark:border-white/15 dark:bg-white/5 dark:text-white/85 dark:hover:border-white/30"
-      >
-        {t('booking.confirmation.back_home')}
-      </Link>
     </main>
   )
 }

@@ -40,6 +40,7 @@ CREATE TYPE locker_state AS ENUM (
 CREATE TYPE item_condition AS ENUM ('new', 'good', 'worn', 'damaged', 'lost');
 
 CREATE TYPE reservation_status AS ENUM (
+  'pending_payment', -- créneau réservé (slot + item tenus), QR PAS encore émis — attente paiement (migration 0013)
   'scheduled',      -- créneau futur réservé, QR émis (modèle slots)
   'pending',        -- créée, casier réservé, QR émis (legacy modèle immédiat)
   'active',         -- item retiré
@@ -57,6 +58,15 @@ CREATE TYPE locker_event_type AS ENUM (
 CREATE TYPE maintenance_status AS ENUM ('open', 'in_progress', 'resolved', 'wontfix');
 
 CREATE TYPE notification_channel AS ENUM ('push', 'email', 'sms');
+
+-- Paiement Stripe d'une location de casier (migration 0013).
+CREATE TYPE payment_status AS ENUM (
+  'pending',     -- intent créé, paiement pas encore confirmé
+  'succeeded',   -- paiement confirmé → résa passée en 'scheduled'
+  'failed',      -- échec (carte refusée, etc.) — le citoyen peut réessayer
+  'cancelled',   -- abandonné / expiré par le cron
+  'refunded'     -- remboursé (post-MVP)
+);
 
 -- ─── 1. communes ───────────────────────────────────────────────────────────
 
@@ -422,6 +432,29 @@ CREATE UNIQUE INDEX pricing_rules_commune_item_type_duration_uq
 CREATE INDEX idx_pricing_rules_commune   ON pricing_rules(commune_id);
 CREATE INDEX idx_pricing_rules_item_type ON pricing_rules(item_type_id);
 
+-- ─── 16. payments ────────────────────────────────────────────────────────────
+--  Paiement Stripe d'une location (modèle slots, migration 0013). 1:1 avec une
+--  réservation. amount_cents = snapshot du price_cents figé à la création.
+--  provider = 'stripe' (réel) ou 'simulate' (dev offline, auto-réussite).
+
+CREATE TABLE payments (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reservation_id           UUID NOT NULL UNIQUE REFERENCES reservations(id) ON DELETE CASCADE,
+  user_id                  UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  amount_cents             INTEGER NOT NULL CHECK (amount_cents >= 0),
+  currency                 VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  status                   payment_status NOT NULL DEFAULT 'pending',
+  provider                 VARCHAR(20) NOT NULL DEFAULT 'stripe',
+  stripe_payment_intent_id VARCHAR(255) UNIQUE,
+  error_message            TEXT,
+  paid_at                  TIMESTAMPTZ,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_payments_status_created ON payments(status, created_at);
+CREATE INDEX idx_payments_user           ON payments(user_id);
+
 -- ─── Triggers updated_at ───────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION trg_set_updated_at() RETURNS trigger AS $$
@@ -436,7 +469,7 @@ DECLARE t TEXT;
 BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'communes', 'users', 'distributors', 'lockers', 'items',
-    'reservations', 'maintenance_tickets', 'pricing_rules'
+    'reservations', 'maintenance_tickets', 'pricing_rules', 'payments'
   ])
   LOOP
     EXECUTE format(
