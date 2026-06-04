@@ -61,14 +61,16 @@ async function seedHeartbeat(distributorId: string, o: HeartbeatOpts): Promise<v
             ${o.cpuTempC ?? null}, ${o.freeMemMb ?? null})`
 }
 
-async function seedUser(role: 'citizen' | 'operator' | 'admin', communeId: string | null = null): Promise<string> {
+type Role = 'citizen' | 'operator' | 'admin' | 'super_admin'
+
+async function seedUser(role: Role, communeId: string | null = null): Promise<string> {
   const id = randomUUID()
   await pgSql`INSERT INTO users (id, firebase_uid, email, role, commune_id)
     VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@test.local'}, ${role}, ${communeId})`
   return id
 }
 
-function authHeader(userId: string, role: 'citizen' | 'operator' | 'admin', communeId?: string): string {
+function authHeader(userId: string, role: Role, communeId?: string): string {
   const token = app.jwt.sign(communeId ? { sub: userId, role, communeId } : { sub: userId, role })
   return `Bearer ${token}`
 }
@@ -158,18 +160,32 @@ describe('GET /v1/admin/distributors/:id/health', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('renvoie 404 quand le distributeur est inconnu', async () => {
+  it('renvoie 403 quand un admin n’a pas de communeId (multi-tenant strict)', async () => {
+    const communeId = await seedCommune()
+    const distributorId = await seedDistributor(communeId)
     const adminId = await seedUser('admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/distributors/${distributorId}/health`,
+      headers: { authorization: authHeader(adminId, 'admin') },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toBe('forbidden_admin_missing_commune')
+  })
+
+  it('renvoie 404 quand le distributeur est inconnu', async () => {
+    const suId = await seedUser('super_admin')
     const res = await app.inject({
       method: 'GET',
       url: `/v1/admin/distributors/${randomUUID()}/health`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(suId, 'super_admin') },
     })
     expect(res.statusCode).toBe(404)
     expect(res.json().error).toBe('distributor_not_found')
   })
 
-  it('agrège la télémétrie : summary, latest (le plus récent), série horaire (admin)', async () => {
+  it('agrège la télémétrie : summary, latest (le plus récent), série horaire (super_admin)', async () => {
     const communeId = await seedCommune()
     const lastSeen = new Date()
     const distributorId = await seedDistributor(communeId, { lastSeenAt: lastSeen, firmware: '1.4.2' })
@@ -180,11 +196,11 @@ describe('GET /v1/admin/distributors/:id/health', () => {
     await seedHeartbeat(distributorId, { receivedAt: older, rssiDbm: -70, uptimeSeconds: 1000, cpuTempC: 50.0, freeMemMb: 300 })
     await seedHeartbeat(distributorId, { receivedAt: recent, rssiDbm: -60, uptimeSeconds: 5800, cpuTempC: 62.5, freeMemMb: 180 })
 
-    const adminId = await seedUser('admin')
+    const suId = await seedUser('super_admin')
     const res = await app.inject({
       method: 'GET',
       url: `/v1/admin/distributors/${distributorId}/health?hours=24`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(suId, 'super_admin') },
     })
 
     expect(res.statusCode).toBe(200)
@@ -215,12 +231,12 @@ describe('GET /v1/admin/distributors/:id/health', () => {
   it('renvoie un état vide cohérent quand aucun heartbeat', async () => {
     const communeId = await seedCommune()
     const distributorId = await seedDistributor(communeId)
-    const adminId = await seedUser('admin')
+    const suId = await seedUser('super_admin')
 
     const res = await app.inject({
       method: 'GET',
       url: `/v1/admin/distributors/${distributorId}/health`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(suId, 'super_admin') },
     })
     expect(res.statusCode).toBe(200)
     const body = res.json()
@@ -231,30 +247,30 @@ describe('GET /v1/admin/distributors/:id/health', () => {
     expect(body.series).toEqual([])
   })
 
-  it('un operator ne voit pas un distributeur hors de sa commune (404)', async () => {
+  it('un admin ne voit pas un distributeur hors de sa commune (404)', async () => {
     const communeA = await seedCommune()
     const communeB = await seedCommune()
     const distributorB = await seedDistributor(communeB)
-    const operatorA = await seedUser('operator', communeA)
+    const adminA = await seedUser('admin', communeA)
 
     const res = await app.inject({
       method: 'GET',
       url: `/v1/admin/distributors/${distributorB}/health`,
-      headers: { authorization: authHeader(operatorA, 'operator', communeA) },
+      headers: { authorization: authHeader(adminA, 'admin', communeA) },
     })
     expect(res.statusCode).toBe(404)
     expect(res.json().error).toBe('distributor_not_found')
   })
 
-  it('un operator voit un distributeur de SA commune (200)', async () => {
+  it('un admin voit un distributeur de SA commune (200)', async () => {
     const communeA = await seedCommune()
     const distributorA = await seedDistributor(communeA)
-    const operatorA = await seedUser('operator', communeA)
+    const adminA = await seedUser('admin', communeA)
 
     const res = await app.inject({
       method: 'GET',
       url: `/v1/admin/distributors/${distributorA}/health`,
-      headers: { authorization: authHeader(operatorA, 'operator', communeA) },
+      headers: { authorization: authHeader(adminA, 'admin', communeA) },
     })
     expect(res.statusCode).toBe(200)
     expect(res.json().distributor.id).toBe(distributorA)
@@ -263,12 +279,12 @@ describe('GET /v1/admin/distributors/:id/health', () => {
   it('borne hours via Zod (400 si hors plage)', async () => {
     const communeId = await seedCommune()
     const distributorId = await seedDistributor(communeId)
-    const adminId = await seedUser('admin')
+    const suId = await seedUser('super_admin')
 
     const res = await app.inject({
       method: 'GET',
       url: `/v1/admin/distributors/${distributorId}/health?hours=9999`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(suId, 'super_admin') },
     })
     expect(res.statusCode).toBe(400)
   })
