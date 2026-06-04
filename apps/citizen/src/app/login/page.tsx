@@ -3,10 +3,11 @@
 import {
   GoogleAuthProvider,
   isSignInWithEmailLink,
+  signInAnonymously,
   signInWithEmailLink,
   signInWithPopup,
 } from 'firebase/auth'
-import { Mail } from 'lucide-react'
+import { Mail, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -25,6 +26,9 @@ const EMAIL_LINK_STORAGE_KEY = 'sl-emailForSignIn'
  * Méthodes d'authentification actives côté citoyen :
  *   - Google (gratuit)
  *   - Email magic link via `/v1/auth/signin-link` (gratuit, e-mail brandé Resend)
+ *   - Invité (Firebase anonymous auth, gratuit) : « Continuer sans compte »,
+ *     friction minimale. Le backend synthétise un e-mail `@anonymous.invalid`.
+ *     Requiert le provider Anonyme activé dans Firebase Console.
  *
  * **Apple masqué** : Sign in with Apple exige un compte Apple Developer
  * Program payant (99 €/an). Le provider reste « Activé » côté Firebase mais
@@ -105,6 +109,16 @@ export default function LoginPage() {
             >
               <Mail className="h-4 w-4" />
             </ProviderButton>
+
+            <button
+              type="button"
+              onClick={() => handleAnonymous(setBusy, setError, router)}
+              disabled={busy}
+              className="mt-1 flex w-full items-center justify-center gap-2 py-1.5 text-meta text-gray-500 transition-colors duration-base hover:text-navy-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/50 dark:hover:text-white"
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              {t('auth.without_account')}
+            </button>
           </div>
         )}
 
@@ -136,6 +150,29 @@ async function handleOAuth(
   setBusy(true)
   try {
     await signInWithPopup(getFirebaseAuth(), provider)
+    await registerCurrentUser().catch(() => undefined)
+    router.replace('/')
+  } catch (err) {
+    setError((err as Error).message)
+  } finally {
+    setBusy(false)
+  }
+}
+
+/**
+ * Connexion invité — Firebase anonymous auth. Crée une session sans e-mail ni
+ * mot de passe ; le backend synthétise une adresse `@anonymous.invalid`. L'user
+ * pourra plus tard lier un e-mail/Google (même uid) pour garder son historique.
+ */
+async function handleAnonymous(
+  setBusy: (b: boolean) => void,
+  setError: (e: string | null) => void,
+  router: ReturnType<typeof useRouter>,
+) {
+  setError(null)
+  setBusy(true)
+  try {
+    await signInAnonymously(getFirebaseAuth())
     await registerCurrentUser().catch(() => undefined)
     router.replace('/')
   } catch (err) {

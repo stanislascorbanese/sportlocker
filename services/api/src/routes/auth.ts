@@ -53,6 +53,8 @@ interface FirebaseClaims {
   email?: string
   name?: string
   email_verified?: boolean
+  /** Provider ayant émis le token : `google.com`, `password`, `anonymous`… */
+  signInProvider?: string
 }
 
 /**
@@ -66,7 +68,11 @@ function decodeFirebaseTokenUnsafe(idToken: string): FirebaseClaims | null {
   try {
     const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8'))
     if (typeof payload?.sub !== 'string') return null
-    return payload as FirebaseClaims
+    return {
+      ...payload,
+      ...(typeof payload?.firebase?.sign_in_provider === 'string'
+        && { signInProvider: payload.firebase.sign_in_provider }),
+    } as FirebaseClaims
   } catch {
     return null
   }
@@ -82,6 +88,8 @@ async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaim
       ...(decoded.email !== undefined && { email: decoded.email }),
       ...(decoded.name !== undefined && { name: decoded.name as string }),
       ...(decoded.email_verified !== undefined && { email_verified: decoded.email_verified }),
+      ...(decoded.firebase?.sign_in_provider !== undefined
+        && { signInProvider: decoded.firebase.sign_in_provider }),
     }
   } catch {
     return null
@@ -136,8 +144,21 @@ export async function authRoutes(rawApp: FastifyInstance) {
     if (!claims) {
       return reply.code(401).send({ error: 'invalid_id_token' })
     }
-    if (!claims.email) {
-      return reply.code(400).send({ error: 'missing_email_claim' })
+
+    // Compte invité ("emprunter sans compte") : Firebase anonymous auth émet un
+    // token sans e-mail. On synthétise une adresse stable et unique (basée sur
+    // l'uid) pour satisfaire la contrainte NOT NULL UNIQUE de `users.email` sans
+    // toucher au schéma. Domaine `.invalid` (RFC 2606) : jamais routable → aucun
+    // e-mail (notif, reset…) ne pourra partir vers un invité par accident.
+    const isAnonymous = claims.signInProvider === 'anonymous'
+    let email = claims.email
+    let displayName = claims.name ?? null
+    if (!email) {
+      if (!isAnonymous) {
+        return reply.code(400).send({ error: 'missing_email_claim' })
+      }
+      email = `anon-${claims.sub}@anonymous.invalid`
+      displayName = displayName ?? 'Invité'
     }
 
     const now = new Date()
@@ -145,15 +166,15 @@ export async function authRoutes(rawApp: FastifyInstance) {
       .insert(users)
       .values({
         firebaseUid: claims.sub,
-        email: claims.email,
-        displayName: claims.name ?? null,
+        email,
+        displayName,
         lastActiveAt: now,
       })
       .onConflictDoUpdate({
         target: users.firebaseUid,
         set: {
-          email: claims.email,
-          displayName: claims.name ?? null,
+          email,
+          displayName,
           lastActiveAt: now,
           updatedAt: now,
         },
