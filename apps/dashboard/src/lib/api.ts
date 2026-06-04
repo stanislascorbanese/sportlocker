@@ -1063,6 +1063,72 @@ export async function refreshStripeConnectStatus(
   return StripeConnectStatus.parse(await res.json())
 }
 
+// ─── Paiements de location (transactions) ────────────────────────────────
+
+export const PAYMENT_STATUS = ['pending', 'succeeded', 'failed', 'cancelled', 'refunded'] as const
+export type PaymentStatus = typeof PAYMENT_STATUS[number]
+
+export const AdminPayment = z.object({
+  id: z.string().uuid(),
+  status: z.enum(PAYMENT_STATUS),
+  amountCents: z.number().int().nonnegative(),
+  currency: z.string(),
+  provider: z.string(),
+  createdAt: z.string().datetime(),
+  paidAt: z.string().datetime().nullable(),
+  reservation: z.object({
+    id: z.string().uuid(),
+    status: z.string(),
+  }),
+  user: z.object({
+    id: z.string().uuid(),
+    email: z.string(),
+    displayName: z.string().nullable(),
+  }),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+  }),
+  item: z.object({
+    typeName: z.string(),
+  }),
+})
+
+export type AdminPayment = z.infer<typeof AdminPayment>
+
+export const AdminPaymentsPage = z.object({
+  items: z.array(AdminPayment),
+  nextCursor: z.string().nullable(),
+})
+
+export type AdminPaymentsPage = z.infer<typeof AdminPaymentsPage>
+
+export type PaymentFilters = {
+  status?: PaymentStatus
+  cursor?: string
+  limit?: number
+}
+
+/**
+ * Liste paginée des paiements de location (transactions citoyennes).
+ * Scope multi-tenant côté API : admin = sa commune, super_admin = tout.
+ */
+export async function fetchAdminPayments(filters: PaymentFilters = {}): Promise<AdminPaymentsPage> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.cursor) params.set('cursor', filters.cursor)
+  if (filters.limit) params.set('limit', String(filters.limit))
+
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/payments${qs ? `?${qs}` : ''}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['payments'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return AdminPaymentsPage.parse(await res.json())
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
     super(`API ${status}: ${detail}`)

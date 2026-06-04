@@ -6,6 +6,7 @@ import { PageHeader } from '../../../components/ui/PageHeader'
 import { fetchStripeConnectStatus, type StripeConnectStatus } from '../../../lib/api'
 import { cn } from '../../../lib/cn'
 import { StripeConnectActions } from './StripeConnectActions'
+import { TransactionsCard } from './TransactionsCard'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Paiements · SportLocker ops' }
@@ -117,6 +118,9 @@ export default async function PaymentsPage() {
         title="Paiements & reversements"
         icon={<CreditCard className="h-5 w-5" aria-hidden="true" />}
       />
+
+      {/* Transactions de location (paiements citoyens) */}
+      <TransactionsCard />
 
       {/* Status card principal */}
       <Card variant="elevated" padding="lg" className="space-y-4">
