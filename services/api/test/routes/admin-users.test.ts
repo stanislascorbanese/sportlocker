@@ -26,6 +26,7 @@ vi.mock('firebase-admin', () => {
   const auth = { verifyIdToken: vi.fn() }
   return {
     default: {
+      apps: [],
       initializeApp: vi.fn(),
       credential: { cert: vi.fn() },
       auth: () => auth,
