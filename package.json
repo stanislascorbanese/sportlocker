@@ -14,11 +14,11 @@
     "db:studio":  "pnpm --filter @sportlocker/api db:studio"
   },
   "devDependencies": {
-    "turbo":            "^2.9.14",
-    "typescript":       "^5.4.0",
-    "eslint":           "^8.57.0",
-    "@types/node":      "^20.0.0",
-    "prettier":         "^3.2.0"
+    "turbo":            "^2.9.15",
+    "typescript":       "^5.9.3",
+    "eslint":           "^8.57.1",
+    "@types/node":      "^22.0.0",
+    "prettier":         "^3.8.3"
   },
   "pnpm": {
     "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9).",

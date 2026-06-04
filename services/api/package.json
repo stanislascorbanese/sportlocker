@@ -50,14 +50,14 @@
   "devDependencies": {
     "@sportlocker/types": "workspace:*",
     "@testcontainers/postgresql": "^10.9.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.0.0",
     "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^1.5.0",
     "drizzle-kit": "^0.31.10",
     "pino-pretty": "^11.0.0",
     "testcontainers": "^10.9.0",
     "tsx": "^4.22.3",
-    "typescript": "^5.4.0",
+    "typescript": "^5.9.3",
     "vitest": "^1.5.0"
   }
 }

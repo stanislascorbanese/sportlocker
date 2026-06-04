@@ -83,11 +83,26 @@ CREATE TABLE communes (
   monthly_fee_cents INTEGER NOT NULL DEFAULT 0,
   contact_email  VARCHAR(180),
   contact_phone  VARCHAR(20),
+  -- Stripe Connect Express (migration 0013). Le tenant onboarde son compte
+  -- depuis le dashboard ops, suit le flow KYC Stripe-hosted, et nous renvoie
+  -- l'`acct_XXX`. Les 2 flags `charges_enabled` / `payouts_enabled` traduisent
+  -- l'état Stripe (vérification ID + RIB validé) et conditionnent la
+  -- capacité à recevoir des paiements et des payouts.
+  stripe_connect_account_id      VARCHAR(255),
+  stripe_connect_charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  stripe_connect_payouts_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  stripe_connect_onboarded_at    TIMESTAMPTZ,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_communes_insee ON communes(insee_code);
+-- Index UNIQUE partial : permet plusieurs lignes NULL mais garantit qu'un
+-- account_id Stripe ne peut pas être réutilisé par 2 communes (sécurité
+-- contre les bugs de copy-paste).
+CREATE UNIQUE INDEX idx_communes_stripe_connect_account_id
+  ON communes(stripe_connect_account_id)
+  WHERE stripe_connect_account_id IS NOT NULL;
 
 -- ─── 2. users ──────────────────────────────────────────────────────────────
 

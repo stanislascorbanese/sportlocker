@@ -28,14 +28,31 @@ const pageTitle = title.includes(SITE.name) ? title : `${title} — ${SITE.name}
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.url).toString()
 const ogImageUrl = new URL(ogImage, SITE.url).toString()
 
+// Organization enrichi pour les Knowledge Panels Google (logo, contactPoint,
+// areaServed). `sameAs` reste vide tant qu'on n'a pas de profils sociaux
+// officiels — Google préfère un tableau absent à un tableau avec des liens
+// 404. La logo URL doit pointer sur un PNG carré ≥ 112px (recommandation
+// schema.org).
 const orgJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: SITE.legalName,
+  alternateName: SITE.name,
   url: SITE.url,
   email: SITE.email,
   description: SITE.description,
-  sameAs: [],
+  logo: new URL('/favicon.png', SITE.url).toString(),
+  image: new URL(SITE.defaultOgImage, SITE.url).toString(),
+  areaServed: {
+    '@type': 'Country',
+    name: 'France',
+  },
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer service',
+    email: SITE.email,
+    availableLanguage: ['French'],
+  },
 }
 
 const pageJsonLd = extraJsonLd.map((schema) => ({

@@ -48,6 +48,14 @@ const EnvSchema = z.object({
 
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
+  // Resend — e-mails transactionnels brandés (reset password, etc.).
+  // Clé créée sur resend.com → API Keys. Si absente, les routes d'e-mail
+  // répondent quand même 200 mais loggent un warning (aucun envoi).
+  RESEND_API_KEY: z.string().optional(),
+  // Expéditeur des e-mails (RFC 5322 : "Nom <adresse@domaine>"). Le domaine
+  // DOIT être vérifié dans Resend (SPF/DKIM) sinon l'envoi est rejeté.
+  EMAIL_FROM: z.string().default('SportLocker <noreply@sportlocker.fr>'),
+
   // Web Push VAPID — clé de signature + identité du push agent.
   // Génération : `npx web-push generate-vapid-keys` puis copier les valeurs
   // dans les env Railway. Si absentes, l'API démarre quand même mais les
@@ -60,6 +68,14 @@ const EnvSchema = z.object({
   // Base URL utilisée pour construire les inviteUrl envoyés aux admins tenant.
   // Ex : https://app.sportlocker.fr → inviteUrl = https://app.sportlocker.fr/accept-invite?token=...
   DASHBOARD_INVITE_BASE_URL: z.string().url().default('http://localhost:3001'),
+
+  // Base URL de la PWA citoyenne — sert de `continueUrl` aux liens de connexion
+  // magic-link (`/v1/auth/signin-link`). Ex : https://app.sportlocker.fr →
+  // le lien Firebase ramène l'utilisateur sur https://app.sportlocker.fr/login
+  // où `signInWithEmailLink` finalise la connexion. URL contrôlée côté serveur
+  // (et non fournie par le client) pour éviter qu'on détourne l'endpoint afin
+  // d'envoyer des liens de connexion valides pointant vers un domaine tiers.
+  CITIZEN_APP_BASE_URL: z.string().url().default('http://localhost:3002'),
 
   // Sentry — observability. Si SENTRY_DSN absent, le SDK reste no-op silencieux.
   // Plan free : 5k errors + 10k perf events/mois.
@@ -84,12 +100,23 @@ const env: Env = parsed.data
 //
 // En dev/test on accepte localhost (c'est le cas nominal).
 if (env.NODE_ENV === 'production') {
-  const url = env.DASHBOARD_INVITE_BASE_URL
-  if (url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0')) {
+  const isLoopback = (url: string) =>
+    url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0')
+
+  if (isLoopback(env.DASHBOARD_INVITE_BASE_URL)) {
     console.error(
-      `[boot] DASHBOARD_INVITE_BASE_URL="${url}" est un loopback alors que NODE_ENV=production. ` +
+      `[boot] DASHBOARD_INVITE_BASE_URL="${env.DASHBOARD_INVITE_BASE_URL}" est un loopback alors que NODE_ENV=production. ` +
       `Les invitations admin tenant généreront des liens injouables. ` +
       `Pose la vraie URL publique du dashboard (ex: https://app.sportlocker.fr) sur Railway → @sportlocker/api → Variables.`,
+    )
+    process.exit(1)
+  }
+
+  if (isLoopback(env.CITIZEN_APP_BASE_URL)) {
+    console.error(
+      `[boot] CITIZEN_APP_BASE_URL="${env.CITIZEN_APP_BASE_URL}" est un loopback alors que NODE_ENV=production. ` +
+      `Les liens de connexion magic-link citoyens ramèneraient vers localhost (injouables). ` +
+      `Pose la vraie URL publique de la PWA (ex: https://app.sportlocker.fr) sur Railway → @sportlocker/api → Variables.`,
     )
     process.exit(1)
   }

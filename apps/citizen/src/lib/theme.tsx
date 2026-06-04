@@ -31,7 +31,9 @@ const STORAGE_KEY = 'sl-theme'
  */
 function resolveTheme(mode: ThemeMode): ResolvedTheme {
   if (mode !== 'system') return mode
-  if (typeof window === 'undefined') return 'dark'
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 'dark'
+  }
   return window.matchMedia('(prefers-color-scheme: dark)').matches
     ? 'dark'
     : 'light'
@@ -56,9 +58,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // inline du <head> a déjà posé la classe `dark` ; on resync juste l'état
   // React ici.
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY) as ThemeMode | null
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      setModeState(stored)
+    try {
+      const stored = window.localStorage?.getItem(STORAGE_KEY) as ThemeMode | null
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
+        setModeState(stored)
+      }
+    } catch {
+      // mode privé Safari : on garde le défaut 'dark', plus de persistence.
     }
     setMounted(true)
   }, [])
@@ -66,6 +72,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Écoute les changements de prefers-color-scheme système quand mode === 'system'.
   useEffect(() => {
     if (mode !== 'system') return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = () => applyTheme(resolveTheme('system'))
     media.addEventListener('change', onChange)
@@ -79,14 +86,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [mode, mounted])
 
   const setMode = useCallback((m: ThemeMode) => {
-    window.localStorage.setItem(STORAGE_KEY, m)
+    try {
+      window.localStorage?.setItem(STORAGE_KEY, m)
+    } catch {
+      // ignore — perte de persistence, pas de blocage du switch.
+    }
     setModeState(m)
   }, [])
 
   const toggle = useCallback(() => {
     setModeState((prev) => {
       const next: ThemeMode = prev === 'dark' ? 'light' : 'dark'
-      window.localStorage.setItem(STORAGE_KEY, next)
+      try {
+        window.localStorage?.setItem(STORAGE_KEY, next)
+      } catch {
+        // ignore
+      }
       return next
     })
   }, [])

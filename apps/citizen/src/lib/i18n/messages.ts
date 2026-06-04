@@ -28,6 +28,7 @@ export const fr = {
   'auth.with_google': 'Continuer avec Google',
   'auth.with_apple': 'Continuer avec Apple',
   'auth.with_email': 'Continuer avec email',
+  'auth.without_account': 'Continuer sans compte',
   'auth.email': 'Email',
   'auth.email_placeholder': 'toi@exemple.fr',
   'auth.send_magic_link': 'Recevoir un lien magique',
@@ -238,11 +239,6 @@ export const fr = {
   'profile.push.reason.unknown': 'Erreur inattendue.',
   'profile.push.reason.update_failed': 'Impossible de mettre à jour la préférence. Réessaie.',
 
-  // ─── History page (cul-de-sac existant) ────────────────────────────────
-  'history.title': 'Historique',
-  'history.empty.title': 'Tu n\'as pas encore d\'emprunts passés.',
-  'history.empty.description': 'Ils apparaîtront ici après ta première réservation.',
-
   // ─── Onboarding (3-step tour à la première visite home) ───────────────
   'onboarding.welcome': 'Bienvenue',
   'onboarding.skip': 'Passer',
@@ -272,6 +268,7 @@ export const en: Record<MessageKey, string> = {
   'auth.with_google': 'Continue with Google',
   'auth.with_apple': 'Continue with Apple',
   'auth.with_email': 'Continue with email',
+  'auth.without_account': 'Continue without an account',
   'auth.email': 'Email',
   'auth.email_placeholder': 'you@example.com',
   'auth.send_magic_link': 'Send magic link',
@@ -481,11 +478,6 @@ export const en: Record<MessageKey, string> = {
   'profile.push.reason.register_failed': 'Subscription created in the browser but the server couldn\'t register it. Try again.',
   'profile.push.reason.unknown': 'Unexpected error.',
   'profile.push.reason.update_failed': 'Couldn\'t update the preference. Try again.',
-
-  // History (dead-end)
-  'history.title': 'History',
-  'history.empty.title': 'You don\'t have any past loans yet.',
-  'history.empty.description': 'They\'ll appear here after your first booking.',
 
   // Onboarding (3-step tour on first home visit)
   'onboarding.welcome': 'Welcome',

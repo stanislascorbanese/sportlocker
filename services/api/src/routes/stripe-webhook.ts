@@ -19,7 +19,7 @@ import type Stripe from 'stripe'
 
 import { env } from '../config/env.js'
 import { markPaymentFailed, markPaymentSucceeded } from '../lib/payments.js'
-import { getStripe } from '../lib/stripe.js'
+import { requireStripe } from '../lib/stripe.js'
 
 export async function stripeWebhookRoutes(app: FastifyInstance) {
   // Corps brut nécessaire à la vérification de signature Stripe.
@@ -46,7 +46,7 @@ export async function stripeWebhookRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'missing_signature' })
     }
 
-    const stripe = getStripe()
+    const stripe = requireStripe()
     let event
     try {
       event = stripe.webhooks.constructEvent(

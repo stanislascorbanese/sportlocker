@@ -5,6 +5,10 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
+import { getFirebaseAdmin } from '../lib/firebase-admin.js'
+import { sendEmail, isEmailConfigured } from '../lib/email.js'
+import { renderPasswordResetEmail } from '../emails/password-reset.js'
+import { renderSignInLinkEmail } from '../emails/signin-link.js'
 
 const RegisterBody = z.object({
   idToken: z.string().min(20)
@@ -27,11 +31,30 @@ const RegisterResponse = z.object({
 
 const ErrorDTO = z.object({ error: z.string() })
 
+const PasswordResetBody = z.object({
+  email: z.string().email()
+    .describe('Adresse e-mail du compte dont on veut réinitialiser le mot de passe.'),
+})
+
+// Réponse volontairement neutre : on renvoie toujours `ok: true`, même si
+// l'e-mail ne correspond à aucun compte. Évite l'énumération de comptes.
+const PasswordResetResponse = z.object({ ok: z.literal(true) })
+
+const SignInLinkBody = z.object({
+  email: z.string().email()
+    .describe('Adresse e-mail du citoyen à qui envoyer un lien de connexion magic-link.'),
+})
+
+// Idem password-reset : réponse neutre `ok: true` dans tous les cas.
+const SignInLinkResponse = z.object({ ok: z.literal(true) })
+
 interface FirebaseClaims {
   sub: string
   email?: string
   name?: string
   email_verified?: boolean
+  /** Provider ayant émis le token : `google.com`, `password`, `anonymous`… */
+  signInProvider?: string
 }
 
 /**
@@ -45,30 +68,28 @@ function decodeFirebaseTokenUnsafe(idToken: string): FirebaseClaims | null {
   try {
     const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8'))
     if (typeof payload?.sub !== 'string') return null
-    return payload as FirebaseClaims
+    return {
+      ...payload,
+      ...(typeof payload?.firebase?.sign_in_provider === 'string'
+        && { signInProvider: payload.firebase.sign_in_provider }),
+    } as FirebaseClaims
   } catch {
     return null
   }
 }
 
-let firebaseInitialized = false
 async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaims | null> {
-  if (!env.FIREBASE_SERVICE_ACCOUNT_KEY || !env.FIREBASE_PROJECT_ID) return null
+  const admin = await getFirebaseAdmin()
+  if (!admin) return null
   try {
-    const admin = (await import('firebase-admin')).default
-    if (!firebaseInitialized) {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-        projectId: env.FIREBASE_PROJECT_ID,
-      })
-      firebaseInitialized = true
-    }
     const decoded = await admin.auth().verifyIdToken(idToken)
     return {
       sub: decoded.uid,
       ...(decoded.email !== undefined && { email: decoded.email }),
       ...(decoded.name !== undefined && { name: decoded.name as string }),
       ...(decoded.email_verified !== undefined && { email_verified: decoded.email_verified }),
+      ...(decoded.firebase?.sign_in_provider !== undefined
+        && { signInProvider: decoded.firebase.sign_in_provider }),
     }
   } catch {
     return null
@@ -123,8 +144,21 @@ export async function authRoutes(rawApp: FastifyInstance) {
     if (!claims) {
       return reply.code(401).send({ error: 'invalid_id_token' })
     }
-    if (!claims.email) {
-      return reply.code(400).send({ error: 'missing_email_claim' })
+
+    // Compte invité ("emprunter sans compte") : Firebase anonymous auth émet un
+    // token sans e-mail. On synthétise une adresse stable et unique (basée sur
+    // l'uid) pour satisfaire la contrainte NOT NULL UNIQUE de `users.email` sans
+    // toucher au schéma. Domaine `.invalid` (RFC 2606) : jamais routable → aucun
+    // e-mail (notif, reset…) ne pourra partir vers un invité par accident.
+    const isAnonymous = claims.signInProvider === 'anonymous'
+    let email = claims.email
+    let displayName = claims.name ?? null
+    if (!email) {
+      if (!isAnonymous) {
+        return reply.code(400).send({ error: 'missing_email_claim' })
+      }
+      email = `anon-${claims.sub}@anonymous.invalid`
+      displayName = displayName ?? 'Invité'
     }
 
     const now = new Date()
@@ -132,15 +166,15 @@ export async function authRoutes(rawApp: FastifyInstance) {
       .insert(users)
       .values({
         firebaseUid: claims.sub,
-        email: claims.email,
-        displayName: claims.name ?? null,
+        email,
+        displayName,
         lastActiveAt: now,
       })
       .onConflictDoUpdate({
         target: users.firebaseUid,
         set: {
-          email: claims.email,
-          displayName: claims.name ?? null,
+          email,
+          displayName,
           lastActiveAt: now,
           updatedAt: now,
         },
@@ -160,5 +194,151 @@ export async function authRoutes(rawApp: FastifyInstance) {
         communeId: u!.communeId,
       },
     })
+  })
+
+  /**
+   * POST /v1/auth/password-reset — déclenche l'envoi d'un e-mail de
+   * réinitialisation de mot de passe brandé SportLocker.
+   *
+   * Pourquoi côté serveur plutôt que `sendPasswordResetEmail()` côté client ?
+   * Firebase envoie sinon un e-mail générique en anglais depuis
+   * `noreply@<projet>.firebaseapp.com` — non brandé et systématiquement classé
+   * en spam par Gmail. Ici on génère le lien d'action via l'Admin SDK
+   * (`generatePasswordResetLink`) puis on envoie NOTRE e-mail FR via Resend,
+   * depuis un domaine vérifié (SPF/DKIM) → délivrabilité correcte.
+   *
+   * Anti-énumération : on renvoie TOUJOURS `200 { ok: true }`, que l'e-mail
+   * existe ou non, et on avale `auth/user-not-found`. Un attaquant ne peut pas
+   * distinguer un compte valide d'un compte inexistant.
+   */
+  app.post('/password-reset', {
+    schema: {
+      tags: ['Citoyens — Auth', 'Auth admin'],
+      summary: 'Envoie un e-mail brandé de réinitialisation de mot de passe',
+      description: 'Génère un lien de reset Firebase (Admin SDK) et envoie un e-mail FR brandé via Resend. '
+        + 'Réponse neutre `{ ok: true }` dans tous les cas (anti-énumération de comptes).\n\n'
+        + 'Prérequis env : `FIREBASE_*` (génération du lien) + `RESEND_API_KEY` / `EMAIL_FROM` (envoi). '
+        + 'Si non configuré, la route répond quand même `200` et logge un warning (aucun e-mail envoyé).\n\n'
+        + '**Exemple body** : `{ "email": "admin@sportlocker.fr" }`',
+      body: PasswordResetBody,
+      response: {
+        200: PasswordResetResponse,
+        400: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const email = req.body.email.trim().toLowerCase()
+
+    const admin = await getFirebaseAdmin()
+    if (!admin) {
+      req.log.warn({ email }, 'auth/password-reset: Firebase non configuré — aucun e-mail envoyé')
+      return reply.code(200).send({ ok: true })
+    }
+    if (!isEmailConfigured()) {
+      req.log.warn({ email }, 'auth/password-reset: RESEND_API_KEY absent — aucun e-mail envoyé')
+      return reply.code(200).send({ ok: true })
+    }
+
+    try {
+      const rawUrl = await admin.auth().generatePasswordResetLink(email)
+      // La page d'action Firebase suit le param `lang` de l'URL ; par défaut
+      // elle renvoie `lang=en`. On force `fr` pour rester cohérent avec notre
+      // e-mail FR (sinon la page de choix du mot de passe s'affiche en anglais).
+      const url = new URL(rawUrl)
+      url.searchParams.set('lang', 'fr')
+      const resetUrl = url.toString()
+      const { subject, html, text } = renderPasswordResetEmail({ resetUrl, email })
+      await sendEmail({ to: email, subject, html, text })
+      req.log.info({ email }, 'auth/password-reset: e-mail de réinitialisation envoyé')
+    } catch (err) {
+      const code = (err as { code?: string }).code
+      // Compte inexistant : silencieux (anti-énumération).
+      if (code === 'auth/user-not-found' || code === 'auth/email-not-found') {
+        req.log.info({ email }, 'auth/password-reset: aucun compte (réponse neutre)')
+      } else {
+        // Vraie défaillance (Resend down, lien non généré…) : on logge pour
+        // l'observabilité mais on garde une réponse neutre côté client.
+        req.log.error(
+          { email, err: err instanceof Error ? err.message : String(err) },
+          'auth/password-reset: échec de l\'envoi',
+        )
+      }
+    }
+
+    return reply.code(200).send({ ok: true })
+  })
+
+  /**
+   * POST /v1/auth/signin-link — déclenche l'envoi d'un e-mail de connexion
+   * magic-link brandé SportLocker (PWA citoyenne).
+   *
+   * Même motivation que /password-reset : `sendSignInLinkToEmail()` côté client
+   * envoie un e-mail générique en anglais depuis `noreply@<projet>.firebaseapp.com`
+   * (non brandé → spam). Ici on génère le lien via l'Admin SDK
+   * (`generateSignInWithEmailLink`) puis on envoie NOTRE e-mail FR via Resend.
+   *
+   * Le lien reste un vrai lien Firebase email-link : côté client, le flux
+   * `isSignInWithEmailLink` / `signInWithEmailLink` (page /login) finalise la
+   * connexion sans changement. Le `continueUrl` est construit côté serveur à
+   * partir de `CITIZEN_APP_BASE_URL` (jamais fourni par le client) pour éviter
+   * de détourner l'endpoint vers un domaine tiers.
+   *
+   * Anti-énumération : magic-link crée le compte à la complétion, donc
+   * `generateSignInWithEmailLink` réussit pour toute adresse (existante ou non).
+   * On renvoie de toute façon TOUJOURS `200 { ok: true }`.
+   */
+  app.post('/signin-link', {
+    schema: {
+      tags: ['Citoyens — Auth'],
+      summary: 'Envoie un e-mail brandé de connexion (magic link)',
+      description: 'Génère un lien de connexion Firebase (Admin SDK) et envoie un e-mail FR brandé via Resend. '
+        + 'Réponse neutre `{ ok: true }` dans tous les cas.\n\n'
+        + 'Prérequis env : `FIREBASE_*` (génération du lien) + `RESEND_API_KEY` / `EMAIL_FROM` (envoi) '
+        + '+ `CITIZEN_APP_BASE_URL` (domaine de retour). Si non configuré, la route répond quand même `200` '
+        + 'et logge un warning (aucun e-mail envoyé).\n\n'
+        + '**Exemple body** : `{ "email": "citoyen@example.com" }`',
+      body: SignInLinkBody,
+      response: {
+        200: SignInLinkResponse,
+        400: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const email = req.body.email.trim().toLowerCase()
+
+    const admin = await getFirebaseAdmin()
+    if (!admin) {
+      req.log.warn({ email }, 'auth/signin-link: Firebase non configuré — aucun e-mail envoyé')
+      return reply.code(200).send({ ok: true })
+    }
+    if (!isEmailConfigured()) {
+      req.log.warn({ email }, 'auth/signin-link: RESEND_API_KEY absent — aucun e-mail envoyé')
+      return reply.code(200).send({ ok: true })
+    }
+
+    try {
+      const rawUrl = await admin.auth().generateSignInWithEmailLink(email, {
+        // Domaine de retour contrôlé serveur. `handleCodeInApp` est requis pour
+        // un lien email-link (la connexion se finalise dans l'app, pas via une
+        // page Firebase hébergée).
+        url: `${env.CITIZEN_APP_BASE_URL}/login`,
+        handleCodeInApp: true,
+      })
+      const url = new URL(rawUrl)
+      url.searchParams.set('lang', 'fr')
+      const signInUrl = url.toString()
+      const { subject, html, text } = renderSignInLinkEmail({ signInUrl, email })
+      await sendEmail({ to: email, subject, html, text })
+      req.log.info({ email }, 'auth/signin-link: e-mail de connexion envoyé')
+    } catch (err) {
+      // Réponse neutre côté client quelle que soit la défaillance (Resend down,
+      // lien non généré…) ; on logge pour l'observabilité.
+      req.log.error(
+        { email, err: err instanceof Error ? err.message : String(err) },
+        'auth/signin-link: échec de l\'envoi',
+      )
+    }
+
+    return reply.code(200).send({ ok: true })
   })
 }

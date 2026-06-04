@@ -2,20 +2,19 @@
 
 import {
   GoogleAuthProvider,
-  OAuthProvider,
   isSignInWithEmailLink,
-  sendSignInLinkToEmail,
+  signInAnonymously,
   signInWithEmailLink,
   signInWithPopup,
 } from 'firebase/auth'
-import { Apple, Mail } from 'lucide-react'
+import { Mail, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { ErrorState } from '../../components/ui/ErrorState'
-import { registerCurrentUser } from '../../lib/api'
+import { registerCurrentUser, sendSignInLink } from '../../lib/api'
 import { useAuth } from '../../lib/auth-context'
 import { cn } from '../../lib/cn'
 import { getFirebaseAuth } from '../../lib/firebase'
@@ -26,8 +25,15 @@ const EMAIL_LINK_STORAGE_KEY = 'sl-emailForSignIn'
 /**
  * Méthodes d'authentification actives côté citoyen :
  *   - Google (gratuit)
- *   - Apple (gratuit)
- *   - Email magic link via `sendSignInLinkToEmail` (gratuit)
+ *   - Email magic link via `/v1/auth/signin-link` (gratuit, e-mail brandé Resend)
+ *   - Invité (Firebase anonymous auth, gratuit) : « Continuer sans compte »,
+ *     friction minimale. Le backend synthétise un e-mail `@anonymous.invalid`.
+ *     Requiert le provider Anonyme activé dans Firebase Console.
+ *
+ * **Apple masqué** : Sign in with Apple exige un compte Apple Developer
+ * Program payant (99 €/an). Le provider reste « Activé » côté Firebase mais
+ * non configuré → un clic planterait. On le réaffichera une fois le compte
+ * Apple Developer souscrit et le provider configuré (clé + Service ID).
  *
  * **Phone Auth désactivé** : Firebase Phone Auth exige le plan Blaze
  * (facturation activée), ce qui n'est pas le cas du projet pour le moment.
@@ -97,20 +103,22 @@ export default function LoginPage() {
             </ProviderButton>
 
             <ProviderButton
-              label={t('auth.with_apple')}
-              onClick={() => handleOAuth(new OAuthProvider('apple.com'), setBusy, setError, router)}
-              disabled={busy}
-            >
-              <Apple className="h-4 w-4" />
-            </ProviderButton>
-
-            <ProviderButton
               label={t('auth.with_email')}
               onClick={() => { setError(null); setMethod('email') }}
               disabled={busy}
             >
               <Mail className="h-4 w-4" />
             </ProviderButton>
+
+            <button
+              type="button"
+              onClick={() => handleAnonymous(setBusy, setError, router)}
+              disabled={busy}
+              className="mt-1 flex w-full items-center justify-center gap-2 py-1.5 text-meta text-gray-500 transition-colors duration-base hover:text-navy-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/50 dark:hover:text-white"
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              {t('auth.without_account')}
+            </button>
           </div>
         )}
 
@@ -125,7 +133,7 @@ export default function LoginPage() {
 
         {error && <ErrorState className="mt-4" message={error} />}
       </div>
-      <p className="mt-6 text-center text-meta text-gray-500 dark:text-white/40">
+      <p className="mt-6 text-center text-meta text-gray-600 dark:text-white/60">
         {t('auth.terms')}
       </p>
     </main>
@@ -133,7 +141,7 @@ export default function LoginPage() {
 }
 
 async function handleOAuth(
-  provider: GoogleAuthProvider | OAuthProvider,
+  provider: GoogleAuthProvider,
   setBusy: (b: boolean) => void,
   setError: (e: string | null) => void,
   router: ReturnType<typeof useRouter>,
@@ -142,6 +150,29 @@ async function handleOAuth(
   setBusy(true)
   try {
     await signInWithPopup(getFirebaseAuth(), provider)
+    await registerCurrentUser().catch(() => undefined)
+    router.replace('/')
+  } catch (err) {
+    setError((err as Error).message)
+  } finally {
+    setBusy(false)
+  }
+}
+
+/**
+ * Connexion invité — Firebase anonymous auth. Crée une session sans e-mail ni
+ * mot de passe ; le backend synthétise une adresse `@anonymous.invalid`. L'user
+ * pourra plus tard lier un e-mail/Google (même uid) pour garder son historique.
+ */
+async function handleAnonymous(
+  setBusy: (b: boolean) => void,
+  setError: (e: string | null) => void,
+  router: ReturnType<typeof useRouter>,
+) {
+  setError(null)
+  setBusy(true)
+  try {
+    await signInAnonymously(getFirebaseAuth())
     await registerCurrentUser().catch(() => undefined)
     router.replace('/')
   } catch (err) {
@@ -171,10 +202,11 @@ function EmailLinkForm({
     setError(null)
     setBusy(true)
     try {
-      await sendSignInLinkToEmail(getFirebaseAuth(), email, {
-        url: `${window.location.origin}/login`,
-        handleCodeInApp: true,
-      })
+      // Envoi déporté vers l'API backend (e-mail FR brandé via Resend) plutôt
+      // que `sendSignInLinkToEmail` du SDK Firebase (e-mail générique anglais →
+      // spam). Le lien reçu reste un vrai lien Firebase email-link : la
+      // finalisation ci-dessus (`signInWithEmailLink`) est inchangée.
+      await sendSignInLink(email)
       window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, email)
       setSent(true)
     } catch (err) {
@@ -214,7 +246,7 @@ function EmailLinkForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={t('auth.email_placeholder')}
-          className="mt-1.5 w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors duration-base border-gray-300 bg-white text-navy-900 placeholder:text-gray-400 focus:border-emerald-500 dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60"
+          className="mt-1.5 w-full rounded-lg border px-3 py-2.5 text-base outline-none transition-colors duration-base border-gray-300 bg-white text-navy-900 placeholder:text-gray-400 focus:border-emerald-500 dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60"
         />
       </label>
       <button

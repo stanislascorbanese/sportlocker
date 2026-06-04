@@ -2,38 +2,25 @@
 
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { sendPasswordResetEmail } from 'firebase/auth'
 import { useState, type FormEvent } from 'react'
-
-import { getFirebaseAuth } from '../../../lib/firebase'
 
 /**
  * Page de réinitialisation de mot de passe pour la console ops.
  *
- * On délègue toute la mécanique à Firebase Auth :
+ * Flux :
  *   1. L'admin saisit son email
- *   2. `sendPasswordResetEmail()` envoie le mail de reset via Firebase
- *   3. L'email contient un lien `https://<project>.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=…`
- *      qui affiche la page de saisie du nouveau password (UI Firebase)
+ *   2. On POST `/api/password-reset` (route handler Next) qui relaie à l'API
+ *      SportLocker. L'API génère le lien d'action via l'Admin SDK Firebase et
+ *      envoie un e-mail FR brandé via Resend (vs e-mail Firebase générique en
+ *      anglais classé en spam).
+ *   3. L'e-mail contient un lien `…/__/auth/action?mode=resetPassword&oobCode=…`
+ *      qui affiche la page de saisie du nouveau password
  *   4. Une fois validé, l'admin revient se connecter avec le nouveau password
  *
- * Note sécurité : on renvoie TOUJOURS la même confirmation, même si l'email
+ * Note sécurité : on affiche TOUJOURS la même confirmation, même si l'email
  * n'existe pas en base. Évite l'énumération de comptes (un attaquant ne peut
- * pas distinguer un email valide d'un invalide).
+ * pas distinguer un email valide d'un invalide) — l'API applique la même règle.
  */
-function mapFirebaseError(code: string): string {
-  switch (code) {
-    case 'auth/invalid-email':
-      return 'Adresse email invalide.'
-    case 'auth/too-many-requests':
-      return 'Trop de tentatives. Réessayez dans quelques minutes.'
-    case 'auth/network-request-failed':
-      return 'Connexion réseau impossible. Vérifie ta connexion.'
-    default:
-      return 'Erreur inattendue. Réessayez.'
-  }
-}
-
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -44,16 +31,20 @@ export default function ResetPasswordPage() {
     setError(null)
     setStatus('sending')
     try {
-      await sendPasswordResetEmail(getFirebaseAuth(), email.trim())
-      setStatus('sent')
-    } catch (err) {
-      const code = (err as { code?: string }).code ?? ''
-      if (code === 'auth/user-not-found') {
-        // Ne pas distinguer cas utilisateur inconnu — anti-énumération.
-        setStatus('sent')
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      if (!res.ok) {
+        // 400 = email invalide côté serveur. Tout le reste reste neutre.
+        setError('Adresse email invalide.')
+        setStatus('error')
         return
       }
-      setError(code.startsWith('auth/') ? mapFirebaseError(code) : 'Erreur inattendue. Réessayez.')
+      setStatus('sent')
+    } catch {
+      setError('Connexion réseau impossible. Vérifie ta connexion.')
       setStatus('error')
     }
   }

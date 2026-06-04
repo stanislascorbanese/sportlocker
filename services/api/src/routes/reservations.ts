@@ -15,7 +15,7 @@ import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
 import {
   computeSlotEnd, NO_SHOW_GRACE_MINUTES, validateSlotRequest,
 } from '../lib/slots.js'
-import { getStripe } from '../lib/stripe.js'
+import { requireStripe } from '../lib/stripe.js'
 import { redis } from '../redis/client.js'
 
 const RESERVATION_TTL_MS = 15 * 60 * 1000
@@ -687,7 +687,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     }
 
     // Provider stripe : crée le PaymentIntent au 1er appel, le réutilise ensuite.
-    const stripe = getStripe()
+    const stripe = requireStripe()
     let clientSecret: string | null
     if (pay.stripePaymentIntentId) {
       const pi = await stripe.paymentIntents.retrieve(pay.stripePaymentIntentId)

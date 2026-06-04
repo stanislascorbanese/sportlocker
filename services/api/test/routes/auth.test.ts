@@ -197,6 +197,31 @@ describe('POST /v1/auth/register — vérification Firebase sécurisée', () => 
     expect(res.statusCode).toBe(400)
     expect(res.json().error).toBe('missing_email_claim')
   })
+
+  it('compte invité (anonymous) : synthétise un e-mail @anonymous.invalid et renvoie 201', async () => {
+    const admin = (await import('firebase-admin')).default
+    ;(admin.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      uid: 'firebase-uid-guest',
+      // pas d'email : Firebase anonymous auth
+      firebase: { sign_in_provider: 'anonymous' },
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: { idToken: 'a'.repeat(30) },
+    })
+
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    expect(body.user.email).toBe('anon-firebase-uid-guest@anonymous.invalid')
+    expect(body.user.displayName).toBe('Invité')
+    expect(body.user.role).toBe('citizen')
+
+    const rows = await pgSql`SELECT email FROM users WHERE firebase_uid = 'firebase-uid-guest'`
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.email).toBe('anon-firebase-uid-guest@anonymous.invalid')
+  })
 })
 
 describe('POST /v1/auth/register — fallback dev (décodage sans signature)', () => {

@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { ApiError, fetchCommune } from '../../../../lib/api'
+import { getLang } from '../../../../lib/lang-server'
+import { commonStrings } from '../../../../lib/i18n/common'
+import { communesStrings } from '../../../../lib/i18n/communes'
 import { CommuneForm } from '../../CommuneForm'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +16,9 @@ export default async function EditCommunePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const lang = await getLang()
+  const t = communesStrings(lang)
+  const c = commonStrings(lang)
 
   try {
     const commune = await fetchCommune(id)
@@ -21,22 +27,26 @@ export default async function EditCommunePage({
       <div className="mx-auto max-w-2xl space-y-6">
         <header className="flex items-center justify-between">
           <div>
-            <h2 className="font-display text-3xl">{commune.name}</h2>
-            <p className="mt-1 text-sm text-white/55">
+            <h2 className="font-display text-3xl text-navy-900 dark:text-white">{commune.name}</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
               INSEE <span className="font-mono">{commune.inseeCode}</span>
               {' · '}
-              {commune.distributorCount} distributeur{commune.distributorCount > 1 ? 's' : ''} rattaché{commune.distributorCount > 1 ? 's' : ''}
+              {commune.distributorCount} {t.distrubutorsAbbrev}
             </p>
           </div>
-          <Link href="/communes" className="text-sm text-white/60 transition hover:text-white">
-            ← Retour
+          <Link
+            href="/communes"
+            className="text-sm text-gray-600 transition-colors duration-base hover:text-navy-900 dark:text-white/60 dark:hover:text-white"
+          >
+            ← {c.back}
           </Link>
         </header>
 
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-6">
+        <div className="rounded-card border bg-white p-6 shadow-card dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
           <CommuneForm
             mode="edit"
             id={commune.id}
+            lang={lang}
             initial={{
               inseeCode:       commune.inseeCode,
               name:            commune.name,

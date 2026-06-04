@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { Package } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -22,7 +23,24 @@ import {
 } from '../lib/api'
 import { useRequireAuth } from '../lib/auth-context'
 import { useT } from '../lib/i18n/I18nProvider'
-import { MapView } from './map/MapView'
+
+/**
+ * MapView dynamiquement importé pour sortir maplibre-gl (~600 KB minifié) du
+ * bundle initial. La carte n'est rendue qu'après la geoloc browser de toute
+ * façon — on en profite pour différer le chargement du JS jusqu'à l'hydratation.
+ *
+ * `ssr: false` car maplibre-gl utilise WebGL → requiert le DOM browser.
+ * Sans ce flag, `next build` casse au render serveur.
+ *
+ * Le `loading` skeleton occupe l'espace de la carte pendant le chargement pour
+ * éviter le layout shift (CLS).
+ */
+const MapView = dynamic(() => import('./map/MapView').then((m) => m.MapView), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full w-full animate-pulse bg-gray-100 dark:bg-navy-800" />
+  ),
+})
 
 /**
  * Écran d'accueil — carte interactive + liste triée par distance.

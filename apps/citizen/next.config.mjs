@@ -16,6 +16,21 @@ const nextConfig = {
     }
     return config
   },
+  // /history était un cul-de-sac (page "Tu n'as pas encore d'emprunts" alors
+  // que l'historique réel vit sur /profile via <ReservationsHistory>).
+  // Redirect permanent 308 (preserve method, vs 301 qui force GET) — pas de
+  // form sur l'ancienne route donc impact nul. `permanent: true` est
+  // l'équivalent Next.js pour 308.
+  async redirects() {
+    return [
+      {
+        source: '/history',
+        destination: '/profile',
+        permanent: true,
+      },
+    ]
+  },
+
   // Headers PWA-ready : manifest + service worker servis avec les bons MIME
   // et cache courts pour permettre les màj des assets.
   async headers() {

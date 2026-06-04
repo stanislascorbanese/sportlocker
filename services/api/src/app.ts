@@ -15,6 +15,7 @@ import { distributorRoutes } from './routes/distributors.js'
 import { reservationRoutes } from './routes/reservations.js'
 import { adminReservationRoutes } from './routes/admin-reservations.js'
 import { adminMaintenanceRoutes } from './routes/admin-maintenance.js'
+import { adminDistributorHealthRoutes } from './routes/admin-distributor-health.js'
 import { adminStatsRoutes } from './routes/admin-stats.js'
 import { adminCommuneRoutes } from './routes/admin-communes.js'
 import { adminUserRoutes } from './routes/admin-users.js'
@@ -26,8 +27,10 @@ import { itemTypeRoutes } from './routes/item-types.js'
 import { adminItemTypeRoutes } from './routes/admin-item-types.js'
 import { adminItemRoutes } from './routes/admin-items.js'
 import { adminPricingRuleRoutes } from './routes/admin-pricing-rules.js'
+import { adminStripeConnectRoutes } from './routes/admin-stripe-connect.js'
 import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 import { stripeWebhookRoutes } from './routes/stripe-webhook.js'
+import { webhooksStripeRoutes } from './routes/webhooks-stripe.js'
 import { devRoutes } from './routes/dev.js'
 
 export async function buildApp() {
@@ -60,6 +63,7 @@ export async function buildApp() {
   await app.register(adminInviteRoutes,       { prefix: '/v1/admin/invites' })
   await app.register(adminReservationRoutes,  { prefix: '/v1/admin/reservations' })
   await app.register(adminMaintenanceRoutes,  { prefix: '/v1/admin/maintenance-tickets' })
+  await app.register(adminDistributorHealthRoutes, { prefix: '/v1/admin/distributors' })
   await app.register(adminStatsRoutes,        { prefix: '/v1/admin/stats' })
   await app.register(adminCommuneRoutes,      { prefix: '/v1/admin/communes' })
   await app.register(adminUserRoutes,         { prefix: '/v1/admin/users' })
@@ -67,6 +71,8 @@ export async function buildApp() {
   await app.register(adminItemTypeRoutes,     { prefix: '/v1/admin/item-types' })
   await app.register(adminItemRoutes,         { prefix: '/v1/admin/items' })
   await app.register(adminPricingRuleRoutes,  { prefix: '/v1/admin/pricing-rules' })
+  await app.register(adminStripeConnectRoutes, { prefix: '/v1/admin/stripe-connect' })
+  await app.register(webhooksStripeRoutes,    { prefix: '/v1/webhooks' })
 
   // Routes de dev/simulation — register UNIQUEMENT hors production.
   // La route refuse aussi en interne si NODE_ENV=production (defense-in-depth),

@@ -96,8 +96,18 @@ html.dark #sl-splash {
 }
 
 .sl-splash-mark {
+  width: 128px;
+  height: 128px;
+  background-image: url('/splash-logo-light.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
   filter: drop-shadow(0 6px 18px rgb(16 185 129 / 0.28));
   animation: sl-splash-mark-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+html.dark .sl-splash-mark {
+  background-image: url('/splash-logo-dark.png');
 }
 
 .sl-splash-word {
