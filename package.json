@@ -29,7 +29,8 @@
       "undici":         ">=6.24.0",
       "drizzle-orm":    ">=0.45.2",
       "rollup":         ">=3.30.0",
-      "tar":            ">=7.5.4"
+      "tar":            ">=7.5.4",
+      "tmp":            ">=0.2.6"
     },
     "//audit": "Les GHSAs non couvertes par les overrides ci-dessus sont filtrées dans .github/workflows/security.yml (pnpm 9 n'applique pas pnpm.auditConfig.ignoreCves). Voir docs/SECURITY.md §9."
   }
