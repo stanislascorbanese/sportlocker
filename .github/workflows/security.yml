@@ -92,7 +92,7 @@ jobs:
         env:
           # GHSAs ignorées — chacune doit avoir un item de suivi dans
           # docs/SECURITY.md §9 avec date cible et raison.
-          IGNORED_GHSAS: 'GHSA-wrwg-2hg8-v723 GHSA-jx2c-rxcm-jvmq GHSA-5xrq-8626-4rwp'
+          IGNORED_GHSAS: 'GHSA-wrwg-2hg8-v723 GHSA-jx2c-rxcm-jvmq'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
