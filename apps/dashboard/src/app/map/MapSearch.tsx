@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Distributor } from '../../lib/api'
 import { cn } from '../../lib/cn'
+import { useLang } from '../../lib/lang-client'
+import { getMapStrings } from '../../lib/map-i18n'
 
 type LocatedDistributor = Distributor & { latitude: number; longitude: number }
 
@@ -46,12 +48,7 @@ const ZOOM_BY_KIND: Record<Kind, number> = {
   commune:     12,
 }
 
-const KIND_LABEL: Record<Kind, string> = {
-  distributor: 'Distributeur',
-  region:      'Région',
-  departement: 'Département',
-  commune:     'Commune',
-}
+// Labels are now i18n-driven via getMapStrings(useLang())
 
 const KIND_COLOR: Record<Kind, string> = {
   distributor: 'bg-amber-500/20 text-amber-200',
@@ -74,6 +71,15 @@ export function MapSearch({
   distributors?: LocatedDistributor[]
   onSelect: (t: MapSearchTarget) => void
 }) {
+  const lang = useLang()
+  const strings = useMemo(() => getMapStrings(lang), [lang])
+  const kindLabel: Record<Kind, string> = useMemo(() => ({
+    distributor: strings.kindDistributor,
+    region:      strings.kindRegion,
+    departement: strings.kindDepartement,
+    commune:     strings.kindCommune,
+  }), [strings])
+
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Result[]>([])
   const [loading, setLoading] = useState(false)
@@ -160,7 +166,7 @@ export function MapSearch({
         onKeyDown={onKeyDown}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="🔎 Distributeur · région · département · commune (ex. SL-MAIRIE, Bretagne, 44, Nantes…)"
+        placeholder={strings.searchPlaceholder}
         className={cn(
           'w-full rounded-lg border border-white/15 bg-navy-800/80 px-4 py-2.5 text-sm text-white outline-none transition',
           'placeholder:text-white/40 focus:border-emerald-400/60',
@@ -176,7 +182,7 @@ export function MapSearch({
           className="absolute inset-x-0 z-20 mt-1 max-h-80 overflow-auto rounded-lg border border-white/15 bg-navy-800 shadow-xl"
         >
           {loading && results.length === 0 && (
-            <li className="px-3 py-2 text-xs text-white/40">Recherche…</li>
+            <li className="px-3 py-2 text-xs text-white/40">{strings.searchLoading}</li>
           )}
           {results.map((r, i) => (
             <li
@@ -206,7 +212,7 @@ export function MapSearch({
                       KIND_COLOR[r.kind],
                     )}
                   >
-                    {KIND_LABEL[r.kind]}
+                    {kindLabel[r.kind]}
                   </span>
                 </span>
               </button>

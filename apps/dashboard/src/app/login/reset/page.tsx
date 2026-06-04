@@ -4,24 +4,13 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
-/**
- * Page de réinitialisation de mot de passe pour la console ops.
- *
- * Flux :
- *   1. L'admin saisit son email
- *   2. On POST `/api/password-reset` (route handler Next) qui relaie à l'API
- *      SportLocker. L'API génère le lien d'action via l'Admin SDK Firebase et
- *      envoie un e-mail FR brandé via Resend (vs e-mail Firebase générique en
- *      anglais classé en spam).
- *   3. L'e-mail contient un lien `…/__/auth/action?mode=resetPassword&oobCode=…`
- *      qui affiche la page de saisie du nouveau password
- *   4. Une fois validé, l'admin revient se connecter avec le nouveau password
- *
- * Note sécurité : on affiche TOUJOURS la même confirmation, même si l'email
- * n'existe pas en base. Évite l'énumération de comptes (un attaquant ne peut
- * pas distinguer un email valide d'un invalide) — l'API applique la même règle.
- */
+import { useLang } from '../../../lib/lang-client'
+import { authStrings } from '../../../lib/i18n/auth'
+
 export default function ResetPasswordPage() {
+  const lang = useLang()
+  const t = authStrings(lang)
+
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -37,14 +26,13 @@ export default function ResetPasswordPage() {
         body: JSON.stringify({ email: email.trim() }),
       })
       if (!res.ok) {
-        // 400 = email invalide côté serveur. Tout le reste reste neutre.
-        setError('Adresse email invalide.')
+        setError(t.resetErrorInvalid)
         setStatus('error')
         return
       }
       setStatus('sent')
     } catch {
-      setError('Connexion réseau impossible. Vérifie ta connexion.')
+      setError(t.resetErrorNetwork)
       setStatus('error')
     }
   }
@@ -57,40 +45,32 @@ export default function ResetPasswordPage() {
           className="mb-4 inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white/80"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Retour à la connexion
+          {t.backToLogin}
         </Link>
 
         <h1 className="font-display text-xl tracking-tight">
-          Mot de passe <span className="text-emerald-400">oublié ?</span>
+          {t.resetTitle1} <span className="text-emerald-400">{t.resetTitle2}</span>
         </h1>
-        <p className="mt-1 text-xs uppercase tracking-wider text-white/40">Réinitialisation</p>
+        <p className="mt-1 text-xs uppercase tracking-wider text-white/40">{t.resetEyebrow}</p>
 
         {status === 'sent' ? (
           <div className="mt-6 space-y-4">
             <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-200">
-              Si <strong className="font-semibold">{email.trim()}</strong> correspond à un compte, un
-              email avec un lien de réinitialisation vient d'être envoyé. Vérifie ta boîte mail
-              (et tes spams).
+              {t.resetIfMatch1} <strong className="font-semibold">{email.trim()}</strong> {t.resetIfMatch2}
             </div>
-            <p className="text-[11px] leading-relaxed text-white/50">
-              Le lien expire après 1 heure. Si tu ne reçois rien dans 5 min, vérifie que l'adresse
-              saisie correspond bien à ton compte ops ou contacte l'équipe SportLocker.
-            </p>
+            <p className="text-[11px] leading-relaxed text-white/50">{t.resetExpiresHint}</p>
             <Link
               href="/login"
               className="block w-full rounded-md bg-emerald-500 px-3 py-2 text-center text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
             >
-              Retour à la connexion
+              {t.backToLogin}
             </Link>
           </div>
         ) : (
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            <p className="text-sm text-white/60">
-              Saisis l'email de ton compte ops. Tu recevras un lien pour choisir un nouveau mot de
-              passe.
-            </p>
+            <p className="text-sm text-white/60">{t.resetIntro}</p>
             <label className="block">
-              <span className="text-xs uppercase tracking-wider text-white/50">Email</span>
+              <span className="text-xs uppercase tracking-wider text-white/50">{t.fieldEmail}</span>
               <input
                 type="email"
                 required
@@ -113,14 +93,12 @@ export default function ResetPasswordPage() {
               disabled={status === 'sending' || !email}
               className="w-full rounded-md bg-emerald-500 px-3 py-2 text-sm font-medium text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {status === 'sending' ? 'Envoi…' : 'Envoyer le lien de réinitialisation'}
+              {status === 'sending' ? t.btnSending : t.btnSendResetLink}
             </button>
           </form>
         )}
 
-        <p className="mt-5 text-[11px] text-white/30">
-          Ce lien sert uniquement à réinitialiser ton mot de passe. Aucun login automatique.
-        </p>
+        <p className="mt-5 text-[11px] text-white/30">{t.resetFooter}</p>
       </div>
     </div>
   )

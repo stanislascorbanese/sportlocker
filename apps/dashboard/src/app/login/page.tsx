@@ -6,30 +6,17 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 
 import { getFirebaseAuth } from '../../lib/firebase'
+import { useLang } from '../../lib/lang-client'
+import { authStrings, mapFirebaseError } from '../../lib/i18n/auth'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
-
-function mapFirebaseError(code: string): string {
-  switch (code) {
-    case 'auth/invalid-email':
-      return 'Adresse email invalide.'
-    case 'auth/user-disabled':
-      return 'Ce compte a été désactivé.'
-    case 'auth/user-not-found':
-    case 'auth/invalid-credential':
-    case 'auth/wrong-password':
-      return 'Email ou mot de passe incorrect.'
-    case 'auth/too-many-requests':
-      return 'Trop de tentatives. Réessayez dans quelques minutes.'
-    default:
-      return 'Connexion impossible. Réessayez.'
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter()
   const search = useSearchParams()
   const redirectTo = search?.get('redirect') ?? '/'
+  const lang = useLang()
+  const t = authStrings(lang)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -68,10 +55,10 @@ export default function LoginPage() {
     } catch (err) {
       const code = (err as { code?: string }).code ?? ''
       const msg = code.startsWith('auth/')
-        ? mapFirebaseError(code)
+        ? mapFirebaseError(lang, code)
         : (err as Error).message === 'forbidden'
-          ? "Votre compte n'a pas accès à ce dashboard."
-          : 'Connexion impossible. Réessayez.'
+          ? t.errForbidden
+          : t.errGeneric
       setError(msg)
     } finally {
       setLoading(false)
@@ -82,13 +69,13 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-navy-900 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.03] p-7 shadow-2xl">
         <h1 className="font-display text-xl tracking-tight">
-          SportLocker <span className="text-emerald-400">· ops</span>
+          SportLocker <span className="text-emerald-400">{t.brandSuffix}</span>
         </h1>
-        <p className="mt-1 text-xs uppercase tracking-wider text-white/40">Console opérateur</p>
+        <p className="mt-1 text-xs uppercase tracking-wider text-white/40">{t.operatorConsole}</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <label className="block">
-            <span className="text-xs uppercase tracking-wider text-white/50">Email</span>
+            <span className="text-xs uppercase tracking-wider text-white/50">{t.fieldEmail}</span>
             <input
               type="email"
               required
@@ -101,7 +88,7 @@ export default function LoginPage() {
           </label>
 
           <label className="block">
-            <span className="text-xs uppercase tracking-wider text-white/50">Mot de passe</span>
+            <span className="text-xs uppercase tracking-wider text-white/50">{t.fieldPassword}</span>
             <input
               type="password"
               required
@@ -123,7 +110,7 @@ export default function LoginPage() {
             disabled={loading || !email || !password}
             className="w-full rounded-md bg-emerald-500 px-3 py-2 text-sm font-medium text-navy-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? 'Connexion…' : 'Se connecter'}
+            {loading ? t.btnLoggingIn : t.btnLogin}
           </button>
 
           <div className="text-center">
@@ -131,14 +118,12 @@ export default function LoginPage() {
               href="/login/reset"
               className="text-xs text-emerald-400/80 hover:text-emerald-300 hover:underline"
             >
-              Mot de passe oublié ?
+              {t.forgotPassword}
             </Link>
           </div>
         </form>
 
-        <p className="mt-5 text-[11px] text-white/30">
-          Accès réservé aux administrateurs SportLocker et aux référents communaux invités.
-        </p>
+        <p className="mt-5 text-[11px] text-white/30">{t.accessNote}</p>
       </div>
     </div>
   )

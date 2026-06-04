@@ -5,6 +5,8 @@ import { useTransition } from 'react'
 
 import { cn } from '../../lib/cn'
 import type { Commune } from '../../lib/api'
+import type { Lang } from '../../lib/lang'
+import { pricingStrings } from '../../lib/i18n/pricing'
 
 /**
  * Sélecteur de commune visible UNIQUEMENT pour super_admin sur /pricing.
@@ -20,10 +22,13 @@ import type { Commune } from '../../lib/api'
 export function CommuneSelector({
   communes,
   currentCommuneId,
+  lang,
 }: {
   communes: Commune[]
   currentCommuneId: string | null
+  lang: Lang
 }) {
+  const t = pricingStrings(lang)
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -39,11 +44,11 @@ export function CommuneSelector({
   return (
     <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3">
       <span className="text-xs font-medium uppercase tracking-wider text-emerald-300">
-        Super-admin
+        {t.superAdminTag}
       </span>
       <span className="text-sm text-zinc-400">·</span>
       <label className="text-sm text-zinc-300" htmlFor="commune-select">
-        Tarif de la commune :
+        {t.communeTariffLabel}
       </label>
       <select
         id="commune-select"
@@ -56,9 +61,9 @@ export function CommuneSelector({
           pending && 'opacity-50',
         )}
       >
-        {communes.length === 0 && <option value="">Aucune commune disponible</option>}
+        {communes.length === 0 && <option value="">{t.communeNone}</option>}
         {currentCommuneId === null && communes.length > 0 && (
-          <option value="" disabled>— Choisir une commune —</option>
+          <option value="" disabled>{t.communeChoose}</option>
         )}
         {communes.map((c) => (
           <option key={c.id} value={c.id}>

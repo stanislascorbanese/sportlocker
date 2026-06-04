@@ -12,6 +12,8 @@ import {
 } from '../../lib/api'
 import { getSessionUser } from '../../lib/session-server'
 import { RefreshButton } from '../../components/RefreshButton'
+import { getLang } from '../../lib/lang-server'
+import { pricingStrings } from '../../lib/i18n/pricing'
 import { ApplyTemplate } from './ApplyTemplate'
 import { CommuneSelector } from './CommuneSelector'
 import { PriceCell } from './PriceCell'
@@ -39,6 +41,8 @@ export default async function PricingPage({
 }) {
   const sp = await searchParams
   const user = await getSessionUser()
+  const lang = await getLang()
+  const t = pricingStrings(lang)
 
   // Pré-charge les communes uniquement pour super_admin (l'admin scopé n'a
   // pas besoin du dropdown).
@@ -100,16 +104,12 @@ export default async function PricingPage({
     <div className="space-y-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">Tarification</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Prix d'affichage par sport et durée de créneau. Vide = ce créneau n'est pas proposé pour ce
-            sport. Modèle MVP sans paiement : les montants sont informatifs côté citoyen.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">{t.pageTitle}</h1>
+          <p className="mt-1 text-sm text-zinc-400">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-3 text-xs text-zinc-500">
           <span>
-            <strong className="font-medium text-zinc-200 tabular-nums">{filledCells}</strong> / {totalCells} créneaux
-            tarifés
+            <strong className="font-medium text-zinc-200 tabular-nums">{filledCells}</strong> {t.slotsTariffedTotal} {totalCells} {t.slotsTariffedSuffix}
           </span>
           <RefreshButton />
         </div>
@@ -119,44 +119,42 @@ export default async function PricingPage({
         <CommuneSelector
           communes={communes}
           currentCommuneId={effectiveCommuneId}
+          lang={lang}
         />
       )}
 
       {fetchError && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          API : {fetchError}
+          {t.apiPrefix} {fetchError}
         </div>
       )}
 
       {effectiveCommuneId === null && user?.role === 'super_admin' ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
-          Aucune commune dans le parc. Créez d'abord une commune dans{' '}
-          <a className="underline hover:text-zinc-300" href="/communes">/communes</a>.
+          {t.noCommunesInFleet}{' '}
+          <a className="underline hover:text-zinc-300" href="/communes">{t.goCommunes}</a>.
         </div>
       ) : (
         <>
-          <ApplyTemplate communeId={overrideCommuneId} />
+          <ApplyTemplate communeId={overrideCommuneId} lang={lang} />
 
           <section className="rounded-xl border border-zinc-800 bg-zinc-900/40">
             <div className="border-b border-zinc-800 px-4 py-3">
-              <h2 className="text-sm font-medium text-zinc-100">Matrice des prix</h2>
-              <p className="mt-0.5 text-xs text-zinc-500">
-                Tab/Enter pour valider une cellule, Escape pour annuler. Vider une cellule supprime la règle.
-              </p>
+              <h2 className="text-sm font-medium text-zinc-100">{t.matrixTitle}</h2>
+              <p className="mt-0.5 text-xs text-zinc-500">{t.matrixHint}</p>
             </div>
             {itemTypes.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-zinc-500">
-                Aucun item_type configuré. Créez d'abord des articles dans{' '}
-                <a className="underline hover:text-zinc-300" href="/items?tab=types">/items</a> pour
-                pouvoir leur attribuer un prix.
+                {t.noItemTypesCreate}{' '}
+                <a className="underline hover:text-zinc-300" href="/items?tab=types">{t.goItems}</a>.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs uppercase tracking-wide text-zinc-500">
                     <tr className="border-b border-zinc-800">
-                      <th className="px-4 py-2 text-left font-normal">Sport / item_type</th>
-                      <th className="px-3 py-2 text-left font-normal">Catégorie</th>
+                      <th className="px-4 py-2 text-left font-normal">{t.colSport}</th>
+                      <th className="px-3 py-2 text-left font-normal">{t.colCategory}</th>
                       {SLOT_DURATIONS.map((d) => (
                         <th
                           key={d}
@@ -164,7 +162,7 @@ export default async function PricingPage({
                             'px-3 py-2 text-right font-normal tabular-nums '
                             + (isDayPassDuration(d) ? 'text-amber-300/80' : '')
                           }
-                          title={isDayPassDuration(d) ? 'Forfait journée — 1 slot/jour à l\'ouverture' : undefined}
+                          title={isDayPassDuration(d) ? t.tooltipDayPass : undefined}
                         >
                           {formatDurationLabel(d)}
                         </th>
@@ -187,6 +185,7 @@ export default async function PricingPage({
                                   initialPriceCents={rule?.priceCents ?? null}
                                   ruleId={rule?.id ?? null}
                                   communeId={overrideCommuneId}
+                                  lang={lang}
                                 />
                               </div>
                             </td>

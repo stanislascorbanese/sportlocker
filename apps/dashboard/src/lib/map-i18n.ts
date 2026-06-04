@@ -23,6 +23,24 @@ export type MapStrings = {
   fillIn: string
   pickerHint: string
   pickerPlaceholder: string
+  // Page header
+  pageTitle: string
+  subtitle1: string
+  subtitleMany: string
+  apiUnreachable: string
+  // MapClient
+  fitAll: string
+  fitAllTitle: string
+  ariaMapLabel: string
+  legendShow: string
+  legendHide: string
+  // MapSearch
+  searchPlaceholder: string
+  searchLoading: string
+  kindDistributor: string
+  kindRegion: string
+  kindDepartement: string
+  kindCommune: string
 }
 
 export type MapTiles = {
@@ -106,6 +124,21 @@ const STRINGS: Record<MapLang, MapStrings> = {
     fillIn: 'renseigner',
     pickerHint: 'Cliquer ou glisser le marqueur pour positionner précisément',
     pickerPlaceholder: 'Renseigne une adresse ci-dessus ou clique sur la carte',
+    pageTitle: 'Carte du parc',
+    subtitle1: 'distributeur référencé — cliquer un marqueur pour les détails.',
+    subtitleMany: 'distributeurs référencés — cliquer un marqueur pour les détails.',
+    apiUnreachable: 'API injoignable',
+    fitAll: 'Tout afficher',
+    fitAllTitle: 'Recentrer la carte sur tous les distributeurs visibles',
+    ariaMapLabel: 'Carte des distributeurs',
+    legendShow: 'Afficher',
+    legendHide: 'Masquer',
+    searchPlaceholder: '🔎 Distributeur · région · département · commune (ex. SL-MAIRIE, Bretagne, 44, Nantes…)',
+    searchLoading: 'Recherche…',
+    kindDistributor: 'Distributeur',
+    kindRegion:      'Région',
+    kindDepartement: 'Département',
+    kindCommune:     'Commune',
   },
   en: {
     loading: 'Loading map…',
@@ -124,6 +157,21 @@ const STRINGS: Record<MapLang, MapStrings> = {
     fillIn: 'fill in',
     pickerHint: 'Click or drag the marker to position precisely',
     pickerPlaceholder: 'Enter an address above or click on the map',
+    pageTitle: 'Fleet map',
+    subtitle1: 'distributor referenced — click a marker for details.',
+    subtitleMany: 'distributors referenced — click a marker for details.',
+    apiUnreachable: 'API unreachable',
+    fitAll: 'Fit all',
+    fitAllTitle: 'Recenter the map on all visible distributors',
+    ariaMapLabel: 'Distributors map',
+    legendShow: 'Show',
+    legendHide: 'Hide',
+    searchPlaceholder: '🔎 Distributor · region · department · commune (e.g. SL-MAIRIE, Brittany, 44, Nantes…)',
+    searchLoading: 'Searching…',
+    kindDistributor: 'Distributor',
+    kindRegion:      'Region',
+    kindDepartement: 'Department',
+    kindCommune:     'Commune',
   },
 }
 

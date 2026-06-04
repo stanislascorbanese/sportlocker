@@ -213,6 +213,8 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
               active={visibleStatuses.has(s)}
               count={allGeo.filter((d) => d.status === s).length}
               onClick={() => toggleStatus(s)}
+              showLabel={strings.legendShow}
+              hideLabel={strings.legendHide}
             />
           ))}
           <button
@@ -220,10 +222,10 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
             onClick={fitAll}
             disabled={visibleGeo.length === 0}
             className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-white/70 transition hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200 disabled:opacity-40"
-            title="Recentrer la carte sur tous les distributeurs visibles"
+            title={strings.fitAllTitle}
           >
             <LocateFixed className="h-3 w-3" />
-            Tout afficher
+            {strings.fitAll}
           </button>
           {missingCoords > 0 && (
             <span className="basis-full text-amber-300/80">
@@ -240,7 +242,7 @@ export function MapClient({ distributors }: { distributors: Distributor[] }) {
           'h-[70vh] w-full overflow-hidden rounded-xl border border-white/10 bg-navy-800',
           TILES_NEED_DIMMING && 'map-tiles-dimmed',
         )}
-        aria-label="Carte des distributeurs"
+        aria-label={strings.ariaMapLabel}
       >
         {!leafletReady && (
           <div className="flex h-full items-center justify-center text-sm text-white/50">
@@ -258,12 +260,16 @@ function LegendToggle({
   active,
   count,
   onClick,
+  showLabel,
+  hideLabel,
 }: {
   color: string
   label: string
   active: boolean
   count: number
   onClick: () => void
+  showLabel: string
+  hideLabel: string
 }) {
   return (
     <button
@@ -276,7 +282,7 @@ function LegendToggle({
           ? 'border-white/15 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]'
           : 'border-white/5 bg-transparent text-white/30 hover:text-white/50',
       )}
-      title={active ? `Masquer "${label}"` : `Afficher "${label}"`}
+      title={active ? `${hideLabel} "${label}"` : `${showLabel} "${label}"`}
     >
       <span
         className={cn('inline-block h-2.5 w-2.5 rounded-full transition', !active && 'opacity-40')}
