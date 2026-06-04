@@ -17,6 +17,10 @@ import { getSessionUser } from '../../lib/session-server'
 import { StatCard } from '../../components/StatCard'
 import { cn } from '../../lib/cn'
 import type { SessionPayload } from '../../lib/session'
+import { getLang } from '../../lib/lang-server'
+import type { Lang } from '../../lib/lang'
+import { dateLocale, fmtRelative, commonStrings } from '../../lib/i18n/common'
+import { meStrings, roleLabel } from '../../lib/i18n/me'
 
 import { ResetPasswordButton } from './ResetPasswordButton'
 
@@ -34,47 +38,34 @@ function contractStatus(c: Commune): ContractStatus {
   return 'active'
 }
 
-const CONTRACT_STYLE: Record<ContractStatus, { label: string; cls: string }> = {
-  active:         { label: 'actif',          cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' },
-  expiring_soon:  { label: '< 60 j',         cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30' },
-  expired:        { label: 'expiré',         cls: 'bg-rose-500/10 text-rose-300 border-rose-500/30' },
-  none:           { label: 'sans contrat',   cls: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30' },
+const CONTRACT_CLS: Record<ContractStatus, string> = {
+  active:        'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+  expiring_soon: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+  expired:       'bg-rose-500/10 text-rose-300 border-rose-500/30',
+  none:          'bg-zinc-500/10 text-zinc-300 border-zinc-500/30',
 }
 
-const ROLE_STYLE: Record<SessionPayload['role'], { label: string; cls: string }> = {
-  super_admin: { label: 'Super-admin', cls: 'bg-amber-500/10 text-amber-200 border-amber-500/30' },
-  admin:       { label: 'Admin',       cls: 'bg-sky-500/10 text-sky-200 border-sky-500/30' },
-  operator:    { label: 'Opérateur',   cls: 'bg-zinc-500/10 text-zinc-200 border-zinc-500/30' },
+const ROLE_CLS: Record<SessionPayload['role'], string> = {
+  super_admin: 'bg-amber-500/10 text-amber-200 border-amber-500/30',
+  admin:       'bg-sky-500/10 text-sky-200 border-sky-500/30',
+  operator:    'bg-zinc-500/10 text-zinc-200 border-zinc-500/30',
 }
 
-function fmtEuros(cents: number): string {
+function fmtEuros(lang: Lang, cents: number): string {
   if (cents === 0) return '—'
-  return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
+  return `${(cents / 100).toLocaleString(dateLocale(lang), { maximumFractionDigits: 0 })} €`
 }
 
-function fmtDate(iso: string | null): string {
+function fmtDate(lang: Lang, iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString(dateLocale(lang), { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-function fmtDateTime(iso: string | null): string {
+function fmtDateTime(lang: Lang, iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString(dateLocale(lang), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function fmtRelative(iso: string | null): string | null {
-  if (!iso) return null
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return `il y a ${Math.round(diffSec / 86_400)}j`
-}
-
-/**
- * Construit des initiales à partir du displayName ou de l'email.
- * "alice martin" → "AM", "stanislas@…" → "S".
- */
 function initials(name: string | null, email: string): string {
   if (name) {
     const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -107,8 +98,6 @@ async function loadAdminTenantData(): Promise<AdminTenantData> {
     safe(fetchReservationsDaily(30), []),
   ])
 
-  // Mode démo si l'API a échoué OU si aucune commune assignée (cas réel rare,
-  // sinon les routes auraient renvoyé 403 — capturé par safe).
   const useDemo = hadError || communes.length === 0
   const commune = useDemo ? DEMO_COMMUNES[0]! : communes[0]!
   const dailySeries = useDemo || daily.length === 0 ? demoReservationsDaily(30) : daily
@@ -164,19 +153,12 @@ async function loadSuperAdminData(): Promise<SuperAdminData> {
   return {
     communesCount: communes.length,
     distributorsCount: distributors.length,
-    // fetchCommunes ne renvoie pas de date "createdAt" — on prend la 1ère pour l'affichage
     lastCommune: communes[0] ?? null,
     reservations7d: stats7d,
     useDemo: false,
   }
 }
 
-/**
- * Récupère le profil étendu de l'utilisateur courant (lastActiveAt, createdAt,
- * displayName) en cherchant dans la liste admin/users par email. Tolérant :
- * renvoie null si l'API admin est indisponible ou si l'user n'est pas listé
- * (cas super_admin sans commune scope — l'API peut filtrer).
- */
 async function loadSelfProfile(email: string): Promise<AdminUser | null> {
   try {
     const users = await fetchUsers({ q: email })
@@ -190,9 +172,11 @@ export default async function MePage() {
   const user = await getSessionUser()
   if (!user) redirect('/login?redirect=/me')
 
+  const lang = await getLang()
+  const t = meStrings(lang)
+
   const profile = await loadSelfProfile(user.email)
   const displayName = profile?.displayName ?? null
-  const roleStyle = ROLE_STYLE[user.role]
 
   return (
     <div className="space-y-8">
@@ -212,15 +196,15 @@ export default async function MePage() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className={cn(
               'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide',
-              roleStyle.cls,
+              ROLE_CLS[user.role],
             )}>
               <ShieldCheck className="h-3 w-3" />
-              {roleStyle.label}
+              {roleLabel(lang, user.role)}
             </span>
             {user.role === 'admin' && user.communeId && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/60">
                 <Building2 className="h-3 w-3" />
-                Commune assignée
+                {t.communeAssigned}
               </span>
             )}
           </div>
@@ -229,25 +213,25 @@ export default async function MePage() {
 
       {/* ─── Profil ─── */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">Profil</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">{t.sectionProfile}</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <InfoRow icon={<Mail className="h-4 w-4" />} label="Email">
+          <InfoRow icon={<Mail className="h-4 w-4" />} label={t.rowEmail}>
             <span className="font-mono text-[13px]">{user.email}</span>
           </InfoRow>
-          <InfoRow icon={<Clock className="h-4 w-4" />} label="Dernière activité">
+          <InfoRow icon={<Clock className="h-4 w-4" />} label={t.rowLastActivity}>
             {profile?.lastActiveAt ? (
-              <span title={fmtDateTime(profile.lastActiveAt)}>
-                {fmtRelative(profile.lastActiveAt) ?? fmtDateTime(profile.lastActiveAt)}
+              <span title={fmtDateTime(lang, profile.lastActiveAt)}>
+                {fmtRelative(lang, profile.lastActiveAt) ?? fmtDateTime(lang, profile.lastActiveAt)}
               </span>
             ) : (
-              <span className="text-white/40">non disponible</span>
+              <span className="text-white/40">{t.notAvailable}</span>
             )}
           </InfoRow>
-          <InfoRow icon={<Calendar className="h-4 w-4" />} label="Compte créé le">
-            {profile?.createdAt ? fmtDate(profile.createdAt) : <span className="text-white/40">non disponible</span>}
+          <InfoRow icon={<Calendar className="h-4 w-4" />} label={t.rowAccountCreated}>
+            {profile?.createdAt ? fmtDate(lang, profile.createdAt) : <span className="text-white/40">{t.notAvailable}</span>}
           </InfoRow>
           {profile?.phone && (
-            <InfoRow icon={<Phone className="h-4 w-4" />} label="Téléphone">
+            <InfoRow icon={<Phone className="h-4 w-4" />} label={t.rowPhone}>
               {profile.phone}
             </InfoRow>
           )}
@@ -255,19 +239,16 @@ export default async function MePage() {
       </section>
 
       {/* ─── Section conditionnelle selon rôle ─── */}
-      {user.role === 'admin' && <AdminTenantSection />}
-      {user.role === 'super_admin' && <SuperAdminSection />}
+      {user.role === 'admin' && <AdminTenantSection lang={lang} />}
+      {user.role === 'super_admin' && <SuperAdminSection lang={lang} />}
 
       {/* ─── Sécurité ─── */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">Sécurité</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">{t.sectionSecurity}</h2>
         <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
-          <p className="text-sm text-white/70">
-            Le mot de passe est géré par Firebase Auth. Pour le modifier, demande un lien
-            par email — tu seras redirigé vers une page sécurisée Firebase.
-          </p>
+          <p className="text-sm text-white/70">{t.securityHelp}</p>
           <div className="mt-4">
-            <ResetPasswordButton email={user.email} />
+            <ResetPasswordButton email={user.email} lang={lang} />
           </div>
         </div>
       </section>
@@ -293,10 +274,18 @@ function InfoRow({
   )
 }
 
-async function AdminTenantSection() {
+async function AdminTenantSection({ lang }: { lang: Lang }) {
+  const t = meStrings(lang)
+  const c = commonStrings(lang)
+  const contractLabels: Record<ContractStatus, string> = {
+    active:        t.contractActive,
+    expiring_soon: t.contractExpiringSoon,
+    expired:       t.contractExpired,
+    none:          t.contractNone,
+  }
+
   const { commune, distributors, totalReservations30d, useDemo } = await loadAdminTenantData()
   const cs = contractStatus(commune)
-  const cstyle = CONTRACT_STYLE[cs]
 
   const totalLockers = distributors.reduce((a, d) => a + d.lockerCount, 0)
   const idleLockers  = distributors.reduce((a, d) => a + d.idleLockers, 0)
@@ -307,10 +296,10 @@ async function AdminTenantSection() {
     <>
       <section className="space-y-3">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">Ma commune</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">{t.sectionMyCommune}</h2>
           {useDemo && (
             <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-              Démo
+              {c.demo}
             </span>
           )}
         </div>
@@ -321,42 +310,42 @@ async function AdminTenantSection() {
                 <h3 className="font-display text-xl text-white">{commune.name}</h3>
                 <span className={cn(
                   'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
-                  cstyle.cls,
+                  CONTRACT_CLS[cs],
                 )}>
-                  Contrat {cstyle.label}
+                  {t.contractPrefix} {contractLabels[cs]}
                 </span>
               </div>
               <p className="mt-1 flex items-center gap-1.5 text-[12px] text-white/50">
                 <MapPin className="h-3 w-3" />
-                {commune.region} · département {commune.department} · CP {commune.postalCode}
+                {commune.region} · {t.department} {commune.department} · {t.cp} {commune.postalCode}
               </p>
             </div>
             <div className="sm:text-right">
-              <p className="text-[10px] uppercase tracking-wider text-white/40">Fee mensuel</p>
+              <p className="text-[10px] uppercase tracking-wider text-white/40">{t.monthlyFee}</p>
               <p className="mt-0.5 font-display text-2xl text-emerald-300 tabular-nums">
-                {fmtEuros(commune.monthlyFeeCents)}
+                {fmtEuros(lang, commune.monthlyFeeCents)}
               </p>
             </div>
           </div>
 
           <dl className="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
-            <Field label="Code INSEE" value={<span className="font-mono">{commune.inseeCode}</span>} />
+            <Field label={t.inseeCode} value={<span className="font-mono">{commune.inseeCode}</span>} />
             <Field
-              label="Population"
+              label={t.population}
               value={commune.population != null
-                ? commune.population.toLocaleString('fr-FR') + ' hab.'
+                ? commune.population.toLocaleString(dateLocale(lang)) + ` ${t.populationSuffix}`
                 : <span className="text-white/40">—</span>}
             />
-            <Field label="Début contrat" value={fmtDate(commune.contractStart)} />
-            <Field label="Fin contrat"   value={fmtDate(commune.contractEnd)} />
+            <Field label={t.contractStart} value={fmtDate(lang, commune.contractStart)} />
+            <Field label={t.contractEnd}   value={fmtDate(lang, commune.contractEnd)} />
             <Field
-              label="Contact email"
+              label={t.contactEmail}
               value={commune.contactEmail
                 ? <a href={`mailto:${commune.contactEmail}`} className="text-emerald-300 hover:text-emerald-200">{commune.contactEmail}</a>
                 : <span className="text-white/40">—</span>}
             />
             <Field
-              label="Contact téléphone"
+              label={t.contactPhone}
               value={commune.contactPhone ?? <span className="text-white/40">—</span>}
             />
           </dl>
@@ -364,35 +353,37 @@ async function AdminTenantSection() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">Mes statistiques</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">{t.sectionMyStats}</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="Distributeurs déployés"
+            label={t.kpiDeployedDist}
             value={deployedCount}
-            hint={useDemo ? 'données fictives' : `${distributors.filter((d) => d.status === 'online').length} online`}
+            hint={useDemo
+              ? t.kpiDeployedDistHintDemo
+              : t.kpiDeployedDistHintOnline.replace('%d', String(distributors.filter((d) => d.status === 'online').length))}
             tone="neutral"
             href="/distributors"
             icon={<Server className="h-4 w-4" />}
           />
           <StatCard
-            label="Casiers totaux"
+            label={t.kpiTotalLockers}
             value={useDemo ? '—' : totalLockers}
-            hint={useDemo ? 'branchez un token admin' : `${idleLockers} libres`}
+            hint={useDemo ? t.kpiTotalLockersHintDemo : t.kpiTotalLockersHintFree.replace('%d', String(idleLockers))}
             tone="neutral"
             icon={<Package className="h-4 w-4" />}
           />
           <StatCard
-            label="Réservations 30j"
+            label={t.kpiRes30d}
             value={totalReservations30d}
-            hint={useDemo ? 'série démo' : 'derniers 30 jours'}
+            hint={useDemo ? t.kpiRes30dHintDemo : t.kpiRes30dHintReal}
             tone="good"
             href="/reservations"
             icon={<CalendarClock className="h-4 w-4" />}
           />
           <StatCard
-            label="Taux d'occupation"
+            label={t.kpiFillRate}
             value={useDemo ? '—' : `${fillRate}%`}
-            hint={useDemo ? '' : 'casiers occupés / total'}
+            hint={useDemo ? '' : t.kpiFillRateHint}
             tone={fillRate > 80 ? 'warn' : 'neutral'}
           />
         </div>
@@ -401,57 +392,59 @@ async function AdminTenantSection() {
   )
 }
 
-async function SuperAdminSection() {
+async function SuperAdminSection({ lang }: { lang: Lang }) {
+  const t = meStrings(lang)
+  const c = commonStrings(lang)
   const data = await loadSuperAdminData()
 
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">Vue système</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">{t.sectionSystem}</h2>
         {data.useDemo && (
           <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-            Démo
+            {c.demo}
           </span>
         )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Communes managées"
+          label={t.kpiCommunesManaged}
           value={data.communesCount}
-          hint={data.useDemo ? 'données fictives' : 'tenants actifs'}
+          hint={data.useDemo ? t.kpiCommunesManagedHintDemo : t.kpiCommunesManagedHint}
           tone="good"
           href="/super-admin/tenants"
           icon={<Building2 className="h-4 w-4" />}
         />
         <StatCard
-          label="Distributeurs"
+          label={t.kpiDistributors}
           value={data.distributorsCount}
-          hint="parc total déployé"
+          hint={t.kpiDistributorsHint}
           tone="neutral"
           href="/distributors"
           icon={<Server className="h-4 w-4" />}
         />
         <StatCard
-          label="Réservations 7j"
+          label={t.kpiRes7d}
           value={data.reservations7d}
-          hint="tous tenants confondus"
+          hint={t.kpiRes7dHint}
           tone="good"
           href="/reservations"
           icon={<CalendarClock className="h-4 w-4" />}
         />
         {data.lastCommune ? (
           <StatCard
-            label="Commune vedette"
+            label={t.kpiFeaturedCommune}
             value={data.lastCommune.name}
-            hint={`${data.lastCommune.distributorCount} distributeur${data.lastCommune.distributorCount > 1 ? 's' : ''}`}
+            hint={`${data.lastCommune.distributorCount} ${data.lastCommune.distributorCount > 1 ? t.distributorPlural : t.distributorSingular}`}
             tone="neutral"
             href={`/communes/${data.lastCommune.id}/edit`}
           />
         ) : (
           <StatCard
-            label="Commune vedette"
+            label={t.kpiFeaturedCommune}
             value="—"
-            hint="aucune commune"
+            hint={t.kpiNoCommune}
             tone="neutral"
           />
         )}

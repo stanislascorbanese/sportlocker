@@ -5,27 +5,15 @@ import { Card } from '../../../components/ui/Card'
 import { PageHeader } from '../../../components/ui/PageHeader'
 import { fetchStripeConnectStatus, type StripeConnectStatus } from '../../../lib/api'
 import { cn } from '../../../lib/cn'
+import { getLang } from '../../../lib/lang-server'
+import type { Lang } from '../../../lib/lang'
+import { dateLocale } from '../../../lib/i18n/common'
+import { paymentsStrings } from '../../../lib/i18n/payments'
 import { StripeConnectActions } from './StripeConnectActions'
 import { TransactionsCard } from './TransactionsCard'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Paiements · SportLocker ops' }
-
-/**
- * Page /settings/payments — onboarding Stripe Connect du tenant.
- *
- * États gérés (le badge + le contenu de la card varient en fonction) :
- *   - server_not_configured : l'API n'a pas STRIPE_SECRET_KEY → on affiche
- *     un message clair "configurer côté serveur" sans casser la page.
- *   - not_started           : pas de Stripe account associé. CTA "Connecter".
- *   - pending_verification  : account créé mais Stripe pas encore validé.
- *   - charges_only          : charges OK mais payouts pas encore (AML pause).
- *   - payouts_only          : inverse (rare).
- *   - fully_verified        : les deux flags green.
- *
- * Refactor C2 : utilise les atomes (PageHeader, Card, Badge) du design system
- * dashboard (PR #204). Light/dark mode automatique via les variants `dark:`.
- */
 
 type DisplayState =
   | { kind: 'server_not_configured' }
@@ -49,56 +37,35 @@ function classify(
   return { kind: 'pending_verification', status: result }
 }
 
-const STATE_META: Record<
-  DisplayState['kind'],
-  { label: string; tone: BadgeTone; icon: typeof CheckCircle2 }
-> = {
-  server_not_configured: {
-    label: 'Non configuré côté serveur',
-    tone: 'neutral',
-    icon: AlertTriangle,
-  },
-  super_admin_no_commune: {
-    label: 'Sélectionne une commune',
-    tone: 'neutral',
-    icon: Info,
-  },
-  not_started: {
-    label: 'Non configuré',
-    tone: 'warning',
-    icon: XCircle,
-  },
-  pending_verification: {
-    label: 'Vérification en cours',
-    tone: 'info',
-    icon: Clock,
-  },
-  charges_only: {
-    label: 'Payouts bloqués',
-    tone: 'warning',
-    icon: AlertTriangle,
-  },
-  payouts_only: {
-    label: 'Paiements bloqués',
-    tone: 'warning',
-    icon: AlertTriangle,
-  },
-  fully_verified: {
-    label: 'Connecté',
-    tone: 'success',
-    icon: CheckCircle2,
-  },
+const STATE_TONE: Record<DisplayState['kind'], BadgeTone> = {
+  server_not_configured: 'neutral',
+  super_admin_no_commune: 'neutral',
+  not_started: 'warning',
+  pending_verification: 'info',
+  charges_only: 'warning',
+  payouts_only: 'warning',
+  fully_verified: 'success',
+}
+
+const STATE_ICON: Record<DisplayState['kind'], typeof CheckCircle2> = {
+  server_not_configured: AlertTriangle,
+  super_admin_no_commune: Info,
+  not_started: XCircle,
+  pending_verification: Clock,
+  charges_only: AlertTriangle,
+  payouts_only: AlertTriangle,
+  fully_verified: CheckCircle2,
 }
 
 export default async function PaymentsPage() {
+  const lang = await getLang()
+  const t = paymentsStrings(lang)
+
   let state: DisplayState
   try {
     const result = await fetchStripeConnectStatus()
     state = classify(result)
   } catch (err) {
-    // L'API renvoie 400 super_admin_must_specify_commune_id pour les super
-    // admins qui appellent sans communeId. On dégrade en UX au lieu de
-    // crasher la page entière.
     const msg = (err as Error).message
     if (msg.includes('super_admin_must_specify_commune_id')) {
       state = { kind: 'super_admin_no_commune' }
@@ -107,30 +74,38 @@ export default async function PaymentsPage() {
     }
   }
 
-  const meta = STATE_META[state.kind]
-  const StateIcon = meta.icon
+  const StateIcon = STATE_ICON[state.kind]
+  const tone = STATE_TONE[state.kind]
   const status = 'status' in state ? state.status : null
+
+  const stateLabel: Record<DisplayState['kind'], string> = {
+    server_not_configured: t.badgeServerNotConfigured,
+    super_admin_no_commune: t.badgeSuperAdminNoCommune,
+    not_started:           t.badgeNotStarted,
+    pending_verification:  t.badgePendingVerification,
+    charges_only:          t.badgeChargesOnly,
+    payouts_only:          t.badgePayoutsOnly,
+    fully_verified:        t.badgeFullyVerified,
+  }
 
   return (
     <main className="space-y-6">
       <PageHeader
-        eyebrow="Paramètres"
-        title="Paiements & reversements"
+        eyebrow={t.eyebrow}
+        title={t.pageTitle}
         icon={<CreditCard className="h-5 w-5" aria-hidden="true" />}
       />
 
-      {/* Transactions de location (paiements citoyens) */}
-      <TransactionsCard />
+      <TransactionsCard lang={lang} />
 
-      {/* Status card principal */}
       <Card variant="elevated" padding="lg" className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <Badge
-            tone={meta.tone}
+            tone={tone}
             size="sm"
             icon={<StateIcon className="h-3.5 w-3.5" aria-hidden="true" />}
           >
-            {meta.label}
+            {stateLabel[state.kind]}
           </Badge>
           {status?.accountId && (
             <span className="font-mono text-meta text-gray-400 dark:text-white/40">
@@ -139,35 +114,33 @@ export default async function PaymentsPage() {
           )}
         </div>
 
-        {/* Help text contextuel */}
-        <StateHelp state={state} />
+        <StateHelp state={state} lang={lang} />
 
-        {/* CTAs — affichés sauf cas server_not_configured / super_admin_no_commune */}
         {state.kind !== 'server_not_configured' && state.kind !== 'super_admin_no_commune' && (
           <StripeConnectActions
             connected={state.kind !== 'not_started'}
             fullyVerified={state.kind === 'fully_verified'}
+            lang={lang}
           />
         )}
 
-        {/* Flags détails — visible quand un account existe */}
         {status && (
           <div className="grid grid-cols-1 gap-3 border-t pt-2 sm:grid-cols-2 border-gray-200 dark:border-white/5">
             <FlagRow
-              label="Paiements entrants"
+              label={t.flagCharges}
               enabled={status.chargesEnabled}
-              hint="Stripe a vérifié l'identité et autorise les paiements de tes citoyens."
+              hint={t.flagChargesHint}
             />
             <FlagRow
-              label="Payouts vers ton RIB"
+              label={t.flagPayouts}
               enabled={status.payoutsEnabled}
-              hint="Stripe peut envoyer les fonds vers ton compte bancaire (J+2)."
+              hint={t.flagPayoutsHint}
             />
             {status.onboardedAt && (
               <div className="pt-2 text-meta text-gray-500 dark:text-white/40 sm:col-span-2">
-                Première vérification complète :{' '}
+                {t.firstVerificationLabel}{' '}
                 <span className="text-navy-900 dark:text-white/60">
-                  {fmtDate(status.onboardedAt)}
+                  {fmtDate(lang, status.onboardedAt)}
                 </span>
               </div>
             )}
@@ -175,25 +148,21 @@ export default async function PaymentsPage() {
         )}
       </Card>
 
-      {/* Comment ça marche — pédagogique */}
       <Card variant="elevated" padding="lg" className="space-y-4">
         <h2 className="font-display text-lg font-semibold text-navy-900 dark:text-white">
-          Comment fonctionne le reversement ?
+          {t.howItWorks}
         </h2>
         <ol className="space-y-3 text-sm leading-relaxed text-gray-700 dark:text-white/70">
-          <Step n="01">
-            Tu connectes ton compte Stripe Express via le bouton ci-dessus — Stripe te guide
-            pour ton KYC entreprise + RIB. ~10 min pour un dossier complet.
-          </Step>
+          <Step n="01">{t.step1}</Step>
           <Step n="02">
-            Chaque réservation citoyenne sur tes distributeurs déclenche un paiement Stripe.
-            <strong className="font-semibold text-navy-900 dark:text-white"> Tu reçois 75 %</strong>,
-            SportLocker prend 25 % de commission marketplace.
+            {t.step2_a}{' '}
+            <strong className="font-semibold text-navy-900 dark:text-white">{t.step2_b}</strong>
+            {t.step2_c}
           </Step>
           <Step n="03">
-            Reversement automatique{' '}
-            <strong className="font-semibold text-navy-900 dark:text-white">en J+2</strong> sur ton
-            RIB via Stripe Express. Suivi temps réel des transferts dans ton dashboard.
+            {t.step3_a}
+            <strong className="font-semibold text-navy-900 dark:text-white">{t.step3_b}</strong>
+            {t.step3_c}
           </Step>
         </ol>
       </Card>
@@ -210,69 +179,19 @@ function Step({ n, children }: { n: string; children: React.ReactNode }) {
   )
 }
 
-function StateHelp({ state }: { state: DisplayState }) {
+function StateHelp({ state, lang }: { state: DisplayState; lang: Lang }) {
+  const t = paymentsStrings(lang)
   const cls = 'text-sm leading-relaxed text-gray-700 dark:text-white/70'
-  switch (state.kind) {
-    case 'server_not_configured':
-      return (
-        <p className={cls}>
-          La clé{' '}
-          <code className="font-mono text-meta text-navy-900 dark:text-white/90">
-            STRIPE_SECRET_KEY
-          </code>{' '}
-          n&apos;est pas configurée côté serveur. Pose-la sur Railway → @sportlocker/api →
-          Variables pour activer cette page. Sans elle, aucun reversement n&apos;est possible.
-        </p>
-      )
-    case 'super_admin_no_commune':
-      return (
-        <p className={cls}>
-          En tant que super-admin tu peux consulter le Stripe Connect d&apos;une commune en
-          ajoutant <code className="font-mono">?communeId=…</code> à l&apos;URL. Cette UI
-          dédiée arrive dans une prochaine itération — pour l&apos;instant utilise un compte
-          admin scoped au tenant.
-        </p>
-      )
-    case 'not_started':
-      return (
-        <p className={cls}>
-          Aucun compte Stripe Connect associé à cette commune. Connecte ton compte pour
-          commencer à encaisser les locations citoyennes et recevoir tes reversements
-          automatiquement.
-        </p>
-      )
-    case 'pending_verification':
-      return (
-        <p className={cls}>
-          Ton compte est créé chez Stripe. Termine la vérification (KYC + RIB) pour activer
-          les paiements et les payouts. La vérification prend généralement 24-48 h après
-          soumission complète des pièces.
-        </p>
-      )
-    case 'charges_only':
-      return (
-        <p className={cls}>
-          Les paiements entrants sont actifs, mais Stripe a temporairement bloqué les payouts
-          vers ton RIB (souvent une vérification AML supplémentaire). Continue la vérification
-          ou contacte le support Stripe si ça dure.
-        </p>
-      )
-    case 'payouts_only':
-      return (
-        <p className={cls}>
-          Tes payouts sont actifs mais les paiements entrants sont bloqués. C&apos;est rare —
-          contacte le support Stripe pour comprendre.
-        </p>
-      )
-    case 'fully_verified':
-      return (
-        <p className={cls}>
-          Ton compte est pleinement vérifié. Les paiements citoyens sur tes distributeurs sont
-          encaissés, tu reçois 75 % en J+2 sur ton RIB. Tu peux rafraîchir le statut à tout
-          moment pour synchroniser avec Stripe.
-        </p>
-      )
+  const help: Record<DisplayState['kind'], string> = {
+    server_not_configured: t.helpServerNotConfigured,
+    super_admin_no_commune: t.helpSuperAdminNoCommune,
+    not_started:           t.helpNotStarted,
+    pending_verification:  t.helpPendingVerification,
+    charges_only:          t.helpChargesOnly,
+    payouts_only:          t.helpPayoutsOnly,
+    fully_verified:        t.helpFullyVerified,
   }
+  return <p className={cls}>{help[state.kind]}</p>
 }
 
 function FlagRow({
@@ -311,8 +230,8 @@ function FlagRow({
   )
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
+function fmtDate(lang: Lang, iso: string): string {
+  return new Date(iso).toLocaleDateString(dateLocale(lang), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',

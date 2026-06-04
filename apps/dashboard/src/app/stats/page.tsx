@@ -8,6 +8,9 @@ import { DonutChart } from '../../components/DonutChart'
 import { Heatmap } from '../../components/Heatmap'
 import { TopList } from '../../components/TopList'
 import { cn } from '../../lib/cn'
+import { getLang } from '../../lib/lang-server'
+import { commonStrings } from '../../lib/i18n/common'
+import { statsStrings, reservationStatusLabel } from '../../lib/i18n/stats'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Stats · SportLocker ops' }
@@ -33,6 +36,10 @@ export default async function StatsPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const lang = await getLang()
+  const t = statsStrings(lang)
+  const c = commonStrings(lang)
+
   const requested = Number(params.days)
   const days: Range = (RANGES as readonly number[]).includes(requested)
     ? (requested as Range)
@@ -61,7 +68,7 @@ export default async function StatsPage({
   const donutSlices = stats.byStatus
     .filter((s) => s.count > 0)
     .map((s) => ({
-      label: s.status,
+      label: reservationStatusLabel(lang, s.status),
       value: s.count,
       color: STATUS_COLOR[s.status],
     }))
@@ -71,19 +78,19 @@ export default async function StatsPage({
       <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-2xl sm:text-3xl">Stats</h2>
+            <h2 className="font-display text-2xl sm:text-3xl">{t.pageTitle}</h2>
             {useDemo && (
               <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                Démo
+                {c.demo}
               </span>
             )}
           </div>
           <p className="mt-1 text-sm text-white/55">
-            {total} réservations sur les {days} derniers jours · taux d&apos;achèvement{' '}
+            {total} {t.subtitleN} {t.subtitleDays.replace('%d', String(days))} · {t.subtitleCompletionRate}{' '}
             <span className="text-emerald-300">
               {total > 0 ? Math.round((totalReturned / total) * 100) : 0}%
             </span>
-            {useDemo && ' · données fictives'}
+            {useDemo && ` · ${c.demoFootnote}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -99,7 +106,7 @@ export default async function StatsPage({
                     : 'text-white/60 hover:bg-white/[0.04] hover:text-white',
                 )}
               >
-                {d}j
+                {d}{lang === 'fr' ? 'j' : 'd'}
               </Link>
             ))}
           </div>
@@ -109,7 +116,7 @@ export default async function StatsPage({
 
       {fetchError && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
-          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
+          <p className="font-medium">{c.apiErrorTitle}</p>
           <p className="mt-1 font-mono text-[11px] text-amber-300/70">{fetchError}</p>
         </div>
       )}
@@ -118,9 +125,9 @@ export default async function StatsPage({
       <section className="rounded-xl border border-white/10 bg-navy-800 p-4 sm:p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-            Tendance · réservations / jour
+            {t.trendTitle}
           </h3>
-          <span className="text-[11px] text-white/40">{days} derniers jours</span>
+          <span className="text-[11px] text-white/40">{t.trendSub.replace('%d', String(days))}</span>
         </div>
         <div className="overflow-x-auto">
           <Sparkline points={stats.daily} width={Math.min(1200, 120 + stats.daily.length * 30)} />
@@ -131,23 +138,23 @@ export default async function StatsPage({
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/40">
-            Répartition par statut
+            {t.statusBreakdown}
           </h3>
           <DonutChart
             slices={donutSlices}
             centerValue={total}
-            centerLabel="total"
+            centerLabel={t.centerLabel}
           />
           <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-3 text-[11px]">
-            <Stat label="Actives" value={totalActive} tone="good" />
-            <Stat label="En retard" value={totalOverdue} tone="bad" />
-            <Stat label="Retournées" value={totalReturned} tone="neutral" />
+            <Stat label={t.statActives} value={totalActive} tone="good" />
+            <Stat label={t.statOverdue} value={totalOverdue} tone="bad" />
+            <Stat label={t.statReturned} value={totalReturned} tone="neutral" />
           </div>
         </div>
 
         <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/40">
-            Top distributeurs
+            {t.topDistributors}
           </h3>
           <TopList items={stats.topDistributors.map((d) => ({
             primary: d.name,
@@ -158,11 +165,11 @@ export default async function StatsPage({
 
         <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/40">
-            Articles les plus empruntés
+            {t.topItemTypes}
           </h3>
-          <TopList items={stats.topItemTypes.map((t) => ({
-            primary: t.name,
-            count: t.count,
+          <TopList items={stats.topItemTypes.map((tp) => ({
+            primary: tp.name,
+            count: tp.count,
           }))} />
         </div>
       </section>
@@ -171,10 +178,10 @@ export default async function StatsPage({
       <section className="rounded-xl border border-white/10 bg-navy-800 p-5">
         <div className="mb-4 flex items-baseline justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-            Heures de pointe · jour de semaine × heure
+            {t.heatmapTitle}
           </h3>
           <span className="text-[11px] text-white/40">
-            agrégé sur {days} jours
+            {t.heatmapSub.replace('%d', String(days))}
           </span>
         </div>
         <Heatmap points={stats.hourly} />

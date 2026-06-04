@@ -3,15 +3,13 @@
 import { useState } from 'react'
 import { KeyRound, Check, AlertCircle, Loader2 } from 'lucide-react'
 
+import type { Lang } from '../../lib/lang'
+import { meStrings } from '../../lib/i18n/me'
+
 type State = 'idle' | 'sending' | 'sent' | 'error'
 
-/**
- * Déclenche l'envoi d'un e-mail brandé "reset password" à l'adresse courante.
- * POST `/api/password-reset` → API SportLocker : génère le lien (oobCode signé,
- * valable 1h via l'Admin SDK Firebase) et envoie un e-mail FR brandé via Resend.
- * On ne révèle rien si l'email n'existe pas (anti-énumération, géré côté API).
- */
-export function ResetPasswordButton({ email }: { email: string }) {
+export function ResetPasswordButton({ email, lang }: { email: string; lang: Lang }) {
+  const t = meStrings(lang)
   const [state, setState] = useState<State>('idle')
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
 
@@ -28,7 +26,7 @@ export function ResetPasswordButton({ email }: { email: string }) {
       setState('sent')
     } catch (err) {
       setState('error')
-      setErrorDetail(err instanceof Error ? err.message : 'Erreur inconnue')
+      setErrorDetail(err instanceof Error ? err.message : t.sentUnknownError)
     }
   }
 
@@ -36,7 +34,7 @@ export function ResetPasswordButton({ email }: { email: string }) {
     return (
       <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
         <Check className="h-4 w-4 text-emerald-300" />
-        <span>Email envoyé à <span className="font-mono">{email}</span></span>
+        <span>{t.sentTo} <span className="font-mono">{email}</span></span>
       </div>
     )
   }
@@ -54,13 +52,13 @@ export function ResetPasswordButton({ email }: { email: string }) {
         ) : (
           <KeyRound className="h-4 w-4" />
         )}
-        {state === 'sending' ? 'Envoi en cours…' : 'Changer mon mot de passe'}
+        {state === 'sending' ? t.btnSending : t.btnReset}
       </button>
       {state === 'error' && (
         <div className="inline-flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div>
-            <p className="font-medium">Échec de l&apos;envoi du mail</p>
+            <p className="font-medium">{t.sentErrorTitle}</p>
             {errorDetail && <p className="mt-0.5 font-mono text-[11px] text-rose-300/80">{errorDetail}</p>}
           </div>
         </div>
