@@ -27,6 +27,7 @@ import { itemTypeRoutes } from './routes/item-types.js'
 import { adminItemTypeRoutes } from './routes/admin-item-types.js'
 import { adminItemRoutes } from './routes/admin-items.js'
 import { adminPricingRuleRoutes } from './routes/admin-pricing-rules.js'
+import { adminPaymentRoutes } from './routes/admin-payments.js'
 import { adminStripeConnectRoutes } from './routes/admin-stripe-connect.js'
 import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 import { stripeWebhookRoutes } from './routes/stripe-webhook.js'
@@ -71,6 +72,7 @@ export async function buildApp() {
   await app.register(adminItemTypeRoutes,     { prefix: '/v1/admin/item-types' })
   await app.register(adminItemRoutes,         { prefix: '/v1/admin/items' })
   await app.register(adminPricingRuleRoutes,  { prefix: '/v1/admin/pricing-rules' })
+  await app.register(adminPaymentRoutes,      { prefix: '/v1/admin/payments' })
   await app.register(adminStripeConnectRoutes, { prefix: '/v1/admin/stripe-connect' })
   await app.register(webhooksStripeRoutes,    { prefix: '/v1/webhooks' })
 
