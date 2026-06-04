@@ -4,15 +4,18 @@ import { and, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
+import { env } from '../config/env.js'
 import { db } from '../db/client.js'
 import {
-  distributors, itemTypes, items, lockerEvents, lockers, pricingRules, reservations, tokenNonces,
+  distributors, itemTypes, items, lockerEvents, lockers, payments, pricingRules, reservations, tokenNonces,
 } from '../db/schema.js'
 import { signDeviceToken } from '../lib/jwt-device.js'
+import { markPaymentSucceeded } from '../lib/payments.js'
 import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
 import {
   computeSlotEnd, NO_SHOW_GRACE_MINUTES, validateSlotRequest,
 } from '../lib/slots.js'
+import { requireStripe } from '../lib/stripe.js'
 import { redis } from '../redis/client.js'
 
 const RESERVATION_TTL_MS = 15 * 60 * 1000
@@ -42,7 +45,7 @@ const ReturnReservationBody = z.object({
 
 const ReservationBaseDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'])
+  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'])
     .describe('État machine : scheduled (créneau futur) → active → returned (nominal modèle slots). pending = legacy modèle immédiat. overdue/cancelled/expired = terminal.'),
   lockerId: z.string().uuid(),
   itemId: z.string().uuid(),
@@ -70,15 +73,41 @@ const CreateSlotReservationBody = z.object({
     .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120 (slots courts) ou 1440 (forfait journée)'),
 })
 
+const PaymentSummaryDTO = z.object({
+  id: z.string().uuid(),
+  amountCents: z.number().int().nonnegative(),
+  currency: z.string().describe('Code ISO 4217 (ex: EUR)'),
+  provider: z.enum(['stripe', 'simulate']),
+  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+})
+
 const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
   slotStartAt: z.string().datetime().describe('Début du créneau réservé'),
   slotEndAt: z.string().datetime().describe('Fin du créneau (= start + durationMinutes)'),
   durationMinutes: z.number().int().describe('Durée du créneau en minutes'),
-  priceCents: z.number().int().nonnegative().describe('Prix d\'affichage figé à la création (snapshot)'),
-  nonce: z.string().uuid(),
-  deviceToken: z.string().describe(
-    'JWT HS256 prêt à afficher en QR. Valide jusqu\'à slot_end_at + grâce no-show.',
+  priceCents: z.number().int().nonnegative().describe('Prix figé à la création (snapshot)'),
+  payment: PaymentSummaryDTO.describe(
+    'Paiement à régler pour confirmer la résa. Tant que `status !== succeeded`, '
+    + 'la résa reste `pending_payment` et AUCUN QR n\'est délivré. '
+    + 'Appeler ensuite POST /:id/pay pour obtenir le clientSecret (stripe) ou confirmer (simulate).',
   ),
+})
+
+const PaymentIntentDTO = z.object({
+  paymentId: z.string().uuid(),
+  provider: z.enum(['stripe', 'simulate']),
+  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  clientSecret: z.string().nullable().describe(
+    'Secret du PaymentIntent Stripe à passer à Stripe.js côté client. '
+    + 'null en mode `simulate` (le client appelle alors POST /:id/pay/confirm-simulated).',
+  ),
+})
+
+const SimulatedConfirmDTO = z.object({
+  paymentStatus: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  reservationStatus: z.enum([
+    'pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
+  ]),
 })
 
 /**
@@ -97,13 +126,16 @@ const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
  */
 const ReservationActiveEnrichedDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable(),
   extensionCount: z.number().int().min(0)
     .describe('Nombre de prolongations utilisées (max ' + String(MAX_EXTENSIONS) + ')'),
-  qrToken: z.string().describe('JWT HS256 prêt à afficher en QR, re-signé à chaque GET avec le qr_jti stable.'),
+  qrToken: z.string().nullable().describe(
+    'JWT HS256 prêt à afficher en QR, re-signé à chaque GET avec le qr_jti stable. '
+    + 'null tant que la résa est `pending_payment` (paiement non réglé → pas de QR).',
+  ),
   distributor: z.object({
     id: z.string().uuid(),
     name: z.string(),
@@ -131,7 +163,7 @@ const ReservationActiveEnrichedDTO = z.object({
  */
 const ReservationHistoryDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable(),
@@ -388,11 +420,13 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     schema: {
       tags: ['Citoyens — Réservations'],
       summary: 'Réserve un créneau futur (modèle slots)',
-      description: 'Crée une résa `scheduled` sur la fenêtre [slotStartAt, slotStartAt + durationMinutes). '
-        + 'L\'API choisit un item dispo du type demandé (snapshot) et fige le prix d\'affichage depuis `pricing_rules`. '
-        + 'Pas de paiement MVP : `priceCents` est informatif.\n\n'
-        + 'Garde anti-monopole : 1 résa "vivante" max par user (scheduled/pending/active). '
-        + 'Le QR (`deviceToken`) est valable jusqu\'à `slot_end_at + grâce` ; au-delà, le cron expire la résa.\n\n'
+      description: 'Crée une résa `pending_payment` sur la fenêtre [slotStartAt, slotStartAt + durationMinutes). '
+        + 'L\'API choisit un item dispo du type demandé (snapshot) et fige le prix depuis `pricing_rules`. '
+        + 'Le slot/item sont tenus mais AUCUN QR n\'est délivré tant que le paiement n\'a pas réussi : '
+        + 'appeler ensuite `POST /:id/pay`, puis (stripe) attendre le webhook ou (simulate) '
+        + '`POST /:id/pay/confirm-simulated`. À la réussite, la résa passe `scheduled` et le QR est servi par `GET /active`.\n\n'
+        + 'Garde anti-monopole : 1 résa "vivante" max par user (pending_payment/scheduled/pending/active). '
+        + 'Une résa `pending_payment` impayée est expirée par le cron après `PAYMENT_TTL_MINUTES`.\n\n'
         + '**Erreurs** :\n'
         + '- 404 `distributor_not_found`\n'
         + '- 409 `already_active` (le user a déjà une résa vivante)\n'
@@ -502,7 +536,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
             lockerId: free.lockerId,
             itemId: free.id,
             distributorId,
-            status: 'scheduled',
+            status: 'pending_payment',
             qrJti: nonce,
             expiresAt: qrExpiresAt,
             slotStartAt,
@@ -517,6 +551,22 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
           reservationId: reservation!.id,
           distributorId,
         })
+
+        // Paiement à régler avant que la résa ne devienne `scheduled`. Le
+        // provider est figé selon l'env au moment de la création : un paiement
+        // créé en `simulate` reste confirmable en simulate même si l'API passe
+        // en stripe entre-temps.
+        const [payment] = await tx
+          .insert(payments)
+          .values({
+            reservationId: reservation!.id,
+            userId,
+            amountCents: price.priceCents,
+            currency: 'EUR',
+            provider: env.PAYMENTS_PROVIDER,
+            status: 'pending',
+          })
+          .returning()
 
         await tx.insert(lockerEvents).values({
           lockerId: free.lockerId,
@@ -535,6 +585,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
         return {
           kind: 'ok' as const,
           reservation: reservation!,
+          payment: payment!,
           nonce,
           qrExpiresAt,
         }
@@ -552,30 +603,175 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
         return reply.code(409).send({ error: 'slot_not_available' })
       }
 
-      const ttlSec = Math.max(60, Math.floor(
-        (result.qrExpiresAt.getTime() - Date.now()) / 1000,
-      ))
-      // `slotStartAt` est embarqué comme claim — le firmware refuse
-      // l'ouverture avant cet instant (cf. PR 0010, slot-aware check-in).
-      const deviceToken = await signDeviceToken({
-        reservationId: result.reservation.id,
-        lockerId: result.reservation.lockerId,
-        distributorId,
-        slotStartAt: Math.floor(result.reservation.slotStartAt!.getTime() / 1000),
-      }, ttlSec, result.nonce)
-
+      // Pas de deviceToken ici : le QR n'est délivré (par GET /active) qu'une
+      // fois la résa passée `scheduled`, c.-à-d. après paiement réussi.
       return reply.code(201).send({
         ...toDto(result.reservation),
         slotStartAt: result.reservation.slotStartAt!.toISOString(),
         slotEndAt: result.reservation.slotEndAt!.toISOString(),
         durationMinutes: result.reservation.durationMinutes!,
         priceCents: result.reservation.priceCents!,
-        nonce: result.nonce,
-        deviceToken,
+        payment: {
+          id: result.payment.id,
+          amountCents: result.payment.amountCents,
+          currency: result.payment.currency,
+          provider: result.payment.provider as 'stripe' | 'simulate',
+          status: result.payment.status,
+        },
       })
     } finally {
       await redis.del(lockKey)
     }
+  })
+
+  /**
+   * POST /v1/reservations/:id/pay — initialise le paiement de la location.
+   *
+   * - `stripe`   : crée (ou réutilise) un PaymentIntent et renvoie son
+   *   `clientSecret` pour Stripe.js. Idempotent : un 2e appel retrouve le PI
+   *   existant via `stripe_payment_intent_id`.
+   * - `simulate` : aucun appel Stripe, renvoie `clientSecret: null`. Le client
+   *   enchaîne sur `POST /:id/pay/confirm-simulated`.
+   *
+   * Réservé au propriétaire de la résa, qui doit être en `pending_payment`.
+   */
+  app.post('/:id/pay', {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Initialise le paiement d\'une location (PaymentIntent Stripe ou simulate)',
+      security: [{ bearerAuth: [] }],
+      params: z.object({ id: z.string().uuid() }),
+      response: {
+        200: PaymentIntentDTO,
+        403: ErrorDTO,
+        404: ErrorDTO,
+        409: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const userId = req.user.sub
+    const { id } = req.params
+
+    const [pay] = await db
+      .select({
+        id: payments.id,
+        userId: payments.userId,
+        status: payments.status,
+        provider: payments.provider,
+        amountCents: payments.amountCents,
+        currency: payments.currency,
+        reservationId: payments.reservationId,
+        stripePaymentIntentId: payments.stripePaymentIntentId,
+        reservationStatus: reservations.status,
+      })
+      .from(payments)
+      .innerJoin(reservations, eq(reservations.id, payments.reservationId))
+      .where(eq(payments.reservationId, id))
+      .limit(1)
+
+    if (!pay) return reply.code(404).send({ error: 'payment_not_found' })
+    if (pay.userId !== userId) return reply.code(403).send({ error: 'forbidden' })
+    if (pay.status === 'succeeded') return reply.code(409).send({ error: 'already_paid' })
+    if (pay.reservationStatus !== 'pending_payment') {
+      return reply.code(409).send({ error: 'reservation_not_payable' })
+    }
+
+    if (pay.provider === 'simulate') {
+      return reply.code(200).send({
+        paymentId: pay.id,
+        provider: 'simulate' as const,
+        status: pay.status,
+        clientSecret: null,
+      })
+    }
+
+    // Provider stripe : crée le PaymentIntent au 1er appel, le réutilise ensuite.
+    const stripe = requireStripe()
+    let clientSecret: string | null
+    if (pay.stripePaymentIntentId) {
+      const pi = await stripe.paymentIntents.retrieve(pay.stripePaymentIntentId)
+      clientSecret = pi.client_secret
+    } else {
+      const pi = await stripe.paymentIntents.create({
+        amount: pay.amountCents,
+        currency: pay.currency.toLowerCase(),
+        metadata: { paymentId: pay.id, reservationId: pay.reservationId, userId },
+        automatic_payment_methods: { enabled: true },
+      }, { idempotencyKey: `pay_${pay.id}` })
+      clientSecret = pi.client_secret
+      await db
+        .update(payments)
+        .set({ stripePaymentIntentId: pi.id, updatedAt: new Date() })
+        .where(eq(payments.id, pay.id))
+    }
+
+    return reply.code(200).send({
+      paymentId: pay.id,
+      provider: 'stripe' as const,
+      status: pay.status,
+      clientSecret,
+    })
+  })
+
+  /**
+   * POST /v1/reservations/:id/pay/confirm-simulated — confirme un paiement
+   * simulé (dev/staging sans Stripe). Réservé aux paiements `provider=simulate`.
+   *
+   * En prod (PAYMENTS_PROVIDER=stripe), les paiements naissent avec
+   * provider=stripe, donc cet endpoint renvoie 409 `not_simulated` : pas de
+   * porte dérobée pour valider un vrai paiement sans passer par Stripe.
+   */
+  app.post('/:id/pay/confirm-simulated', {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Confirme un paiement simulé → bascule la résa en scheduled',
+      security: [{ bearerAuth: [] }],
+      params: z.object({ id: z.string().uuid() }),
+      response: {
+        200: SimulatedConfirmDTO,
+        403: ErrorDTO,
+        404: ErrorDTO,
+        409: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const userId = req.user.sub
+    const { id } = req.params
+
+    const [pay] = await db
+      .select({
+        id: payments.id,
+        userId: payments.userId,
+        provider: payments.provider,
+        status: payments.status,
+      })
+      .from(payments)
+      .where(eq(payments.reservationId, id))
+      .limit(1)
+
+    if (!pay) return reply.code(404).send({ error: 'payment_not_found' })
+    if (pay.userId !== userId) return reply.code(403).send({ error: 'forbidden' })
+    if (pay.provider !== 'simulate') return reply.code(409).send({ error: 'not_simulated' })
+
+    const res = await markPaymentSucceeded(pay.id, app.log)
+    if (res.kind === 'not_found') return reply.code(404).send({ error: 'payment_not_found' })
+    if (res.kind === 'reservation_not_pending') {
+      return reply.code(409).send({ error: 'reservation_not_payable' })
+    }
+
+    const [row] = await db
+      .select({ paymentStatus: payments.status, reservationStatus: reservations.status })
+      .from(payments)
+      .innerJoin(reservations, eq(reservations.id, payments.reservationId))
+      .where(eq(payments.id, pay.id))
+      .limit(1)
+
+    return reply.code(200).send({
+      paymentStatus: row!.paymentStatus,
+      reservationStatus: row!.reservationStatus,
+    })
   })
 
   /**
@@ -629,7 +825,7 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
       .where(and(
         eq(reservations.userId, req.user.sub),
-        inArray(reservations.status, ['scheduled', 'pending', 'active']),
+        inArray(reservations.status, ['pending_payment', 'scheduled', 'pending', 'active']),
       ))
       .limit(1)
 
@@ -639,13 +835,17 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     // (clamp à 60s minimum pour éviter un token déjà expiré sur un edge case).
     // Embarque `slotStartAt` pour les résas scheduled — le firmware s'en sert
     // pour bloquer un scan trop tôt (cf. PR 0010 slot-aware check-in).
-    const ttlSec = Math.max(60, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000))
-    const qrToken = await signDeviceToken({
-      reservationId: row.id,
-      lockerId: row.lockerId,
-      distributorId: row.distributorId,
-      ...(row.slotStartAt ? { slotStartAt: Math.floor(row.slotStartAt.getTime() / 1000) } : {}),
-    }, ttlSec, row.qrJti)
+    //
+    // Exception `pending_payment` : aucun QR tant que le paiement n'a pas
+    // réussi. Le client affiche l'écran de paiement, pas le QR.
+    const qrToken = row.status === 'pending_payment'
+      ? null
+      : await signDeviceToken({
+        reservationId: row.id,
+        lockerId: row.lockerId,
+        distributorId: row.distributorId,
+        ...(row.slotStartAt ? { slotStartAt: Math.floor(row.slotStartAt.getTime() / 1000) } : {}),
+      }, Math.max(60, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000)), row.qrJti)
 
     return reply.code(200).send({
       id: row.id,
@@ -753,8 +953,8 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     onRequest: [app.authenticate],
     schema: {
       tags: ['Citoyens — Réservations'],
-      summary: 'Annule une réservation pending ou scheduled',
-      description: `Accepte les statuts \`pending\` (legacy immédiat) et \`scheduled\` (slot futur). `
+      summary: 'Annule une réservation pending_payment, pending ou scheduled',
+      description: `Accepte les statuts \`pending_payment\` (paiement non réglé), \`pending\` (legacy immédiat) et \`scheduled\` (slot futur). `
         + `Pour \`scheduled\`, refuse 409 \`too_late_to_cancel\` si \`slotStartAt - now < ${CANCEL_CUTOFF_MIN} min\`. `
         + 'Pour une annulation en cours d\'usage (status `active`), voir `POST /v1/admin/reservations/:id/force-cancel` côté admin.',
       security: [{ bearerAuth: [] }],
@@ -784,7 +984,8 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ error: 'reservation_not_cancellable' })
       }
-      if (existing.status !== 'pending' && existing.status !== 'scheduled') {
+      const cancellable = ['pending_payment', 'pending', 'scheduled']
+      if (!cancellable.includes(existing.status)) {
         return reply.code(409).send({ error: 'reservation_not_cancellable' })
       }
       if (existing.status === 'scheduled' && existing.slotStartAt) {
@@ -799,9 +1000,17 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
         .set({ status: 'cancelled', cancellationReason: 'user_cancel', updatedAt: new Date() })
         .where(eq(reservations.id, id))
 
+      // Annule aussi le paiement en attente le cas échéant (résa jamais payée).
+      // No-op si le paiement est déjà succeeded/failed (filtre sur 'pending').
+      if (existing.status === 'pending_payment') {
+        await tx.update(payments)
+          .set({ status: 'cancelled', updatedAt: new Date() })
+          .where(and(eq(payments.reservationId, id), eq(payments.status, 'pending')))
+      }
+
       // Le casier physique n'est lock que pour les résas `pending`
-      // (POST /v1/reservations). Les `scheduled` ne réservent que l'item
-      // (snapshot) — le casier reste idle.
+      // (POST /v1/reservations). Les `scheduled`/`pending_payment` ne réservent
+      // que l'item (snapshot) — le casier reste idle.
       if (existing.status === 'pending') {
         await tx.update(lockers)
           .set({ state: 'idle', lastStateAt: new Date(), updatedAt: new Date() })

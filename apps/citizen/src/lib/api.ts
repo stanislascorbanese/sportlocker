@@ -19,12 +19,13 @@ export type LockerDetail = DistributorLocker
 
 export const ReservationActive = z.object({
   id: z.string().uuid(),
-  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable().optional(),
   extensionCount: z.number().int().min(0),
-  qrToken: z.string().min(20),
+  // null tant que la résa est `pending_payment` (paiement non réglé → pas de QR).
+  qrToken: z.string().min(20).nullable(),
   distributor: z.object({
     id: z.string().uuid(),
     name: z.string(),
@@ -108,9 +109,18 @@ export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>
  * Schéma de la réponse POST /v1/reservations/slots (DTO étendu).
  * Le shape inclut les colonnes slot et le deviceToken (JWT QR).
  */
+export const PaymentSummary = z.object({
+  id: z.string().uuid(),
+  amountCents: z.number().int().nonnegative(),
+  currency: z.string(),
+  provider: z.enum(['stripe', 'simulate']),
+  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+})
+export type PaymentSummary = z.infer<typeof PaymentSummary>
+
 export const SlotReservationCreated = z.object({
   id: z.string().uuid(),
-  status: z.literal('scheduled'),
+  status: z.literal('pending_payment'),
   lockerId: z.string().uuid(),
   itemId: z.string().uuid(),
   distributorId: z.string().uuid(),
@@ -121,10 +131,18 @@ export const SlotReservationCreated = z.object({
   slotEndAt: z.string().datetime(),
   durationMinutes: z.number().int(),
   priceCents: z.number().int().nonnegative(),
-  nonce: z.string().uuid(),
-  deviceToken: z.string(),
+  // Paiement à régler pour confirmer la résa. Pas de QR tant que non payé.
+  payment: PaymentSummary,
 })
 export type SlotReservationCreated = z.infer<typeof SlotReservationCreated>
+
+export const PaymentIntent = z.object({
+  paymentId: z.string().uuid(),
+  provider: z.enum(['stripe', 'simulate']),
+  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  clientSecret: z.string().nullable(),
+})
+export type PaymentIntent = z.infer<typeof PaymentIntent>
 
 /**
  * Erreur API typée — porte le code HTTP et le code d'erreur métier
@@ -450,6 +468,36 @@ export async function createSlotReservation(input: {
   return apiFetch(`/v1/reservations/slots`, SlotReservationCreated, {
     method: 'POST',
     body: JSON.stringify(input),
+  })
+}
+
+/**
+ * Initialise le paiement d'une location. En mode `stripe`, renvoie le
+ * `clientSecret` du PaymentIntent pour Stripe.js. En mode `simulate`,
+ * `clientSecret` est null et il faut enchaîner sur `confirmSimulatedPayment`.
+ * Idempotent côté API (réutilise le PaymentIntent existant).
+ */
+export async function createPaymentIntent(reservationId: string): Promise<PaymentIntent> {
+  return apiFetch(`/v1/reservations/${reservationId}/pay`, PaymentIntent, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
+export const SimulatedConfirm = z.object({
+  paymentStatus: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  reservationStatus: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+})
+export type SimulatedConfirm = z.infer<typeof SimulatedConfirm>
+
+/**
+ * Confirme un paiement simulé (dev/staging). L'API bascule la résa
+ * `pending_payment` → `scheduled` et délivre alors le QR via GET /active.
+ */
+export async function confirmSimulatedPayment(reservationId: string): Promise<SimulatedConfirm> {
+  return apiFetch(`/v1/reservations/${reservationId}/pay/confirm-simulated`, SimulatedConfirm, {
+    method: 'POST',
+    body: '{}',
   })
 }
 

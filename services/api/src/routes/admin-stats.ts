@@ -103,7 +103,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
           days: z.number().int(),
           daily: z.array(DailyPoint),
           byStatus: z.array(z.object({
-            status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+            status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
             count: z.number().int().nonnegative(),
           })),
           topDistributors: z.array(z.object({
@@ -220,7 +220,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       `),
     ])
 
-    const ALL_STATUSES = ['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+    const ALL_STATUSES = ['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
     const byStatusMap = new Map(statusRows.map((r) => [r.status, r.count]))
     const byStatus = ALL_STATUSES.map((status) => ({
       status,

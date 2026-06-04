@@ -68,6 +68,7 @@ export const fr = {
   'reservation.banner.aria': 'Voir mon QR code de réservation',
 
   // ─── Reservation statuses ──────────────────────────────────────────────
+  'reservation.status.pending_payment': 'à payer',
   'reservation.status.scheduled': 'à venir',
   'reservation.status.pending': 'à scanner',
   'reservation.status.active': 'en cours',
@@ -136,6 +137,19 @@ export const fr = {
   'booking.confirmation.help.day_pass': 'Scanne ce QR sur le distributeur pour ouvrir le casier. Tu peux venir à tout moment dans les heures d\'ouverture le jour réservé.',
   'booking.confirmation.help.slot': 'Scanne ce QR sur le distributeur pour ouvrir le casier. Le QR reste valide jusqu\'à 15 min après l\'heure de début. Au-delà, le créneau est libéré et la réservation expire.',
   'booking.confirmation.back_home': 'Retour à l\'accueil',
+
+  // ─── Payment step ──────────────────────────────────────────────────────
+  'payment.title': 'Régler pour confirmer',
+  'payment.processing': 'Paiement en cours…',
+  'payment.finalizing': 'Paiement reçu, finalisation…',
+  'payment.init_error': 'Impossible d\'initialiser le paiement. Réessaie.',
+  'payment.error': 'Le paiement a échoué. Réessaie.',
+  'payment.retry': 'Réessayer',
+  'payment.stripe_unavailable': 'Le paiement par carte est momentanément indisponible.',
+  'payment.help': 'Ta réservation est en attente de paiement. Le créneau est tenu quelques minutes — règle pour le confirmer et recevoir ton QR.',
+  'payment.simulate_notice': 'Mode test : aucun paiement réel n\'est effectué. Le clic confirme la réservation et délivre ton QR.',
+  'payment.simulate_btn': 'Payer (mode test)',
+  'payment.pay_btn': 'Payer {amount}',
 
   // ─── Reservation page ──────────────────────────────────────────────────
   'reservation.page.eyebrow': 'Réservation active',
@@ -294,6 +308,7 @@ export const en: Record<MessageKey, string> = {
   'reservation.banner.aria': 'View my reservation QR code',
 
   // Reservation statuses
+  'reservation.status.pending_payment': 'to pay',
   'reservation.status.scheduled': 'upcoming',
   'reservation.status.pending': 'to scan',
   'reservation.status.active': 'in progress',
@@ -362,6 +377,19 @@ export const en: Record<MessageKey, string> = {
   'booking.confirmation.help.day_pass': 'Scan this QR on the distributor to open the locker. You can come any time during opening hours on the booked day.',
   'booking.confirmation.help.slot': 'Scan this QR on the distributor to open the locker. The QR stays valid up to 15 min after the start time. After that, the slot is released and the booking expires.',
   'booking.confirmation.back_home': 'Back to home',
+
+  // Payment step
+  'payment.title': 'Pay to confirm',
+  'payment.processing': 'Processing payment…',
+  'payment.finalizing': 'Payment received, finalizing…',
+  'payment.init_error': 'Could not start the payment. Try again.',
+  'payment.error': 'Payment failed. Try again.',
+  'payment.retry': 'Try again',
+  'payment.stripe_unavailable': 'Card payment is temporarily unavailable.',
+  'payment.help': 'Your booking is awaiting payment. The slot is held for a few minutes — pay to confirm it and get your QR.',
+  'payment.simulate_notice': 'Test mode: no real payment is taken. Clicking confirms the booking and issues your QR.',
+  'payment.simulate_btn': 'Pay (test mode)',
+  'payment.pay_btn': 'Pay {amount}',
 
   // Reservation page
   'reservation.page.eyebrow': 'Active booking',

@@ -28,7 +28,10 @@ export const itemCondition = pgEnum('item_condition', [
   'new', 'good', 'worn', 'damaged', 'lost',
 ])
 export const reservationStatus = pgEnum('reservation_status', [
-  'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
+  'pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
+])
+export const paymentStatus = pgEnum('payment_status', [
+  'pending', 'succeeded', 'failed', 'cancelled', 'refunded',
 ])
 export const lockerEventType = pgEnum('locker_event_type', [
   'reserved', 'opened', 'closed', 'returned',
@@ -304,6 +307,27 @@ export const pricingRules = pgTable('pricing_rules', {
   byItemType: index('idx_pricing_rules_item_type').on(t.itemTypeId),
   unqTriplet: uniqueIndex('pricing_rules_commune_item_type_duration_uq')
     .on(t.communeId, t.itemTypeId, t.durationMinutes),
+}))
+
+export const payments = pgTable('payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reservationId: uuid('reservation_id').notNull().unique().references(() => reservations.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  amountCents: integer('amount_cents').notNull(),
+  currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+  status: paymentStatus('status').notNull().default('pending'),
+  // 'stripe' (réel) | 'simulate' (dev offline). Figé à la création selon
+  // PAYMENTS_PROVIDER : un paiement simulé reste confirmable en simulate même
+  // si l'env passe à stripe entre-temps.
+  provider: varchar('provider', { length: 20 }).notNull().default('stripe'),
+  stripePaymentIntentId: varchar('stripe_payment_intent_id', { length: 255 }).unique(),
+  errorMessage: text('error_message'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byStatusCreated: index('idx_payments_status_created').on(t.status, t.createdAt),
+  byUser: index('idx_payments_user').on(t.userId),
 }))
 
 export const notificationLogs = pgTable('notification_logs', {
