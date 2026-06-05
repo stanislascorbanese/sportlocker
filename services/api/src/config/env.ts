@@ -47,6 +47,13 @@ const EnvSchema = z.object({
   // expirée par le cron, libérant le slot/item.
   PAYMENT_TTL_MINUTES: z.coerce.number().int().positive().default(15),
 
+  // Pénalité de trust_score appliquée par le cron detect-overdue à chaque
+  // réservation qui passe `overdue` (retour non rendu dans les temps).
+  // Bornée 0..100 ; le score résultant est clampé à 0 côté SQL (la colonne a
+  // un CHECK trust_score BETWEEN 0 AND 100). Mettre à 0 désactive la pénalité
+  // sans toucher au code.
+  OVERDUE_TRUST_PENALTY: z.coerce.number().int().min(0).max(100).default(10),
+
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
   // Resend — e-mails transactionnels brandés (reset password, etc.).

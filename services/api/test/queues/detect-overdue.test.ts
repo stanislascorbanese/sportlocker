@@ -64,6 +64,7 @@ beforeAll(async () => {
   process.env.JWT_SESSION_SECRET = 'a'.repeat(64)
   process.env.JWT_DEVICE_SECRET = 'b'.repeat(64)
   process.env.LOG_LEVEL = 'fatal'
+  process.env.OVERDUE_TRUST_PENALTY = '10'  // valeur connue pour les assertions
 
   pgSql = postgres(process.env.DATABASE_URL!, { onnotice: () => {} })
   await pgSql.unsafe(readFileSync(SCHEMA_PATH, 'utf-8'))
@@ -216,5 +217,63 @@ describe('runDetectOverdue — rappels push', () => {
     expect(sendWebPushMock).toHaveBeenCalledTimes(1)
     const logs = await pgSql`SELECT 1 FROM notification_logs`
     expect(logs).toHaveLength(1)
+  })
+})
+
+async function trustScoreOf(userId: string): Promise<number> {
+  const [row] = await pgSql<{ trust_score: number }[]>`
+    SELECT trust_score FROM users WHERE id = ${userId}`
+  return row!.trust_score
+}
+
+async function setTrustScore(userId: string, score: number): Promise<void> {
+  await pgSql`UPDATE users SET trust_score = ${score} WHERE id = ${userId}`
+}
+
+describe('runDetectOverdue — pénalité trust_score', () => {
+  it('décrémente le trust_score de OVERDUE_TRUST_PENALTY (10) quand une résa passe overdue', async () => {
+    const f = await seedFixtures()  // trust_score = 100 par défaut
+    await seedOverdueReservation(f)
+    sendWebPushMock.mockResolvedValue(NOT_CONFIGURED)  // pas de push, on isole la pénalité
+
+    await (await getJob())(log)
+
+    expect(await trustScoreOf(f.userId)).toBe(90)
+  })
+
+  it('clampe le trust_score à 0 (jamais négatif, respecte le CHECK)', async () => {
+    const f = await seedFixtures()
+    await setTrustScore(f.userId, 5)  // 5 - 10 = -5 → doit être clampé à 0
+    await seedOverdueReservation(f)
+    sendWebPushMock.mockResolvedValue(NOT_CONFIGURED)
+
+    await (await getJob())(log)
+
+    expect(await trustScoreOf(f.userId)).toBe(0)
+  })
+
+  it('pénalise indépendamment chaque user ayant une résa overdue dans le run', async () => {
+    // L'invariant "1 résa vivante max par user" empêche 2 overdue pour le
+    // même user ; on vérifie donc la pénalité sur deux users distincts.
+    const f1 = await seedFixtures()
+    await seedOverdueReservation(f1)
+    // 2e user + sa propre résa overdue, en réutilisant le décor (distributeur,
+    // locker, item) — un locker peut référencer plusieurs résas en test.
+    const u2 = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email, role)
+      VALUES (${u2}, ${'fb-' + u2.slice(0, 8)}, ${u2.slice(0, 8) + '@test.local'}, 'citizen')`
+    await seedOverdueReservation({ ...f1, userId: u2 })
+    sendWebPushMock.mockResolvedValue(NOT_CONFIGURED)
+
+    const count = await (await getJob())(log)
+    expect(count).toBe(2)
+    expect(await trustScoreOf(f1.userId)).toBe(90)
+    expect(await trustScoreOf(u2)).toBe(90)
+  })
+
+  it('ne touche pas le trust_score s\'il n\'y a aucune résa overdue', async () => {
+    const f = await seedFixtures()  // pas de résa overdue
+    await (await getJob())(log)
+    expect(await trustScoreOf(f.userId)).toBe(100)
   })
 })
