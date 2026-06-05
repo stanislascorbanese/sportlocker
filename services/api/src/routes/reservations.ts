@@ -969,7 +969,16 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     const userId = req.user.sub
     const { id } = req.params
 
-    return db.transaction(async (tx: DbTx) => {
+    // On calcule le résultat DANS la transaction mais on n'envoie la réponse
+    // qu'APRÈS le commit. Appeler `reply.send()` à l'intérieur du callback
+    // flushait la réponse 200 avant que drizzle n'émette `COMMIT` : un client
+    // (ou un test relisant la résa sur une autre connexion) pouvait alors voir
+    // l'ancien statut `pending` juste après avoir reçu `{ ok: true }`.
+    type CancelResult =
+      | { code: 200; body: { ok: true } }
+      | { code: 404 | 409; body: { error: string } }
+
+    const result = await db.transaction(async (tx: DbTx): Promise<CancelResult> => {
       const [existing] = await tx
         .select({
           id: reservations.id,
@@ -982,16 +991,16 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
         .limit(1)
 
       if (!existing) {
-        return reply.code(404).send({ error: 'reservation_not_cancellable' })
+        return { code: 404, body: { error: 'reservation_not_cancellable' } }
       }
       const cancellable = ['pending_payment', 'pending', 'scheduled']
       if (!cancellable.includes(existing.status)) {
-        return reply.code(409).send({ error: 'reservation_not_cancellable' })
+        return { code: 409, body: { error: 'reservation_not_cancellable' } }
       }
       if (existing.status === 'scheduled' && existing.slotStartAt) {
         const minutesUntilStart = (existing.slotStartAt.getTime() - Date.now()) / 60_000
         if (minutesUntilStart < CANCEL_CUTOFF_MIN) {
-          return reply.code(409).send({ error: 'too_late_to_cancel' })
+          return { code: 409, body: { error: 'too_late_to_cancel' } }
         }
       }
 
@@ -1017,8 +1026,10 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
           .where(eq(lockers.id, existing.lockerId))
       }
 
-      return reply.code(200).send({ ok: true as const })
+      return { code: 200, body: { ok: true as const } }
     })
+
+    return reply.code(result.code).send(result.body)
   })
 
   /**
