@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { fetchDistributorHealth, type DistributorHealth } from '../../../../lib/api'
+import { getLang } from '../../../../lib/lang-server'
+import { distributorStatusLabel } from '../../../../lib/i18n/common'
 import { StatusPill } from '../../../../components/StatusPill'
 import { StatCard } from '../../../../components/StatCard'
 import { RefreshButton } from '../../../../components/RefreshButton'
@@ -57,6 +59,7 @@ export default async function DistributorHealthPage({
 }) {
   const { id } = await params
   const sp = await searchParams
+  const lang = await getLang()
   const hours = WINDOWS.some((w) => String(w.hours) === sp.hours) ? Number(sp.hours) : 24
 
   let health: DistributorHealth
@@ -81,7 +84,7 @@ export default async function DistributorHealthPage({
           <h2 className="font-display text-3xl">{d.name}</h2>
           <div className="flex flex-wrap items-center gap-3 text-sm text-white/55">
             <span className="font-mono text-xs">{d.serialNumber}</span>
-            <StatusPill status={d.status} />
+            <StatusPill status={d.status} label={distributorStatusLabel(lang, d.status)} />
             <span className={cn('inline-flex items-center gap-1.5', stale ? 'text-rose-300' : 'text-emerald-300')}>
               <span className={cn('h-1.5 w-1.5 rounded-full', stale ? 'bg-rose-400' : 'bg-emerald-400')} />
               {stale ? 'silencieux' : 'en ligne'} · vu {fmtRelative(d.lastSeenAt)}

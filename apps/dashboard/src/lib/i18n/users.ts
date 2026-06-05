@@ -31,7 +31,7 @@ const STRINGS: Record<Lang, Record<UsersKey, string>> = {
     searchPlaceholder:   'email ou nom…',
     colUser:             'Utilisateur',
     colRole:             'Rôle',
-    colTrust:            'Trust',
+    colTrust:            'Confiance',
     colReservations:     'Résa.',
     colCommune:          'Commune',
     colLastActivity:     'Dernière activité',

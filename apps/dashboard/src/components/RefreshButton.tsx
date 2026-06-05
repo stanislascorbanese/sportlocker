@@ -5,9 +5,13 @@ import { useState, useTransition } from 'react'
 import { RefreshCw } from 'lucide-react'
 
 import { cn } from '../lib/cn'
+import { useLang } from '../lib/lang-client'
+import { commonStrings, dateLocale } from '../lib/i18n/common'
 
 export function RefreshButton() {
   const router = useRouter()
+  const lang = useLang()
+  const t = commonStrings(lang)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
@@ -29,10 +33,10 @@ export function RefreshButton() {
       )}
     >
       <RefreshCw className={cn('h-4 w-4', isPending && 'animate-spin')} />
-      <span>{isPending ? 'Refresh…' : 'Refresh'}</span>
+      <span>{isPending ? `${t.refresh}…` : t.refresh}</span>
       {lastRefresh && !isPending && (
         <span className="font-mono text-[10px] text-white/40">
-          {lastRefresh.toLocaleTimeString('fr-FR')}
+          {lastRefresh.toLocaleTimeString(dateLocale(lang))}
         </span>
       )}
     </button>

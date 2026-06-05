@@ -10,6 +10,8 @@ import { StatusPill } from '../../../components/StatusPill'
 import { BatteryGauge } from '../../../components/BatteryGauge'
 import { RefreshButton } from '../../../components/RefreshButton'
 import { cn } from '../../../lib/cn'
+import { getLang } from '../../../lib/lang-server'
+import { distributorStatusLabel } from '../../../lib/i18n/common'
 import {
   classifyLocker, loadableLockers, summarizeLockerGrid,
   type LockerCellTone,
@@ -45,6 +47,7 @@ export default async function DistributorDetailPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
+  const lang = await getLang()
 
   let distributor: DistributorDetail | null = null
   let itemTypes: ItemTypeAdmin[] = []
@@ -86,7 +89,7 @@ export default async function DistributorDetailPage(
           <h2 className="mt-1 font-display text-2xl sm:text-3xl">{data.name}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-white/55">
             <span className="font-mono text-xs">{data.serialNumber}</span>
-            <StatusPill status={data.status} />
+            <StatusPill status={data.status} label={distributorStatusLabel(lang, data.status)} />
             <span>
               <span className={cn(
                 summary.idleEmpty === 0 ? 'text-white/40' : 'text-emerald-300 font-semibold',

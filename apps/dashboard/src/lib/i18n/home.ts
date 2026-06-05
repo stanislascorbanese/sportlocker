@@ -56,8 +56,8 @@ const STRINGS: Record<Lang, Record<HomeKey, string>> = {
     sectionTopDistributors:   'Top distributeurs · 30 derniers jours',
 
     kpiDistributors:          'Distributeurs',
-    kpiOnline:                'online',
-    kpiOffline:               'offline',
+    kpiOnline:                'en ligne',
+    kpiOffline:               'hors ligne',
     kpiMaintenanceLabel:      'maintenance',
     kpiLockersFree:           'Casiers libres',
     kpiFillRate:              "Taux d'occupation",

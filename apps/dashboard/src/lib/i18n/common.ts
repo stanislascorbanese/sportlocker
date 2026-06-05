@@ -27,6 +27,8 @@ type CommonKey =
   | 'emptyForFilters'
   // Statuts distributeur (utilisés cross-pages)
   | 'statusOnline' | 'statusOffline' | 'statusMaintenance' | 'statusDecommissioned'
+  // Empty states cross-composants
+  | 'noData' | 'noDataPeriod' | 'loading' | 'never'
 
 const STRINGS: Record<Lang, Record<CommonKey, string>> = {
   fr: {
@@ -68,10 +70,15 @@ const STRINGS: Record<Lang, Record<CommonKey, string>> = {
 
     emptyForFilters:     'Aucun résultat pour ces filtres.',
 
-    statusOnline:        'online',
-    statusOffline:       'offline',
+    statusOnline:        'en ligne',
+    statusOffline:       'hors ligne',
     statusMaintenance:   'maintenance',
-    statusDecommissioned:'decommissioned',
+    statusDecommissioned:'désactivé',
+
+    noData:              'aucune donnée',
+    noDataPeriod:        'aucune donnée sur la période',
+    loading:             'Chargement…',
+    never:               'jamais',
   },
   en: {
     demo:                'Demo',
@@ -116,11 +123,36 @@ const STRINGS: Record<Lang, Record<CommonKey, string>> = {
     statusOffline:       'offline',
     statusMaintenance:   'maintenance',
     statusDecommissioned:'decommissioned',
+
+    noData:              'no data',
+    noDataPeriod:        'no data for the period',
+    loading:             'Loading…',
+    never:               'never',
   },
 }
 
 export function commonStrings(lang: Lang): Record<CommonKey, string> {
   return STRINGS[lang]
+}
+
+/**
+ * Libellé localisé pour un statut de distributeur.
+ *
+ * L'enum côté DB / API reste `online | offline | maintenance | decommissioned`
+ * (technique, anglais) mais on traduit l'affichage utilisateur : "en ligne",
+ * "hors ligne", "désactivé" en FR · "online", "offline", "decommissioned"
+ * en EN.
+ */
+export type DistributorStatus = 'online' | 'offline' | 'maintenance' | 'decommissioned'
+
+export function distributorStatusLabel(lang: Lang, status: DistributorStatus): string {
+  const t = commonStrings(lang)
+  switch (status) {
+    case 'online':         return t.statusOnline
+    case 'offline':        return t.statusOffline
+    case 'maintenance':    return t.statusMaintenance
+    case 'decommissioned': return t.statusDecommissioned
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

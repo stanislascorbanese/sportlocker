@@ -54,7 +54,7 @@ const STRINGS: Record<Lang, Record<MeKey, string>> = {
     contractExpired:           'expiré',
     contractNone:              'sans contrat',
     contractPrefix:            'Contrat',
-    monthlyFee:                'Fee mensuel',
+    monthlyFee:                'Loyer mensuel',
     inseeCode:                 'Code INSEE',
     population:                'Population',
     populationSuffix:          'hab.',
