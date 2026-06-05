@@ -114,8 +114,9 @@ variables. La CI échouerait sur un push contenant un secret (cf. §7.4).
 - HSTS : géré par Railway en bordure (`max-age=31536000; includeSubDomains`).
 
 ### 4.2 CORS
-- `@fastify/cors` configuré avec `origin: true` + `credentials: true`.
-- **À durcir en prod** : whitelist explicite des origines (dashboard, app mobile via custom scheme).
+- `@fastify/cors` avec whitelist explicite (variable `CORS_ALLOWED_ORIGINS`, CSV des Origin acceptés, match exact) + `credentials: true`.
+- Les requêtes sans header `Origin` (mobile native, curl, serveur-à-serveur) sont autorisées — CORS ne protège que les navigateurs.
+- Garde-fou au boot : en `NODE_ENV=production`, la liste ne peut pas être vide ni constituée uniquement de loopback (sinon crash bruyant au démarrage de l'API).
 
 ### 4.3 Validation des entrées
 - **Zod** sur 100% des endpoints API (body, query, params).
@@ -264,7 +265,7 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 1 | Rate-limit `/auth/*` (anti-bruteforce) | T2 2026 | 1 j |
 | 2 | CSP stricte côté dashboard (réactiver helmet) | T2 2026 | 2 j |
 | 3 | 2FA TOTP obligatoire pour super-admins | T3 2026 | 3 j |
-| 4 | CORS whitelist explicite (vs `origin: true`) | T2 2026 | 0.5 j |
+| 4 | ~~CORS whitelist explicite (vs `origin: true`)~~ | ✅ **done** — variable d'env `CORS_ALLOWED_ORIGINS` (CSV, match exact), garde-fou prod sur whitelist vide / loopback-only. Voir §4.2. | — |
 | 5 | Postgres Row-Level Security (défense en profondeur multi-tenant) | T3 2026 | 5 j |
 | 6 | Backups manuels hebdo hors Supabase (S3 chiffré) | T2 2026 | 1 j |
 | 7 | ~~`pnpm audit` bloquant en CI + Dependabot~~ | ✅ **done** (PR #67) — cf. §7.4 | — |
