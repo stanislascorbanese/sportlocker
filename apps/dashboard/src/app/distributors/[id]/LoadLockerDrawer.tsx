@@ -6,13 +6,13 @@ import { X } from 'lucide-react'
 
 import { cn } from '../../../lib/cn'
 import { ITEM_CONDITIONS, type ItemCondition } from '../../../lib/api-enums'
+import type { Lang } from '../../../lib/lang'
+import { commonStrings } from '../../../lib/i18n/common'
+import { distributorsStrings } from '../../../lib/i18n/distributors'
+import { conditionLabel, itemsStrings } from '../../../lib/i18n/items'
 import { loadLockerAction, type LoadLockerState } from './_actions'
 
 const INITIAL: LoadLockerState = { status: 'idle' }
-
-const CONDITION_LABEL: Record<ItemCondition, string> = {
-  new: 'Neuf', good: 'Bon état', worn: 'Usé', damaged: 'Endommagé', lost: 'Perdu',
-}
 
 export type LoadableLockerOption = {
   id: string
@@ -31,6 +31,7 @@ export function LoadLockerDrawer({
   itemTypes,
   lockers,
   demo,
+  lang,
 }: {
   distributorId: string
   distributorName: string
@@ -38,7 +39,9 @@ export function LoadLockerDrawer({
   lockers: LoadableLockerOption[]
   /** Désactive l'envoi quand on est en mode démo (API indispo). */
   demo: boolean
+  lang: Lang
 }) {
+  const t = distributorsStrings(lang)
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
@@ -50,9 +53,9 @@ export function LoadLockerDrawer({
         onClick={() => setOpen(true)}
         disabled={demo || itemTypes.length === 0 || lockers.length === 0}
         title={
-          demo                  ? 'Mode démo : action désactivée'
-          : itemTypes.length === 0 ? 'Aucun type d\'article au catalogue'
-          : lockers.length === 0   ? 'Aucun casier idle vide'
+          demo                  ? t.lockerLoadDemoBlocker
+          : itemTypes.length === 0 ? t.lockerLoadSelectType
+          : lockers.length === 0   ? t.lockerLoadSelectLocker
           : undefined
         }
         className={cn(
@@ -60,20 +63,20 @@ export function LoadLockerDrawer({
           'hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40',
         )}
       >
-        + Charger un casier
+        {t.lockerLoadCta}
       </button>
 
       {open && (
         <DrawerPanel
           onClose={() => {
             setOpen(false)
-            // Rendre le focus au bouton après fermeture pour l'a11y.
             setTimeout(() => buttonRef.current?.focus(), 0)
           }}
           distributorId={distributorId}
           distributorName={distributorName}
           itemTypes={itemTypes}
           lockers={lockers}
+          lang={lang}
         />
       )}
     </>
@@ -86,20 +89,22 @@ function DrawerPanel({
   distributorName,
   itemTypes,
   lockers,
+  lang,
 }: {
   onClose: () => void
   distributorId: string
   distributorName: string
   itemTypes: ItemTypeOption[]
   lockers: LoadableLockerOption[]
+  lang: Lang
 }) {
+  const t = distributorsStrings(lang)
+  const c = commonStrings(lang)
+  const i = itemsStrings(lang)
   const boundAction = (prev: LoadLockerState, fd: FormData) =>
     loadLockerAction(distributorId, prev, fd)
   const [state, formAction] = useFormState(boundAction, INITIAL)
 
-  // Echap → fermeture. Ferme aussi automatiquement après succès (UX : revoir
-  // la grille mise à jour). On garde la possibilité d'enchaîner via le bouton
-  // "Charger un autre" qui reset le formulaire.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -110,10 +115,9 @@ function DrawerPanel({
 
   return (
     <>
-      {/* Backdrop */}
       <button
         type="button"
-        aria-label="Fermer"
+        aria-label={c.cancel}
         onClick={onClose}
         className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
       />
@@ -121,19 +125,19 @@ function DrawerPanel({
       <aside
         className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col overflow-hidden border-l border-white/10 bg-navy-900 shadow-2xl"
         role="dialog"
-        aria-label="Charger un casier"
+        aria-label={t.lockerLoadAria}
       >
         <header className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-4">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-              Charger un casier
+              {t.lockerLoadTitle}
             </h3>
             <p className="mt-0.5 truncate text-sm text-white">{distributorName}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={c.cancel}
             className="rounded-lg border border-white/10 p-1.5 text-white/60 transition hover:border-white/30 hover:text-white"
           >
             <X className="h-4 w-4" />
@@ -141,60 +145,59 @@ function DrawerPanel({
         </header>
 
         {state.status === 'success' ? (
-          <SuccessView state={state} onReset={onClose} />
+          <SuccessView state={state} onReset={onClose} lang={lang} />
         ) : (
           <form action={formAction} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
             <Select
               name="itemTypeId"
-              label="Type d'article"
+              label={t.lockerLoadFieldType}
               required
               error={state.fieldErrors?.['itemTypeId']}
               defaultValue=""
             >
-              <option value="" disabled>— Choisir un type —</option>
-              {itemTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.category})
+              <option value="" disabled>{t.lockerLoadSelectType}</option>
+              {itemTypes.map((tp) => (
+                <option key={tp.id} value={tp.id}>
+                  {tp.name} ({tp.category})
                 </option>
               ))}
             </Select>
 
             <Field
               name="rfidTag"
-              label="Tag RFID"
+              label={t.lockerLoadFieldRfid}
               placeholder="RFID-BB-0001"
               autoComplete="off"
               autoFocus
               required
               mono
-              hint="Scanner le tag ou saisir manuellement (4 caractères minimum)"
+              hint={t.lockerLoadFieldRfidHint}
               error={state.fieldErrors?.['rfidTag']}
             />
 
             <Select
               name="condition"
-              label="État"
+              label={i.formCondition}
               defaultValue="new"
               required
               error={state.fieldErrors?.['condition']}
             >
-              {ITEM_CONDITIONS.map((c) => (
-                <option key={c} value={c}>{CONDITION_LABEL[c]}</option>
+              {ITEM_CONDITIONS.map((cond: ItemCondition) => (
+                <option key={cond} value={cond}>{conditionLabel(lang, cond)}</option>
               ))}
             </Select>
 
             <Select
               name="lockerId"
-              label="Casier de destination"
+              label={t.lockerLoadFieldLocker}
               defaultValue=""
               required
               error={state.fieldErrors?.['lockerId']}
-              hint={`${lockers.length} casier${lockers.length > 1 ? 's' : ''} idle vide${lockers.length > 1 ? 's' : ''} dispo`}
             >
-              <option value="" disabled>— Choisir un casier vide —</option>
+              <option value="" disabled>{t.lockerLoadSelectLocker}</option>
               {lockers.map((l) => (
                 <option key={l.id} value={l.id}>
-                  Casier #{l.position + 1}
+                  {i.lockerHash}{l.position + 1}
                 </option>
               ))}
             </Select>
@@ -211,9 +214,9 @@ function DrawerPanel({
                 onClick={onClose}
                 className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:border-white/30 hover:text-white"
               >
-                Annuler
+                {t.btnCancel}
               </button>
-              <SubmitButton />
+              <SubmitButton idle={t.lockerLoadSubmit} pendingLabel={t.lockerLoadSubmitting} />
             </div>
           </form>
         )}
@@ -223,29 +226,30 @@ function DrawerPanel({
 }
 
 function SuccessView({
-  state, onReset,
-}: { state: LoadLockerState; onReset: () => void }) {
+  state, onReset, lang,
+}: { state: LoadLockerState; onReset: () => void; lang: Lang }) {
+  const t = distributorsStrings(lang)
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
       <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
         ✓
       </div>
-      <h4 className="font-display text-xl text-white">Casier chargé</h4>
-      <p className="mt-2 max-w-xs text-sm text-white/60">
-        {state.message ?? 'L\'article est désormais associé au casier sélectionné.'}
-      </p>
+      <h4 className="font-display text-xl text-white">{t.lockerLoadSuccess}</h4>
+      {state.message && (
+        <p className="mt-2 max-w-xs text-sm text-white/60">{state.message}</p>
+      )}
       <button
         type="button"
         onClick={onReset}
         className="mt-6 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
       >
-        Retour à la grille
+        {t.back}
       </button>
     </div>
   )
 }
 
-function SubmitButton() {
+function SubmitButton({ idle, pendingLabel }: { idle: string; pendingLabel: string }) {
   const { pending } = useFormStatus()
   return (
     <button
@@ -256,7 +260,7 @@ function SubmitButton() {
         'hover:bg-emerald-400 disabled:opacity-50',
       )}
     >
-      {pending ? 'Chargement…' : 'Charger'}
+      {pending ? pendingLabel : idle}
     </button>
   )
 }
