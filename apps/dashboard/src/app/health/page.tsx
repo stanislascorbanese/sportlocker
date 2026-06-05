@@ -75,7 +75,96 @@ export default async function FleetHealthPage({
           <p className="mt-1 text-meta text-gray-500 dark:text-white/40">{t.emptyHint}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-card border bg-white shadow-card dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
+        <>
+        {/* Mobile : carte par distributeur — plus lisible que scroll horizontal */}
+        <div className="space-y-3 md:hidden">
+          {visibleRows.map((r) => {
+            const hasAlerts = r.alerts.length > 0
+            return (
+              <Link
+                key={r.distributor.id}
+                href={`/distributors/${r.distributor.id}/health`}
+                className={cn(
+                  'block rounded-card border bg-white p-4 shadow-card transition-colors',
+                  hasAlerts
+                    ? 'border-rose-300 bg-rose-50/40 dark:border-rose-500/30 dark:bg-rose-500/[0.05]'
+                    : 'border-gray-200 dark:border-white/10 dark:bg-navy-800',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-navy-900 dark:text-white">{r.distributor.name}</div>
+                    <div className="mt-0.5 truncate font-mono text-meta text-gray-500 dark:text-white/40">
+                      {r.distributor.serialNumber}
+                      {r.distributor.communeName && <> · {r.distributor.communeName}</>}
+                    </div>
+                  </div>
+                  <StatusPill
+                    status={r.distributor.status}
+                    label={distributorStatusLabel(lang, r.distributor.status)}
+                  />
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2 text-meta">
+                  <MobileMetric
+                    label={t.colCpu}
+                    value={r.latest.cpuTempC}
+                    format={(v) => `${v.toFixed(0)}°C`}
+                    bad={r.latest.cpuTempC != null && r.latest.cpuTempC > 75}
+                  />
+                  <MobileMetric
+                    label={t.colRssi}
+                    value={r.latest.rssiDbm}
+                    format={(v) => `${v}`}
+                    suffix=" dBm"
+                    bad={r.latest.rssiDbm != null && r.latest.rssiDbm < -80}
+                  />
+                  <MobileMetric
+                    label={t.colMemory}
+                    value={r.latest.freeMemMb}
+                    format={(v) => `${v}`}
+                    suffix=" Mo"
+                    bad={r.latest.freeMemMb != null && r.latest.freeMemMb < 64}
+                  />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 dark:border-white/10">
+                  <span className="text-meta text-gray-500 dark:text-white/40">
+                    {t.colLastSeen} · {fmtRelative(lang, r.distributor.lastSeenAt)}
+                  </span>
+                  {r.openTickets > 0 && (
+                    <span className={cn(
+                      'text-meta tabular-nums',
+                      r.criticalTickets > 0
+                        ? 'font-semibold text-rose-700 dark:text-rose-300'
+                        : 'text-amber-700 dark:text-amber-300',
+                    )}>
+                      {r.openTickets} {t.colTickets.toLowerCase()}
+                      {r.criticalTickets > 0 && ` · ${r.criticalTickets} critique${r.criticalTickets > 1 ? 's' : ''}`}
+                    </span>
+                  )}
+                </div>
+
+                {hasAlerts && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {r.alerts.map((a) => (
+                      <span
+                        key={a}
+                        className="inline-flex items-center gap-1 rounded border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-800 dark:border-rose-500/40 dark:bg-rose-500/15 dark:text-rose-200"
+                      >
+                        <AlertTriangle className="h-2.5 w-2.5" />
+                        {alertLabel(lang, a)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Link>
+            )
+          })}
+        </div>
+
+        {/* Desktop : tableau dense */}
+        <div className="hidden overflow-x-auto rounded-card border bg-white shadow-card md:block dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
           <table className="w-full min-w-[1080px] text-sm">
             <thead className="bg-gray-50 text-left text-eyebrow text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
@@ -198,6 +287,7 @@ export default async function FleetHealthPage({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <p className="text-meta text-gray-500 dark:text-white/40">{t.thresholdsHelp}</p>
@@ -263,5 +353,37 @@ function MetricCell({
     )}>
       {format(value)}
     </span>
+  )
+}
+
+function MobileMetric({
+  label,
+  value,
+  format,
+  suffix = '',
+  bad,
+}: {
+  label: string
+  value: number | null
+  format: (v: number) => string
+  suffix?: string
+  bad: boolean
+}) {
+  return (
+    <div className="rounded-lg bg-gray-50 px-2 py-1.5 dark:bg-white/[0.03]">
+      <div className="truncate text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/40">
+        {label}
+      </div>
+      <div className={cn(
+        'mt-0.5 font-display text-sm tabular-nums',
+        value == null
+          ? 'text-gray-400 dark:text-white/30'
+          : bad
+            ? 'text-rose-700 dark:text-rose-300'
+            : 'text-navy-900 dark:text-white/90',
+      )}>
+        {value == null ? '—' : `${format(value)}${suffix}`}
+      </div>
+    </div>
   )
 }

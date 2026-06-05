@@ -289,3 +289,302 @@ describe('GET /v1/admin/distributors/:id/health', () => {
     expect(res.statusCode).toBe(400)
   })
 })
+
+/**
+ * Tests d'intégration GET /v1/admin/distributors/fleet-health.
+ *
+ * Vue agrégée multi-distributeurs. Vérifie le scope (operator ne voit que
+ * sa commune, super_admin voit tout) + le calcul des alertes selon les
+ * seuils (offline, no_heartbeat_24h, high_cpu_temp, weak_signal,
+ * low_memory, open_critical).
+ */
+describe('GET /v1/admin/distributors/fleet-health', () => {
+  it('renvoie 401 sans token', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+    })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('renvoie 403 pour un rôle citoyen', async () => {
+    const citizenId = await seedUser('citizen')
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(citizenId, 'citizen') },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('renvoie un tableau vide quand pas de distributeur', async () => {
+    const suId = await seedUser('super_admin')
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { total: number; withAlerts: number; rows: unknown[] }
+    expect(body.total).toBe(0)
+    expect(body.withAlerts).toBe(0)
+    expect(body.rows).toEqual([])
+  })
+
+  it('super_admin voit tous les distributeurs de toutes les communes', async () => {
+    const commune1 = await seedCommune()
+    const commune2 = await seedCommune()
+    await seedDistributor(commune1)
+    await seedDistributor(commune2)
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { total: number }
+    expect(body.total).toBe(2)
+  })
+
+  it('operator ne voit que les distributeurs de sa commune', async () => {
+    const commune1 = await seedCommune()
+    const commune2 = await seedCommune()
+    await seedDistributor(commune1)
+    await seedDistributor(commune2)
+    const opId = await seedUser('operator', commune1)
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(opId, 'operator', commune1) },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { total: number; rows: Array<{ distributor: { communeName: string } }> }
+    expect(body.total).toBe(1)
+  })
+
+  it('exclut les distributeurs decommissioned', async () => {
+    const commune = await seedCommune()
+    await seedDistributor(commune)
+    const decomId = randomUUID()
+    await pgSql`INSERT INTO distributors
+      (id, serial_number, commune_id, name, status, locker_count)
+      VALUES (${decomId}, 'DECOM-1', ${commune}, 'Démantelé', 'decommissioned', 4)`
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { total: number }
+    expect(body.total).toBe(1)
+  })
+
+  it("alerte 'offline' quand status = offline", async () => {
+    const commune = await seedCommune()
+    const id = randomUUID()
+    await pgSql`INSERT INTO distributors
+      (id, serial_number, commune_id, name, status, locker_count, last_seen_at)
+      VALUES (${id}, 'OFFLINE-1', ${commune}, 'Off', 'offline', 4, ${new Date()})`
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[] }> }
+    expect(body.rows[0]!.alerts).toContain('offline')
+  })
+
+  it("alerte 'no_heartbeat_24h' quand last_seen_at est null", async () => {
+    const commune = await seedCommune()
+    await seedDistributor(commune, { lastSeenAt: null })
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[] }> }
+    expect(body.rows[0]!.alerts).toContain('no_heartbeat_24h')
+  })
+
+  it("pas d'alerte 'no_heartbeat_24h' si vu il y a moins de 24h", async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 60 * 60_000) // -1h
+    await seedDistributor(commune, { lastSeenAt: recent })
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[] }> }
+    expect(body.rows[0]!.alerts).not.toContain('no_heartbeat_24h')
+  })
+
+  it("alerte 'high_cpu_temp' quand dernier heartbeat > 75°C", async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    const distId = await seedDistributor(commune, { lastSeenAt: recent })
+    await seedHeartbeat(distId, { receivedAt: recent, cpuTempC: 80 })
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[]; latest: { cpuTempC: number | null } }> }
+    expect(body.rows[0]!.latest.cpuTempC).toBe(80)
+    expect(body.rows[0]!.alerts).toContain('high_cpu_temp')
+  })
+
+  it("alerte 'weak_signal' quand RSSI < -80 dBm", async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    const distId = await seedDistributor(commune, { lastSeenAt: recent })
+    await seedHeartbeat(distId, { receivedAt: recent, rssiDbm: -90 })
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[] }> }
+    expect(body.rows[0]!.alerts).toContain('weak_signal')
+  })
+
+  it("alerte 'low_memory' quand free_mem_mb < 64", async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    const distId = await seedDistributor(commune, { lastSeenAt: recent })
+    await seedHeartbeat(distId, { receivedAt: recent, freeMemMb: 32 })
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[] }> }
+    expect(body.rows[0]!.alerts).toContain('low_memory')
+  })
+
+  it("alerte 'open_critical' quand ticket maintenance ouvert sév. ≥ 4", async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    const distId = await seedDistributor(commune, { lastSeenAt: recent })
+    await pgSql`INSERT INTO maintenance_tickets
+      (distributor_id, title, severity, status)
+      VALUES (${distId}, 'Panne grave', 5, 'open')`
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[]; criticalTickets: number }> }
+    expect(body.rows[0]!.criticalTickets).toBe(1)
+    expect(body.rows[0]!.alerts).toContain('open_critical')
+  })
+
+  it("pas d'alerte 'open_critical' si ticket sévérité < 4", async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    const distId = await seedDistributor(commune, { lastSeenAt: recent })
+    await pgSql`INSERT INTO maintenance_tickets
+      (distributor_id, title, severity, status)
+      VALUES (${distId}, 'Petit souci', 2, 'open')`
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[]; openTickets: number; criticalTickets: number }> }
+    expect(body.rows[0]!.openTickets).toBe(1)
+    expect(body.rows[0]!.criticalTickets).toBe(0)
+    expect(body.rows[0]!.alerts).not.toContain('open_critical')
+  })
+
+  it('trie par nombre d\'alertes décroissant (critique en premier)', async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    // Distributeur A : 1 alerte (high_cpu_temp)
+    const idA = await seedDistributor(commune, { lastSeenAt: recent })
+    await pgSql`UPDATE distributors SET name = 'AAA-First' WHERE id = ${idA}`
+    await seedHeartbeat(idA, { receivedAt: recent, cpuTempC: 80 })
+    // Distributeur B : 3 alertes (high_cpu_temp + weak_signal + low_memory)
+    const idB = await seedDistributor(commune, { lastSeenAt: recent })
+    await pgSql`UPDATE distributors SET name = 'ZZZ-Last' WHERE id = ${idB}`
+    await seedHeartbeat(idB, { receivedAt: recent, cpuTempC: 80, rssiDbm: -90, freeMemMb: 32 })
+
+    const suId = await seedUser('super_admin')
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { rows: Array<{ alerts: string[]; distributor: { name: string } }> }
+    // B (3 alertes) doit être devant A (1 alerte) malgré l'ordre alpha inverse
+    expect(body.rows[0]!.distributor.name).toBe('ZZZ-Last')
+    expect(body.rows[0]!.alerts.length).toBe(3)
+    expect(body.rows[1]!.distributor.name).toBe('AAA-First')
+    expect(body.rows[1]!.alerts.length).toBe(1)
+  })
+
+  it('expose communeName + firmwareVersion + counters', async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    await seedDistributor(commune, { lastSeenAt: recent, firmware: '2.1.3' })
+    const suId = await seedUser('super_admin')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as {
+      generatedAt: string
+      total: number
+      withAlerts: number
+      rows: Array<{ distributor: { communeName: string; firmwareVersion: string | null } }>
+    }
+    expect(body.generatedAt).toBeTruthy()
+    expect(body.total).toBe(1)
+    expect(body.rows[0]!.distributor.communeName).toBe('Paris Test')
+    expect(body.rows[0]!.distributor.firmwareVersion).toBe('2.1.3')
+  })
+
+  it('compte correctement withAlerts au header', async () => {
+    const commune = await seedCommune()
+    const recent = new Date(Date.now() - 5 * 60_000)
+    // Sain : pas d'alerte
+    await seedDistributor(commune, { lastSeenAt: recent })
+    // Cassé : alerte offline
+    const broken = randomUUID()
+    await pgSql`INSERT INTO distributors
+      (id, serial_number, commune_id, name, status, locker_count, last_seen_at)
+      VALUES (${broken}, 'BROK', ${commune}, 'Cassé', 'offline', 4, ${recent})`
+
+    const suId = await seedUser('super_admin')
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/distributors/fleet-health',
+      headers: { authorization: authHeader(suId, 'super_admin') },
+    })
+    const body = res.json() as { total: number; withAlerts: number }
+    expect(body.total).toBe(2)
+    expect(body.withAlerts).toBe(1)
+  })
+})
