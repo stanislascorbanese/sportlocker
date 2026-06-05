@@ -9,7 +9,7 @@ type SuperAdminKey =
   | 'inviteTitle' | 'inviteSubtitle'
   | 'fieldEmail' | 'fieldCommune' | 'selectPlaceholder'
   | 'btnGenerate' | 'btnSending'
-  | 'successPrefix' | 'successInfix' | 'successSuffix'
+  | 'successPrefix' | 'successInfix'
   | 'btnCopy' | 'btnCopied'
   | 'bannedBadge'
 
@@ -34,7 +34,6 @@ const STRINGS: Record<Lang, Record<SuperAdminKey, string>> = {
     btnSending:        'Envoi…',
     successPrefix:     'Invitation pour',
     successInfix:      'générée. Copiez l’URL ci-dessous et envoyez-la par mail à la mairie.',
-    successSuffix:     '',
     btnCopy:           'Copier',
     btnCopied:         'Copié ✓',
     bannedBadge:       'banni',
@@ -59,7 +58,6 @@ const STRINGS: Record<Lang, Record<SuperAdminKey, string>> = {
     btnSending:        'Sending…',
     successPrefix:     'Invitation for',
     successInfix:      'generated. Copy the URL below and send it by email to the town hall.',
-    successSuffix:     '',
     btnCopy:           'Copy',
     btnCopied:         'Copied ✓',
     bannedBadge:       'banned',

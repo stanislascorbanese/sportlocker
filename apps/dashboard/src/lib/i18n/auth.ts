@@ -14,7 +14,7 @@ type AuthKey =
   // Reset page
   | 'backToLogin'
   | 'resetTitle1' | 'resetTitle2' | 'resetEyebrow'
-  | 'resetIntro' | 'resetIfMatch1' | 'resetIfMatch2' | 'resetCheckSpam'
+  | 'resetIntro' | 'resetIfMatch1' | 'resetIfMatch2'
   | 'resetExpiresHint'
   | 'btnSending' | 'btnSendResetLink'
   | 'resetErrorInvalid' | 'resetErrorNetwork'
@@ -60,7 +60,6 @@ const STRINGS: Record<Lang, Record<AuthKey, string>> = {
     resetIntro:            "Saisis l'email de ton compte ops. Tu recevras un lien pour choisir un nouveau mot de passe.",
     resetIfMatch1:         'Si',
     resetIfMatch2:         "correspond à un compte, un email avec un lien de réinitialisation vient d'être envoyé. Vérifie ta boîte mail (et tes spams).",
-    resetCheckSpam:        '',
     resetExpiresHint:      "Le lien expire après 1 heure. Si tu ne reçois rien dans 5 min, vérifie que l'adresse saisie correspond bien à ton compte ops ou contacte l'équipe SportLocker.",
     btnSending:            'Envoi…',
     btnSendResetLink:      'Envoyer le lien de réinitialisation',
@@ -123,7 +122,6 @@ const STRINGS: Record<Lang, Record<AuthKey, string>> = {
     resetIntro:            'Enter your ops account email. You will receive a link to choose a new password.',
     resetIfMatch1:         'If',
     resetIfMatch2:         "matches an account, a reset link has been sent. Check your inbox (and spam).",
-    resetCheckSpam:        '',
     resetExpiresHint:      "The link expires after 1 hour. If nothing arrives within 5 min, double-check the email or contact the SportLocker team.",
     btnSending:            'Sending…',
     btnSendResetLink:      'Send reset link',
