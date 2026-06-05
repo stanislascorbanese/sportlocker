@@ -19,6 +19,7 @@ import {
   CreditCard,
   FileText,
   ShieldCheck,
+  Stethoscope,
   LogOut,
   type LucideIcon,
 } from 'lucide-react'
@@ -37,6 +38,7 @@ const COMMON_ITEMS: Item[] = [
   { href: '/',             labelKey: 'navHome',          icon: Home },
   { href: '/map',          labelKey: 'navMap',           icon: Map },
   { href: '/distributors', labelKey: 'navDistributors',  icon: Server },
+  { href: '/health',       labelKey: 'navHealth',        icon: Stethoscope },
   { href: '/items',        labelKey: 'navItems',         icon: Package },
   { href: '/pricing',      labelKey: 'navPricing',       icon: Tag },
   { href: '/communes',     labelKey: 'navCommunes',      icon: Building2 },

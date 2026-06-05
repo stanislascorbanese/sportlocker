@@ -11,7 +11,7 @@ import type { Lang } from './lang'
 
 type SidebarKey =
   | 'consoleSubtitle'
-  | 'navHome' | 'navMap' | 'navDistributors' | 'navItems' | 'navPricing'
+  | 'navHome' | 'navMap' | 'navDistributors' | 'navHealth' | 'navItems' | 'navPricing'
   | 'navCommunes' | 'navUsers' | 'navReservations' | 'navMaintenance'
   | 'navStats' | 'navReports' | 'navAudit' | 'navPayments' | 'navTenants'
   | 'oneCommune' | 'logout' | 'loggingOut'
@@ -23,6 +23,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navHome:          'Accueil',
     navMap:           'Carte',
     navDistributors:  'Distributeurs',
+    navHealth:        'Santé du parc',
     navItems:         'Articles',
     navPricing:       'Tarification',
     navCommunes:      'Communes',
@@ -46,6 +47,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navHome:          'Home',
     navMap:           'Map',
     navDistributors:  'Distributors',
+    navHealth:        'Fleet health',
     navItems:         'Items',
     navPricing:       'Pricing',
     navCommunes:      'Communes',

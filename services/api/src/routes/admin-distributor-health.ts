@@ -61,6 +61,67 @@ const DistributorHealthDTO = z.object({
 
 const ErrorDTO = z.object({ error: z.string() })
 
+/**
+ * Vue agrégée multi-distributeurs : un par ligne avec les métriques clés et
+ * une liste d'alertes pré-calculée. Conçu pour la page /health du dashboard
+ * (vue parc) — pas pour le détail d'un seul distributeur.
+ */
+const FleetAlert = z.enum([
+  'offline',           // status = offline
+  'no_heartbeat_24h',  // aucun heartbeat reçu depuis 24h (ou jamais)
+  'high_cpu_temp',     // dernière température CPU > 75°C
+  'weak_signal',       // dernier RSSI < -80 dBm
+  'low_memory',        // dernière mémoire libre < 64 Mo
+  'open_critical',     // ≥ 1 ticket maintenance ouvert sévérité ≥ 4
+])
+type FleetAlert = z.infer<typeof FleetAlert>
+
+const FleetHealthRow = z.object({
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    communeName: z.string().nullable(),
+    firmwareVersion: z.string().nullable(),
+    lastSeenAt: z.string().datetime().nullable(),
+  }),
+  latest: z.object({
+    receivedAt: z.string().datetime().nullable(),
+    cpuTempC: z.number().nullable(),
+    rssiDbm: z.number().int().nullable(),
+    freeMemMb: z.number().int().nullable(),
+    uptimeSeconds: z.number().int().nullable(),
+  }),
+  openTickets: z.number().int(),
+  criticalTickets: z.number().int(),
+  alerts: z.array(FleetAlert),
+})
+
+const FleetHealthDTO = z.object({
+  generatedAt: z.string().datetime(),
+  total: z.number().int(),
+  withAlerts: z.number().int(),
+  rows: z.array(FleetHealthRow),
+})
+
+type FleetRowRaw = {
+  id: string
+  name: string
+  serial_number: string
+  status: 'online' | 'offline' | 'maintenance' | 'decommissioned'
+  commune_name: string | null
+  firmware_version: string | null
+  last_seen_at: Date | string | null
+  received_at: Date | string | null
+  cpu_temp_c: number | null
+  rssi_dbm: number | null
+  free_mem_mb: number | null
+  uptime_seconds: number | null
+  open_tickets: number
+  critical_tickets: number
+}
+
 type SummaryRow = {
   heartbeat_count: number
   avg_cpu: number | null
@@ -210,6 +271,127 @@ export async function adminDistributorHealthRoutes(rawApp: FastifyInstance) {
         avgFreeMemMb: r.avg_free_mem,
         count: r.count,
       })),
+    }
+  })
+
+  /**
+   * GET /v1/admin/distributors/fleet-health — vue agrégée multi-distributeurs.
+   *
+   * Pour chaque distributeur scopé (operator → sa commune, super_admin →
+   * tout le parc), retourne :
+   *   - identité (id, name, serial, commune, status, firmware, lastSeen)
+   *   - dernière mesure télémétrique (heartbeat le plus récent)
+   *   - compteurs tickets maintenance (ouverts + critiques sévérité ≥ 4)
+   *   - alertes pré-calculées via seuils :
+   *       offline, no_heartbeat_24h, high_cpu_temp (>75°C),
+   *       weak_signal (<-80dBm), low_memory (<64Mo), open_critical
+   *
+   * Une seule requête SQL avec LATERAL JOIN — pas de N+1 par distributeur.
+   * Rangé par nombre d'alertes décroissant pour faire remonter ce qui
+   * réclame de l'attention.
+   */
+  app.get('/fleet-health', {
+    onRequest: [app.authenticate],
+    schema: {
+      response: {
+        200: FleetHealthDTO,
+        401: ErrorDTO, 403: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const auth = requireAdminOrOperator(req, reply)
+    if (!auth.ok) return
+
+    const scopeClause = auth.scope
+      ? sql`AND d.commune_id = ${auth.scope.communeId}`
+      : sql``
+
+    const rows = await db.execute<FleetRowRaw>(sql`
+      SELECT
+        d.id,
+        d.name,
+        d.serial_number,
+        d.status,
+        c.name                         AS commune_name,
+        d.firmware_version,
+        d.last_seen_at,
+        latest.received_at,
+        latest.cpu_temp_c::float8      AS cpu_temp_c,
+        latest.rssi_dbm,
+        latest.free_mem_mb,
+        latest.uptime_seconds,
+        COALESCE(tickets.open_count, 0)::int     AS open_tickets,
+        COALESCE(tickets.critical_count, 0)::int AS critical_tickets
+      FROM distributors d
+      LEFT JOIN communes c ON c.id = d.commune_id
+      LEFT JOIN LATERAL (
+        SELECT received_at, cpu_temp_c, rssi_dbm, free_mem_mb, uptime_seconds
+        FROM distributor_heartbeats
+        WHERE distributor_id = d.id
+        ORDER BY received_at DESC
+        LIMIT 1
+      ) latest ON true
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) FILTER (WHERE status IN ('open', 'in_progress'))::int          AS open_count,
+          COUNT(*) FILTER (WHERE status IN ('open', 'in_progress')
+                           AND severity >= 4)::int                                AS critical_count
+        FROM maintenance_tickets
+        WHERE distributor_id = d.id
+      ) tickets ON true
+      WHERE d.status != 'decommissioned'
+        ${scopeClause}
+      ORDER BY d.name ASC
+    `)
+
+    const HIGH_CPU_TEMP = 75
+    const WEAK_SIGNAL = -80
+    const LOW_MEMORY = 64
+    const NO_HEARTBEAT_MS = 24 * 3600 * 1000
+
+    const now = Date.now()
+    const dtoRows = (rows as unknown as FleetRowRaw[]).map((r) => {
+      const alerts: FleetAlert[] = []
+      const lastSeenMs = r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0
+      if (r.status === 'offline') alerts.push('offline')
+      if (!r.last_seen_at || now - lastSeenMs > NO_HEARTBEAT_MS) alerts.push('no_heartbeat_24h')
+      if (r.cpu_temp_c != null && r.cpu_temp_c > HIGH_CPU_TEMP) alerts.push('high_cpu_temp')
+      if (r.rssi_dbm != null && r.rssi_dbm < WEAK_SIGNAL) alerts.push('weak_signal')
+      if (r.free_mem_mb != null && r.free_mem_mb < LOW_MEMORY) alerts.push('low_memory')
+      if (r.critical_tickets > 0) alerts.push('open_critical')
+
+      return {
+        distributor: {
+          id: r.id,
+          name: r.name,
+          serialNumber: r.serial_number,
+          status: r.status,
+          communeName: r.commune_name,
+          firmwareVersion: r.firmware_version,
+          lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at).toISOString() : null,
+        },
+        latest: {
+          receivedAt: r.received_at ? new Date(r.received_at).toISOString() : null,
+          cpuTempC: r.cpu_temp_c,
+          rssiDbm: r.rssi_dbm,
+          freeMemMb: r.free_mem_mb,
+          uptimeSeconds: r.uptime_seconds,
+        },
+        openTickets: r.open_tickets,
+        criticalTickets: r.critical_tickets,
+        alerts,
+      }
+    })
+
+    // Trie par nombre d'alertes décroissant pour faire remonter le plus
+    // critique en haut de la liste.
+    dtoRows.sort((a, b) => b.alerts.length - a.alerts.length)
+
+    return {
+      generatedAt: new Date().toISOString(),
+      total: dtoRows.length,
+      withAlerts: dtoRows.filter((r) => r.alerts.length > 0).length,
+      rows: dtoRows,
     }
   })
 }
