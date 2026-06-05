@@ -759,6 +759,63 @@ export async function fetchDistributorHealth(id: string, hours = 24): Promise<Di
   return DistributorHealth.parse(await res.json())
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Fleet health — vue agrégée multi-distributeurs (/health page)
+// ──────────────────────────────────────────────────────────────────────────
+
+export const FLEET_ALERTS = [
+  'offline',
+  'no_heartbeat_24h',
+  'high_cpu_temp',
+  'weak_signal',
+  'low_memory',
+  'open_critical',
+] as const
+export type FleetAlert = typeof FLEET_ALERTS[number]
+
+export const FleetHealthRow = z.object({
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    communeName: z.string().nullable(),
+    firmwareVersion: z.string().nullable(),
+    lastSeenAt: z.string().datetime().nullable(),
+  }),
+  latest: z.object({
+    receivedAt: z.string().datetime().nullable(),
+    cpuTempC: z.number().nullable(),
+    rssiDbm: z.number().int().nullable(),
+    freeMemMb: z.number().int().nullable(),
+    uptimeSeconds: z.number().int().nullable(),
+  }),
+  openTickets: z.number().int(),
+  criticalTickets: z.number().int(),
+  alerts: z.array(z.enum(FLEET_ALERTS)),
+})
+
+export type FleetHealthRow = z.infer<typeof FleetHealthRow>
+
+export const FleetHealthDashboard = z.object({
+  generatedAt: z.string().datetime(),
+  total: z.number().int(),
+  withAlerts: z.number().int(),
+  rows: z.array(FleetHealthRow),
+})
+
+export type FleetHealthDashboard = z.infer<typeof FleetHealthDashboard>
+
+export async function fetchFleetHealth(): Promise<FleetHealthDashboard> {
+  const res = await fetch(`${API_URL}/v1/admin/distributors/fleet-health`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['distributors', 'fleet-health'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return FleetHealthDashboard.parse(await res.json())
+}
+
 export const Invite = z.object({
   token: z.string().min(20),
   inviteUrl: z.string().url(),
