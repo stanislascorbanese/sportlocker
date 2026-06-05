@@ -25,6 +25,9 @@ export function MetricChart({
   tone = 'emerald',
   width = 520,
   decimals = 0,
+  emptyLabel = 'aucune donnée sur la période',
+  minLabel = 'min',
+  maxLabel = 'max',
 }: {
   label: string
   points: MetricPoint[]
@@ -32,6 +35,9 @@ export function MetricChart({
   tone?: Tone
   width?: number
   decimals?: number
+  emptyLabel?: string
+  minLabel?: string
+  maxLabel?: string
 }) {
   const t = TONE[tone]
   const values = points.map((p) => p.value).filter((v): v is number => v != null)
@@ -40,7 +46,7 @@ export function MetricChart({
     return (
       <div className="rounded-xl border border-white/10 bg-navy-800 p-4">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-white/40">{label}</h4>
-        <p className="mt-4 text-xs text-white/40">aucune donnée sur la période</p>
+        <p className="mt-4 text-xs text-white/40">{emptyLabel}</p>
       </div>
     )
   }
@@ -99,8 +105,8 @@ export function MetricChart({
         })}
       </svg>
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-white/35">
-        <span>min {fmt(min)}</span>
-        <span>max {fmt(max)}</span>
+        <span>{minLabel} {fmt(min)}</span>
+        <span>{maxLabel} {fmt(max)}</span>
       </div>
     </div>
   )

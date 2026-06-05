@@ -130,7 +130,7 @@ export default async function StatsPage({
           <span className="text-[11px] text-white/40">{t.trendSub.replace('%d', String(days))}</span>
         </div>
         <div className="overflow-x-auto">
-          <Sparkline points={stats.daily} width={Math.min(1200, 120 + stats.daily.length * 30)} />
+          <Sparkline points={stats.daily} width={Math.min(1200, 120 + stats.daily.length * 30)} lang={lang} />
         </div>
       </section>
 
@@ -184,7 +184,7 @@ export default async function StatsPage({
             {t.heatmapSub.replace('%d', String(days))}
           </span>
         </div>
-        <Heatmap points={stats.hourly} />
+        <Heatmap points={stats.hourly} lang={lang} />
       </section>
     </div>
   )

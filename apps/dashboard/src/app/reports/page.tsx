@@ -262,6 +262,7 @@ export default async function ReportsPage({
         <Sparkline
           points={periodSpark.length > 0 ? periodSpark : sparkSeries.slice(-30)}
           width={Math.min(1200, 120 + Math.max(periodSpark.length, 30) * 28)}
+          lang={lang}
         />
       </section>
 
@@ -294,7 +295,7 @@ export default async function ReportsPage({
           </h3>
           <span className="text-[11px] text-white/40">{t.heatmapSub}</span>
         </div>
-        <Heatmap points={scopedStats.hourly} />
+        <Heatmap points={scopedStats.hourly} lang={lang} />
       </section>
 
       <p className="text-[11px] text-white/40">{t.pdfHint}</p>

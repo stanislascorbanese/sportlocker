@@ -145,7 +145,7 @@ export default async function HomePage() {
           </h3>
           <span className="text-meta text-gray-500 dark:text-white/40">{t.trendLast7Days}</span>
         </div>
-        <Sparkline points={dailySeries} width={520} />
+        <Sparkline points={dailySeries} width={520} lang={lang} />
       </section>
 
       {/* Bloc 1 — Parc */}
