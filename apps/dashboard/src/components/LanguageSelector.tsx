@@ -1,5 +1,7 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+
 import { setClientLang, useLang } from '../lib/lang-client'
 import { LANG_LABELS, SUPPORTED_LANGS, type Lang } from '../lib/lang'
 import { cn } from '../lib/cn'
@@ -7,16 +9,25 @@ import { cn } from '../lib/cn'
 /**
  * Boutons drapeau pour basculer la langue de l'interface.
  *
- * Couvre aujourd'hui la Sidebar (labels nav) et la carte (libellés statuts /
- * tuiles). Les autres pages restent en français tant qu'elles n'ont pas été
- * traduites — tracking : feat/dashboard-i18n.
+ * Deux étages de propagation :
+ *  - `setClientLang(lang)` met à jour le DOM (`<html lang>`), pose le cookie
+ *    `sportlocker-lang` et broadcast un évènement → re-render instantané de
+ *    tous les composants client qui consomment `useLang()` (sidebar,
+ *    PriceCell, MapClient…).
+ *  - `router.refresh()` force Next.js à ré-exécuter les Server Components
+ *    avec le nouveau cookie → re-render du HTML pour `/distributors`,
+ *    `/communes`, etc. qui lisent la langue via `await getLang()` côté
+ *    serveur. Sans ça, le HTML reste figé dans la langue précédente
+ *    jusqu'au prochain reload manuel.
  */
 export function LanguageSelector() {
   const current = useLang()
+  const router = useRouter()
 
   function onPick(lang: Lang) {
     if (lang === current) return
     setClientLang(lang)
+    router.refresh()
   }
 
   return (
