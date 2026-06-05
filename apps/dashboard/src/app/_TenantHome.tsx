@@ -282,6 +282,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
                 distributor={d}
                 weeklyReservations={weeklyByDistributor.get(d.id) ?? 0}
                 openTickets={ticketsByDistributor.get(d.id) ?? 0}
+                lang={lang}
               />
             ))}
           </div>

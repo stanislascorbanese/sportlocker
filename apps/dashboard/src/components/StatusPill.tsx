@@ -33,7 +33,7 @@ const STYLE: Record<Status, { dot: string; text: string; bg: string; border: str
   },
 }
 
-export function StatusPill({ status }: { status: Status }) {
+export function StatusPill({ status, label }: { status: Status; label?: string }) {
   const s = STYLE[status]
   return (
     <span className={cn(
@@ -41,7 +41,7 @@ export function StatusPill({ status }: { status: Status }) {
       s.bg, s.border, s.text,
     )}>
       <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
-      {status}
+      {label ?? status}
     </span>
   )
 }

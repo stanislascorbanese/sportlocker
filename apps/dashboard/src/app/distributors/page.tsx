@@ -5,7 +5,7 @@ import { StatusPill } from '../../components/StatusPill'
 import { BatteryGauge } from '../../components/BatteryGauge'
 import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
-import { commonStrings, fmtRelative } from '../../lib/i18n/common'
+import { commonStrings, distributorStatusLabel, fmtRelative } from '../../lib/i18n/common'
 import { distributorsStrings } from '../../lib/i18n/distributors'
 
 export const dynamic = 'force-dynamic'
@@ -103,7 +103,7 @@ export default async function DistributorsListPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusPill status={d.status} />
+                    <StatusPill status={d.status} label={distributorStatusLabel(lang, d.status)} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-baseline gap-1">
