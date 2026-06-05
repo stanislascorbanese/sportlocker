@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { distributorsStrings } from '../../lib/i18n/distributors'
 
 /**
  * Feature GeoJSON renvoyée par api-adresse.data.gouv.fr (BAN).
@@ -31,21 +33,14 @@ export type AddressAutofill = {
   city: string
 }
 
-/**
- * Champ d'autocomplétion qui interroge api-adresse.data.gouv.fr (BAN,
- * gratuit, sans clé) pour pré-remplir latitude/longitude + code INSEE à
- * partir d'une adresse postale libre.
- *
- * Sur sélection, `onSelect` reçoit lat/lng au format décimal et le citycode
- * INSEE pour permettre l'auto-sélection de la commune côté formulaire parent.
- */
 export function AddressAutocomplete({
   onSelect,
-  hint,
+  lang,
 }: {
   onSelect: (a: AddressAutofill) => void
-  hint?: string
+  lang: Lang
 }) {
+  const t = distributorsStrings(lang)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<BanFeature[]>([])
   const [loading, setLoading] = useState(false)
@@ -125,10 +120,10 @@ export function AddressAutocomplete({
     <div className="relative rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-4">
       <label className="block">
         <span className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-emerald-300/90">
-          <span>📍 Rechercher l&apos;adresse (auto-remplit lat/lng + commune)</span>
+          <span>{t.aaPlaceholder}</span>
           {picked && (
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
-              ✓ Auto-rempli depuis BAN
+              {t.aaAutoFilled}
             </span>
           )}
         </span>
@@ -160,7 +155,7 @@ export function AddressAutocomplete({
           className="absolute left-4 right-4 z-10 mt-1 max-h-72 overflow-auto rounded-lg border border-white/15 bg-navy-800 shadow-xl"
         >
           {loading && (
-            <li className="px-3 py-2 text-xs text-white/40">Recherche…</li>
+            <li className="px-3 py-2 text-xs text-white/40">{t.aaLoading}</li>
           )}
           {results.map((f, i) => (
             <li key={`${f.properties.label}-${i}`} role="option" aria-selected={i === activeIndex}>
@@ -186,17 +181,11 @@ export function AddressAutocomplete({
         </ul>
       )}
       <p className="mt-2 flex items-center justify-between text-[11px] text-white/40">
-        <span>
-          {hint ?? (
-            <>
-              Source : <span className="font-mono">api-adresse.data.gouv.fr</span> · Base Adresse Nationale
-            </>
-          )}
-        </span>
+        <span>{t.aaSourceLine}</span>
         <span className="hidden sm:inline">
-          <kbd className="rounded border border-white/20 px-1">↑↓</kbd> naviguer ·{' '}
-          <kbd className="rounded border border-white/20 px-1">↵</kbd> sélectionner ·{' '}
-          <kbd className="rounded border border-white/20 px-1">Esc</kbd> fermer
+          <kbd className="rounded border border-white/20 px-1">↑↓</kbd> {t.kbdNavigate} ·{' '}
+          <kbd className="rounded border border-white/20 px-1">↵</kbd> {t.kbdSelect} ·{' '}
+          <kbd className="rounded border border-white/20 px-1">Esc</kbd> {t.kbdClose}
         </span>
       </p>
     </div>
