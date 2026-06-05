@@ -44,6 +44,11 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
   failed: number
 }> {
   const now = new Date()
+  // postgres-js ne sérialise pas un objet `Date` interpolé dans un template
+  // `sql` (il le passe brut au driver → ERR_INVALID_ARG_TYPE). On bind donc
+  // l'ISO string avec un cast explicite `::timestamptz`. Même contrainte que
+  // dans expire-reservations (qui contourne en pré-calculant les cutoffs).
+  const nowIso = now.toISOString()
 
   // Critère SQL : slot_start_at - users.reminder_minutes_before * INTERVAL '1 minute'
   // doit tomber dans [now - TOLERANCE, now + TOLERANCE].
@@ -70,7 +75,7 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
       isNotNull(reservations.slotStartAt),
       // delta_min = (slot_start_at - now) en minutes
       // condition : ABS(delta_min - reminder) <= TOLERANCE
-      sql`ABS(EXTRACT(EPOCH FROM (${reservations.slotStartAt} - ${now})) / 60.0 - ${users.reminderMinutesBefore}) <= ${WINDOW_TOLERANCE_MIN}`,
+      sql`ABS(EXTRACT(EPOCH FROM (${reservations.slotStartAt} - ${nowIso}::timestamptz)) / 60.0 - ${users.reminderMinutesBefore}) <= ${WINDOW_TOLERANCE_MIN}`,
     ))
 
   let sent = 0
