@@ -5,30 +5,31 @@ import { useRouter } from 'next/navigation'
 import { Ban } from 'lucide-react'
 
 import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { reservationsStrings } from '../../lib/i18n/reservations'
 import { forceCancelReservationAction } from './_actions'
 
 export function ForceCancelButton({
   id,
   disabled = false,
   demo = false,
+  lang,
 }: {
   id: string
   disabled?: boolean
   demo?: boolean
+  lang: Lang
 }) {
+  const t = reservationsStrings(lang)
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
   const onClick = () => {
     if (demo) {
-      alert('Mode démo — branchez un token admin valide pour exécuter l\'action.')
+      alert(t.fcDemoBlocker)
       return
     }
-    const reason = window.prompt(
-      'Raison du force-cancel admin (min. 4 caractères) :\n\n' +
-      'Le casier sera libéré et un événement "cancelled" sera tracé avec source=admin.',
-      '',
-    )
+    const reason = window.prompt(t.fcPrompt, '')
     if (!reason) return
 
     startTransition(() => {
@@ -54,7 +55,7 @@ export function ForceCancelButton({
       )}
     >
       <Ban className="h-3.5 w-3.5" />
-      {pending ? 'Annulation…' : 'Force-cancel'}
+      {pending ? t.fcBtnPending : t.fcBtnIdle}
     </button>
   )
 }

@@ -252,7 +252,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
               {t.tenantViewDetailedStats}
             </Link>
           </div>
-          <Sparkline points={dailySeries} width={420} />
+          <Sparkline points={dailySeries} width={420} lang={lang} />
         </div>
       </section>
 

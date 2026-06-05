@@ -401,6 +401,7 @@ export default async function ReservationsPage({
           closeHref={closeDrawerHref}
           demo={useDemo}
           error={detailError}
+          lang={lang}
         />
       )}
     </div>

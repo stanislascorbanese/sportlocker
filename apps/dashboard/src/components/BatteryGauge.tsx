@@ -5,9 +5,15 @@ import { cn } from '../lib/cn'
  * Affiche "—" tant que le champ est `null`. À brancher quand le firmware
  * publie un `batteryPercent` dans le heartbeat MQTT.
  */
-export function BatteryGauge({ percent }: { percent: number | null }) {
+export function BatteryGauge({
+  percent,
+  unavailableTitle = 'Donnée non disponible (TODO firmware)',
+}: {
+  percent: number | null
+  unavailableTitle?: string
+}) {
   if (percent == null) {
-    return <span className="text-zinc-500" title="Donnée non disponible (TODO firmware)">—</span>
+    return <span className="text-zinc-500" title={unavailableTitle}>—</span>
   }
   const color =
     percent < 15 ? 'bg-rose-500' :
