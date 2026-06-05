@@ -60,8 +60,8 @@ jobs:
   # données citoyens.
   #
   # Job HARD : fail la PR si une vuln ≥ high apparaît, hors GHSAs explicitement
-  # tracées dans docs/SECURITY.md (items #14, #15 — chantiers de migration
-  # majors séparés). pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc
+  # tracées dans docs/SECURITY.md (item #15 — chantier de migration
+  # major séparé). pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc
   # le filtrage se fait ici via jq.
   #
   # Pour ajouter une exception : la mettre dans `IGNORED_GHSAS` ci-dessous ET
@@ -92,7 +92,7 @@ jobs:
         env:
           # GHSAs ignorées — chacune doit avoir un item de suivi dans
           # docs/SECURITY.md §9 avec date cible et raison.
-          IGNORED_GHSAS: 'GHSA-wrwg-2hg8-v723 GHSA-jx2c-rxcm-jvmq'
+          IGNORED_GHSAS: 'GHSA-jx2c-rxcm-jvmq'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
