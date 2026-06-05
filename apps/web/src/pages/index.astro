@@ -29,12 +29,12 @@ const pillars = [
   {
     icon: '🛠️',
     title: 'Zéro personnel à mobiliser',
-    desc: 'Maintenance, hotline, mises à jour : tout est inclus dans l\'abonnement. Vous ne gérez rien.',
+    desc: 'Maintenance proactive (alertes télémétriques temps réel), hotline, mises à jour OTA : tout est inclus dans l\'abonnement. Vous ne gérez rien.',
   },
   {
     icon: '💸',
     title: 'Revenu locations partagé',
-    desc: 'Vous fixez la grille — slots de 30 min à la journée. Vous gardez 75 % de chaque location, SportLocker prend 25 % de commission.',
+    desc: 'Vous fixez la grille — 5 créneaux (30 min, 1 h, 1 h 30, 2 h ou la journée). Vous gardez 75 % de chaque location, SportLocker prend 25 % de commission.',
   },
 ]
 
@@ -69,13 +69,14 @@ const citoyenSteps = [
   { n: '01', title: 'Je trouve un casier', desc: 'L\'app affiche les distributeurs proches avec le stock en temps réel.' },
   { n: '02', title: 'Je choisis ma durée', desc: '5 slots possibles (30 min, 1 h, 1 h 30, 2 h ou la journée) — l\'opérateur du site active ceux qu\'il propose. Caution préautorisée sur la CB (libérée si retour OK).' },
   { n: '03', title: 'J\'ouvre avec mon QR', desc: 'Scan devant le casier, ouverture en moins d\'une seconde. Fonctionne sans réseau.' },
+  { n: '04', title: 'Je joue puis je rends', desc: 'À la fin de mon créneau, je remets le matériel dans le casier et je le referme. Caution libérée automatiquement.' },
 ]
 
 const clientSteps = [
-  { n: '01', title: 'Devis personnalisé', desc: 'Visite ou call de 15 min, étude du site, devis sous 48h.' },
+  { n: '01', title: 'Devis & cadrage', desc: 'Visite ou call de 15 min, étude du site, devis sous 48 h.' },
   { n: '02', title: 'Visite technique', desc: 'Repérage des emplacements, alimentation électrique, signalétique.' },
-  { n: '03', title: 'Installation clé en main', desc: 'Pose, configuration, formation du responsable de site.' },
-  { n: '04', title: 'Lancement', desc: 'Communication usagers, suivi 30/60/90 jours, reversement automatique J+2 via Stripe Connect.' },
+  { n: '03', title: 'Installation', desc: 'Pose, configuration, formation du responsable de site. Clé en main.' },
+  { n: '04', title: 'Lancement & suivi', desc: 'Communication usagers, suivi 30/60/90 jours, reversement automatique J+2 via Stripe Connect.' },
 ]
 
 const competitors = [
@@ -120,6 +121,10 @@ const faq = [
   {
     q: 'Quel est le délai de mise en service ?',
     a: 'De la signature à la mise en service : 4 à 6 semaines en moyenne. Cela inclut la fabrication, l\'installation et la formation.',
+  },
+  {
+    q: 'Comment je sais si un distributeur tombe en panne ?',
+    a: 'Votre dashboard a une vue « Santé du parc » qui agrège en temps réel l\'état de tous vos distributeurs : connectivité, température CPU, signal 4G, mémoire libre, batterie. Des alertes seuils (offline, silence > 24 h, surchauffe, signal faible, tickets critiques) remontent en haut de liste les sites qui demandent de l\'attention. Notre support intervient à distance sur 80 % des incidents avant que vous n\'ayez à le signaler.',
   },
 ]
 
