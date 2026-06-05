@@ -1,11 +1,11 @@
-import { and, between, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import type { FastifyBaseLogger } from 'fastify'
 
 import { db } from '../db/client.js'
 import {
-  distributors, itemTypes, items, notificationLogs, pushTokens, reservations, users,
+  distributors, itemTypes, items, notificationLogs, reservations, users,
 } from '../db/schema.js'
-import { sendWebPush } from '../lib/webpush.js'
+import { notifyUserPush } from '../lib/push-notify.js'
 
 /**
  * Cron : envoie un rappel push **avant** chaque créneau réservé en statut
@@ -101,59 +101,32 @@ export async function runSlotReminders(log: FastifyBaseLogger): Promise<{
       continue
     }
 
-    // Charge les push subscriptions du user. Pas de push enregistré =
-    // le user n'a pas activé les notifs → skip (on ne pénalise pas).
-    const subs = await db
-      .select({
-        endpoint: pushTokens.endpoint,
-        p256dh: pushTokens.p256dhKey,
-        auth: pushTokens.authKey,
-      })
-      .from(pushTokens)
-      .where(and(eq(pushTokens.userId, row.userId), isNotNull(pushTokens.endpoint)))
-    if (subs.length === 0) {
-      skipped++
-      continue
-    }
-
     const slotHour = row.slotStartAt.toLocaleTimeString('fr-FR', {
       hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
     })
     const minutesLabel = formatMinutesLabel(row.reminderMinutesBefore)
-    const payload = {
+    const outcome = await notifyUserPush(row.userId, {
       title: `Ton créneau arrive dans ${minutesLabel} 🏐`,
       body: `${row.itemTypeName} à ${slotHour} · ${row.distributorName}.`,
       url: `/reservations/${row.reservationId}`,
       tag: `slot-${row.reservationId}`,
+    }, log)
+    revoked += outcome.revoked
+    failed += outcome.failed
+
+    if (outcome.notConfigured) {
+      // VAPID absent : inutile d'itérer sur les résas suivantes.
+      log.warn('slot_reminders_no_vapid')
+      return { scanned: candidates.length, sent, skipped, revoked, failed }
+    }
+    // Pas de push enregistré = le user n'a pas activé les notifs → skip
+    // (on ne pénalise pas).
+    if (outcome.attempted === 0) {
+      skipped++
+      continue
     }
 
-    let anySentForThisRes = false
-    for (const sub of subs) {
-      if (!sub.endpoint || !sub.p256dh || !sub.auth) continue
-      const res = await sendWebPush(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload,
-      )
-      if (res.ok) {
-        anySentForThisRes = true
-      } else if (res.reason === 'gone') {
-        // Subscription révoquée par le browser — on la supprime pour ne
-        // plus la retenter au prochain cron.
-        await db.delete(pushTokens).where(eq(pushTokens.endpoint, sub.endpoint))
-        revoked++
-      } else if (res.reason === 'not_configured') {
-        // VAPID absent : le caller ne peut rien faire. On log et on sort
-        // de la boucle pour éviter N appels qui échouent identiquement.
-        log.warn('slot_reminders_no_vapid')
-        return { scanned: candidates.length, sent, skipped, revoked, failed }
-      } else {
-        failed++
-        log.warn({ reason: res.reason, statusCode: res.statusCode, detail: res.detail },
-          'slot_reminder_send_failed')
-      }
-    }
-
-    if (anySentForThisRes) {
+    if (outcome.sent) {
       sent++
       await db.insert(notificationLogs).values({
         userId: row.userId,

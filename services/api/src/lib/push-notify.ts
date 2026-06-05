@@ -23,6 +23,8 @@ import { sendWebPush, type PushPayload } from './webpush.js'
 export type NotifyOutcome = {
   /** Au moins une subscription a accusé réception du push. */
   sent: boolean
+  /** Nombre de subscriptions effectivement tentées (endpoint + clés valides). */
+  attempted: number
   /** Nombre de subscriptions révoquées (gone) supprimées en DB. */
   revoked: number
   /** Nombre d'envois en échec (hors révocation). */
@@ -46,11 +48,13 @@ export async function notifyUserPush(
     .where(and(eq(pushTokens.userId, userId), isNotNull(pushTokens.endpoint)))
 
   let sent = false
+  let attempted = 0
   let revoked = 0
   let failed = 0
 
   for (const sub of subs) {
     if (!sub.endpoint || !sub.p256dh || !sub.auth) continue
+    attempted++
     const res = await sendWebPush(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       payload,
@@ -65,7 +69,7 @@ export async function notifyUserPush(
     } else if (res.reason === 'not_configured') {
       // VAPID absent : le caller ne peut rien y faire, on remonte le signal
       // pour qu'il arrête la boucle au lieu d'enchaîner N échecs identiques.
-      return { sent, revoked, failed, notConfigured: true }
+      return { sent, attempted, revoked, failed, notConfigured: true }
     } else {
       failed++
       log.warn({ reason: res.reason, statusCode: res.statusCode, detail: res.detail },
@@ -73,5 +77,5 @@ export async function notifyUserPush(
     }
   }
 
-  return { sent, revoked, failed, notConfigured: false }
+  return { sent, attempted, revoked, failed, notConfigured: false }
 }
