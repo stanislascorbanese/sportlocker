@@ -109,7 +109,7 @@ export function PaymentStep({ reservation }: { reservation: ReservationActive })
           ? (
             <Elements
               stripe={getStripePromise()}
-              options={{ clientSecret: intentQuery.data.clientSecret }}
+              options={{ clientSecret: intentQuery.data.clientSecret, locale }}
             >
               <StripePanel reservationId={reservation.id} amountLabel={amountLabel} />
             </Elements>
@@ -212,7 +212,9 @@ function StripePanel({
 
   return (
     <Card>
-      <PaymentElement />
+      <PaymentElement
+        options={{ defaultValues: { billingDetails: { address: { country: 'FR' } } } }}
+      />
       <button
         type="button"
         disabled={!stripe || submitting}
