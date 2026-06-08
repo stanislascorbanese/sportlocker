@@ -1054,3 +1054,213 @@ describe('Cron detect-overdue', () => {
     expect(await runDetectOverdue(app.log)).toBe(0)
   })
 })
+
+// ─── Helpers slots/paiement pour les tests d'erreurs ci-dessous ───
+const SLOT_DURATION = 60
+const SLOT_PRICE_CENTS = 500
+
+async function addPricingRule(f: Fixtures, duration = SLOT_DURATION): Promise<void> {
+  await pgSql`INSERT INTO pricing_rules (id, commune_id, item_type_id, duration_minutes, price_cents)
+    VALUES (${randomUUID()}, ${f.communeId}, ${f.itemTypeId}, ${duration}, ${SLOT_PRICE_CENTS})`
+}
+async function linkItemToLocker(f: Fixtures): Promise<void> {
+  await pgSql`UPDATE items SET current_locker_id = ${f.lockerId} WHERE id = ${f.itemId}`
+}
+/** Créneau futur aligné :00 (demain 10:00 UTC), dans la fenêtre J+7. */
+function validSlotIso(): string {
+  const d = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  d.setUTCHours(10, 0, 0, 0)
+  return d.toISOString()
+}
+function slotPayload(f: Fixtures, slotStartAt: string): Record<string, unknown> {
+  return { distributorId: f.distributorId, itemTypeId: f.itemTypeId, slotStartAt, durationMinutes: SLOT_DURATION }
+}
+async function seedOtherUser(): Promise<string> {
+  const id = randomUUID()
+  await pgSql`INSERT INTO users (id, firebase_uid, email)
+    VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@test.local'})`
+  return id
+}
+
+describe('POST /v1/reservations/slots — erreurs', () => {
+  it('422 si le créneau demandé est dans le passé', async () => {
+    const f = await seedAll()
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    past.setUTCHours(10, 0, 0, 0)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, past.toISOString()),
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('404 distributor_not_found si le distributeur n\'existe pas', async () => {
+    const f = await seedAll()
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { ...slotPayload(f, validSlotIso()), distributorId: randomUUID() },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('distributor_not_found')
+  })
+
+  it('422 no_pricing si aucun tarif n\'est configuré pour le triplet', async () => {
+    const f = await seedAll()  // pas de pricing_rule
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, validSlotIso()),
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('no_pricing')
+  })
+
+  it('409 slot_being_processed si le verrou redis du créneau est déjà pris', async () => {
+    const f = await seedAll()
+    await addPricingRule(f)
+    const slotIso = validSlotIso()
+    const lockKey = `lock:slot:${f.distributorId}:${f.itemTypeId}:${slotIso}:${SLOT_DURATION}`
+    await redisClient.set(lockKey, 'autre-user', 'EX', 30)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, slotIso),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('slot_being_processed')
+  })
+
+  it('409 slot_not_available si aucun item du type n\'est physiquement présent', async () => {
+    const f = await seedAll()
+    await addPricingRule(f)  // item PAS lié au casier (current_locker_id NULL) → 0 candidat
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, validSlotIso()),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('slot_not_available')
+  })
+
+  it('409 slot_not_available si le seul item est déjà réservé sur ce créneau (overlap)', async () => {
+    const f = await seedAll()
+    await addPricingRule(f)
+    await linkItemToLocker(f)
+    const slotIso = validSlotIso()
+    const start = new Date(slotIso)
+    const end = new Date(start.getTime() + SLOT_DURATION * 60 * 1000)
+    // Résa bloquante d'un autre user sur le même item et la même fenêtre.
+    const other = await seedOtherUser()
+    const rid = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, slot_start_at, slot_end_at, duration_minutes)
+      VALUES (${rid}, ${other}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'scheduled', ${'jti-' + rid.slice(0, 12)}, NOW(), ${start}, ${end}, ${SLOT_DURATION})`
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, slotIso),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('slot_not_available')
+  })
+})
+
+describe('POST /v1/reservations/:id/pay — erreurs', () => {
+  async function bookSlot(f: Fixtures): Promise<string> {
+    await addPricingRule(f)
+    await linkItemToLocker(f)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, validSlotIso()),
+    })
+    expect(res.statusCode).toBe(201)
+    return res.json().id as string
+  }
+
+  it('404 payment_not_found pour une résa sans paiement', async () => {
+    const f = await seedAll()
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${randomUUID()}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('payment_not_found')
+  })
+
+  it('403 forbidden si la résa appartient à un autre user', async () => {
+    const f = await seedAll()
+    const rid = await bookSlot(f)
+    const other = await seedOtherUser()
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay`,
+      headers: { authorization: authHeader(other) },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('409 already_paid si le paiement est déjà succeeded', async () => {
+    const f = await seedAll()
+    const rid = await bookSlot(f)
+    await app.inject({ method: 'POST', url: `/v1/reservations/${rid}/pay`, headers: { authorization: authHeader(f.userId) } })
+    await app.inject({ method: 'POST', url: `/v1/reservations/${rid}/pay/confirm-simulated`, headers: { authorization: authHeader(f.userId) } })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('already_paid')
+  })
+
+  it('409 reservation_not_payable si la résa n\'est plus en pending_payment', async () => {
+    const f = await seedAll()
+    const rid = await bookSlot(f)
+    // Annule la résa : statut → cancelled, paiement → cancelled (≠ succeeded).
+    await app.inject({ method: 'POST', url: `/v1/reservations/${rid}/cancel`, headers: { authorization: authHeader(f.userId) } })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('reservation_not_payable')
+  })
+})
+
+describe('POST /v1/reservations/:id/cancel — erreurs métier', () => {
+  it('409 reservation_not_cancellable si le statut n\'est pas annulable', async () => {
+    const f = await seedAll()
+    const rid = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+      VALUES (${rid}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${'jti-' + rid.slice(0, 12)}, NOW())`
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('reservation_not_cancellable')
+  })
+
+  it('409 too_late_to_cancel pour un slot scheduled qui démarre dans < 30 min', async () => {
+    const f = await seedAll()
+    const rid = randomUUID()
+    const start = new Date(Date.now() + 10 * 60 * 1000)  // dans 10 min < cutoff 30
+    const end = new Date(start.getTime() + 60 * 60 * 1000)
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, slot_start_at, slot_end_at, duration_minutes)
+      VALUES (${rid}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'scheduled', ${'jti-' + rid.slice(0, 12)}, NOW(), ${start}, ${end}, 60)`
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('too_late_to_cancel')
+  })
+})
