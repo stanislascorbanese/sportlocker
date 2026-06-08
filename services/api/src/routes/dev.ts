@@ -109,7 +109,9 @@ export async function devRoutes(rawApp: FastifyInstance) {
   })
 }
 
-function decodeJti(token: string): string {
+// Exporté pour les tests unitaires (branches défensives non atteignables via
+// l'endpoint, qui ne lui passe que des tokens fraîchement signés et valides).
+export function decodeJti(token: string): string {
   const parts = token.split('.')
   if (parts.length !== 3 || !parts[1]) return ''
   try {
