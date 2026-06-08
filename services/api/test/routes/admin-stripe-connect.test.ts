@@ -18,6 +18,7 @@ import IORedis from 'ioredis'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 
 import type { FastifyInstance } from 'fastify'
 
@@ -41,6 +42,7 @@ type MockAccount = {
   id: string
   charges_enabled: boolean
   payouts_enabled: boolean
+  email?: string | undefined
 }
 const mockAccounts = new Map<string, MockAccount>()
 let mockAccountCounter = 0
@@ -50,9 +52,11 @@ vi.mock('stripe', () => {
   // La classe par défaut exportée par `import Stripe from 'stripe'`.
   class MockStripe {
     accounts = {
-      create: vi.fn(async (_params: unknown) => {
+      create: vi.fn(async (params: { email?: string }) => {
         const id = `acct_test_${++mockAccountCounter}`
-        const account = { id, charges_enabled: false, payouts_enabled: false }
+        const account: MockAccount = {
+          id, charges_enabled: false, payouts_enabled: false, email: params?.email,
+        }
         mockAccounts.set(id, account)
         return account
       }),
@@ -263,6 +267,17 @@ describe('GET /v1/admin/stripe-connect/status', () => {
     })
     expect(res.statusCode).toBe(200)
   })
+
+  it('super_admin avec communeId inexistant → 404 commune_not_found', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/stripe-connect/status?communeId=${randomUUID()}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'commune_not_found' })
+  })
 })
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -325,6 +340,48 @@ describe('POST /v1/admin/stripe-connect/onboard', () => {
       payload: {},
     })
     expect(res.statusCode).toBe(403)
+  })
+
+  it('super_admin sans communeId → 400', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/stripe-connect/onboard',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'super_admin_must_specify_commune_id' })
+  })
+
+  it('super_admin avec communeId inexistant → 404 commune_not_found', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/stripe-connect/onboard',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { communeId: randomUUID() },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'commune_not_found' })
+  })
+
+  it('renseigne l\'email de contact de la commune sur l\'Account Stripe créé', async () => {
+    const commune = await seedCommune(pgSql, 'A')
+    await pgSql`UPDATE communes SET contact_email = 'mairie@ville-test.fr' WHERE id = ${commune}`
+    const u = await seedUser(pgSql, { role: 'admin', communeId: commune })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/stripe-connect/onboard',
+      headers: { authorization: signSession(app, u.id, 'admin', commune) },
+      payload: {},
+    })
+
+    expect(res.statusCode).toBe(200)
+    // L'Account a bien été créé avec l'email (le mock SDK capture les params).
+    const acc = mockAccounts.get(res.json().accountId)
+    expect(acc?.email).toBe('mairie@ville-test.fr')
   })
 })
 
@@ -414,6 +471,30 @@ describe('POST /v1/admin/stripe-connect/refresh', () => {
 
     expect(res.statusCode).toBe(409)
     expect(res.json()).toEqual({ error: 'not_onboarded' })
+  })
+
+  it('super_admin sans communeId → 400', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/stripe-connect/refresh',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'super_admin_must_specify_commune_id' })
+  })
+
+  it('super_admin avec communeId inexistant → 404 commune_not_found', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/stripe-connect/refresh',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { communeId: randomUUID() },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'commune_not_found' })
   })
 
   it('citizen → 403', async () => {
