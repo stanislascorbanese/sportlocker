@@ -94,6 +94,56 @@ export function buildMqttOptions(opts: {
   return { ...base, ca: readFile(caCertPath) }
 }
 
+/**
+ * Réduit une erreur MQTT à l'essentiel loggable : message + `code` CONNACK
+ * éventuel (4 = bad username/password, 5 = not authorized, …). On jette la
+ * stack : sur un échec d'auth récurrent, mqtt.js relance toutes les 5 s et la
+ * stack (toujours les mêmes frames internes de la lib) ne fait qu'inonder les
+ * logs sans rien apporter.
+ */
+export function summarizeMqttError(err: unknown): { msg: string; code?: number } {
+  if (err && typeof err === 'object') {
+    const e = err as { message?: unknown; code?: unknown }
+    const msg = typeof e.message === 'string' ? e.message : String(err)
+    return typeof e.code === 'number' ? { msg, code: e.code } : { msg }
+  }
+  return { msg: String(err) }
+}
+
+/**
+ * Gate anti-spam pour les erreurs de (re)connexion répétées. Sur une erreur
+ * persistante (ex. mauvaise creds), mqtt.js émet `error`+`close` toutes les
+ * 5 s indéfiniment. On ne logge que la 1ʳᵉ occurrence d'une signature donnée,
+ * puis une fois toutes les `everyN` (≈ 1×/min à 5 s de reconnect), tout en
+ * laissant le client se reconnecter (auto-guérison si la cause disparaît, ex.
+ * creds corrigée + restart). `reset()` (appelé sur `connect`) renvoie le
+ * nombre d'occurrences accumulées, pour tracer une éventuelle reprise.
+ */
+export function createReconnectLogGate(everyN = 12): {
+  shouldLog(signature: string): { log: boolean; occurrences: number }
+  reset(): number
+} {
+  let count = 0
+  let lastSig: string | undefined
+  return {
+    shouldLog(signature: string) {
+      if (signature !== lastSig) {
+        lastSig = signature
+        count = 1
+        return { log: true, occurrences: 1 }
+      }
+      count += 1
+      return { log: count % everyN === 0, occurrences: count }
+    },
+    reset() {
+      const acc = count
+      count = 0
+      lastSig = undefined
+      return acc
+    },
+  }
+}
+
 export const mqttSubscriberPlugin = fp(async function mqttSubscriberPlugin(app: FastifyInstance) {
   if (!shouldEnable()) {
     app.log.info('mqtt_subscriber_disabled')
@@ -109,20 +159,40 @@ export const mqttSubscriberPlugin = fp(async function mqttSubscriberPlugin(app: 
   })
   const client: MqttClient = mqtt.connect(env.MQTT_URL, options)
 
+  // Gate anti-spam : sur échec d'auth, mqtt.js relance toutes les 5 s. On
+  // logge la 1ʳᵉ erreur d'une signature donnée puis ~1×/min, pas chaque cycle.
+  const errorGate = createReconnectLogGate()
+
   client.on('connect', () => {
-    app.log.info({ url: env.MQTT_URL }, 'mqtt_subscriber_connected')
+    const priorErrors = errorGate.reset()
+    app.log.info(
+      priorErrors > 0 ? { url: env.MQTT_URL, priorErrors } : { url: env.MQTT_URL },
+      'mqtt_subscriber_connected',
+    )
     client.subscribe(TOPICS as unknown as string[], { qos: 1 }, (err, granted) => {
       if (err) {
-        app.log.error({ err }, 'mqtt_subscribe_failed')
+        app.log.error({ err: summarizeMqttError(err) }, 'mqtt_subscribe_failed')
         return
       }
       app.log.info({ granted }, 'mqtt_subscribed')
     })
   })
 
-  client.on('reconnect', () => app.log.warn('mqtt_subscriber_reconnecting'))
-  client.on('error', (err) => app.log.error({ err }, 'mqtt_subscriber_error'))
-  client.on('close', () => app.log.info('mqtt_subscriber_closed'))
+  // `reconnect`/`close` accompagnent chaque cycle d'erreur → debug pour ne pas
+  // doubler le bruit ; le signal de fond est porté par `mqtt_subscriber_error`.
+  client.on('reconnect', () => app.log.debug('mqtt_subscriber_reconnecting'))
+  client.on('close', () => app.log.debug('mqtt_subscriber_closed'))
+  client.on('error', (err) => {
+    const { msg, code } = summarizeMqttError(err)
+    const signature = code !== undefined ? `${code}:${msg}` : msg
+    const { log, occurrences } = errorGate.shouldLog(signature)
+    if (log) {
+      app.log.error(
+        code !== undefined ? { msg, code, occurrences } : { msg, occurrences },
+        'mqtt_subscriber_error',
+      )
+    }
+  })
 
   client.on('message', (topic, raw) => {
     let payload: unknown

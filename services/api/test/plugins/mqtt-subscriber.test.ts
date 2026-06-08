@@ -121,3 +121,66 @@ describe('buildMqttOptions', () => {
     expect(opts.connectTimeout).toBe(10_000)
   })
 })
+
+describe('summarizeMqttError', () => {
+  it('extrait message + code CONNACK et jette la stack', async () => {
+    const { summarizeMqttError } = await import('../../src/plugins/mqtt-subscriber.js')
+    // Forme d'une ErrorWithReasonCode émise par mqtt.js sur auth KO.
+    const err = Object.assign(
+      new Error('Connection refused: Bad username or password'),
+      { code: 4 },
+    )
+    expect(summarizeMqttError(err)).toEqual({
+      msg: 'Connection refused: Bad username or password',
+      code: 4,
+    })
+  })
+
+  it('omet code quand il n\'est pas numérique', async () => {
+    const { summarizeMqttError } = await import('../../src/plugins/mqtt-subscriber.js')
+    expect(summarizeMqttError(new Error('boom'))).toEqual({ msg: 'boom' })
+  })
+
+  it('gère une erreur non-objet', async () => {
+    const { summarizeMqttError } = await import('../../src/plugins/mqtt-subscriber.js')
+    expect(summarizeMqttError('socket hang up')).toEqual({ msg: 'socket hang up' })
+  })
+})
+
+describe('createReconnectLogGate', () => {
+  it('logge la 1ʳᵉ occurrence puis 1 fois sur everyN pour une même signature', async () => {
+    const { createReconnectLogGate } = await import('../../src/plugins/mqtt-subscriber.js')
+    const gate = createReconnectLogGate(12)
+    const sig = '4:Bad username or password'
+
+    // 1ʳᵉ = loggée (occurrence 1)
+    expect(gate.shouldLog(sig)).toEqual({ log: true, occurrences: 1 })
+    // occurrences 2..11 = silencieuses
+    for (let i = 2; i <= 11; i++) {
+      expect(gate.shouldLog(sig)).toEqual({ log: false, occurrences: i })
+    }
+    // occurrence 12 = re-loggée
+    expect(gate.shouldLog(sig)).toEqual({ log: true, occurrences: 12 })
+    expect(gate.shouldLog(sig)).toEqual({ log: false, occurrences: 13 })
+  })
+
+  it('relogge immédiatement quand la signature change', async () => {
+    const { createReconnectLogGate } = await import('../../src/plugins/mqtt-subscriber.js')
+    const gate = createReconnectLogGate(12)
+    expect(gate.shouldLog('4:bad creds').log).toBe(true)
+    expect(gate.shouldLog('4:bad creds').log).toBe(false)
+    // nouvelle cause → on relogge tout de suite
+    expect(gate.shouldLog('5:not authorized')).toEqual({ log: true, occurrences: 1 })
+  })
+
+  it('reset() renvoie le compteur accumulé et réarme la gate', async () => {
+    const { createReconnectLogGate } = await import('../../src/plugins/mqtt-subscriber.js')
+    const gate = createReconnectLogGate(12)
+    gate.shouldLog('x')
+    gate.shouldLog('x')
+    gate.shouldLog('x')
+    expect(gate.reset()).toBe(3)
+    // après reset, la signature 'x' est re-loggée comme une 1ʳᵉ occurrence
+    expect(gate.shouldLog('x')).toEqual({ log: true, occurrences: 1 })
+  })
+})
