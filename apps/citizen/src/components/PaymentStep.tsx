@@ -183,6 +183,14 @@ function StripePanel({
     setError(null)
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
+      // `return_url` est obligatoire pour les moyens à redirection (PayPal,
+      // Klarna…). Avec `redirect: 'if_required'`, la carte reste inline (pas de
+      // redirection, return_url ignoré) ; PayPal/Klarna redirigent ici puis
+      // reviennent sur l'écran de réservation, qui poll `/reservations/active`
+      // et affiche le QR une fois la résa passée `scheduled` via le webhook.
+      confirmParams: {
+        return_url: `${window.location.origin}${window.location.pathname}`,
+      },
       redirect: 'if_required',
     })
     if (stripeError) {
