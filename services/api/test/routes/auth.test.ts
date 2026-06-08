@@ -18,11 +18,16 @@ import { fileURLToPath } from 'node:url'
 import type { FastifyInstance } from 'fastify'
 
 /**
- * Mock firebase-admin : auth().verifyIdToken est une vi.fn() qu'on configure
- * par test. initializeApp et credential.cert sont des no-ops.
+ * Mock firebase-admin : auth() expose verifyIdToken (register) + les
+ * générateurs de liens (password-reset / signin-link), tous des vi.fn()
+ * configurés par test. initializeApp et credential.cert sont des no-ops.
  */
 vi.mock('firebase-admin', () => {
-  const auth = { verifyIdToken: vi.fn() }
+  const auth = {
+    verifyIdToken: vi.fn(),
+    generatePasswordResetLink: vi.fn(),
+    generateSignInWithEmailLink: vi.fn(),
+  }
   return {
     default: {
       apps: [],
@@ -32,6 +37,17 @@ vi.mock('firebase-admin', () => {
     },
   }
 })
+
+/**
+ * Mock de l'envoi d'e-mail : `isEmailConfigured` et `sendEmail` pilotés par
+ * test pour couvrir les branches "Resend absent", happy path (lien généré +
+ * e-mail envoyé) et échec d'envoi des routes password-reset / signin-link,
+ * sans dépendre de RESEND_API_KEY ni faire de vrai POST HTTP.
+ */
+vi.mock('../../src/lib/email.js', () => ({
+  isEmailConfigured: vi.fn(() => true),
+  sendEmail: vi.fn(async () => undefined),
+}))
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(HERE, '..', '..', '..', '..')
@@ -121,6 +137,14 @@ beforeEach(async () => {
   // Reset le mock firebase-admin entre tests (chaque test contrôle son verdict).
   const admin = (await import('firebase-admin')).default
   ;(admin.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockReset()
+  ;(admin.auth().generatePasswordResetLink as ReturnType<typeof vi.fn>).mockReset()
+  ;(admin.auth().generateSignInWithEmailLink as ReturnType<typeof vi.fn>).mockReset()
+
+  // Reset le mock email : défaut = configuré + envoi qui réussit. Chaque test
+  // peut surcharger (isEmailConfigured → false, sendEmail → reject…).
+  const email = await import('../../src/lib/email.js')
+  ;(email.isEmailConfigured as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(true)
+  ;(email.sendEmail as ReturnType<typeof vi.fn>).mockReset().mockResolvedValue(undefined)
 })
 
 describe('POST /v1/auth/register — vérification Firebase sécurisée', () => {
@@ -343,6 +367,176 @@ describe('POST /v1/auth/register — validation Zod', () => {
       method: 'POST',
       url: '/v1/auth/register',
       payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+  })
+})
+
+// Helpers d'accès aux mocks (firebase-admin + email) côté test.
+async function firebaseAuthMock(): Promise<{
+  generatePasswordResetLink: ReturnType<typeof vi.fn>
+  generateSignInWithEmailLink: ReturnType<typeof vi.fn>
+}> {
+  const auth = (await import('firebase-admin')).default.auth()
+  return auth as unknown as {
+    generatePasswordResetLink: ReturnType<typeof vi.fn>
+    generateSignInWithEmailLink: ReturnType<typeof vi.fn>
+  }
+}
+async function emailMock(): Promise<{
+  isEmailConfigured: ReturnType<typeof vi.fn>
+  sendEmail: ReturnType<typeof vi.fn>
+}> {
+  const m = await import('../../src/lib/email.js')
+  return {
+    isEmailConfigured: m.isEmailConfigured as ReturnType<typeof vi.fn>,
+    sendEmail: m.sendEmail as ReturnType<typeof vi.fn>,
+  }
+}
+
+const RESET_LINK = 'https://sportlocker-test.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=xyz'
+const SIGNIN_LINK = 'https://sportlocker-test.firebaseapp.com/__/auth/action?mode=signIn&oobCode=abc'
+
+describe('POST /v1/auth/password-reset', () => {
+  it('génère le lien + envoie l\'e-mail FR quand Firebase et Resend sont configurés', async () => {
+    const auth = await firebaseAuthMock()
+    auth.generatePasswordResetLink.mockResolvedValueOnce(RESET_LINK)
+    const { sendEmail } = await emailMock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password-reset',
+      payload: { email: 'User@Test.local' },  // casse + espaces normalisés
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    // L'e-mail est normalisé (trim + lowercase) avant l'appel Firebase.
+    expect(auth.generatePasswordResetLink).toHaveBeenCalledWith('user@test.local')
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(sendEmail.mock.calls[0]![0].to).toBe('user@test.local')
+  })
+
+  it('réponse neutre 200 sans rien envoyer si Resend n\'est pas configuré', async () => {
+    const { isEmailConfigured, sendEmail } = await emailMock()
+    isEmailConfigured.mockReturnValue(false)
+    const auth = await firebaseAuthMock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password-reset',
+      payload: { email: 'user@test.local' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    expect(auth.generatePasswordResetLink).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('compte inexistant (auth/user-not-found) → 200 neutre, aucun e-mail (anti-énumération)', async () => {
+    const auth = await firebaseAuthMock()
+    auth.generatePasswordResetLink.mockRejectedValueOnce(
+      Object.assign(new Error('no user'), { code: 'auth/user-not-found' }),
+    )
+    const { sendEmail } = await emailMock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password-reset',
+      payload: { email: 'ghost@test.local' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('défaillance d\'envoi (Resend down) → 200 neutre malgré l\'erreur', async () => {
+    const auth = await firebaseAuthMock()
+    auth.generatePasswordResetLink.mockResolvedValueOnce(RESET_LINK)
+    const { sendEmail } = await emailMock()
+    sendEmail.mockRejectedValueOnce(new Error('resend 500'))
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password-reset',
+      payload: { email: 'user@test.local' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+  })
+
+  it('400 si l\'e-mail est invalide', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password-reset',
+      payload: { email: 'pas-un-email' },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+})
+
+describe('POST /v1/auth/signin-link', () => {
+  it('génère le magic-link + envoie l\'e-mail quand tout est configuré', async () => {
+    const auth = await firebaseAuthMock()
+    auth.generateSignInWithEmailLink.mockResolvedValueOnce(SIGNIN_LINK)
+    const { sendEmail } = await emailMock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/signin-link',
+      payload: { email: 'Citizen@Test.local' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    // 1er arg = e-mail normalisé ; 2e arg = options (url de retour + handleCodeInApp).
+    expect(auth.generateSignInWithEmailLink).toHaveBeenCalledTimes(1)
+    expect(auth.generateSignInWithEmailLink.mock.calls[0]![0]).toBe('citizen@test.local')
+    expect(auth.generateSignInWithEmailLink.mock.calls[0]![1]).toMatchObject({ handleCodeInApp: true })
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('réponse neutre 200 sans rien envoyer si Resend n\'est pas configuré', async () => {
+    const { isEmailConfigured, sendEmail } = await emailMock()
+    isEmailConfigured.mockReturnValue(false)
+    const auth = await firebaseAuthMock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/signin-link',
+      payload: { email: 'citizen@test.local' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    expect(auth.generateSignInWithEmailLink).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('défaillance Firebase → 200 neutre, aucun e-mail', async () => {
+    const auth = await firebaseAuthMock()
+    auth.generateSignInWithEmailLink.mockRejectedValueOnce(new Error('firebase down'))
+    const { sendEmail } = await emailMock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/signin-link',
+      payload: { email: 'citizen@test.local' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('400 si l\'e-mail est invalide', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/signin-link',
+      payload: { email: 'nope' },
     })
     expect(res.statusCode).toBe(400)
   })
