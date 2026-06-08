@@ -697,11 +697,13 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
         amount: pay.amountCents,
         currency: pay.currency.toLowerCase(),
         metadata: { paymentId: pay.id, reservationId: pay.reservationId, userId },
-        // Carte uniquement : la carte embarque nativement Apple Pay & Google Pay
-        // (wallets) dans le PaymentElement. On évite ainsi Link / Revolut /
-        // UnionPay qui polluaient l'UI citoyenne (vs automatic_payment_methods
-        // qui exposait tous les moyens activés sur le compte Stripe).
-        payment_method_types: ['card'],
+        // Affiche les moyens de paiement populaires activés sur le compte Stripe
+        // (carte + Apple/Google Pay + Link + PayPal), ordonnés et filtrés par
+        // Stripe selon l'appareil/montant. La curation (activer PayPal,
+        // désactiver Revolut/UnionPay/etc.) se fait dans le dashboard Stripe.
+        // Robuste : un moyen non activé sur le compte est simplement masqué,
+        // sans faire échouer la création du PaymentIntent.
+        automatic_payment_methods: { enabled: true },
       }, { idempotencyKey: `pay_${pay.id}` })
       clientSecret = pi.client_secret
       await db
