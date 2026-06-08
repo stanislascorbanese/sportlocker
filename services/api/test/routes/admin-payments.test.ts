@@ -313,4 +313,56 @@ describe('GET /v1/admin/payments', () => {
     expect(res.statusCode).toBe(400)
     expect(res.json().error).toBe('invalid_cursor')
   })
+
+  it('pagine via cursor opaque (limit=1) jusqu\'à épuisement', async () => {
+    const a = await seedTenant()
+    const b = await seedTenant()
+    await createSlot(a)
+    await createSlot(b)
+
+    // Page 1 : 1 item + cursor vers la suite.
+    const page1 = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/payments?limit=1',
+      headers: { authorization: superAdminHeader() },
+    })
+    expect(page1.statusCode).toBe(200)
+    const b1 = page1.json()
+    expect(b1.items).toHaveLength(1)
+    expect(b1.nextCursor).not.toBeNull()
+
+    // Page 2 : le second paiement, puis plus de cursor.
+    const page2 = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/payments?limit=1&cursor=${encodeURIComponent(b1.nextCursor)}`,
+      headers: { authorization: superAdminHeader() },
+    })
+    expect(page2.statusCode).toBe(200)
+    const b2 = page2.json()
+    expect(b2.items).toHaveLength(1)
+    expect(b2.items[0].id).not.toBe(b1.items[0].id)  // paiement distinct
+    expect(b2.nextCursor).toBeNull()
+  })
+
+  it('400 sur cursor avec timestamp invalide', async () => {
+    const bad = encodeURIComponent('pas-une-date_550e8400-e29b-41d4-a716-446655440000')
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/payments?cursor=${bad}`,
+      headers: { authorization: superAdminHeader() },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('invalid_cursor')
+  })
+
+  it('400 sur cursor avec uuid invalide', async () => {
+    const bad = encodeURIComponent('2026-01-01T00:00:00.000Z_pas-un-uuid')
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/payments?cursor=${bad}`,
+      headers: { authorization: superAdminHeader() },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('invalid_cursor')
+  })
 })
