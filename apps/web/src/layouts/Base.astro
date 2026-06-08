@@ -84,10 +84,18 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
 
-    <!-- v2 = bump du 22/05/2026 pour buster le cache Safari (24h max-age) après recolorisation bleu→vert -->
-    <link rel="icon" type="image/png" href="/favicon.png?v=2" />
-    <link rel="shortcut icon" type="image/png" href="/favicon.png?v=2" />
-    <link rel="apple-touch-icon" href="/favicon.png?v=2" />
+    <!--
+      Cache-bust favicon : on change le BASENAME du fichier (favicon → favicon-v3),
+      pas un query string `?v=`. Safari indexe les favicons par l'URL de la PAGE,
+      pas par celle de l'icône, donc un `?v=2` ne suffit pas à le forcer à re-fetch
+      (cf. apps/citizen/src/app/layout.tsx, même technique éprouvée sur app/ops).
+      Le `?v=2` historique du 22/05 (recolorisation bleu→vert) laissait Safari sur
+      l'ancien logo bleu. v3 (08/06) = tailles propres + basename neuf.
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-v3.png" />
+    <link rel="shortcut icon" type="image/png" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#0D1B2A" />
 
     <script
