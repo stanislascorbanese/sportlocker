@@ -6,6 +6,7 @@ import {
   Distributor,
   DistributorDetail,
   DistributorLocker,
+  DistributorStatus,
   LockerItemType,
 } from '@sportlocker/types'
 
@@ -127,7 +128,7 @@ export type DistributorCreateInput = z.infer<typeof DistributorCreateInput>
 
 export const DistributorUpdateInput = z.object({
   name:        z.string().min(1).max(120).optional(),
-  status:      z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
+  status:      DistributorStatus.optional(),
   latitude:    z.number().min(-90).max(90).nullable().optional(),
   longitude:   z.number().min(-180).max(180).nullable().optional(),
   addressLine: z.string().max(200).nullable().optional(),
@@ -717,7 +718,7 @@ export const DistributorHealth = z.object({
     id: z.string().uuid(),
     name: z.string(),
     serialNumber: z.string(),
-    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    status: DistributorStatus,
     firmwareVersion: z.string().nullable(),
     lastSeenAt: z.string().datetime().nullable(),
   }),
@@ -778,7 +779,7 @@ export const FleetHealthRow = z.object({
     id: z.string().uuid(),
     name: z.string(),
     serialNumber: z.string(),
-    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    status: DistributorStatus,
     communeName: z.string().nullable(),
     firmwareVersion: z.string().nullable(),
     lastSeenAt: z.string().datetime().nullable(),
