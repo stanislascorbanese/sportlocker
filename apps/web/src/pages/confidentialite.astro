@@ -14,12 +14,31 @@ import { SITE } from '@/data/site'
       <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Politique de confidentialité</h1>
 
       <div class="text-white/70 font-light leading-relaxed space-y-7">
-        <p class="text-white/55 italic">Dernière mise à jour : mai 2026 — version 2.</p>
+        <p class="text-white/55 italic">Dernière mise à jour : juin 2026 — version 3.</p>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">1. Responsable de traitement</h2>
+          <h2 class="text-white font-bold text-lg mb-2">1. Responsable(s) de traitement</h2>
           <p>
-            {SITE.legalName}, responsable du traitement au sens du RGPD (Règlement UE 2016/679).<br/>
+            {SITE.legalName} (« SportLocker ») détermine les finalités et les moyens des traitements
+            décrits ci-dessous, au sens du RGPD (Règlement UE 2016/679). Selon le traitement concerné,
+            SportLocker agit :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li>
+              en tant que <strong class="text-white/85">responsable de traitement</strong> (seul) pour les
+              données du site vitrine (demandes de devis B2B), des comptes administrateurs du dashboard
+              opérateur et des logs techniques ;
+            </li>
+            <li>
+              en tant que <strong class="text-white/85">responsable de traitement conjoint</strong>
+              (art. 26 RGPD), avec l'opérateur — mairie, camping ou hôtel, le « tenant » — sur le site duquel
+              le distributeur est installé, pour les données des citoyens liées à l'usage du service
+              (réservation, prêt, suivi du parc), conformément à l'article 10 des CGV opérateurs.
+            </li>
+          </ul>
+          <p class="mt-3">
+            La répartition des obligations entre SportLocker et le tenant peut être formalisée par un
+            accord de traitement conjoint (DPA) sur demande.<br/>
             Contact DPO / délégué : <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a><br/>
             <span class="text-white/60 text-sm">(à compléter : SIRET, adresse postale du siège social, une fois la société immatriculée.)</span>
           </p>
