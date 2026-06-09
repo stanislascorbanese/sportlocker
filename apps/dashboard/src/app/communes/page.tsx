@@ -118,7 +118,72 @@ export default async function CommunesPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-card border bg-white shadow-card dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
+      {/* Mobile : carte par commune (table 960px min, scroll H pénible) */}
+      <div className="space-y-3 md:hidden">
+        {communes.map((co) => {
+          const cs = contractStatus(co)
+          const body = (
+            <>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-navy-900 dark:text-white">{co.name}</div>
+                  <div className="mt-0.5 font-mono text-meta text-gray-500 dark:text-white/40">
+                    INSEE {co.inseeCode} · CP {co.postalCode}
+                  </div>
+                </div>
+                <span className={cn(
+                  'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                  CONTRACT_STYLE[cs],
+                )}>
+                  {contractLabels[cs]}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-meta">
+                <div className="rounded-lg bg-gray-50 px-2 py-1.5 dark:bg-white/[0.03]">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    {t.colFeeMonthly}
+                  </div>
+                  <div className="mt-0.5 font-display text-sm tabular-nums text-emerald-700 dark:text-emerald-300">
+                    {fmtEuros(lang, co.monthlyFeeCents)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-2 py-1.5 dark:bg-white/[0.03]">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    {t.colDistributors}
+                  </div>
+                  <div className="mt-0.5 font-display text-sm tabular-nums">
+                    <span className={co.distributorCount === 0 ? 'text-gray-400 dark:text-white/30' : 'text-navy-900 dark:text-white'}>
+                      {co.distributorCount}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 border-t border-gray-200 pt-2 text-meta text-gray-600 dark:border-white/10 dark:text-white/60">
+                <div>{co.region} · {t.department} {co.department}</div>
+                {co.contactEmail && (
+                  <div className="mt-0.5 truncate text-gray-500 dark:text-white/40">{co.contactEmail}</div>
+                )}
+              </div>
+            </>
+          )
+          return useDemo ? (
+            <div key={co.id} className="rounded-card border border-gray-200 bg-white p-4 shadow-card dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
+              {body}
+            </div>
+          ) : (
+            <Link
+              key={co.id}
+              href={`/communes/${co.id}/edit`}
+              className="block rounded-card border border-gray-200 bg-white p-4 shadow-card transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:shadow-none dark:hover:border-white/20"
+            >
+              {body}
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* Desktop : tableau dense */}
+      <div className="hidden overflow-x-auto rounded-card border bg-white shadow-card md:block dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
         <table className="w-full min-w-[960px] text-sm">
           <thead className="bg-gray-50 text-left text-eyebrow text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
             <tr>
