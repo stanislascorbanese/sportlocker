@@ -1,7 +1,5 @@
 'use client'
 
-import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { ShieldOff, ShieldCheck, Trash2, Undo2 } from 'lucide-react'
 
 import type { AdminUser, UserRole } from '../../lib/api'
@@ -9,13 +7,7 @@ import { cn } from '../../lib/cn'
 import type { Lang } from '../../lib/lang'
 import { fmtRelative } from '../../lib/i18n/common'
 import { usersStrings } from '../../lib/i18n/users'
-import {
-  banUserAction,
-  cancelGdprDeleteAction,
-  requestGdprDeleteAction,
-  setRoleAction,
-  unbanUserAction,
-} from './_actions'
+import { useUserActions } from './useUserActions'
 
 const ROLE_STYLE: Record<UserRole, string> = {
   citizen:
@@ -44,81 +36,7 @@ export function UserRow({
   lang: Lang
 }) {
   const t = usersStrings(lang)
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-
-  const guard = () => {
-    if (demo) {
-      alert(t.demoBlocker)
-      return false
-    }
-    return true
-  }
-
-  const ban = () => {
-    if (!guard()) return
-    const reason = window.prompt(t.promptBanReason, '')
-    if (!reason) return
-    startTransition(() => {
-      void (async () => {
-        const r = await banUserAction(user.id, reason)
-        if (!r.ok) alert(r.error)
-        else router.refresh()
-      })()
-    })
-  }
-
-  const unban = () => {
-    if (!guard()) return
-    if (!window.confirm(t.confirmUnban.replace('%s', user.email))) return
-    startTransition(() => {
-      void (async () => {
-        const r = await unbanUserAction(user.id)
-        if (!r.ok) alert(r.error)
-        else router.refresh()
-      })()
-    })
-  }
-
-  const setRole = (role: UserRole) => {
-    if (!guard()) return
-    if (role === user.role) return
-    if (!window.confirm(
-      t.confirmRole.replace('%s', user.email).replace('%r', role),
-    )) return
-    startTransition(() => {
-      void (async () => {
-        const r = await setRoleAction(user.id, role)
-        if (!r.ok) alert(r.error)
-        else router.refresh()
-      })()
-    })
-  }
-
-  const requestGdpr = () => {
-    if (!guard()) return
-    if (!window.confirm(t.confirmGdprRequest.replace('%s', user.email))) return
-    startTransition(() => {
-      void (async () => {
-        const r = await requestGdprDeleteAction(user.id)
-        if (!r.ok) alert(r.error)
-        else router.refresh()
-      })()
-    })
-  }
-
-  const cancelGdpr = () => {
-    if (!guard()) return
-    if (!window.confirm(t.confirmCancelGdpr.replace('%s', user.email))) return
-    startTransition(() => {
-      void (async () => {
-        const r = await cancelGdprDeleteAction(user.id)
-        if (!r.ok) alert(r.error)
-        else router.refresh()
-      })()
-    })
-  }
-
+  const { isPending, ban, unban, setRole, requestGdpr, cancelGdpr } = useUserActions(user, demo, lang)
   const hasGdprRequest = user.gdprDeleteRequestedAt !== null
 
   return (

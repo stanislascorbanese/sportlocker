@@ -7,6 +7,7 @@ import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { usersStrings, userRoleLabel } from '../../lib/i18n/users'
 import { makeMetadata } from '../../lib/i18n/metadata'
+import { UserCard } from './UserCard'
 import { UserRow } from './UserRow'
 
 export const dynamic = 'force-dynamic'
@@ -168,7 +169,14 @@ export default async function UsersPage({
           {t.emptyForFilters}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-card border bg-white shadow-card dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
+        <>
+        {/* Mobile : cards (table min-w-[860px] H scroll pénible en astreinte) */}
+        <div className="space-y-3 md:hidden">
+          {users.map((u) => <UserCard key={u.id} user={u} demo={useDemo} lang={lang} />)}
+        </div>
+
+        {/* Desktop : tableau dense classique */}
+        <div className="hidden overflow-x-auto rounded-card border bg-white shadow-card md:block dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-gray-50 text-left text-eyebrow text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
@@ -186,6 +194,7 @@ export default async function UsersPage({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
