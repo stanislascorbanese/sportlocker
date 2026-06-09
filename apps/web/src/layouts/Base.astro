@@ -41,7 +41,7 @@ const orgJsonLd = {
   url: SITE.url,
   email: SITE.email,
   description: SITE.description,
-  logo: new URL('/favicon.png', SITE.url).toString(),
+  logo: new URL('/favicon-v4.png', SITE.url).toString(),
   image: new URL(SITE.defaultOgImage, SITE.url).toString(),
   areaServed: {
     '@type': 'Country',
@@ -96,11 +96,18 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
       (cf. apps/citizen/src/app/layout.tsx, même technique éprouvée sur app/ops).
       Le `?v=2` historique du 22/05 (recolorisation bleu→vert) laissait Safari sur
       l'ancien logo bleu. v3 (08/06) = tailles propres + basename neuf.
+      v4 (09/06) : v3 n'affichait que la porte verte (le "S" et le ballon étaient
+      un tracé blanc fantôme, invisible sur fond blanc → tuile écran d'accueil et
+      ligne de résultat Google amputées de la moitié du logo). v4 part des assets
+      de marque pleins : favicons = `logo-mark.png` (marque SL complète, fond
+      transparent, lisible en petit + s'adapte clair/sombre), apple-touch =
+      `logo-icon-filled.png` (tuile vert foncé pleine, idéale écran d'accueil iOS).
     -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-v3.png" />
-    <link rel="shortcut icon" type="image/png" href="/favicon-32.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32-v4.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192-v4.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-v4.png" />
+    <link rel="shortcut icon" type="image/png" href="/favicon-32-v4.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v4.png" />
     <meta name="theme-color" content="#0D1B2A" />
 
     <script
