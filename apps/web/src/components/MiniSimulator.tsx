@@ -89,7 +89,7 @@ export default function MiniSimulator(): JSX.Element {
             className="w-full accent-brand-500"
             aria-label={`Nombre d'${sizing.unit}`}
           />
-          <div className="flex justify-between text-[0.7rem] text-white/30 mt-1">
+          <div className="flex justify-between text-[0.7rem] text-white/60 mt-1">
             <span>{formatInt(sizing.minSize)}</span>
             <span>{formatInt(sizing.maxSize)}</span>
           </div>
