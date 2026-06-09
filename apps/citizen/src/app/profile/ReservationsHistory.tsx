@@ -28,13 +28,14 @@ const VISIBLE_BY_DEFAULT = 5
 type StatusMeta = { tone: BadgeTone; live: boolean; labelKey: MessageKey }
 
 const STATUS_META: Record<ReservationHistoryItem['status'], StatusMeta> = {
-  scheduled: { tone: 'info',    live: true,  labelKey: 'reservation.status_long.scheduled' },
-  pending:   { tone: 'warning', live: true,  labelKey: 'reservation.status_long.pending' },
-  active:    { tone: 'success', live: true,  labelKey: 'reservation.status_long.active' },
-  overdue:   { tone: 'danger',  live: true,  labelKey: 'reservation.status_long.overdue' },
-  returned:  { tone: 'neutral', live: false, labelKey: 'reservation.status_long.returned' },
-  cancelled: { tone: 'neutral', live: false, labelKey: 'reservation.status_long.cancelled' },
-  expired:   { tone: 'neutral', live: false, labelKey: 'reservation.status_long.expired' },
+  pending_payment: { tone: 'warning', live: true,  labelKey: 'reservation.status_long.pending_payment' },
+  scheduled:       { tone: 'info',    live: true,  labelKey: 'reservation.status_long.scheduled' },
+  pending:         { tone: 'warning', live: true,  labelKey: 'reservation.status_long.pending' },
+  active:          { tone: 'success', live: true,  labelKey: 'reservation.status_long.active' },
+  overdue:         { tone: 'danger',  live: true,  labelKey: 'reservation.status_long.overdue' },
+  returned:        { tone: 'neutral', live: false, labelKey: 'reservation.status_long.returned' },
+  cancelled:       { tone: 'neutral', live: false, labelKey: 'reservation.status_long.cancelled' },
+  expired:         { tone: 'neutral', live: false, labelKey: 'reservation.status_long.expired' },
 }
 
 export function ReservationsHistory() {

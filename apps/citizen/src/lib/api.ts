@@ -8,6 +8,10 @@ import {
   DistributorLocker,
   LockerItemType,
   NearbyDistributor,
+  PaymentProvider,
+  PaymentStatus,
+  ReservationStatus,
+  UserRole,
 } from '@sportlocker/types'
 
 import { getFirebaseAuth } from './firebase'
@@ -19,7 +23,7 @@ export type LockerDetail = DistributorLocker
 
 export const ReservationActive = z.object({
   id: z.string().uuid(),
-  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: ReservationStatus,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable().optional(),
@@ -113,8 +117,8 @@ export const PaymentSummary = z.object({
   id: z.string().uuid(),
   amountCents: z.number().int().nonnegative(),
   currency: z.string(),
-  provider: z.enum(['stripe', 'simulate']),
-  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  provider: PaymentProvider,
+  status: PaymentStatus,
 })
 export type PaymentSummary = z.infer<typeof PaymentSummary>
 
@@ -138,8 +142,8 @@ export type SlotReservationCreated = z.infer<typeof SlotReservationCreated>
 
 export const PaymentIntent = z.object({
   paymentId: z.string().uuid(),
-  provider: z.enum(['stripe', 'simulate']),
-  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  provider: PaymentProvider,
+  status: PaymentStatus,
   clientSecret: z.string().nullable(),
 })
 export type PaymentIntent = z.infer<typeof PaymentIntent>
@@ -307,7 +311,7 @@ export async function registerCurrentUser(idToken?: string): Promise<void> {
       id: z.string().uuid(),
       email: z.string().email(),
       displayName: z.string().nullable(),
-      role: z.enum(['citizen', 'operator', 'admin', 'super_admin']),
+      role: UserRole,
     }).passthrough(),
   })
 
@@ -358,7 +362,7 @@ export async function sendSignInLink(email: string): Promise<void> {
  */
 export const ReservationCreated = z.object({
   id: z.string().uuid(),
-  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: ReservationStatus,
   lockerId: z.string().uuid(),
   itemId: z.string().uuid(),
   distributorId: z.string().uuid(),
@@ -398,7 +402,7 @@ export async function createReservation(input: {
  */
 export const ReservationHistoryItem = z.object({
   id: z.string().uuid(),
-  status: z.enum(['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: ReservationStatus,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable(),
@@ -485,8 +489,8 @@ export async function createPaymentIntent(reservationId: string): Promise<Paymen
 }
 
 export const SimulatedConfirm = z.object({
-  paymentStatus: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
-  reservationStatus: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  paymentStatus: PaymentStatus,
+  reservationStatus: ReservationStatus,
 })
 export type SimulatedConfirm = z.infer<typeof SimulatedConfirm>
 
@@ -503,7 +507,7 @@ export async function confirmSimulatedPayment(reservationId: string): Promise<Si
 
 // ─── Porte-monnaie prépayé (carnet/pass — Phase 1) ─────────────────────────
 
-const PaymentStatusEnum = z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded'])
+const PaymentStatusEnum = PaymentStatus
 
 export const Wallet = z.object({
   balanceCents: z.number().int(),
@@ -526,7 +530,7 @@ export type Wallet = z.infer<typeof Wallet>
 
 export const TopupIntent = z.object({
   topupId: z.string().uuid(),
-  provider: z.enum(['stripe', 'simulate']),
+  provider: PaymentProvider,
   status: PaymentStatusEnum,
   clientSecret: z.string().nullable(),
 })

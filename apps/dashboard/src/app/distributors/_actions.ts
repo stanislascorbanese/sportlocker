@@ -4,6 +4,8 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
+import { DistributorStatus } from '@sportlocker/types'
+
 import {
   ApiError,
   DistributorCreateInput,
@@ -44,7 +46,7 @@ const CreateForm = z.object({
 
 const UpdateForm = z.object({
   name:        z.string().trim().min(1).max(120),
-  status:      z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+  status:      DistributorStatus,
   latitude:    optionalNumber.pipe(z.number().min(-90).max(90).optional()),
   longitude:   optionalNumber.pipe(z.number().min(-180).max(180).optional()),
   addressLine: optionalString(200),
