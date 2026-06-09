@@ -3,17 +3,17 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { and, desc, eq, gte, lt, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { ReservationStatus } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import {
   distributors, itemTypes, items, lockerEvents, lockers, reservations, users,
 } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 
-const RESERVATION_STATUS = ['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
-
 const ReservationAdminDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(RESERVATION_STATUS),
+  status: ReservationStatus,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   openedAt: z.string().datetime().nullable(),
@@ -59,7 +59,7 @@ const ReservationDetailDTO = ReservationAdminDTO.extend({
 const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected_yyyy_mm_dd')
 
 const ListQuery = z.object({
-  status: z.enum(RESERVATION_STATUS).optional(),
+  status: ReservationStatus.optional(),
   distributorId: z.string().uuid().optional(),
   /** Borne basse inclusive : created_at >= from 00:00:00 UTC */
   from: DateOnly.optional(),
@@ -89,7 +89,7 @@ function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
 }
 
 const ExportQuery = z.object({
-  status:        z.enum(RESERVATION_STATUS).optional(),
+  status:        ReservationStatus.optional(),
   distributorId: z.string().uuid().optional(),
   from:          DateOnly.optional(),
   to:            DateOnly.optional(),

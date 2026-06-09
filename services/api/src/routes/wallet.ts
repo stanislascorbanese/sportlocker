@@ -3,6 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { PaymentProvider, PaymentStatus } from '@sportlocker/types'
+
 import { env } from '../config/env.js'
 import { db } from '../db/client.js'
 import { payments, walletTopups } from '../db/schema.js'
@@ -28,7 +30,7 @@ const ErrorDTO = z.object({ error: z.string() })
 const TopupLite = z.object({
   id: z.string().uuid(),
   amountCents: z.number().int(),
-  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  status: PaymentStatus,
   provider: z.string(),
   createdAt: z.string().datetime(),
   paidAt: z.string().datetime().nullable(),
@@ -49,15 +51,15 @@ const WalletDTO = z.object({
 
 const TopupResponseDTO = z.object({
   topupId: z.string().uuid(),
-  provider: z.enum(['stripe', 'simulate']),
-  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  provider: PaymentProvider,
+  status: PaymentStatus,
   clientSecret: z.string().nullable()
     .describe('Secret du PaymentIntent à passer à Stripe.js. null en mode simulate '
       + '(le client enchaîne sur POST /topup/:id/confirm-simulated).'),
 })
 
 const SimulatedConfirmDTO = z.object({
-  topupStatus: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  topupStatus: PaymentStatus,
   balanceCents: z.number().int(),
 })
 
