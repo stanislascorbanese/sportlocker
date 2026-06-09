@@ -331,7 +331,53 @@ export default async function ReservationsPage({
       )}
 
       {items.length > 0 && (
-        <div className="overflow-x-auto rounded-card border border-gray-200 bg-white dark:border-white/10 dark:bg-navy-800">
+        <>
+        {/* Mobile : carte par réservation. La table dense (860px min) cachée
+            < md — scroll horizontal pénible en astreinte mobile. */}
+        <div className="space-y-3 md:hidden">
+          {items.map((r) => (
+            <Link
+              key={r.id}
+              href={buildHref(params, { detail: r.id })}
+              scroll={false}
+              className={cn(
+                'block rounded-card border bg-white p-4 shadow-card transition-colors',
+                r.id === detailId
+                  ? 'border-emerald-400 bg-emerald-50/40 dark:border-emerald-500/40 dark:bg-emerald-500/[0.06]'
+                  : 'border-gray-200 hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:shadow-none dark:hover:border-white/20',
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-navy-900 dark:text-white">{fmtUser(r)}</div>
+                  <div className="mt-0.5 truncate text-meta text-gray-500 dark:text-white/40">
+                    {r.distributor.name} · {r.item.typeName}
+                  </div>
+                </div>
+                <StatusBadge status={r.status} label={reservationStatusLabel(lang, r.status)} />
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 text-meta dark:border-white/10">
+                <span className="text-gray-500 dark:text-white/40">
+                  {t.colCreatedAt} · {fmtDateTime(lang, r.createdAt)}
+                </span>
+                <span className="text-gray-500 dark:text-white/40">
+                  {r.status === 'pending' ? t.drawerExpiresQr : t.colDueAt}
+                  {' · '}
+                  {r.status === 'pending' ? fmtDateTime(lang, r.expiresAt) : fmtDateTime(lang, r.dueAt)}
+                </span>
+                {r.extensionCount > 0 && (
+                  <span className="font-mono tabular-nums text-amber-700 dark:text-amber-300">
+                    {t.colExtensions} ×{r.extensionCount}
+                  </span>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Desktop : tableau dense classique */}
+        <div className="hidden overflow-x-auto rounded-card border border-gray-200 bg-white md:block dark:border-white/10 dark:bg-navy-800">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="text-left text-eyebrow uppercase bg-gray-100 text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
@@ -383,6 +429,7 @@ export default async function ReservationsPage({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {!useDemo && page?.nextCursor && (
