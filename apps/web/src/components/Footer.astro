@@ -2,6 +2,7 @@
 import { Image } from 'astro:assets'
 import logoMark from '@/assets/brand/logo-mark-outline.png'
 import { SITE } from '@/data/site'
+import { COMMUNES } from '@/data/communes'
 const year = new Date().getFullYear()
 ---
 
@@ -19,6 +20,18 @@ const year = new Date().getFullYear()
           Distributeurs IoT de matériel sportif en libre-service.
           Une infrastructure clé en main pour vos sites.
         </p>
+        <div class="mt-5">
+          <div class="text-xs font-bold uppercase tracking-[0.06em] text-white/80 mb-2.5">
+            Villes desservies
+          </div>
+          <ul class="flex flex-wrap gap-x-3 gap-y-1.5 list-none">
+            {COMMUNES.map((c) => (
+              <li>
+                <a href={`/communes/${c.slug}`} class="link-quiet text-sm">{c.name}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div>

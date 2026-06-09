@@ -34,6 +34,21 @@ export const COMMUNES: Commune[] = [
       + "spontané à toute heure.",
   },
   {
+    slug: 'basse-goulaine',
+    name: 'Basse-Goulaine',
+    postalCode: '44115',
+    department: 'Loire-Atlantique',
+    departmentCode: '44',
+    intro:
+      "À Basse-Goulaine, aux portes de Nantes, SportLocker propose du matériel "
+      + "sportif en libre-service 24/7 sur les espaces publics de la commune. "
+      + "Ballons et équipements s'empruntent en 30 secondes via QR code, sans "
+      + "guichet ni horaires.",
+    context:
+      "Bords de Loire, complexes sportifs et écoles : un accès au matériel de sport "
+      + "sans contrainte, au cœur du vignoble nantais.",
+  },
+  {
     slug: 'la-roche-sur-yon',
     name: 'La Roche-sur-Yon',
     postalCode: '85000',

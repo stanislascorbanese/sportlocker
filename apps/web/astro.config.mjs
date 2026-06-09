@@ -6,7 +6,9 @@ import sitemap from '@astrojs/sitemap'
 // Pages exclues du sitemap : pages légales/utilitaires à faible valeur SEO.
 // On les laisse indexables (pas de noindex) mais hors sitemap, comme le faisait
 // l'ancien sitemap.xml manuel — qui dérivait à chaque ajout de page.
-const SITEMAP_EXCLUDE = ['/cgu', '/cgv', '/mentions-legales', '/confidentialite']
+// /contact est en noindex → exclu aussi (sinon présent dans le sitemap mais
+// non indexable = signal contradictoire).
+const SITEMAP_EXCLUDE = ['/cgu', '/cgv', '/mentions-legales', '/confidentialite', '/contact']
 
 export default defineConfig({
   site: 'https://sportlocker.fr',
