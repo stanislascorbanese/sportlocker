@@ -29,6 +29,7 @@ import { getFirebaseAuth } from '../lib/firebase'
 import { useLang } from '../lib/lang-client'
 import type { SessionPayload } from '../lib/session'
 import { sidebarStrings } from '../lib/sidebar-i18n'
+import { commonStrings } from '../lib/i18n/common'
 import { LanguageSelector } from './LanguageSelector'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -60,6 +61,7 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
   const router = useRouter()
   const lang = useLang()
   const t = sidebarStrings(lang)
+  const c = commonStrings(lang)
   const [loggingOut, setLoggingOut] = useState(false)
 
   const items = user?.role === 'super_admin'
@@ -80,7 +82,7 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
   return (
     <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r backdrop-blur border-gray-200 bg-white/80 dark:border-white/10 dark:bg-navy-900/80">
       <div className="px-5 py-5">
-        <Link href="/" className="flex items-center gap-2" aria-label="SportLocker — accueil">
+        <Link href="/" className="flex items-center gap-2" aria-label={c.a11ySidebarHome}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/logo-mark-outline.png" alt="" className="h-9 w-9 shrink-0" width={36} height={36} />
           <span className="font-display text-lg tracking-tight">
@@ -141,7 +143,7 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
                 ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
                 : 'border-gray-200 bg-gray-50 hover:border-emerald-300 hover:bg-emerald-50/50 dark:border-white/5 dark:bg-white/[0.02] dark:hover:border-emerald-500/20 dark:hover:bg-emerald-500/5',
             )}
-            title="Voir mon compte"
+            title={c.a11yViewAccount}
           >
             <p
               className={cn(

@@ -4,10 +4,11 @@ import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { maintenanceStrings } from '../../lib/i18n/maintenance'
+import { makeMetadata } from '../../lib/i18n/metadata'
 import { TicketCard } from './TicketCard'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Maintenance · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => maintenanceStrings(lang).metaTitle)
 
 type ColumnKey = 'open' | 'in_progress' | 'done'
 

@@ -6,11 +6,12 @@ import { DEMO_ITEM_TYPES } from '../../../../../lib/demo-data'
 import { getLang } from '../../../../../lib/lang-server'
 import { commonStrings } from '../../../../../lib/i18n/common'
 import { itemsStrings } from '../../../../../lib/i18n/items'
+import { makeMetadata } from '../../../../../lib/i18n/metadata'
 import { ItemForm } from '../../../ItemForm'
 import { fetchAllLockerOptions } from '../../_lockers'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Modifier article · SportLocker' }
+export const generateMetadata = makeMetadata((lang) => itemsStrings(lang).metaTitleEditInstance)
 
 export default async function EditItemPage({
   params,

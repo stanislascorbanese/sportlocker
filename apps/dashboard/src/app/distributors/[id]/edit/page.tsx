@@ -5,10 +5,12 @@ import { fetchDistributor } from '../../../../lib/api'
 import { getLang } from '../../../../lib/lang-server'
 import { distributorStatusLabel } from '../../../../lib/i18n/common'
 import { distributorsStrings } from '../../../../lib/i18n/distributors'
+import { makeMetadata } from '../../../../lib/i18n/metadata'
 import { StatusPill } from '../../../../components/StatusPill'
 import { DistributorEditForm } from './DistributorEditForm'
 
 export const dynamic = 'force-dynamic'
+export const generateMetadata = makeMetadata((lang) => distributorsStrings(lang).editMetaTitle)
 
 export default async function EditDistributorPage(
   { params }: { params: Promise<{ id: string }> },

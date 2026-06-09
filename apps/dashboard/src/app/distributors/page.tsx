@@ -7,9 +7,10 @@ import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings, distributorStatusLabel, fmtRelative } from '../../lib/i18n/common'
 import { distributorsStrings } from '../../lib/i18n/distributors'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Distributeurs · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => distributorsStrings(lang).metaTitle)
 
 function fmtCoord(coord: number | null): string {
   return coord == null ? '—' : coord.toFixed(4)

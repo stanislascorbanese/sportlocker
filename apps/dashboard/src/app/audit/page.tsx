@@ -14,9 +14,10 @@ import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { commonStrings, fmtRelative } from '../../lib/i18n/common'
 import { auditStrings, lockerEventLabel } from '../../lib/i18n/audit'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Audit · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => auditStrings(lang).metaTitle)
 
 const PAGE_SIZE = 100
 

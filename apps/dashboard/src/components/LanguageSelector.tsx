@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { setClientLang, useLang } from '../lib/lang-client'
 import { LANG_LABELS, SUPPORTED_LANGS, type Lang } from '../lib/lang'
 import { cn } from '../lib/cn'
+import { commonStrings } from '../lib/i18n/common'
 
 /**
  * Boutons drapeau pour basculer la langue de l'interface.
@@ -23,6 +24,7 @@ import { cn } from '../lib/cn'
 export function LanguageSelector() {
   const current = useLang()
   const router = useRouter()
+  const t = commonStrings(current)
 
   function onPick(lang: Lang) {
     if (lang === current) return
@@ -33,7 +35,7 @@ export function LanguageSelector() {
   return (
     <div
       role="radiogroup"
-      aria-label="Langue de l'interface"
+      aria-label={t.a11yLangSelector}
       className="flex items-center gap-1 rounded-md border p-1 border-gray-200 bg-gray-50 dark:border-white/5 dark:bg-white/[0.02]"
     >
       {SUPPORTED_LANGS.map((lang) => {

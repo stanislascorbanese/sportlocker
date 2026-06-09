@@ -8,9 +8,10 @@ import { cn } from '../../lib/cn'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings, distributorStatusLabel, fmtRelative } from '../../lib/i18n/common'
 import { alertLabel, healthStrings } from '../../lib/i18n/health'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Santé du parc · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => healthStrings(lang).metaTitle)
 
 type SearchParams = { filter?: string }
 

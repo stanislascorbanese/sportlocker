@@ -23,10 +23,11 @@ import { cn } from '../lib/cn'
 import { getLang } from '../lib/lang-server'
 import { commonStrings, fmtRelative, fmtToday } from '../lib/i18n/common'
 import { homeStrings } from '../lib/i18n/home'
+import { makeMetadata } from '../lib/i18n/metadata'
 import { TenantHome } from './_TenantHome'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Accueil · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => homeStrings(lang).metaTitle)
 
 const SEVERITY_STYLE: Record<number, string> = {
   1: 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-500/10 dark:text-zinc-300 dark:border-zinc-500/30',

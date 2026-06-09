@@ -21,11 +21,12 @@ import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { dateLocale, fmtRelative, commonStrings } from '../../lib/i18n/common'
 import { meStrings, roleLabel } from '../../lib/i18n/me'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 import { ResetPasswordButton } from './ResetPasswordButton'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Mon compte · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => meStrings(lang).metaTitle)
 
 type ContractStatus = 'active' | 'expiring_soon' | 'expired' | 'none'
 

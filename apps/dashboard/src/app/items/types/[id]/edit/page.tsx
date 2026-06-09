@@ -5,10 +5,11 @@ import { ApiError, fetchAdminItemType } from '../../../../../lib/api'
 import { getLang } from '../../../../../lib/lang-server'
 import { commonStrings } from '../../../../../lib/i18n/common'
 import { itemsStrings } from '../../../../../lib/i18n/items'
+import { makeMetadata } from '../../../../../lib/i18n/metadata'
 import { ItemTypeForm } from '../../../ItemTypeForm'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Modifier type · SportLocker' }
+export const generateMetadata = makeMetadata((lang) => itemsStrings(lang).metaTitleEditType)
 
 export default async function EditItemTypePage({
   params,

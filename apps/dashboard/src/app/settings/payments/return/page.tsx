@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation'
 
 import { refreshStripeConnectStatus } from '../../../../lib/api'
+import { paymentsStrings } from '../../../../lib/i18n/payments'
+import { makeMetadata } from '../../../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Retour Stripe · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => paymentsStrings(lang).metaTitleReturn)
 
 /**
  * Page de redirection servant de `return_url` au flow Stripe Connect
