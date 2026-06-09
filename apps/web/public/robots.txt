@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.sportlocker.fr/sitemap.xml
+Sitemap: https://sportlocker.fr/sitemap-index.xml
