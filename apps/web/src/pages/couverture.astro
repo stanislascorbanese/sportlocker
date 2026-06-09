@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import CoverageMap from '@/components/CoverageMap.tsx'
+import { COMMUNES } from '@/data/communes'
 
 const installSteps = [
   {
@@ -77,6 +78,35 @@ const installSteps = [
             <h3 class="font-bold text-white text-base mb-2">{s.title}</h3>
             <p class="text-sm text-white/55 font-light leading-relaxed">{s.desc}</p>
           </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- VILLES COUVERTES -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Déjà sur le terrain</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Villes couvertes</h2>
+        <p class="mt-3 text-white/60 font-light max-w-2xl mx-auto" data-reveal data-reveal-delay="2">
+          SportLocker est déjà déployé dans ces communes. Cliquez pour voir le service localement.
+        </p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+        {COMMUNES.map((c, i) => (
+          <a
+            href={`/communes/${c.slug}`}
+            class="card-dark p-5 block hover:border-brand-500/40 transition-colors"
+            data-reveal
+            data-reveal-delay={String((i % 3) + 1)}
+          >
+            <h3 class="font-bold text-white text-base">{c.name}</h3>
+            <p class="mt-1 text-sm text-white/55 font-light">{c.department} · {c.departmentCode}</p>
+            <span class="mt-3 inline-block text-brand-500 text-sm font-medium">
+              Matériel sportif à {c.name} →
+            </span>
+          </a>
         ))}
       </div>
     </div>
