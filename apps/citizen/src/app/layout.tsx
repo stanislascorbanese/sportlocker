@@ -139,6 +139,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://www.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://www.googleapis.com" />
         <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
+        {/* Preload de l'image du splash (élément LCP) → découverte immédiate
+            par le navigateur, sinon elle n'est trouvée qu'après parsing du CSS
+            (cf. audit Lighthouse « Détection de la requête LCP »). On preload la
+            variante claire (thème par défaut + ce que teste PageSpeed). */}
+        <link rel="preload" as="image" href="/splash-logo-light.png" fetchPriority="high" />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         <script dangerouslySetInnerHTML={{ __html: splashFallbackScript }} />
       </head>
