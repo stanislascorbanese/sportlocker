@@ -5,7 +5,7 @@ export const SITE = {
   email: 'contact@sportlocker.fr',
   description:
     'Distributeurs de matériel sportif en libre-service 24/7. Une solution clé en main pour mairies, campings et hôtels.',
-  defaultOgImage: '/og-default.svg',
+  defaultOgImage: '/og-default.png',
   twitterHandle: '@sportlocker',
 } as const
 
