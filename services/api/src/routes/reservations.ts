@@ -11,6 +11,7 @@ import {
 } from '../db/schema.js'
 import { signDeviceToken } from '../lib/jwt-device.js'
 import { markPaymentSucceeded } from '../lib/payments.js'
+import { getWalletBalanceCents } from '../lib/wallet.js'
 import { isPgViolation, PG_ERRORS } from '../lib/pg-errors.js'
 import {
   computeSlotEnd, NO_SHOW_GRACE_MINUTES, validateSlotRequest,
@@ -108,6 +109,13 @@ const SimulatedConfirmDTO = z.object({
   reservationStatus: z.enum([
     'pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
   ]),
+})
+
+const WalletPayDTO = z.object({
+  paymentStatus: z.literal('succeeded'),
+  reservationStatus: z.literal('scheduled'),
+  balanceCents: z.number().int().nonnegative()
+    .describe('Solde restant du porte-monnaie après débit, en centimes.'),
 })
 
 /**
@@ -777,6 +785,87 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     return reply.code(200).send({
       paymentStatus: row!.paymentStatus,
       reservationStatus: row!.reservationStatus,
+    })
+  })
+
+  /**
+   * POST /v1/reservations/:id/pay/wallet — règle la location avec le SOLDE du
+   * porte-monnaie prépayé (aucun appel Stripe → aucun frais de transaction).
+   *
+   * Le paiement de la résa est marqué `provider='wallet'`, `succeeded`, et la
+   * résa bascule `pending_payment → scheduled`. Tout est fait dans une seule
+   * transaction protégée par un advisory lock par-user (anti double-dépense
+   * concurrente). 402 si le solde est insuffisant.
+   */
+  app.post('/:id/pay/wallet', {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ['Citoyens — Réservations'],
+      summary: 'Règle une location avec le porte-monnaie → scheduled',
+      security: [{ bearerAuth: [] }],
+      params: z.object({ id: z.string().uuid() }),
+      response: {
+        200: WalletPayDTO,
+        402: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO, 409: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const userId = req.user.sub
+    const { id } = req.params
+
+    const result = await db.transaction(async (tx) => {
+      // Verrou par-user : sérialise les dépenses wallet concurrentes du même
+      // user (le solde n'a pas de ligne unique à verrouiller). Libéré au commit.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId}))`)
+
+      const [pay] = await tx
+        .select({
+          id: payments.id,
+          userId: payments.userId,
+          status: payments.status,
+          amountCents: payments.amountCents,
+          reservationStatus: reservations.status,
+        })
+        .from(payments)
+        .innerJoin(reservations, eq(reservations.id, payments.reservationId))
+        .where(eq(payments.reservationId, id))
+        .limit(1)
+
+      if (!pay) return { code: 404 as const, error: 'payment_not_found' }
+      if (pay.userId !== userId) return { code: 403 as const, error: 'forbidden' }
+      if (pay.status === 'succeeded') return { code: 409 as const, error: 'already_paid' }
+      if (pay.reservationStatus !== 'pending_payment') {
+        return { code: 409 as const, error: 'reservation_not_payable' }
+      }
+
+      const balance = await getWalletBalanceCents(userId, tx)
+      if (balance < pay.amountCents) {
+        return { code: 402 as const, error: 'insufficient_balance' }
+      }
+
+      const now = new Date()
+      await tx
+        .update(payments)
+        .set({ provider: 'wallet', status: 'succeeded', paidAt: now, errorMessage: null, updatedAt: now })
+        .where(eq(payments.id, pay.id))
+
+      const flipped = await tx
+        .update(reservations)
+        .set({ status: 'scheduled', updatedAt: now })
+        .where(and(eq(reservations.id, id), eq(reservations.status, 'pending_payment')))
+        .returning({ id: reservations.id })
+      if (flipped.length === 0) return { code: 409 as const, error: 'reservation_not_payable' }
+
+      return { code: 200 as const, balanceCents: balance - pay.amountCents }
+    })
+
+    if (result.code !== 200) {
+      return reply.code(result.code).send({ error: result.error })
+    }
+    return reply.code(200).send({
+      paymentStatus: 'succeeded' as const,
+      reservationStatus: 'scheduled' as const,
+      balanceCents: result.balanceCents,
     })
   })
 

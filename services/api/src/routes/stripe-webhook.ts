@@ -20,6 +20,7 @@ import type Stripe from 'stripe'
 import { env } from '../config/env.js'
 import { markPaymentFailed, markPaymentSucceeded } from '../lib/payments.js'
 import { requireStripe } from '../lib/stripe.js'
+import { confirmTopup, markTopupFailed } from '../lib/wallet.js'
 
 export async function stripeWebhookRoutes(app: FastifyInstance) {
   // Corps brut nécessaire à la vérification de signature Stripe.
@@ -61,13 +62,20 @@ export async function stripeWebhookRoutes(app: FastifyInstance) {
 
     if (event.type === 'payment_intent.succeeded') {
       const pi = event.data.object as Stripe.PaymentIntent
-      const paymentId = pi.metadata?.paymentId
-      if (paymentId) await markPaymentSucceeded(paymentId, app.log)
+      if (pi.metadata?.kind === 'wallet_topup') {
+        // Recharge porte-monnaie → crédite le solde.
+        if (pi.metadata.topupId) await confirmTopup(pi.metadata.topupId, app.log)
+      } else if (pi.metadata?.paymentId) {
+        // Paiement de location → résa scheduled.
+        await markPaymentSucceeded(pi.metadata.paymentId, app.log)
+      }
     } else if (event.type === 'payment_intent.payment_failed') {
       const pi = event.data.object as Stripe.PaymentIntent
-      const paymentId = pi.metadata?.paymentId
-      if (paymentId) {
-        await markPaymentFailed(paymentId, pi.last_payment_error?.message ?? null, app.log)
+      const errMsg = pi.last_payment_error?.message ?? null
+      if (pi.metadata?.kind === 'wallet_topup') {
+        if (pi.metadata.topupId) await markTopupFailed(pi.metadata.topupId, errMsg, app.log)
+      } else if (pi.metadata?.paymentId) {
+        await markPaymentFailed(pi.metadata.paymentId, errMsg, app.log)
       }
     }
 

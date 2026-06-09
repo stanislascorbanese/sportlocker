@@ -330,6 +330,25 @@ export const payments = pgTable('payments', {
   byUser: index('idx_payments_user').on(t.userId),
 }))
 
+// Recharges du porte-monnaie prépayé (carnet/pass, migration 0017).
+// Solde user = Σ(wallet_topups succeeded) − Σ(payments provider='wallet' succeeded).
+export const walletTopups = pgTable('wallet_topups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),
+  currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+  status: paymentStatus('status').notNull().default('pending'),
+  provider: varchar('provider', { length: 20 }).notNull().default('stripe'),
+  stripePaymentIntentId: varchar('stripe_payment_intent_id', { length: 255 }).unique(),
+  errorMessage: text('error_message'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byUser: index('idx_wallet_topups_user').on(t.userId),
+  byStatusCreated: index('idx_wallet_topups_status').on(t.status, t.createdAt),
+}))
+
 export const notificationLogs = pgTable('notification_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
