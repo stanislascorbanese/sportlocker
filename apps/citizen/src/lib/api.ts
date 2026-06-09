@@ -501,6 +501,78 @@ export async function confirmSimulatedPayment(reservationId: string): Promise<Si
   })
 }
 
+// ─── Porte-monnaie prépayé (carnet/pass — Phase 1) ─────────────────────────
+
+const PaymentStatusEnum = z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded'])
+
+export const Wallet = z.object({
+  balanceCents: z.number().int(),
+  currency: z.string(),
+  topups: z.array(z.object({
+    id: z.string().uuid(),
+    amountCents: z.number().int(),
+    status: PaymentStatusEnum,
+    provider: z.string(),
+    createdAt: z.string().datetime(),
+    paidAt: z.string().datetime().nullable(),
+  })),
+  spends: z.array(z.object({
+    amountCents: z.number().int(),
+    reservationId: z.string().uuid(),
+    paidAt: z.string().datetime().nullable(),
+  })),
+})
+export type Wallet = z.infer<typeof Wallet>
+
+export const TopupIntent = z.object({
+  topupId: z.string().uuid(),
+  provider: z.enum(['stripe', 'simulate']),
+  status: PaymentStatusEnum,
+  clientSecret: z.string().nullable(),
+})
+export type TopupIntent = z.infer<typeof TopupIntent>
+
+const SimulatedTopupConfirm = z.object({
+  topupStatus: PaymentStatusEnum,
+  balanceCents: z.number().int(),
+})
+
+const WalletPayResult = z.object({
+  paymentStatus: z.literal('succeeded'),
+  reservationStatus: z.literal('scheduled'),
+  balanceCents: z.number().int(),
+})
+export type WalletPayResult = z.infer<typeof WalletPayResult>
+
+/** Solde + historique du porte-monnaie. */
+export async function fetchWallet(): Promise<Wallet> {
+  return apiFetch('/v1/wallet', Wallet, { method: 'GET' })
+}
+
+/** Initie une recharge (PaymentIntent Stripe, ou simulate sans clientSecret). */
+export async function createTopup(amountCents: number): Promise<TopupIntent> {
+  return apiFetch('/v1/wallet/topup', TopupIntent, {
+    method: 'POST',
+    body: JSON.stringify({ amountCents }),
+  })
+}
+
+/** Confirme une recharge simulée (dev/staging). */
+export async function confirmSimulatedTopup(topupId: string): Promise<z.infer<typeof SimulatedTopupConfirm>> {
+  return apiFetch(`/v1/wallet/topup/${topupId}/confirm-simulated`, SimulatedTopupConfirm, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
+/** Règle une location avec le solde du porte-monnaie (0 frais Stripe). */
+export async function payReservationWithWallet(reservationId: string): Promise<WalletPayResult> {
+  return apiFetch(`/v1/reservations/${reservationId}/pay/wallet`, WalletPayResult, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
 // ─── Web Push subscriptions (PR 0010) ─────────────────────────────────────
 
 export const PushConfig = z.object({

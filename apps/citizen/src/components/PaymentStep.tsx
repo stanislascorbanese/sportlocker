@@ -2,17 +2,19 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
-import { loadStripe, type Stripe } from '@stripe/stripe-js'
-import { CreditCard, Loader2, ShieldCheck } from 'lucide-react'
+import { CreditCard, Loader2, ShieldCheck, Wallet as WalletIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Card } from './ui/Card'
 import {
   confirmSimulatedPayment,
   createPaymentIntent,
+  fetchWallet,
+  payReservationWithWallet,
   type ReservationActive,
 } from '../lib/api'
 import { useI18n, useT } from '../lib/i18n/I18nProvider'
+import { getStripePromise } from '../lib/stripe-client'
 
 /**
  * Étape de paiement d'une réservation `pending_payment`.
@@ -28,16 +30,6 @@ import { useI18n, useT } from '../lib/i18n/I18nProvider'
  * (webhook), d'où l'état « finalisation » + polling rapide côté parent.
  */
 
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''
-
-let stripePromise: Promise<Stripe | null> | null = null
-function getStripePromise(): Promise<Stripe | null> {
-  if (!stripePromise && PUBLISHABLE_KEY) {
-    stripePromise = loadStripe(PUBLISHABLE_KEY)
-  }
-  return stripePromise ?? Promise.resolve(null)
-}
-
 function fmtAmount(cents: number, locale: 'fr' | 'en', tFree: string): string {
   if (cents === 0) return tFree
   return `${(cents / 100).toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
@@ -48,7 +40,14 @@ function fmtAmount(cents: number, locale: 'fr' | 'en', tFree: string): string {
 export function PaymentStep({ reservation }: { reservation: ReservationActive }) {
   const t = useT()
   const { locale } = useI18n()
-  const amountLabel = fmtAmount(reservation.priceCents ?? 0, locale, t('booking.free'))
+  const priceCents = reservation.priceCents ?? 0
+  const amountLabel = fmtAmount(priceCents, locale, t('booking.free'))
+
+  // Solde porte-monnaie : si suffisant, on propose le paiement « par crédit »
+  // (synchrone, 0 frais Stripe) en plus du paiement classique.
+  const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: fetchWallet, retry: false })
+  const balanceCents = walletQuery.data?.balanceCents ?? 0
+  const canPayWithWallet = priceCents > 0 && balanceCents >= priceCents
 
   const intentQuery = useQuery({
     queryKey: ['payment-intent', reservation.id],
@@ -79,6 +78,13 @@ export function PaymentStep({ reservation }: { reservation: ReservationActive })
           </div>
         </div>
       </Card>
+
+      {canPayWithWallet && (
+        <WalletPanel
+          reservationId={reservation.id}
+          balanceLabel={fmtAmount(balanceCents, locale, t('booking.free'))}
+        />
+      )}
 
       {intentQuery.isPending && (
         <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-500 dark:text-white/50">
@@ -126,6 +132,59 @@ export function PaymentStep({ reservation }: { reservation: ReservationActive })
         {t('payment.help')}
       </p>
     </>
+  )
+}
+
+function WalletPanel({
+  reservationId,
+  balanceLabel,
+}: {
+  reservationId: string
+  balanceLabel: string
+}) {
+  const t = useT()
+  const queryClient = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+
+  const payMutation = useMutation({
+    mutationFn: () => payReservationWithWallet(reservationId),
+    onSuccess: () => {
+      // Paiement wallet = synchrone (pas de webhook) : la résa est déjà
+      // scheduled, on rafraîchit solde + résa pour afficher le QR.
+      queryClient.invalidateQueries({ queryKey: ['wallet'] })
+      queryClient.invalidateQueries({ queryKey: ['reservation-active'] })
+    },
+    onError: () => setError(t('wallet.pay_error')),
+  })
+
+  return (
+    <Card variant="accent">
+      <div className="flex items-start gap-3">
+        <WalletIcon
+          className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300"
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-navy-900 dark:text-white">
+            {t('wallet.pay_title')}
+          </p>
+          <p className="mt-0.5 text-meta text-gray-600 dark:text-white/60">
+            {t('wallet.balance_label', { amount: balanceLabel })}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={payMutation.isPending}
+        onClick={() => { setError(null); payMutation.mutate() }}
+        className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-colors duration-base bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
+      >
+        {payMutation.isPending ? t('payment.processing') : t('wallet.pay_btn')}
+      </button>
+      {error && (
+        <p className="mt-2 text-meta text-rose-700 dark:text-rose-200">{error}</p>
+      )}
+    </Card>
   )
 }
 
