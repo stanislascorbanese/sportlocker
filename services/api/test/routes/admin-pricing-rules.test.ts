@@ -238,6 +238,32 @@ describe('GET /v1/admin/pricing-rules', () => {
 // ──────────────────────────────────────────────────────────────────────────
 
 describe('PUT /v1/admin/pricing-rules', () => {
+  it('super_admin sans communeId → 422 commune_id_required', async () => {
+    const ballon = await seedItemType({ slug: 'ballon' })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/v1/admin/pricing-rules',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { itemTypeId: ballon, durationMinutes: 60, priceCents: 200 },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('commune_id_required')
+  })
+
+  it('itemTypeId inexistant → 422 invalid_reference (violation FK)', async () => {
+    const commune = await seedCommune(pgSql, 'A')
+    const u = await seedUser(pgSql, { role: 'admin', communeId: commune })
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/v1/admin/pricing-rules',
+      headers: { authorization: signSession(app, u.id, 'admin', commune) },
+      payload: { itemTypeId: randomUUID(), durationMinutes: 60, priceCents: 200 },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('invalid_reference')
+  })
+
   it('admin scoped → insert quand triplet absent', async () => {
     const commune = await seedCommune(pgSql, 'A')
     const ballon = await seedItemType({ slug: 'ballon' })
@@ -357,6 +383,32 @@ describe('PUT /v1/admin/pricing-rules', () => {
 // ──────────────────────────────────────────────────────────────────────────
 
 describe('POST /v1/admin/pricing-rules/bulk', () => {
+  it('super_admin sans communeId → 422 commune_id_required', async () => {
+    const ballon = await seedItemType({ slug: 'ballon' })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/pricing-rules/bulk',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { rules: [{ itemTypeId: ballon, durationMinutes: 60, priceCents: 100 }] },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('commune_id_required')
+  })
+
+  it('itemTypeId inexistant dans la grille → 422 invalid_reference (FK)', async () => {
+    const commune = await seedCommune(pgSql, 'A')
+    const u = await seedUser(pgSql, { role: 'admin', communeId: commune })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/pricing-rules/bulk',
+      headers: { authorization: signSession(app, u.id, 'admin', commune) },
+      payload: { rules: [{ itemTypeId: randomUUID(), durationMinutes: 60, priceCents: 100 }] },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('invalid_reference')
+  })
+
   it('applique une grille de 4 règles en transaction', async () => {
     const commune = await seedCommune(pgSql, 'A')
     const ballon = await seedItemType({ slug: 'ballon' })

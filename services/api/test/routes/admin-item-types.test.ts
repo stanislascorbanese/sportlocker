@@ -411,6 +411,33 @@ describe('PUT /v1/admin/item-types/:id — super_admin only, slug immuable', () 
     expect(rows[0]!.slug).toBe('put-target')
   })
 
+  it('super_admin update TOUS les champs optionnels → 200 (chaque champ appliqué)', async () => {
+    const t = await seedItemTypeRaw({ slug: 'put-all', name: 'Avant' })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/admin/item-types/${t}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: {
+        name: 'Après',
+        category: 'autre',
+        description: 'Nouvelle description',
+        imageUrl: 'https://cdn.test/img.png',
+        cautionCents: 999,
+        maxDurationMinutes: 120,
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    const b = res.json()
+    expect(b.name).toBe('Après')
+    expect(b.category).toBe('autre')
+    expect(b.description).toBe('Nouvelle description')
+    expect(b.imageUrl).toBe('https://cdn.test/img.png')
+    expect(b.cautionCents).toBe(999)
+    expect(b.maxDurationMinutes).toBe(120)
+  })
+
   it('slug n\'est pas dans le schema PUT → ignoré (Fastify zod strict)', async () => {
     const t = await seedItemTypeRaw({ slug: 'immutable-slug', name: 'Avant' })
     const su = await seedUser(pgSql, { role: 'super_admin' })
