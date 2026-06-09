@@ -17,12 +17,13 @@ const { name, postalCode, department, departmentCode, intro, context } = commune
 const title = `Matériel sportif en libre-service à ${name} (${departmentCode})`
 const description =
   `Distributeurs de matériel sportif en libre-service 24/7 à ${name} (${department}). `
-  + `Empruntez ballons, raquettes et équipements via QR code, sans guichet. Service pour `
+  + `Empruntez ballons, raquettes et équipements via QR code, sans guichet — pour la durée `
+  + `de votre choix (30 min à la journée), prix affiché avant l'emprunt. Service pour `
   + `communes, campings et hôtels.`
 
 const steps = [
   { n: '01', t: 'Trouvez le distributeur', d: `Repérez le casier connecté le plus proche à ${name} via l'application SportLocker.` },
-  { n: '02', t: 'Empruntez en 30 s', d: 'Scannez le QR code, le casier s\'ouvre, vous prenez le matériel. Aucun dépôt physique.' },
+  { n: '02', t: 'Choisissez votre durée', d: 'De 30 min à la journée — le prix s\'affiche avant. Scannez le QR code, le casier s\'ouvre, vous prenez le matériel. Aucun dépôt physique.' },
   { n: '03', t: 'Rendez sur place', d: 'À la fin du créneau, vous redéposez le matériel dans le casier. C\'est tout.' },
 ]
 
