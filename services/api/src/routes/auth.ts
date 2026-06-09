@@ -109,6 +109,10 @@ export async function authRoutes(rawApp: FastifyInstance) {
    *     vérification de signature (log warning à chaque appel).
    */
   app.post('/register', {
+    // Rate-limit strict — la route accepte un Firebase ID token et upsert le
+    // user. Un attaquant ne peut pas forger un token, mais un flood ici alourdit
+    // notre quota Firebase Admin verifyIdToken. 5/min/IP suffit en usage humain.
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
     schema: {
       tags: ['Citoyens — Auth'],
       summary: 'Échange un Firebase ID token contre une session citoyen',
@@ -212,6 +216,10 @@ export async function authRoutes(rawApp: FastifyInstance) {
    * distinguer un compte valide d'un compte inexistant.
    */
   app.post('/password-reset', {
+    // Rate-limit strict — protège contre l'énumération d'e-mails par flood
+    // (même si la réponse est neutre, le timing latence peut leaker l'existence
+    // d'un compte). 5/min/IP suffit en usage humain.
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
     schema: {
       tags: ['Citoyens — Auth', 'Auth admin'],
       summary: 'Envoie un e-mail brandé de réinitialisation de mot de passe',
@@ -288,6 +296,9 @@ export async function authRoutes(rawApp: FastifyInstance) {
    * On renvoie de toute façon TOUJOURS `200 { ok: true }`.
    */
   app.post('/signin-link', {
+    // Rate-limit strict — magic-link envoie un e-mail par requête (coût Resend
+    // + risque de spam vers les boîtes des citoyens). 5/min/IP suffit largement.
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
     schema: {
       tags: ['Citoyens — Auth'],
       summary: 'Envoie un e-mail brandé de connexion (magic link)',
