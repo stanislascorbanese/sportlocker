@@ -184,19 +184,19 @@ const faqJsonLd = {
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 mt-16 pt-10 border-t border-white/10 max-w-2xl" data-reveal data-reveal-delay="4">
       <div>
         <div class="font-extrabold text-3xl text-white">5</div>
-        <div class="text-xs text-white/45 mt-1">Durées au choix<br/>30 min → journée</div>
+        <div class="text-xs text-white/60 mt-1">Durées au choix<br/>30 min → journée</div>
       </div>
       <div>
         <div class="font-extrabold text-3xl text-white">75<span class="text-brand-500">%</span></div>
-        <div class="text-xs text-white/45 mt-1">Reversement<br/>au tenant (J+2)</div>
+        <div class="text-xs text-white/60 mt-1">Reversement<br/>au tenant (J+2)</div>
       </div>
       <div>
         <div class="font-extrabold text-3xl text-white">0</div>
-        <div class="text-xs text-white/45 mt-1">Concurrent direct<br/>identifié en France</div>
+        <div class="text-xs text-white/60 mt-1">Concurrent direct<br/>identifié en France</div>
       </div>
       <div>
         <div class="font-extrabold text-3xl text-white">30<span class="text-brand-500">s</span></div>
-        <div class="text-xs text-white/45 mt-1">Pour emprunter<br/>du matériel</div>
+        <div class="text-xs text-white/60 mt-1">Pour emprunter<br/>du matériel</div>
       </div>
     </div>
   </Hero>
@@ -220,7 +220,7 @@ const faqJsonLd = {
           {problems.map((p) => (
             <div class="card-dark p-5">
               <div class="font-extrabold text-3xl text-brand-500">{p.n}</div>
-              <div class="text-xs text-white/50 mt-1.5 font-light leading-relaxed">{p.label}</div>
+              <div class="text-xs text-white/60 mt-1.5 font-light leading-relaxed">{p.label}</div>
             </div>
           ))}
         </div>
@@ -299,14 +299,14 @@ const faqJsonLd = {
 
       <div class="grid lg:grid-cols-2 gap-10">
         <div data-reveal>
-          <div class="text-xs uppercase tracking-[0.14em] text-white/40 mb-5">Côté usager</div>
+          <div class="text-xs uppercase tracking-[0.14em] text-white/60 mb-5">Côté usager</div>
           <ol class="space-y-4">
             {citoyenSteps.map((s) => (
               <li class="card-dark p-5 flex gap-4">
                 <div class="font-extrabold text-2xl text-brand-500/40 leading-none w-10 shrink-0">{s.n}</div>
                 <div>
                   <div class="font-bold text-white mb-1">{s.title}</div>
-                  <div class="text-sm text-white/50 font-light">{s.desc}</div>
+                  <div class="text-sm text-white/60 font-light">{s.desc}</div>
                 </div>
               </li>
             ))}
@@ -314,14 +314,14 @@ const faqJsonLd = {
         </div>
 
         <div data-reveal data-reveal-delay="1">
-          <div class="text-xs uppercase tracking-[0.14em] text-white/40 mb-5">Côté établissement</div>
+          <div class="text-xs uppercase tracking-[0.14em] text-white/60 mb-5">Côté établissement</div>
           <ol class="space-y-4">
             {clientSteps.map((s) => (
               <li class="card-dark p-5 flex gap-4">
                 <div class="font-extrabold text-2xl text-brand-500/40 leading-none w-10 shrink-0">{s.n}</div>
                 <div>
                   <div class="font-bold text-white mb-1">{s.title}</div>
-                  <div class="text-sm text-white/50 font-light">{s.desc}</div>
+                  <div class="text-sm text-white/60 font-light">{s.desc}</div>
                 </div>
               </li>
             ))}
@@ -400,7 +400,7 @@ const faqJsonLd = {
                 const price = tpl.prices[slot.minutes as keyof typeof tpl.prices]
                 return (
                   <div class="flex justify-between gap-2">
-                    <dt class="text-white/45">{slot.label}</dt>
+                    <dt class="text-white/60">{slot.label}</dt>
                     <dd class={`tabular-nums font-medium ${price ? 'text-white/85' : 'text-white/20'}`}>
                       {price ? formatEur(price) : '—'}
                     </dd>
@@ -412,7 +412,7 @@ const faqJsonLd = {
         ))}
       </div>
 
-      <p class="mt-8 text-center text-xs text-white/45 font-light" data-reveal data-reveal-delay="5">
+      <p class="mt-8 text-center text-xs text-white/60 font-light" data-reveal data-reveal-delay="5">
         Reversement automatique J+2 sur votre compte bancaire via Stripe Connect.
         <a href="/tarifs#simulateur" class="text-brand-500 hover:underline">Détail du split 75/25 et simulation budgétée →</a>
       </p>
@@ -452,7 +452,7 @@ const faqJsonLd = {
         {competitors.map((c, i) => (
           <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
             <div class="font-extrabold text-white mb-2">{c.name}</div>
-            <div class="text-xs text-white/40 uppercase tracking-wider mb-4">{c.model}</div>
+            <div class="text-xs text-white/60 uppercase tracking-wider mb-4">{c.model}</div>
             <div class="text-sm text-brand-500 font-light leading-relaxed">{c.diff}</div>
           </div>
         ))}
@@ -494,14 +494,14 @@ const faqJsonLd = {
               <span class="text-brand-500 mt-0.5 text-base">⏱</span>
               <div>
                 <div class="font-medium text-white mb-0.5">Réponse sous 24h ouvrées</div>
-                <div class="text-white/50 font-light">Par email + appel court si pertinent.</div>
+                <div class="text-white/60 font-light">Par email + appel court si pertinent.</div>
               </div>
             </div>
             <div class="flex gap-3 items-start">
               <span class="text-brand-500 mt-0.5 text-base">📋</span>
               <div>
                 <div class="font-medium text-white mb-0.5">Devis sans engagement</div>
-                <div class="text-white/50 font-light">Aucune obligation, aucune relance pénible.</div>
+                <div class="text-white/60 font-light">Aucune obligation, aucune relance pénible.</div>
               </div>
             </div>
             <div class="flex gap-3 items-start">

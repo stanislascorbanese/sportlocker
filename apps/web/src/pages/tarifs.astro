@@ -139,7 +139,7 @@ const faqTarifs = [
         </div>
 
         <div class="card-dark p-7 sm:p-9" data-reveal data-reveal-delay="1">
-          <div class="text-xs uppercase tracking-[0.12em] text-white/40 mb-4">
+          <div class="text-xs uppercase tracking-[0.12em] text-white/60 mb-4">
             Caution préautorisée par catégorie
           </div>
           <div class="space-y-3">
@@ -148,7 +148,7 @@ const faqTarifs = [
                 <div class="flex-1 min-w-0">
                   <div class="text-sm text-white font-medium">{d.category}</div>
                   {d.note && (
-                    <div class="text-[0.7rem] text-white/45 font-light leading-relaxed mt-1">{d.note}</div>
+                    <div class="text-[0.7rem] text-white/60 font-light leading-relaxed mt-1">{d.note}</div>
                   )}
                 </div>
                 <div class="font-extrabold text-xl text-brand-500 tabular-nums shrink-0">
@@ -157,7 +157,7 @@ const faqTarifs = [
               </div>
             ))}
           </div>
-          <p class="text-[0.7rem] text-white/35 italic leading-relaxed mt-5">
+          <p class="text-[0.7rem] text-white/60 italic leading-relaxed mt-5">
             La caution est capturée par le tenant en cas de dégradation. Au-delà
             de 150 €, un mandat SEPA in-app couvre la différence.
           </p>
@@ -193,7 +193,7 @@ const faqTarifs = [
                   const price = tpl.prices[slot.minutes as keyof typeof tpl.prices]
                   return (
                     <div class="flex justify-between gap-2 border-b border-white/5 last:border-b-0 py-1">
-                      <dt class="text-white/45">{slot.label}</dt>
+                      <dt class="text-white/60">{slot.label}</dt>
                       <dd class={`tabular-nums font-medium ${price ? 'text-white' : 'text-white/25'}`}>
                         {price ? `${formatEur(price)}` : '—'}
                       </dd>
@@ -205,7 +205,7 @@ const faqTarifs = [
           ))}
         </div>
 
-        <p class="text-[0.7rem] text-white/35 italic leading-relaxed mt-6 text-center max-w-2xl mx-auto">
+        <p class="text-[0.7rem] text-white/60 italic leading-relaxed mt-6 text-center max-w-2xl mx-auto">
           Prix éditables à tout moment depuis votre dashboard. Aucun paiement réel
           activé en MVP — les prix sont affichés au citoyen et utilisés pour le calcul
           de revenu, l'encaissement Stripe sera ouvert en phase suivante.
@@ -238,7 +238,7 @@ const faqTarifs = [
               Reversement automatique J+2 sur votre compte bancaire via Stripe Connect Express.
               Aucune comptabilité manuelle, aucun chèque à éditer.
             </p>
-            <p class="text-xs text-white/45 font-light leading-relaxed">
+            <p class="text-xs text-white/60 font-light leading-relaxed">
               À titre indicatif : un distributeur mature voit ~ 10 locations/jour. Avec
               un panier moyen de {formatEur(MARKETPLACE.citoyenAvgPrice)}, ça vous fait
               ~ {formatEur(tenantShareAvg * 10 * 30)}/mois de revenu locations net — la
@@ -265,18 +265,18 @@ const faqTarifs = [
         <div class="grid sm:grid-cols-[1fr_auto_1fr] gap-6 sm:gap-8 items-center">
           <div class="text-center">
             <div class="text-4xl mb-3">🧑</div>
-            <div class="text-xs uppercase tracking-[0.1em] text-white/40 mb-1">Citoyen paie (exemple)</div>
+            <div class="text-xs uppercase tracking-[0.1em] text-white/60 mb-1">Citoyen paie (exemple)</div>
             <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(illustrationCitoyenPrice)}</div>
-            <div class="text-[0.7rem] text-white/45 mt-1">1 slot, prix défini par le tenant</div>
+            <div class="text-[0.7rem] text-white/60 mt-1">1 slot, prix défini par le tenant</div>
           </div>
 
           <div class="text-center text-white/30 text-3xl rotate-90 sm:rotate-0 select-none">→</div>
 
           <div class="text-center">
             <div class="text-4xl mb-3">💳</div>
-            <div class="text-xs uppercase tracking-[0.1em] text-white/40 mb-1">Stripe Connect split</div>
+            <div class="text-xs uppercase tracking-[0.1em] text-white/60 mb-1">Stripe Connect split</div>
             <div class="font-extrabold text-lg text-white">automatique</div>
-            <div class="text-[0.7rem] text-white/45 mt-1">à la transaction</div>
+            <div class="text-[0.7rem] text-white/60 mt-1">à la transaction</div>
           </div>
         </div>
 
@@ -284,16 +284,16 @@ const faqTarifs = [
           <div class="bg-brand-500/[0.08] border border-brand-500/30 rounded-lg p-5">
             <div class="text-xs uppercase tracking-[0.1em] text-brand-500/80 mb-1.5">Pour vous (tenant)</div>
             <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(tenantShareExample)}</div>
-            <div class="text-xs text-white/50 mt-1.5 font-light">soit 75 % — versé J+2</div>
+            <div class="text-xs text-white/60 mt-1.5 font-light">soit 75 % — versé J+2</div>
           </div>
           <div class="bg-white/5 border border-white/10 rounded-lg p-5">
-            <div class="text-xs uppercase tracking-[0.1em] text-white/40 mb-1.5">Pour SportLocker</div>
+            <div class="text-xs uppercase tracking-[0.1em] text-white/60 mb-1.5">Pour SportLocker</div>
             <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(commissionExample)}</div>
-            <div class="text-xs text-white/50 mt-1.5 font-light">soit 25 % de commission</div>
+            <div class="text-xs text-white/60 mt-1.5 font-light">soit 25 % de commission</div>
           </div>
         </div>
 
-        <p class="text-[0.7rem] text-white/35 italic leading-relaxed mt-6">
+        <p class="text-[0.7rem] text-white/60 italic leading-relaxed mt-6">
           Exemple basé sur un slot à 5 € (typique des templates Pleine saison ou
           Forfait journée seul). Le ratio 75 / 25 s'applique à toute durée et à tout
           prix configurés dans votre grille — d'un slot 30 min à 0,50 € à un slot
@@ -348,7 +348,7 @@ const faqTarifs = [
       </div>
 
       <div class="card-dark p-7 sm:p-9 max-w-3xl mx-auto" data-reveal>
-        <div class="text-xs uppercase tracking-[0.12em] text-white/40 mb-4">
+        <div class="text-xs uppercase tracking-[0.12em] text-white/60 mb-4">
           Ce qui n'est PAS inclus
         </div>
         <ul class="space-y-3">

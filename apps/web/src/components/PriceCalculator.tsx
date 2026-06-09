@@ -106,12 +106,12 @@ export default function PriceCalculator(): JSX.Element {
     <div className="card-dark p-7 sm:p-10 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <span className="tag tag-brand text-[0.7rem] py-1 px-2.5">Simulateur · 30 sec</span>
-        <span className="text-[0.7rem] text-white/35 italic">Résultats indicatifs HT</span>
+        <span className="text-[0.7rem] text-white/60 italic">Résultats indicatifs HT</span>
       </div>
 
       {/* STEP 1 — Type de site */}
       <div className="mb-7">
-        <label className="block text-xs uppercase tracking-[0.12em] text-white/40 mb-3">
+        <label className="block text-xs uppercase tracking-[0.12em] text-white/60 mb-3">
           1 · Vous êtes
         </label>
         <div className="grid grid-cols-3 gap-2 p-1 bg-black/20 rounded-lg">
@@ -143,7 +143,7 @@ export default function PriceCalculator(): JSX.Element {
         <div className="flex justify-between items-baseline mb-3">
           <label
             htmlFor="size"
-            className="text-xs uppercase tracking-[0.12em] text-white/40"
+            className="text-xs uppercase tracking-[0.12em] text-white/60"
           >
             2 · Taille du site — {sizing.unit}
           </label>
@@ -171,7 +171,7 @@ export default function PriceCalculator(): JSX.Element {
       {/* STEP 3 — Distributeurs (auto-recommandé, ajustable) */}
       <div className="mb-7">
         <div className="flex justify-between items-baseline mb-3 gap-2">
-          <label className="text-xs uppercase tracking-[0.12em] text-white/40">
+          <label className="text-xs uppercase tracking-[0.12em] text-white/60">
             3 · Distributeurs
             {!countOverridden && (
               <span className="ml-2 text-[0.65rem] normal-case tracking-normal text-brand-400 font-normal">
@@ -201,7 +201,7 @@ export default function PriceCalculator(): JSX.Element {
           </button>
           <div className="flex-1 text-center bg-black/20 rounded-lg py-2.5">
             <span className="font-extrabold text-2xl text-white tabular-nums">{count}</span>
-            <span className="text-white/45 text-sm ml-2">
+            <span className="text-white/60 text-sm ml-2">
               distributeur{count > 1 ? 's' : ''}
             </span>
           </div>
@@ -267,14 +267,14 @@ export default function PriceCalculator(): JSX.Element {
 
       {/* BREAKDOWN — détail année 1 */}
       <div className="card-dark bg-white/[0.02] p-5 sm:p-6 mb-6">
-        <div className="text-xs uppercase tracking-[0.12em] text-white/40 mb-4">
+        <div className="text-xs uppercase tracking-[0.12em] text-white/60 mb-4">
           Détail du budget année 1
         </div>
         <dl className="space-y-2.5 text-sm">
           <div className="flex justify-between gap-3">
             <dt className="text-white/65 font-light">
               Abonnement SaaS
-              <span className="text-white/35 text-xs ml-1">
+              <span className="text-white/60 text-xs ml-1">
                 ({formatEur(cfg.monthlyPerDist)}/mois × {count} × 12)
               </span>
             </dt>
@@ -285,7 +285,7 @@ export default function PriceCalculator(): JSX.Element {
           <div className="flex justify-between gap-3">
             <dt className="text-white/65 font-light">
               Setup one-shot
-              <span className="text-white/35 text-xs ml-1">
+              <span className="text-white/60 text-xs ml-1">
                 (installation + activation)
               </span>
             </dt>
@@ -297,7 +297,7 @@ export default function PriceCalculator(): JSX.Element {
             <div className="flex justify-between gap-3">
               <dt className="text-accent-500 font-light">
                 − Subventions estimées
-                <span className="text-white/35 text-xs ml-1">
+                <span className="text-white/60 text-xs ml-1">
                   (ANS / DETR / DSIL ~{result.subsidyRatePct} %)
                 </span>
               </dt>
@@ -313,7 +313,7 @@ export default function PriceCalculator(): JSX.Element {
             </dd>
           </div>
         </dl>
-        <p className="text-[0.7rem] text-white/40 italic leading-relaxed mt-4 pt-4 border-t border-white/5">
+        <p className="text-[0.7rem] text-white/60 italic leading-relaxed mt-4 pt-4 border-t border-white/5">
           Les locations citoyens ({formatInt(LOCATIONS_PER_DIST_PER_DAY)} loc/jour/dist à pleine charge × 75 % reversés,
           panier moyen indicatif — vous fixez votre grille via /pricing) ne sont pas comptabilisées en année 1 :
           l'usage met 12 à 18 mois à monter en charge. En croisière, le revenu mature atteint{' '}
@@ -326,7 +326,7 @@ export default function PriceCalculator(): JSX.Element {
       {/* PAYBACK + ENGAGEMENT */}
       <div className="grid sm:grid-cols-2 gap-3 mb-6">
         <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-          <div className="text-[0.65rem] uppercase tracking-[0.12em] text-white/40 mb-1.5">
+          <div className="text-[0.65rem] uppercase tracking-[0.12em] text-white/60 mb-1.5">
             Payback locations
           </div>
           <div className="font-extrabold text-xl text-white tabular-nums">
@@ -336,18 +336,18 @@ export default function PriceCalculator(): JSX.Element {
                 ? 'dès la mise en service'
                 : `${result.paybackMonths} mois`}
           </div>
-          <div className="text-[0.7rem] text-white/40 mt-1 font-light">
+          <div className="text-[0.7rem] text-white/60 mt-1 font-light">
             quand les locations couvrent le setup + l'abonnement
           </div>
         </div>
         <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-          <div className="text-[0.65rem] uppercase tracking-[0.12em] text-white/40 mb-1.5">
+          <div className="text-[0.65rem] uppercase tracking-[0.12em] text-white/60 mb-1.5">
             Engagement
           </div>
           <div className="font-extrabold text-xl text-white tabular-nums">
             {cfg.commitMonths} mois
           </div>
-          <div className="text-[0.7rem] text-white/40 mt-1 font-light">
+          <div className="text-[0.7rem] text-white/60 mt-1 font-light">
             matériel + maintenance + OTA inclus
           </div>
         </div>
