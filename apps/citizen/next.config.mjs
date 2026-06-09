@@ -47,6 +47,16 @@ const nextConfig = {
           { key: 'Service-Worker-Allowed', value: '/' },
         ],
       },
+      {
+        // Cache long des assets images statiques (icônes, splash, logos) servis
+        // depuis /public — ils sont stables (versionnés par nom si besoin, ex.
+        // icon-v2). Corrige le finding Lighthouse « durées de mise en cache ».
+        // (Les assets /_next/static hashés sont déjà cachés 1 an par Next.)
+        source: '/(.*)\\.(png|jpg|jpeg|svg|webp|gif|ico|woff2)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=2592000, stale-while-revalidate=86400' },
+        ],
+      },
     ]
   },
 }
