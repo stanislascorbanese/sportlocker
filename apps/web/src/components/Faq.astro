@@ -7,6 +7,18 @@ interface Props {
   items: FaqItem[]
 }
 const { items } = Astro.props
+
+// Données structurées FAQPage (schema.org) → éligibilité aux résultats
+// enrichis Google. Émis automatiquement pour chaque page qui rend <Faq/>.
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: items.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
+  })),
+}
 ---
 
 <div class="flex flex-col gap-3 max-w-3xl mx-auto">
@@ -28,3 +40,5 @@ const { items } = Astro.props
     </details>
   ))}
 </div>
+
+<script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
