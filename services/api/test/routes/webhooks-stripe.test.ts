@@ -23,6 +23,7 @@ import IORedis from 'ioredis'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 
 import type { FastifyInstance } from 'fastify'
 
@@ -104,6 +105,8 @@ beforeAll(async () => {
   process.env.DASHBOARD_INVITE_BASE_URL = 'https://ops.sportlocker.fr'
   process.env.STRIPE_SECRET_KEY = 'sk_test_fake_for_integration_tests'
   process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_fake_for_integration_tests'
+  // Le webhook paiement (/v1/stripe/webhook) ne s'active qu'en provider stripe.
+  process.env.PAYMENTS_PROVIDER = 'stripe'
   process.env.LOG_LEVEL = 'fatal'
 
   pgSql = postgres(process.env.DATABASE_URL!, { onnotice: () => {} })
@@ -165,6 +168,50 @@ function postWebhook(payload: object | string, signature = 't=1,v1=fakesig') {
     payload: body,
   })
 }
+
+// Helper : POST vers le webhook PAIEMENT (/v1/stripe/webhook). `withSignature`
+// = false pour tester la garde "signature manquante".
+function postPaymentWebhook(withSignature = true) {
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (withSignature) headers['stripe-signature'] = 't=1,v1=fakesig'
+  return app.inject({
+    method: 'POST', url: '/v1/stripe/webhook', headers, payload: '{}',
+  })
+}
+
+/** Seed une résa `pending_payment` + un paiement `pending` (provider stripe). */
+async function seedPendingPayment(): Promise<{ paymentId: string; reservationId: string }> {
+  const communeId = await seedCommune(pgSql, 'A')
+  const userId = randomUUID()
+  await pgSql`INSERT INTO users (id, firebase_uid, email)
+    VALUES (${userId}, ${'fb-' + userId.slice(0, 8)}, ${userId.slice(0, 8) + '@test.local'})`
+  const distributorId = randomUUID()
+  await pgSql`INSERT INTO distributors (id, serial_number, commune_id, name, locker_count)
+    VALUES (${distributorId}, ${'TEST-' + distributorId.slice(0, 8)}, ${communeId}, 'Dist', 4)`
+  const itemTypeId = randomUUID()
+  await pgSql`INSERT INTO item_types (id, slug, name, category)
+    VALUES (${itemTypeId}, ${'slug-' + itemTypeId.slice(0, 8)}, 'Ballon', 'ballon')`
+  const itemId = randomUUID()
+  await pgSql`INSERT INTO items (id, item_type_id, rfid_tag)
+    VALUES (${itemId}, ${itemTypeId}, ${'RFID-' + itemId.slice(0, 8)})`
+  const lockerId = randomUUID()
+  await pgSql`INSERT INTO lockers (id, distributor_id, position, state)
+    VALUES (${lockerId}, ${distributorId}, 0, 'idle')`
+  const reservationId = randomUUID()
+  await pgSql`INSERT INTO reservations
+    (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+    VALUES (${reservationId}, ${userId}, ${lockerId}, ${itemId}, ${distributorId},
+            'pending_payment', ${'jti-' + reservationId.slice(0, 12)}, NOW() + INTERVAL '15 min')`
+  const paymentId = randomUUID()
+  await pgSql`INSERT INTO payments (id, reservation_id, user_id, amount_cents, status, provider)
+    VALUES (${paymentId}, ${reservationId}, ${userId}, 500, 'pending', 'stripe')`
+  return { paymentId, reservationId }
+}
+
+const paymentEvent = (type: string, metadata: Record<string, string> = {}): unknown => ({
+  type,
+  data: { object: { metadata, last_payment_error: { message: 'card_declined' } } },
+})
 
 // ──────────────────────────────────────────────────────────────────────────
 // Gardes de configuration
@@ -391,5 +438,74 @@ describe('POST /v1/webhooks/stripe — other events', () => {
     const res = await postWebhook({ type: 'charge.succeeded' })
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ received: true })
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /v1/stripe/webhook — confirmation de paiement (PaymentIntent)
+// ──────────────────────────────────────────────────────────────────────────
+
+async function paymentStatus(paymentId: string): Promise<string> {
+  const [row] = await pgSql<{ status: string }[]>`SELECT status FROM payments WHERE id = ${paymentId}`
+  return row!.status
+}
+async function reservationStatus(reservationId: string): Promise<string> {
+  const [row] = await pgSql<{ status: string }[]>`SELECT status FROM reservations WHERE id = ${reservationId}`
+  return row!.status
+}
+
+describe('POST /v1/stripe/webhook — paiement', () => {
+  it('400 missing_signature si le header stripe-signature est absent', async () => {
+    const res = await postPaymentWebhook(false)
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'missing_signature' })
+  })
+
+  it('403 invalid_signature si constructEvent throw', async () => {
+    constructEventMock.mockImplementation(() => { throw new Error('bad sig') })
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(403)
+    expect(res.json()).toEqual({ error: 'invalid_signature' })
+  })
+
+  it('payment_intent.succeeded → paiement succeeded + résa scheduled', async () => {
+    const { paymentId, reservationId } = await seedPendingPayment()
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.succeeded', { paymentId }))
+
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true })
+    expect(await paymentStatus(paymentId)).toBe('succeeded')
+    expect(await reservationStatus(reservationId)).toBe('scheduled')
+  })
+
+  it('payment_intent.succeeded sans paymentId en metadata → 200 no-op', async () => {
+    const { paymentId } = await seedPendingPayment()
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.succeeded', {}))  // pas de paymentId
+
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(await paymentStatus(paymentId)).toBe('pending')  // inchangé
+  })
+
+  it('payment_intent.payment_failed → paiement failed', async () => {
+    const { paymentId, reservationId } = await seedPendingPayment()
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.payment_failed', { paymentId }))
+
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(await paymentStatus(paymentId)).toBe('failed')
+    // La résa reste payable (pending_payment), pas de bascule.
+    expect(await reservationStatus(reservationId)).toBe('pending_payment')
+  })
+
+  it('event non géré → 200 received sans effet', async () => {
+    const { paymentId } = await seedPendingPayment()
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.created', { paymentId }))
+
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true })
+    expect(await paymentStatus(paymentId)).toBe('pending')  // inchangé
   })
 })
