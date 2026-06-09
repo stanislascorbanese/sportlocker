@@ -13,15 +13,19 @@ export const metadata: Metadata = {
   description: 'Service citoyen de prêt de matériel sportif en libre-service. Trouvez un distributeur, scannez, empruntez gratuitement.',
   manifest: '/manifest.json',
   applicationName: 'SportLocker',
-  // Path explicite vers /icon-v2.png pour buster le cache favicon de Safari :
+  // Cache-bust favicon en changeant le BASENAME (v2 → v3), pas un ?hash= :
   // Safari indexe les favicons par l'URL de la page, pas par celle de l'icône,
-  // donc même un ?hash= différent sur /icon.png ne suffit pas. Changer le
-  // basename (icon → icon-v2) force Safari à traiter ça comme un nouveau
-  // favicon et re-fetch.
+  // donc un ?hash= différent sur /icon.png ne suffit pas à forcer le re-fetch.
+  // v3 (09/06) : v2 n'affichait que la porte verte (le "S" et le ballon étaient
+  // un tracé blanc fantôme, invisible sur tuile blanche d'écran d'accueil iOS).
+  //  - icon/shortcut (onglet)  → /icon-v3.png : marque SL complète, fond
+  //    transparent, lisible en petit et qui s'adapte au thème clair/sombre.
+  //  - apple (écran d'accueil) → /apple-icon-v3.png : tuile vert foncé pleine
+  //    (logo-icon-filled, bords pleins → safe sous le masque maskable Android).
   icons: {
-    icon: '/icon-v2.png',
-    shortcut: '/icon-v2.png',
-    apple: '/icon-v2.png',
+    icon: '/icon-v3.png',
+    shortcut: '/icon-v3.png',
+    apple: '/apple-icon-v3.png',
   },
   appleWebApp: {
     capable: true,
