@@ -1,6 +1,7 @@
 import Fastify, { type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
+import rateLimit from '@fastify/rate-limit'
 import sensible from '@fastify/sensible'
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod'
 
@@ -10,6 +11,7 @@ import { makeCorsOriginHandler, parseCorsAllowedOrigins } from './lib/cors.js'
 import { swaggerPlugin } from './plugins/swagger.js'
 import { authPlugin } from './plugins/auth.js'
 import { mqttSubscriberPlugin } from './plugins/mqtt-subscriber.js'
+import { shouldAllowList, shouldEnableRateLimit } from './plugins/rate-limit.js'
 
 import { healthRoutes } from './routes/health.js'
 import { distributorRoutes } from './routes/distributors.js'
@@ -52,6 +54,40 @@ export async function buildApp() {
     origin: makeCorsOriginHandler(parseCorsAllowedOrigins(env.CORS_ALLOWED_ORIGINS)),
     credentials: true,
   })
+
+  // Rate-limit global — défense en profondeur contre scan/brute-force public.
+  //
+  // Politique :
+  //   - 100 req/min/IP par défaut. Couvre largement la navigation citizen +
+  //     dashboard ops en usage humain.
+  //   - Skip côté Stripe webhook (signature vérifiée + IPs Stripe), health
+  //     (probes Railway), Swagger (interne dev).
+  //   - Skip pour les utilisateurs authentifiés via @fastify/jwt — les
+  //     opérateurs et admins ne doivent jamais se faire bloquer (le rate-limit
+  //     vise les scanners non-auth, pas le trafic légitime).
+  //   - Les routes /v1/auth/signin-link, /v1/auth/password-reset et
+  //     /v1/auth/register définissent leur propre limite plus stricte
+  //     (5/min/IP) via `config: { rateLimit: { max: 5 } }` côté route.
+  //
+  // La logique d'activation et l'allowList sont extraites dans plugins/rate-limit.ts
+  // pour être testables sans monter toute l'app Fastify (qui dépend Postgres + Redis).
+  if (shouldEnableRateLimit({ rateLimitEnabled: env.RATE_LIMIT_ENABLED, nodeEnv: env.NODE_ENV })) {
+    await app.register(rateLimit, {
+      global: true,
+      max: 100,
+      timeWindow: '1 minute',
+      // Headers RFC draft — informe le client de son quota restant.
+      addHeadersOnExceeding: { 'x-ratelimit-limit': true, 'x-ratelimit-remaining': true, 'x-ratelimit-reset': true },
+      addHeaders: { 'x-ratelimit-limit': true, 'x-ratelimit-remaining': true, 'x-ratelimit-reset': true, 'retry-after': true },
+      allowList: shouldAllowList,
+      errorResponseBuilder: (_req, context) => ({
+        error: 'rate_limit_exceeded',
+        message: `Trop de requêtes. Réessayez dans ${Math.ceil(context.ttl / 1000)} s.`,
+        retryAfter: Math.ceil(context.ttl / 1000),
+      }),
+    })
+  }
+
   await app.register(sensible)
 
   await app.register(swaggerPlugin)

@@ -27,6 +27,15 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true' || v === '1')),
 
+  // Active le rate-limit global @fastify/rate-limit (100 req/min/IP, skip
+  // pour utilisateurs authentifiés et webhooks). Désactivé en tests pour ne
+  // pas faire échouer les suites qui spamment plusieurs centaines de requêtes
+  // en quelques secondes. Default `true` sauf `NODE_ENV=test`.
+  RATE_LIMIT_ENABLED: z
+    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true' || v === '1')),
+
   JWT_SESSION_SECRET: z.string().min(32),
   JWT_DEVICE_SECRET: z.string().min(32),
 
