@@ -470,6 +470,28 @@ CREATE TABLE payments (
 CREATE INDEX idx_payments_status_created ON payments(status, created_at);
 CREATE INDEX idx_payments_user           ON payments(user_id);
 
+-- ─── 17. wallet_topups ───────────────────────────────────────────────────────
+--  Recharges du porte-monnaie prépayé citoyen (carnet/pass, migration 0017).
+--  Le SOLDE = Σ(wallet_topups succeeded) − Σ(payments provider='wallet' succeeded).
+--  updated_at maintenu côté application (pas de trigger ici).
+
+CREATE TABLE wallet_topups (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount_cents             INTEGER NOT NULL CHECK (amount_cents > 0),
+  currency                 VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  status                   payment_status NOT NULL DEFAULT 'pending',
+  provider                 VARCHAR(20) NOT NULL DEFAULT 'stripe',
+  stripe_payment_intent_id VARCHAR(255) UNIQUE,
+  error_message            TEXT,
+  paid_at                  TIMESTAMPTZ,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_wallet_topups_user   ON wallet_topups(user_id);
+CREATE INDEX idx_wallet_topups_status ON wallet_topups(status, created_at);
+
 -- ─── Triggers updated_at ───────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION trg_set_updated_at() RETURNS trigger AS $$
