@@ -182,7 +182,7 @@ export default function PriceCalculator(): JSX.Element {
               <button
                 type="button"
                 onClick={resetCount}
-                className="ml-2 text-[0.65rem] normal-case tracking-normal text-brand-400 hover:text-brand-500 underline underline-offset-2 font-normal"
+                className="ml-2 text-[0.65rem] normal-case tracking-normal text-brand-400 hover:text-brand-400 underline underline-offset-2 font-normal"
               >
                 · réinitialiser la reco
               </button>

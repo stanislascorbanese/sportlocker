@@ -86,7 +86,7 @@ const inclus = [
       <span class="eyebrow" data-reveal>Comment ça marche</span>
       <h1 class="font-extrabold text-display-xl text-white mt-3 mb-5" data-reveal data-reveal-delay="1">
         Deux parcours.<br/>
-        <span class="text-brand-500">Une même infrastructure.</span>
+        <span class="text-brand-400">Une même infrastructure.</span>
       </h1>
       <p class="text-[1.15rem] text-white/65 leading-loose max-w-2xl font-light" data-reveal data-reveal-delay="2">
         L'usager emprunte en 30 secondes. L'établissement met en service en 4 à 6 semaines.
@@ -108,13 +108,13 @@ const inclus = [
       <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
         {citoyen.map((s, i) => (
           <div class="card-dark p-7 relative overflow-hidden group hover:border-brand-500/30 transition-colors" data-reveal data-reveal-delay={String(i + 1)}>
-            <div class="font-extrabold text-7xl text-brand-500/10 leading-none mb-3 select-none">{s.n}</div>
+            <div class="font-extrabold text-7xl text-brand-400 leading-none mb-3 select-none">{s.n}</div>
             <div class="w-11 h-11 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-xl mb-4">
               {s.icon}
             </div>
             <h3 class="font-bold text-white text-base mb-2.5">{s.title}</h3>
             <p class="text-sm text-white/55 font-light leading-relaxed">{s.desc}</p>
-            <div class="mt-4 pt-4 border-t border-white/10 text-[0.7rem] text-brand-500/70 uppercase tracking-wider">
+            <div class="mt-4 pt-4 border-t border-white/10 text-[0.7rem] text-brand-400 uppercase tracking-wider">
               {s.detail}
             </div>
           </div>
@@ -170,7 +170,7 @@ const inclus = [
         {onboarding.map((step, i) => (
           <div class="card-dark p-7 sm:p-8" data-reveal data-reveal-delay={String(i + 1)}>
             <div class="flex items-start justify-between mb-5">
-              <div class="font-extrabold text-5xl text-brand-500/15 leading-none">{step.n}</div>
+              <div class="font-extrabold text-5xl text-brand-400 leading-none">{step.n}</div>
               <span class="tag tag-white text-[0.65rem]">{step.duration}</span>
             </div>
             <h3 class="font-extrabold text-white text-xl mb-3">{step.title}</h3>
@@ -179,7 +179,7 @@ const inclus = [
             <ul class="space-y-2">
               {step.deliverables.map((d) => (
                 <li class="flex items-start gap-2.5 text-sm text-white/70">
-                  <span class="text-brand-500 mt-1 shrink-0">✓</span>
+                  <span class="text-brand-400 mt-1 shrink-0">✓</span>
                   <span class="font-light">{d}</span>
                 </li>
               ))}

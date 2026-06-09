@@ -20,13 +20,13 @@
     @apply w-full max-w-container mx-auto px-6 sm:px-8;
   }
   .eyebrow {
-    @apply uppercase tracking-[0.14em] text-xs text-brand-500 font-medium;
+    @apply uppercase tracking-[0.14em] text-xs text-brand-400 font-medium;
   }
   .tag {
     @apply inline-block uppercase tracking-[0.1em] text-[0.7rem] px-3.5 py-1.5 rounded-full border;
   }
   .tag-brand {
-    @apply bg-brand-500/10 text-brand-500 border-brand-500/30;
+    @apply bg-brand-500/10 text-brand-400 border-brand-500/30;
   }
   .tag-white {
     @apply bg-white/10 text-white/70 border-white/15;
