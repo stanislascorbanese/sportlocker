@@ -141,7 +141,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
           items: z.array(ReservationAdminDTO),
           nextCursor: z.string().nullable().describe('Cursor à passer en query `cursor=...` pour la page suivante. Null si fin.'),
         }),
-        401: ErrorDTO, 403: ErrorDTO,
+        400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO,
       },
     },
   }, async (req, reply) => {

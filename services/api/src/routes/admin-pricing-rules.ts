@@ -295,6 +295,6 @@ export async function adminPricingRuleRoutes(rawApp: FastifyInstance) {
     }
 
     await db.delete(pricingRules).where(eq(pricingRules.id, req.params.id))
-    return reply.code(204).send()
+    return reply.code(204).send(null)
   })
 }
