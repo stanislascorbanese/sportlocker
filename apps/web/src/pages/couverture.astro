@@ -55,7 +55,14 @@ const installSteps = [
   <section class="section bg-navy-800 pt-0">
     <div class="container-x">
       <div data-reveal>
-        <CoverageMap client:only="react" />
+        {/* min-height réserve l'espace de l'île React avant hydratation :
+            client:only ne rend rien côté serveur, donc sans hauteur réservée
+            la carte Leaflet surgit au montage et provoque un gros CLS (~0.20).
+            Valeurs alignées sur la hauteur rendue (1 col mobile carte+panneau,
+            2 col en lg). bg-navy-800 = couleur de section → réserve invisible. */}
+        <div class="min-h-[1000px] sm:min-h-[1080px] lg:min-h-[600px] rounded-2xl bg-navy-800">
+          <CoverageMap client:only="react" />
+        </div>
       </div>
     </div>
   </section>
