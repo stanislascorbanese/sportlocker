@@ -115,9 +115,12 @@ export default function CoverageMap(): JSX.Element {
 
       <div className="card-dark p-7 sm:p-8 flex flex-col">
         <span className="tag tag-brand inline-block self-start mb-5">Couverture</span>
-        <h3 className="font-extrabold text-2xl text-white mb-4 leading-tight">
+        {/* h2 (et non h3) : ce titre apparaît dans le flux après le <h1> de la
+            page mais avant le premier <h2> des sections suivantes — un h3 ici
+            casserait l'ordre séquentiel des titres (audit a11y heading-order). */}
+        <h2 className="font-extrabold text-2xl text-white mb-4 leading-tight">
           France métropolitaine<br />entièrement éligible.
-        </h3>
+        </h2>
         <p className="text-sm text-white/65 font-light leading-relaxed mb-6">
           Aucune zone exclue : nous déployons partout en métropole, du littoral atlantique
           aux communes alpines. Installation pilote sous 4-6 semaines à compter du devis signé.
