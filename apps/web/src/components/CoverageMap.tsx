@@ -137,7 +137,7 @@ export default function CoverageMap(): JSX.Element {
                 <div className="font-extrabold text-xl text-white">
                   {selection.commune ?? 'Emplacement personnalisé'}
                 </div>
-                <div className="text-[0.7rem] text-white/45 font-light mt-1 tabular-nums">
+                <div className="text-[0.7rem] text-white/60 font-light mt-1 tabular-nums">
                   {selection.lat.toFixed(3)}° N, {selection.lng.toFixed(3)}° E
                 </div>
               </>

@@ -70,7 +70,7 @@ export default function MiniSimulator(): JSX.Element {
           <div className="flex justify-between items-baseline mb-3">
             <label
               htmlFor="mini-size"
-              className="text-xs uppercase tracking-[0.12em] text-white/40"
+              className="text-xs uppercase tracking-[0.12em] text-white/60"
             >
               {sizing.unit}
             </label>
@@ -95,7 +95,7 @@ export default function MiniSimulator(): JSX.Element {
           </div>
         </div>
 
-        <div className="text-xs text-white/45 mt-5 font-light leading-relaxed">
+        <div className="text-xs text-white/60 mt-5 font-light leading-relaxed">
           On recommande{' '}
           <strong className="text-white/80 font-medium tabular-nums">
             {count} distributeur{count > 1 ? 's' : ''}
@@ -118,7 +118,7 @@ export default function MiniSimulator(): JSX.Element {
             {formatPerUnit(result.yearOnePerUnit)} / {sizing.unitShort} / an
           </strong>
           {segment === 'mairie' && result.subsidyRatePct > 0 && (
-            <span className="text-white/45">
+            <span className="text-white/60">
               {' '}
               · subventions ANS/DETR ~{result.subsidyRatePct} % déduites
             </span>
