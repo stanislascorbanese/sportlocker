@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 
+import { UserRole } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
@@ -19,7 +21,7 @@ const UserDTO = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   displayName: z.string().nullable(),
-  role: z.enum(['citizen', 'operator', 'admin', 'super_admin']),
+  role: UserRole,
   trustScore: z.number().int().describe('Score de confiance 0..100. Démarre à 50.'),
   communeId: z.string().uuid().nullable(),
 })

@@ -4,6 +4,8 @@ import { and, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
+import { PaymentProvider, PaymentStatus, ReservationStatus } from '@sportlocker/types'
+
 import { env } from '../config/env.js'
 import { db } from '../db/client.js'
 import {
@@ -46,7 +48,7 @@ const ReturnReservationBody = z.object({
 
 const ReservationBaseDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'])
+  status: ReservationStatus
     .describe('État machine : scheduled (créneau futur) → active → returned (nominal modèle slots). pending = legacy modèle immédiat. overdue/cancelled/expired = terminal.'),
   lockerId: z.string().uuid(),
   itemId: z.string().uuid(),
@@ -78,8 +80,8 @@ const PaymentSummaryDTO = z.object({
   id: z.string().uuid(),
   amountCents: z.number().int().nonnegative(),
   currency: z.string().describe('Code ISO 4217 (ex: EUR)'),
-  provider: z.enum(['stripe', 'simulate']),
-  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  provider: PaymentProvider,
+  status: PaymentStatus,
 })
 
 const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
@@ -96,8 +98,8 @@ const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
 
 const PaymentIntentDTO = z.object({
   paymentId: z.string().uuid(),
-  provider: z.enum(['stripe', 'simulate']),
-  status: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
+  provider: PaymentProvider,
+  status: PaymentStatus,
   clientSecret: z.string().nullable().describe(
     'Secret du PaymentIntent Stripe à passer à Stripe.js côté client. '
     + 'null en mode `simulate` (le client appelle alors POST /:id/pay/confirm-simulated).',
@@ -105,10 +107,8 @@ const PaymentIntentDTO = z.object({
 })
 
 const SimulatedConfirmDTO = z.object({
-  paymentStatus: z.enum(['pending', 'succeeded', 'failed', 'cancelled', 'refunded']),
-  reservationStatus: z.enum([
-    'pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
-  ]),
+  paymentStatus: PaymentStatus,
+  reservationStatus: ReservationStatus,
 })
 
 const WalletPayDTO = z.object({
@@ -134,7 +134,7 @@ const WalletPayDTO = z.object({
  */
 const ReservationActiveEnrichedDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: ReservationStatus,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable(),
@@ -171,7 +171,7 @@ const ReservationActiveEnrichedDTO = z.object({
  */
 const ReservationHistoryDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+  status: ReservationStatus,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   dueAt: z.string().datetime().nullable(),

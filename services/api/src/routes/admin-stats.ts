@@ -3,6 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { ReservationStatus } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 
@@ -103,7 +105,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
           days: z.number().int(),
           daily: z.array(DailyPoint),
           byStatus: z.array(z.object({
-            status: z.enum(['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+            status: ReservationStatus,
             count: z.number().int().nonnegative(),
           })),
           topDistributors: z.array(z.object({

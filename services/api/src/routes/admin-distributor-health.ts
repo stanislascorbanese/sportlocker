@@ -4,6 +4,8 @@ import { and, eq } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { DistributorStatus } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import { distributors } from '../db/schema.js'
 import { requireAdminOrOperator } from '../lib/commune-scope.js'
@@ -41,7 +43,7 @@ const DistributorHealthDTO = z.object({
     id: z.string().uuid(),
     name: z.string(),
     serialNumber: z.string(),
-    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    status: DistributorStatus,
     firmwareVersion: z.string().nullable(),
     lastSeenAt: z.string().datetime().nullable(),
   }),
@@ -81,7 +83,7 @@ const FleetHealthRow = z.object({
     id: z.string().uuid(),
     name: z.string(),
     serialNumber: z.string(),
-    status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
+    status: DistributorStatus,
     communeName: z.string().nullable(),
     firmwareVersion: z.string().nullable(),
     lastSeenAt: z.string().datetime().nullable(),

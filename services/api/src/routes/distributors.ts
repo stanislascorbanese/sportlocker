@@ -3,6 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { DistributorStatus, LockerState } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import {
   distributors, items, itemTypes, lockers, pricingRules, reservations,
@@ -21,7 +23,7 @@ const DistributorDTO = z.object({
   id: z.string().uuid().describe('UUID v4 du distributeur'),
   serialNumber: z.string().describe('Numéro de série physique gravé sur la borne, unique'),
   name: z.string().describe('Nom affiché côté UI (ex: "Stade Léo Lagrange")'),
-  status: z.enum(['online', 'offline', 'maintenance', 'decommissioned'])
+  status: DistributorStatus
     .describe('État opérationnel synthétique. `online` = heartbeat récent. `decommissioned` = retiré du parc.'),
   communeId: z.string().uuid().describe('Tenant (commune) propriétaire du distributeur'),
   lockerCount: z.number().int().positive().describe('Nombre total de casiers physiques (1..64)'),
@@ -59,7 +61,7 @@ const CreateDistributorBody = z.object({
 
 const UpdateDistributorBody = z.object({
   name:        z.string().min(1).max(120).optional(),
-  status:      z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
+  status:      DistributorStatus.optional(),
   latitude:    z.number().min(-90).max(90).nullable().optional(),
   longitude:   z.number().min(-180).max(180).nullable().optional(),
   addressLine: z.string().max(200).nullable().optional(),
@@ -221,7 +223,7 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
           lockers: z.array(z.object({
             id: z.string().uuid(),
             position: z.number().int().describe('Index physique du casier dans la borne (0..N-1)'),
-            state: z.enum(['idle', 'reserved', 'active', 'returning', 'fault'])
+            state: LockerState
               .describe('État machine du casier (cf. règles métier)'),
             currentItemId: z.string().uuid().nullable()
               .describe('Item physiquement présent dans le casier, null si vide'),

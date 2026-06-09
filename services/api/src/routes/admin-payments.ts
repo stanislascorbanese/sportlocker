@@ -3,18 +3,17 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { and, desc, eq, lt, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { PaymentStatus, ReservationStatus } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import {
   distributors, itemTypes, items, payments, reservations, users,
 } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 
-const PAYMENT_STATUS = ['pending', 'succeeded', 'failed', 'cancelled', 'refunded'] as const
-const RESERVATION_STATUS = ['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
-
 const PaymentAdminDTO = z.object({
   id: z.string().uuid(),
-  status: z.enum(PAYMENT_STATUS),
+  status: PaymentStatus,
   amountCents: z.number().int().nonnegative(),
   currency: z.string(),
   provider: z.string(),
@@ -22,7 +21,7 @@ const PaymentAdminDTO = z.object({
   paidAt: z.string().datetime().nullable(),
   reservation: z.object({
     id: z.string().uuid(),
-    status: z.enum(RESERVATION_STATUS),
+    status: ReservationStatus,
   }),
   user: z.object({
     id: z.string().uuid(),
@@ -39,7 +38,7 @@ const PaymentAdminDTO = z.object({
 })
 
 const ListQuery = z.object({
-  status: z.enum(PAYMENT_STATUS).optional(),
+  status: PaymentStatus.optional(),
   /** Cursor opaque : `<iso8601>_<uuid>` (createdAt + id). */
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
