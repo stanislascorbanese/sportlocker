@@ -162,7 +162,7 @@ export default function PriceCalculator(): JSX.Element {
           className="w-full accent-brand-500"
           aria-label={`Nombre d'${sizing.unit}`}
         />
-        <div className="flex justify-between text-[0.7rem] text-white/30 mt-1">
+        <div className="flex justify-between text-[0.7rem] text-white/60 mt-1">
           <span>{formatInt(sizing.minSize)}</span>
           <span>{formatInt(sizing.maxSize)}</span>
         </div>
@@ -356,7 +356,7 @@ export default function PriceCalculator(): JSX.Element {
       <a href={contactHref} className="btn btn-primary w-full">
         Recevoir mon devis chiffré →
       </a>
-      <p className="text-[0.7rem] text-white/30 text-center mt-3 italic leading-relaxed px-2">
+      <p className="text-[0.7rem] text-white/60 text-center mt-3 italic leading-relaxed px-2">
         {segment === 'mairie'
           ? 'Subventions ANS / DETR / DSIL : estimation indicative basée sur les barèmes publics 2025. Taux réel confirmé en instruction par votre service finance et le Conseil départemental.'
           : 'Revenu locations dépend du taux d\'utilisation réel, qui prend plusieurs mois à monter en charge. Tarif final selon configuration et options.'}
