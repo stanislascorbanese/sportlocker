@@ -1,4 +1,4 @@
-import Fastify from 'fastify'
+import Fastify, { type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import sensible from '@fastify/sensible'
@@ -93,7 +93,7 @@ export async function buildApp() {
     Sentry.setupFastifyErrorHandler(app)
   }
 
-  app.setErrorHandler((err, req, reply) => {
+  app.setErrorHandler((err: FastifyError, req, reply) => {
     app.log.error({ err }, 'unhandled error')
     if (err.validation) return reply.status(400).send({ error: 'validation_error', details: err.validation })
     // 5xx → Sentry. 4xx → on log mais on n'inonde pas la télémétrie.
