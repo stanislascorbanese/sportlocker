@@ -49,7 +49,6 @@ export default {
           'radial-gradient(ellipse 80% 60% at 60% 40%, rgba(29,158,117,.14) 0%, transparent 70%), radial-gradient(ellipse 50% 40% at 10% 90%, rgba(43,194,149,.06) 0%, transparent 60%)',
         'cta-gradient':
           'linear-gradient(135deg, #0F6E56 0%, #15785A 50%, #1D9E75 100%)',
-        grid: 'linear-gradient(rgba(255,255,255,.4) 1px,transparent 1px), linear-gradient(90deg,rgba(255,255,255,.4) 1px,transparent 1px)',
       },
     },
   },
