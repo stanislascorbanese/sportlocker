@@ -9,11 +9,12 @@ import { getLang } from '../../../lib/lang-server'
 import type { Lang } from '../../../lib/lang'
 import { dateLocale } from '../../../lib/i18n/common'
 import { paymentsStrings } from '../../../lib/i18n/payments'
+import { makeMetadata } from '../../../lib/i18n/metadata'
 import { StripeConnectActions } from './StripeConnectActions'
 import { TransactionsCard } from './TransactionsCard'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Paiements · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => paymentsStrings(lang).metaTitle)
 
 type DisplayState =
   | { kind: 'server_not_configured' }

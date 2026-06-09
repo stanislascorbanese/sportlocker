@@ -11,9 +11,10 @@ import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { commonStrings, dateLocale } from '../../lib/i18n/common'
 import { itemsStrings, conditionLabel } from '../../lib/i18n/items'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Articles · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => itemsStrings(lang).metaTitle)
 
 type Tab = 'types' | 'instances'
 

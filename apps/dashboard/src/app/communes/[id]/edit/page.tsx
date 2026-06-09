@@ -5,10 +5,11 @@ import { ApiError, fetchCommune } from '../../../../lib/api'
 import { getLang } from '../../../../lib/lang-server'
 import { commonStrings } from '../../../../lib/i18n/common'
 import { communesStrings } from '../../../../lib/i18n/communes'
+import { makeMetadata } from '../../../../lib/i18n/metadata'
 import { CommuneForm } from '../../CommuneForm'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Modifier commune · SportLocker' }
+export const generateMetadata = makeMetadata((lang) => communesStrings(lang).metaTitleEdit)
 
 export default async function EditCommunePage({
   params,

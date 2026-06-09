@@ -3,7 +3,7 @@ import type { PaymentStatus } from '../api'
 
 type PaymentsKey =
   | 'eyebrow' | 'pageTitle'
-  | 'metaTitle'
+  | 'metaTitle' | 'metaTitleRefresh' | 'metaTitleReturn'
   // States badges
   | 'badgeServerNotConfigured' | 'badgeSuperAdminNoCommune'
   | 'badgeNotStarted' | 'badgePendingVerification'
@@ -34,6 +34,8 @@ const STRINGS: Record<Lang, Record<PaymentsKey, string>> = {
     eyebrow:                      'Paramètres',
     pageTitle:                    'Paiements & reversements',
     metaTitle:                    'Paiements · SportLocker ops',
+    metaTitleRefresh:             'Rafraîchir le lien Stripe · SportLocker ops',
+    metaTitleReturn:              'Retour Stripe · SportLocker ops',
 
     badgeServerNotConfigured:     'Non configuré côté serveur',
     badgeSuperAdminNoCommune:     'Sélectionne une commune',
@@ -88,6 +90,8 @@ const STRINGS: Record<Lang, Record<PaymentsKey, string>> = {
     eyebrow:                      'Settings',
     pageTitle:                    'Payments & payouts',
     metaTitle:                    'Payments · SportLocker ops',
+    metaTitleRefresh:             'Refresh Stripe link · SportLocker ops',
+    metaTitleReturn:              'Stripe return · SportLocker ops',
 
     badgeServerNotConfigured:     'Not configured server-side',
     badgeSuperAdminNoCommune:     'Select a commune',

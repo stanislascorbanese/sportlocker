@@ -7,10 +7,11 @@ import { cn } from '../../lib/cn'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings, dateLocale } from '../../lib/i18n/common'
 import { communesStrings } from '../../lib/i18n/communes'
+import { makeMetadata } from '../../lib/i18n/metadata'
 import type { Lang } from '../../lib/lang'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Communes · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => communesStrings(lang).metaTitle)
 
 function fmtEuros(lang: Lang, cents: number): string {
   if (cents === 0) return '—'

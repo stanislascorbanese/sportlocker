@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { getLang } from '../../../../lib/lang-server'
 import { commonStrings } from '../../../../lib/i18n/common'
 import { itemsStrings } from '../../../../lib/i18n/items'
+import { makeMetadata } from '../../../../lib/i18n/metadata'
 import { ItemTypeForm } from '../../ItemTypeForm'
 
-export const metadata = { title: "Nouveau type d'article · SportLocker" }
+export const generateMetadata = makeMetadata((lang) => itemsStrings(lang).metaTitleNewType)
 
 export default async function NewItemTypePage() {
   const lang = await getLang()

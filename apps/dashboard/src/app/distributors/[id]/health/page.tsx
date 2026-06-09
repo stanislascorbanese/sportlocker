@@ -6,6 +6,7 @@ import { getLang } from '../../../../lib/lang-server'
 import type { Lang } from '../../../../lib/lang'
 import { distributorStatusLabel, fmtRelative } from '../../../../lib/i18n/common'
 import { healthStrings } from '../../../../lib/i18n/health'
+import { makeMetadata } from '../../../../lib/i18n/metadata'
 import { StatusPill } from '../../../../components/StatusPill'
 import { StatCard } from '../../../../components/StatCard'
 import { RefreshButton } from '../../../../components/RefreshButton'
@@ -13,7 +14,7 @@ import { MetricChart, type MetricPoint } from '../../../../components/MetricChar
 import { cn } from '../../../../lib/cn'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Santé distributeur · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => healthStrings(lang).detailMetaTitle)
 
 const WINDOW_HOURS = [24, 72, 168] as const
 

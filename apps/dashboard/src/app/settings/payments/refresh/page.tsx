@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation'
 
 import { startStripeConnectOnboarding } from '../../../../lib/api'
+import { paymentsStrings } from '../../../../lib/i18n/payments'
+import { makeMetadata } from '../../../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Rafraîchir le lien Stripe · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => paymentsStrings(lang).metaTitleRefresh)
 
 /**
  * Page de redirection servant de `refresh_url` au flow Stripe Connect

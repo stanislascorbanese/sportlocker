@@ -29,6 +29,12 @@ type CommonKey =
   | 'statusOnline' | 'statusOffline' | 'statusMaintenance' | 'statusDecommissioned'
   // Empty states cross-composants
   | 'noData' | 'noDataPeriod' | 'loading' | 'never'
+  // A11y aria-labels (screen reader only — pas visibles UI)
+  | 'a11ySkeletonLoading'
+  | 'a11yThemeToggle' | 'a11yThemeTitle'
+  | 'a11yLangSelector'
+  | 'a11ySidebarHome' | 'a11yViewAccount'
+  | 'a11yOpenMenu' | 'a11yCloseMenu'
 
 const STRINGS: Record<Lang, Record<CommonKey, string>> = {
   fr: {
@@ -79,6 +85,15 @@ const STRINGS: Record<Lang, Record<CommonKey, string>> = {
     noDataPeriod:        'aucune donnée sur la période',
     loading:             'Chargement…',
     never:               'jamais',
+
+    a11ySkeletonLoading: 'Chargement',
+    a11yThemeToggle:     'Activer le mode clair/sombre',
+    a11yThemeTitle:      'Mode clair/sombre',
+    a11yLangSelector:    "Langue de l'interface",
+    a11ySidebarHome:     'SportLocker — accueil',
+    a11yViewAccount:     'Voir mon compte',
+    a11yOpenMenu:        'Ouvrir le menu',
+    a11yCloseMenu:       'Fermer le menu',
   },
   en: {
     demo:                'Demo',
@@ -128,6 +143,15 @@ const STRINGS: Record<Lang, Record<CommonKey, string>> = {
     noDataPeriod:        'no data for the period',
     loading:             'Loading…',
     never:               'never',
+
+    a11ySkeletonLoading: 'Loading',
+    a11yThemeToggle:     'Toggle light/dark mode',
+    a11yThemeTitle:      'Light/dark mode',
+    a11yLangSelector:    'Interface language',
+    a11ySidebarHome:     'SportLocker — home',
+    a11yViewAccount:     'View my account',
+    a11yOpenMenu:        'Open menu',
+    a11yCloseMenu:       'Close menu',
   },
 }
 

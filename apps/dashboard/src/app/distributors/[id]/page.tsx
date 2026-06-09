@@ -14,6 +14,7 @@ import { getLang } from '../../../lib/lang-server'
 import type { Lang } from '../../../lib/lang'
 import { commonStrings, distributorStatusLabel, fmtRelative } from '../../../lib/i18n/common'
 import { distributorsStrings } from '../../../lib/i18n/distributors'
+import { makeMetadata } from '../../../lib/i18n/metadata'
 import {
   classifyLocker, loadableLockers, summarizeLockerGrid,
   type LockerCellTone,
@@ -21,7 +22,7 @@ import {
 import { LoadLockerDrawer } from './LoadLockerDrawer'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Distributeur · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => distributorsStrings(lang).detailMetaTitle)
 
 function fmtCoord(coord: number | null): string {
   return coord == null ? '—' : coord.toFixed(4)

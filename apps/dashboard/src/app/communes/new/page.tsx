@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { getLang } from '../../../lib/lang-server'
 import { commonStrings } from '../../../lib/i18n/common'
 import { communesStrings } from '../../../lib/i18n/communes'
+import { makeMetadata } from '../../../lib/i18n/metadata'
 import { CommuneForm } from '../CommuneForm'
 
-export const metadata = { title: 'Nouvelle commune · SportLocker' }
+export const generateMetadata = makeMetadata((lang) => communesStrings(lang).metaTitleNew)
 
 export default async function NewCommunePage() {
   const lang = await getLang()

@@ -16,6 +16,10 @@ export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
   width?: string | number
   height?: string | number
   rounded?: SkeletonRounded
+  /** Override le label a11y ("Chargement" par défaut FR). À localiser via
+   *  `commonStrings(lang).a11ySkeletonLoading` quand le composant parent
+   *  est dans un contexte qui a déjà la lang sous la main. */
+  ariaLabel?: string
 }
 
 export function Skeleton({
@@ -24,12 +28,13 @@ export function Skeleton({
   rounded = 'md',
   className,
   style,
+  ariaLabel = 'Chargement',
   ...props
 }: SkeletonProps) {
   return (
     <div
       role="status"
-      aria-label="Chargement"
+      aria-label={ariaLabel}
       className={cn(
         'animate-shimmer bg-[length:200%_100%]',
         'bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100',

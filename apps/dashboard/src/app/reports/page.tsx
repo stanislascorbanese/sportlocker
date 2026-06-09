@@ -26,11 +26,12 @@ import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { commonStrings, fmtDateShort } from '../../lib/i18n/common'
 import { reportsStrings } from '../../lib/i18n/reports'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 import { DownloadPdfButton } from './DownloadPdfButton'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Rapports · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => reportsStrings(lang).metaTitle)
 
 type Preset = 'last30' | 'this_month' | 'last_month' | 'custom'
 

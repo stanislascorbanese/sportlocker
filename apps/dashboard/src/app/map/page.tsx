@@ -1,10 +1,11 @@
 import { fetchDistributors } from '../../lib/api'
 import { getLang } from '../../lib/lang-server'
+import { makeMetadata } from '../../lib/i18n/metadata'
 import { getMapStrings } from '../../lib/map-i18n'
 import { MapClient } from './MapClient'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Carte du parc · SportLocker' }
+export const generateMetadata = makeMetadata((lang) => getMapStrings(lang).pageTitle)
 
 export default async function MapPage() {
   const lang = await getLang()

@@ -11,9 +11,10 @@ import { cn } from '../../lib/cn'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { statsStrings, reservationStatusLabel } from '../../lib/i18n/stats'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Stats · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => statsStrings(lang).metaTitle)
 
 const STATUS_COLOR: Record<ReservationStatus, string> = {
   scheduled: '#a78bfa',  // violet-400

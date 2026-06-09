@@ -19,9 +19,10 @@ import { cn } from '../../lib/cn'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings, fmtDateTime } from '../../lib/i18n/common'
 import { reservationsStrings, reservationStatusLabel } from '../../lib/i18n/reservations'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Réservations · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => reservationsStrings(lang).metaTitle)
 
 const PAGE_SIZE = 50
 

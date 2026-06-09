@@ -14,12 +14,13 @@ import { getSessionUser } from '../../lib/session-server'
 import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
 import { pricingStrings } from '../../lib/i18n/pricing'
+import { makeMetadata } from '../../lib/i18n/metadata'
 import { ApplyTemplate } from './ApplyTemplate'
 import { CommuneSelector } from './CommuneSelector'
 import { PriceCell } from './PriceCell'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Tarification · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => pricingStrings(lang).metaTitle)
 
 /**
  * Matrice tarifaire éditable : lignes = item_types, colonnes = durées

@@ -3,6 +3,8 @@
 import { Moon, Sun } from 'lucide-react'
 
 import { useTheme } from '../lib/theme'
+import { useLang } from '../lib/lang-client'
+import { commonStrings } from '../lib/i18n/common'
 
 /**
  * Bouton soleil/lune dans la sidebar dashboard. Toggle direct dark↔light
@@ -14,13 +16,15 @@ import { useTheme } from '../lib/theme'
  */
 export function ThemeToggle() {
   const { resolved, toggle } = useTheme()
+  const lang = useLang()
+  const t = commonStrings(lang)
   const isDark = resolved === 'dark'
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-label={isDark ? 'Activer le mode clair' : 'Activer le mode sombre'}
-      title={isDark ? 'Mode clair' : 'Mode sombre'}
+      aria-label={t.a11yThemeToggle}
+      title={t.a11yThemeTitle}
       className="rounded-md p-2 transition-colors duration-base text-gray-500 hover:bg-gray-100 hover:text-navy-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
     >
       {isDark ? (
