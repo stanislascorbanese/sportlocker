@@ -1,7 +1,8 @@
 'use client'
 
 import { signOut } from 'firebase/auth'
-import { LogOut } from 'lucide-react'
+import { ChevronRight, LogOut, Wallet as WalletIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { PageHeader } from '../../components/ui/PageHeader'
@@ -41,6 +42,17 @@ export default function ProfilePage() {
           {t('profile.uid', { uid: user.uid })}
         </p>
       </section>
+
+      <Link
+        href="/wallet"
+        className="flex items-center justify-between gap-3 rounded-card border px-5 py-4 transition-colors duration-base border-gray-200 bg-gray-50 hover:border-emerald-400 dark:border-white/10 dark:bg-white/5 dark:hover:border-emerald-400/60"
+      >
+        <span className="flex items-center gap-3">
+          <WalletIcon className="h-5 w-5 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+          <span className="text-sm font-medium text-navy-900 dark:text-white">{t('wallet.title')}</span>
+        </span>
+        <ChevronRight className="h-4 w-4 text-gray-400 dark:text-white/40" aria-hidden="true" />
+      </Link>
 
       <PushSubscribeButton />
       <InstallButton />
