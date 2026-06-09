@@ -548,4 +548,93 @@ describe('POST /v1/stripe/webhook — paiement', () => {
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ received: true })
   })
+
+  // ─── Idempotence : Stripe redélivre les events en cas de timeout ou de 5xx.
+  // L'API doit traiter le 2ᵉ delivery comme un no-op (la 1ʳᵉ a déjà tout
+  // fait). Cf. https://stripe.com/docs/webhooks#best-practices.
+  // Les helpers idempotents sont dans lib/payments.ts (markPaymentSucceeded
+  // retourne 'already_paid' si status déjà succeeded) et lib/wallet.ts
+  // (confirmTopup retourne 'already' si status déjà succeeded). On vérifie
+  // ici que la chaîne route → helper fonctionne bout-en-bout. ─────────────
+
+  it('idempotence : payment_intent.succeeded redélivré → 200 sans double effet', async () => {
+    const { paymentId, reservationId } = await seedPendingPayment()
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.succeeded', { paymentId }))
+
+    // 1ʳᵉ livraison : transition pending → succeeded + résa → scheduled.
+    const res1 = await postPaymentWebhook()
+    expect(res1.statusCode).toBe(200)
+    expect(await paymentStatus(paymentId)).toBe('succeeded')
+    expect(await reservationStatus(reservationId)).toBe('scheduled')
+
+    // Capture paid_at pour vérifier qu'il n'est pas réécrit au 2ᵉ pass.
+    const [{ paid_at: paidAt1 }] = await pgSql<{ paid_at: Date }[]>`
+      SELECT paid_at FROM payments WHERE id = ${paymentId}`
+    expect(paidAt1).not.toBeNull()
+
+    // 2ᵉ livraison du même event (Stripe a vu un 5xx ou un timeout côté
+    // notre serveur sur la 1ʳᵉ tentative et retente).
+    const res2 = await postPaymentWebhook()
+    expect(res2.statusCode).toBe(200)
+    expect(res2.json()).toEqual({ received: true })
+
+    // Le paid_at ne doit PAS avoir bougé (la transaction skip si already_paid).
+    const [{ paid_at: paidAt2 }] = await pgSql<{ paid_at: Date }[]>`
+      SELECT paid_at FROM payments WHERE id = ${paymentId}`
+    expect(paidAt2!.getTime()).toBe(paidAt1!.getTime())
+    expect(await reservationStatus(reservationId)).toBe('scheduled')
+  })
+
+  it('idempotence : wallet_topup succeeded redélivré → 200 sans double crédit', async () => {
+    const topupId = await seedPendingTopup()
+    constructEventMock.mockReturnValue(topupEvent('payment_intent.succeeded', { kind: 'wallet_topup', topupId }))
+
+    const res1 = await postPaymentWebhook()
+    expect(res1.statusCode).toBe(200)
+    expect(await topupStatus(topupId)).toBe('succeeded')
+    const [{ paid_at: paidAt1 }] = await pgSql<{ paid_at: Date }[]>`
+      SELECT paid_at FROM wallet_topups WHERE id = ${topupId}`
+
+    // Re-livraison du même event.
+    const res2 = await postPaymentWebhook()
+    expect(res2.statusCode).toBe(200)
+    const [{ paid_at: paidAt2 }] = await pgSql<{ paid_at: Date }[]>`
+      SELECT paid_at FROM wallet_topups WHERE id = ${topupId}`
+    expect(paidAt2!.getTime()).toBe(paidAt1!.getTime())  // pas réécrit
+  })
+
+  it('robustesse : paymentId inconnu en metadata → 200 graceful (pas de crash)', async () => {
+    // Cas d'un PaymentIntent Stripe avec un paymentId qui ne correspond à
+    // aucune row de notre table `payments` (ex: paymentId orphelin après
+    // un cleanup de test en prod). On doit répondre 200 pour que Stripe
+    // arrête de retenter, pas crasher en 500.
+    constructEventMock.mockReturnValue(
+      paymentEvent('payment_intent.succeeded', { paymentId: randomUUID() }),
+    )
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true })
+  })
+
+  it('robustesse : event failed reçu après un succeeded → succeeded reste intact', async () => {
+    // Scénario rare mais possible : Stripe envoie d'abord un succeeded,
+    // puis un payment_failed pour le même PaymentIntent (ex: chargeback
+    // déguisé en failure côté Stripe). On NE DOIT PAS dégrader un
+    // paiement déjà succeeded. La garde est dans `markPaymentFailed`
+    // qui filtre WHERE status = 'pending' au SQL UPDATE.
+    const { paymentId, reservationId } = await seedPendingPayment()
+
+    // Étape 1 : succeeded.
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.succeeded', { paymentId }))
+    await postPaymentWebhook()
+    expect(await paymentStatus(paymentId)).toBe('succeeded')
+    expect(await reservationStatus(reservationId)).toBe('scheduled')
+
+    // Étape 2 : failed event arrive après. Ne doit RIEN dégrader.
+    constructEventMock.mockReturnValue(paymentEvent('payment_intent.payment_failed', { paymentId }))
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(await paymentStatus(paymentId)).toBe('succeeded')  // toujours succeeded
+    expect(await reservationStatus(reservationId)).toBe('scheduled')  // résa intacte
+  })
 })
