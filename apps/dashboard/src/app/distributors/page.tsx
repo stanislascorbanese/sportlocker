@@ -78,7 +78,65 @@ export default async function DistributorsListPage() {
       )}
 
       {distributors.length > 0 && (
-        <div className="overflow-x-auto rounded-card border border-gray-200 bg-white dark:border-white/10 dark:bg-navy-800">
+        <>
+        {/* Mobile : carte par distributeur. La table dense est cachée < md
+            car scroll horizontal sur 720px pénible en astreinte mobile. */}
+        <div className="space-y-3 md:hidden">
+          {distributors.map((d) => (
+            <Link
+              key={d.id}
+              href={`/distributors/${d.id}`}
+              className="block rounded-card border border-gray-200 bg-white p-4 shadow-card transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:shadow-none dark:hover:border-white/20"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-navy-900 dark:text-white">{d.name}</div>
+                  <div className="mt-0.5 font-mono text-meta text-gray-500 dark:text-white/40">
+                    {d.serialNumber}
+                  </div>
+                </div>
+                <StatusPill status={d.status} label={distributorStatusLabel(lang, d.status)} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-meta">
+                <div className="rounded-lg bg-gray-50 px-2 py-1.5 dark:bg-white/[0.03]">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    {t.colLockersFree}
+                  </div>
+                  <div className="mt-0.5 font-display text-sm tabular-nums">
+                    <span className={
+                      d.idleLockers === 0
+                        ? 'font-semibold text-rose-700 dark:text-rose-300'
+                        : d.idleLockers === 1
+                          ? 'font-semibold text-amber-700 dark:text-amber-300'
+                          : 'font-semibold text-emerald-700 dark:text-emerald-300'
+                    }>{d.idleLockers}</span>
+                    <span className="text-gray-500 dark:text-white/40"> / {d.lockerCount}</span>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-2 py-1.5 dark:bg-white/[0.03]">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    {t.colBattery}
+                  </div>
+                  <div className="mt-1">
+                    <BatteryGauge percent={d.batteryPercent} />
+                  </div>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-2 py-1.5 dark:bg-white/[0.03]">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    {t.colLastSeen}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-navy-900 dark:text-white/85">
+                    {fmtRelative(lang, d.lastSeenAt)}
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Desktop : tableau dense classique */}
+        <div className="hidden overflow-x-auto rounded-card border border-gray-200 bg-white md:block dark:border-white/10 dark:bg-navy-800">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="text-left text-eyebrow uppercase bg-gray-100 text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
@@ -158,6 +216,7 @@ export default async function DistributorsListPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
