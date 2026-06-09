@@ -22,6 +22,7 @@ import IORedis from 'ioredis'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 
 import type { FastifyInstance } from 'fastify'
 
@@ -358,6 +359,18 @@ describe('GET /v1/push-subscriptions/preferences', () => {
     expect(res.json()).toEqual({ reminderMinutesBefore: 15 })
   })
 
+  it('token valide mais user absent en DB → fallback 15 (pas de 500)', async () => {
+    // Couvre le fallback `row?.reminderMinutesBefore ?? 15` quand aucune row
+    // n'existe (ex. user supprimé après émission du token).
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/push-subscriptions/preferences',
+      headers: { authorization: signSession(app, randomUUID(), 'citizen') },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ reminderMinutesBefore: 15 })
+  })
+
   it('user qui a déjà set une préférence → renvoie sa valeur', async () => {
     const u = await seedUser(pgSql, { role: 'citizen' })
     await pgSql`UPDATE users SET reminder_minutes_before = 120 WHERE id = ${u.id}`
@@ -452,5 +465,97 @@ describe('DELETE /v1/push-subscriptions', () => {
 
     const rows = await pgSql`SELECT count(*)::int as c FROM push_tokens WHERE endpoint = ${endpointB}`
     expect(rows[0]?.c).toBe(1)
+  })
+})
+
+// Branches de résilience : les handlers avalent les erreurs DB (ex. migration
+// 0011 pas encore appliquée) pour ne pas renvoyer 500. On force ces erreurs
+// via des spies sur `db` pour couvrir les `catch` correspondants.
+describe('push-subscriptions — résilience erreurs DB', () => {
+  it('POST : conflit d\'endpoint (UNIQUE_VIOLATION) → 409 endpoint_conflict', async () => {
+    const { db } = await import('../../src/db/client.js')
+    const spy = vi.spyOn(db, 'insert').mockImplementationOnce(() => {
+      throw Object.assign(new Error('duplicate key'), { code: '23505' })
+    })
+    try {
+      const u = await seedUser(pgSql, { role: 'citizen' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/push-subscriptions',
+        headers: { authorization: signSession(app, u.id, 'citizen') },
+        payload: { endpoint: fakeEndpoint('conflict'), keys: { p256dh: 'p'.repeat(50), auth: 'a'.repeat(20) } },
+      })
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({ error: 'endpoint_conflict' })
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('POST : erreur DB non-unique → propagée en 500 (pas avalée)', async () => {
+    const { db } = await import('../../src/db/client.js')
+    // Erreur ≠ UNIQUE_VIOLATION → le catch rethrow → 500 (pas un 409).
+    const spy = vi.spyOn(db, 'insert').mockImplementationOnce(() => {
+      throw Object.assign(new Error('connection lost'), { code: '08006' })
+    })
+    try {
+      const u = await seedUser(pgSql, { role: 'citizen' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/push-subscriptions',
+        headers: { authorization: signSession(app, u.id, 'citizen') },
+        payload: { endpoint: fakeEndpoint('db-down'), keys: { p256dh: 'p'.repeat(50), auth: 'a'.repeat(20) } },
+      })
+      expect(res.statusCode).toBe(500)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('POST : échec de l\'update de préférence → sub créée quand même (201)', async () => {
+    const { db } = await import('../../src/db/client.js')
+    // L'insert de la sub réussit ; seul l'update users (préférence) échoue.
+    // Erreur non-Error (forme brute postgres-js) → couvre aussi la branche
+    // `String(err)` du log.
+    const spy = vi.spyOn(db, 'update').mockImplementationOnce(() => {
+      throw { code: '42703', message: 'column reminder_minutes_before does not exist' }
+    })
+    try {
+      const u = await seedUser(pgSql, { role: 'citizen' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/push-subscriptions',
+        headers: { authorization: signSession(app, u.id, 'citizen') },
+        payload: {
+          endpoint: fakeEndpoint('pref-fail'),
+          keys: { p256dh: 'p'.repeat(50), auth: 'a'.repeat(20) },
+          reminderMinutesBefore: 60,
+        },
+      })
+      expect(res.statusCode).toBe(201)  // best-effort : la sub est créée malgré l'échec pref
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('GET /preferences : erreur DB → fallback 15 (pas de 500)', async () => {
+    const { db } = await import('../../src/db/client.js')
+    // Erreur non-Error (forme brute postgres-js) → couvre la branche
+    // `String(err)` du log.
+    const spy = vi.spyOn(db, 'select').mockImplementationOnce(() => {
+      throw { code: '42703', message: 'column reminder_minutes_before does not exist' }
+    })
+    try {
+      const u = await seedUser(pgSql, { role: 'citizen' })
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/push-subscriptions/preferences',
+        headers: { authorization: signSession(app, u.id, 'citizen') },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ reminderMinutesBefore: 15 })
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

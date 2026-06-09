@@ -88,8 +88,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Tests
-        run: pnpm test
+      # Tests de tous les packages SAUF l'API (turbo, mis en cache).
+      - name: Tests (hors API)
+        run: pnpm exec turbo run test --filter='!@sportlocker/api'
+
+      # Gate de couverture API : vitest.config impose des seuils per-fichier
+      # (80% sur src/routes/**, 90% sur reservations.ts). `pnpm test` ne passe
+      # pas --coverage, donc ces seuils n'étaient jamais vérifiés en CI et la
+      # couverture pouvait dériver. On relance l'API avec --coverage pour faire
+      # échouer le build si une route critique repasse sous son seuil.
+      - name: Tests + couverture API (gate seuils routes)
+        run: pnpm --filter @sportlocker/api test:coverage
 
       # Build du site vitrine — `astro check` (typecheck) ne lance pas la
       # pipeline d'optimisation d'images, donc des bugs comme « sharp not

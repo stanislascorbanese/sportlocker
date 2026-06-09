@@ -508,4 +508,44 @@ describe('POST /v1/stripe/webhook — paiement', () => {
     expect(res.json()).toEqual({ received: true })
     expect(await paymentStatus(paymentId)).toBe('pending')  // inchangé
   })
+
+  // ─── Recharge porte-monnaie (metadata.kind === 'wallet_topup') ───
+  async function seedPendingTopup(): Promise<string> {
+    const userId = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email)
+      VALUES (${userId}, ${'fb-' + userId.slice(0, 8)}, ${userId.slice(0, 8) + '@test.local'})`
+    const topupId = randomUUID()
+    await pgSql`INSERT INTO wallet_topups (id, user_id, amount_cents, currency, provider, status)
+      VALUES (${topupId}, ${userId}, 2000, 'EUR', 'stripe', 'pending')`
+    return topupId
+  }
+  const topupStatus = async (id: string): Promise<string> => {
+    const [r] = await pgSql<{ status: string }[]>`SELECT status FROM wallet_topups WHERE id = ${id}`
+    return r!.status
+  }
+  const topupEvent = (type: string, metadata: Record<string, string>): unknown =>
+    ({ type, data: { object: { metadata, last_payment_error: { message: 'card_declined' } } } })
+
+  it('payment_intent.succeeded kind=wallet_topup → confirmTopup (recharge succeeded)', async () => {
+    const topupId = await seedPendingTopup()
+    constructEventMock.mockReturnValue(topupEvent('payment_intent.succeeded', { kind: 'wallet_topup', topupId }))
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(await topupStatus(topupId)).toBe('succeeded')
+  })
+
+  it('payment_intent.payment_failed kind=wallet_topup → markTopupFailed (recharge failed)', async () => {
+    const topupId = await seedPendingTopup()
+    constructEventMock.mockReturnValue(topupEvent('payment_intent.payment_failed', { kind: 'wallet_topup', topupId }))
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(await topupStatus(topupId)).toBe('failed')
+  })
+
+  it('wallet_topup sans topupId → 200 no-op', async () => {
+    constructEventMock.mockReturnValue(topupEvent('payment_intent.succeeded', { kind: 'wallet_topup' }))
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true })
+  })
 })

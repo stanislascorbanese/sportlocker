@@ -256,3 +256,76 @@ describe('Porte-monnaie prépayé', () => {
     expect(res.statusCode).toBe(401)
   })
 })
+
+describe('Porte-monnaie — branches d\'erreur / sérialisation', () => {
+  it('GET / : recharge pending sérialisée avec paidAt null', async () => {
+    const f = await seedTenant()
+    await app.inject({
+      method: 'POST', url: '/v1/wallet/topup',
+      headers: { authorization: citizenHeader(f.userId) },
+      payload: { amountCents: 1000 },
+    })
+    const res = await app.inject({ method: 'GET', url: '/v1/wallet', headers: { authorization: citizenHeader(f.userId) } })
+    expect(res.statusCode).toBe(200)
+    const pending = res.json().topups.find((t: { status: string }) => t.status === 'pending')
+    expect(pending).toBeTruthy()
+    expect(pending.paidAt).toBeNull()
+  })
+
+  it('GET / : dépense wallet sans paidAt sérialisée avec paidAt null', async () => {
+    const f = await seedTenant()
+    // Paiement wallet succeeded mais paid_at NULL (cas limite de sérialisation).
+    const rid = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+      VALUES (${rid}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'scheduled', ${'jti-' + rid.slice(0, 12)}, NOW())`
+    await pgSql`INSERT INTO payments (id, reservation_id, user_id, amount_cents, status, provider, paid_at)
+      VALUES (${randomUUID()}, ${rid}, ${f.userId}, 500, 'succeeded', 'wallet', NULL)`
+    const res = await app.inject({ method: 'GET', url: '/v1/wallet', headers: { authorization: citizenHeader(f.userId) } })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().spends).toHaveLength(1)
+    expect(res.json().spends[0].paidAt).toBeNull()
+  })
+
+  it('confirm-simulated : 404 si la recharge est inconnue', async () => {
+    const f = await seedTenant()
+    const res = await app.inject({
+      method: 'POST', url: `/v1/wallet/topup/${randomUUID()}/confirm-simulated`,
+      headers: { authorization: citizenHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('topup_not_found')
+  })
+
+  it('confirm-simulated : 403 si la recharge appartient à un autre user', async () => {
+    const f = await seedTenant()
+    const topup = await app.inject({
+      method: 'POST', url: '/v1/wallet/topup',
+      headers: { authorization: citizenHeader(f.userId) },
+      payload: { amountCents: 1000 },
+    })
+    const topupId = topup.json().topupId
+    const other = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email)
+      VALUES (${other}, ${'fb-' + other.slice(0, 8)}, ${other.slice(0, 8) + '@test.local'})`
+    const res = await app.inject({
+      method: 'POST', url: `/v1/wallet/topup/${topupId}/confirm-simulated`,
+      headers: { authorization: citizenHeader(other) },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('confirm-simulated : 409 not_simulated si la recharge est en provider stripe', async () => {
+    const f = await seedTenant()
+    const topupId = randomUUID()
+    await pgSql`INSERT INTO wallet_topups (id, user_id, amount_cents, currency, provider, status)
+      VALUES (${topupId}, ${f.userId}, 1000, 'EUR', 'stripe', 'pending')`
+    const res = await app.inject({
+      method: 'POST', url: `/v1/wallet/topup/${topupId}/confirm-simulated`,
+      headers: { authorization: citizenHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('not_simulated')
+  })
+})
