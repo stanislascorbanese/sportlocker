@@ -40,7 +40,7 @@ const installSteps = [
         <span class="tag tag-brand inline-block mb-6" data-reveal>Couverture nationale</span>
         <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
           Partout en France<br/>
-          <span class="text-brand-500">métropolitaine.</span>
+          <span class="text-brand-400">métropolitaine.</span>
         </h1>
         <p class="text-[1.15rem] text-white/65 leading-loose font-light" data-reveal data-reveal-delay="2">
           Aucune zone exclue. Du littoral atlantique aux communes alpines, en passant par l'Île-de-France
@@ -72,7 +72,7 @@ const installSteps = [
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {installSteps.map((s, i) => (
           <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
-            <div class="font-extrabold text-2xl text-brand-500/50 leading-none mb-3 tabular-nums">
+            <div class="font-extrabold text-2xl text-brand-400 leading-none mb-3 tabular-nums">
               {s.n}
             </div>
             <h3 class="font-bold text-white text-base mb-2">{s.title}</h3>
@@ -103,7 +103,7 @@ const installSteps = [
           >
             <h3 class="font-bold text-white text-base">{c.name}</h3>
             <p class="mt-1 text-sm text-white/55 font-light">{c.department} · {c.departmentCode}</p>
-            <span class="mt-3 inline-block text-brand-500 text-sm font-medium">
+            <span class="mt-3 inline-block text-brand-400 text-sm font-medium">
               Matériel sportif à {c.name} →
             </span>
           </a>

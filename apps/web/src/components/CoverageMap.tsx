@@ -152,9 +152,9 @@ export default function CoverageMap(): JSX.Element {
         )}
 
         <ul className="space-y-2.5 text-[0.78rem] text-white/55 mb-6 font-light leading-relaxed">
-          <li className="flex gap-2.5"><span className="text-brand-500 shrink-0">✓</span>Visite de site offerte en Île-de-France</li>
-          <li className="flex gap-2.5"><span className="text-brand-500 shrink-0">✓</span>Frais de transport inclus jusqu'à 200 km</li>
-          <li className="flex gap-2.5"><span className="text-brand-500 shrink-0">✓</span>Au-delà : devis sur mesure (rare en pratique)</li>
+          <li className="flex gap-2.5"><span className="text-brand-400 shrink-0">✓</span>Visite de site offerte en Île-de-France</li>
+          <li className="flex gap-2.5"><span className="text-brand-400 shrink-0">✓</span>Frais de transport inclus jusqu'à 200 km</li>
+          <li className="flex gap-2.5"><span className="text-brand-400 shrink-0">✓</span>Au-delà : devis sur mesure (rare en pratique)</li>
         </ul>
 
         <div className="flex-1" />

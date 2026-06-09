@@ -103,7 +103,7 @@ const faqTarifs = [
         <span class="tag tag-brand inline-block mb-6" data-reveal>Tarifs</span>
         <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
           Un modèle marketplace<br/>
-          <span class="text-brand-500">3 flux, transparent.</span>
+          <span class="text-brand-400">3 flux, transparent.</span>
         </h1>
         <p class="text-[1.15rem] text-white/65 leading-loose font-light" data-reveal data-reveal-delay="2">
           L'usager paie à la durée — vous fixez votre propre grille (30 min,
@@ -151,7 +151,7 @@ const faqTarifs = [
                     <div class="text-[0.7rem] text-white/60 font-light leading-relaxed mt-1">{d.note}</div>
                   )}
                 </div>
-                <div class="font-extrabold text-xl text-brand-500 tabular-nums shrink-0">
+                <div class="font-extrabold text-xl text-brand-400 tabular-nums shrink-0">
                   {d.amount} €
                 </div>
               </div>
@@ -180,7 +180,7 @@ const faqTarifs = [
         <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PRICING_TEMPLATES.map((tpl, i) => (
             <div class="card-dark p-6 flex flex-col" data-reveal data-reveal-delay={String((i % 4) + 1)}>
-              <div class="text-xs uppercase tracking-[0.12em] text-brand-500/80 mb-2">
+              <div class="text-xs uppercase tracking-[0.12em] text-brand-400 mb-2">
                 {tpl.targetSegment === 'mairie'  ? 'Mairie'
                 : tpl.targetSegment === 'camping' ? 'Camping & plage'
                 : tpl.targetSegment === 'hotel'   ? 'Hôtel'
@@ -282,7 +282,7 @@ const faqTarifs = [
 
         <div class="mt-8 pt-8 border-t border-white/10 grid sm:grid-cols-2 gap-5">
           <div class="bg-brand-500/[0.08] border border-brand-500/30 rounded-lg p-5">
-            <div class="text-xs uppercase tracking-[0.1em] text-brand-500/80 mb-1.5">Pour vous (tenant)</div>
+            <div class="text-xs uppercase tracking-[0.1em] text-brand-400 mb-1.5">Pour vous (tenant)</div>
             <div class="font-extrabold text-3xl text-white tabular-nums">{formatEur(tenantShareExample)}</div>
             <div class="text-xs text-white/60 mt-1.5 font-light">soit 75 % — versé J+2</div>
           </div>
@@ -305,19 +305,19 @@ const faqTarifs = [
         <h3 class="font-extrabold text-white text-base mb-4">Pourquoi 25 % de commission ?</h3>
         <ul class="space-y-3 text-sm text-white/65 font-light">
           <li class="flex gap-3">
-            <span class="text-brand-500 shrink-0">·</span>
+            <span class="text-brand-400 shrink-0">·</span>
             <span><strong class="text-white/85 font-medium">Standard marketplaces B2C</strong> — Uber Eats prend 30 %, Deliveroo 30 %, Airbnb 15 %. SportLocker se situe dans la fourchette basse.</span>
           </li>
           <li class="flex gap-3">
-            <span class="text-brand-500 shrink-0">·</span>
+            <span class="text-brand-400 shrink-0">·</span>
             <span><strong class="text-white/85 font-medium">Frais Stripe Connect</strong> — 1,4 % + 0,25 € absorbés par SportLocker sur sa commission, pas répercutés sur vous.</span>
           </li>
           <li class="flex gap-3">
-            <span class="text-brand-500 shrink-0">·</span>
+            <span class="text-brand-400 shrink-0">·</span>
             <span><strong class="text-white/85 font-medium">Maintenance + support N2</strong> — la commission finance la hotline 7j/7, le monitoring 24/24 et les mises à jour OTA.</span>
           </li>
           <li class="flex gap-3">
-            <span class="text-brand-500 shrink-0">·</span>
+            <span class="text-brand-400 shrink-0">·</span>
             <span><strong class="text-white/85 font-medium">Compense l'abo bas</strong> — sans commission, l'abonnement mensuel serait 2× plus cher pour couvrir le même coût opérationnel.</span>
           </li>
         </ul>
