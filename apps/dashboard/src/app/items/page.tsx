@@ -205,8 +205,78 @@ function TypesTable({
 }) {
   const t = itemsStrings(lang)
   const c = commonStrings(lang)
+
+  if (types.length === 0) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-navy-800 p-8 text-center text-white/40">
+        {t.noTypes}
+      </div>
+    )
+  }
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+    <>
+    {/* Mobile : carte par type — image + meta + cautions/durée (table 820px min H scroll pénible) */}
+    <div className="space-y-3 md:hidden">
+      {types.map((tp) => {
+        const card = (
+          <>
+            <div className="flex items-start gap-3">
+              {tp.imageUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={tp.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-md border border-white/10 bg-navy-900 object-cover" />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-white/10 bg-navy-900 text-[10px] uppercase text-white/30">—</div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-white">{tp.name}</div>
+                <div className="mt-0.5 truncate font-mono text-[11px] text-white/40">{tp.slug}</div>
+                <span className="mt-1.5 inline-flex rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/70">
+                  {tp.category}
+                </span>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-2 text-meta">
+              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">{t.colCaution}</div>
+                <div className="mt-0.5 font-display text-sm tabular-nums text-white/85">{fmtEuros(lang, tp.cautionCents)}</div>
+              </div>
+              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">{t.colMaxDuration}</div>
+                <div className="mt-0.5 font-display text-sm tabular-nums text-white/85">{fmtMinutes(tp.maxDurationMinutes)}</div>
+              </div>
+              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">{t.colItems}</div>
+                <div className={cn('mt-0.5 font-display text-sm tabular-nums', tp.activeItemCount === 0 ? 'text-white/30' : 'text-white')}>{tp.activeItemCount}</div>
+              </div>
+              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">{t.colLoans}</div>
+                <div className="mt-0.5 font-display text-sm tabular-nums text-white/70">{tp.totalReservations}</div>
+              </div>
+            </div>
+          </>
+        )
+        if (!useDemo && isSuperAdmin) {
+          return (
+            <Link
+              key={tp.id}
+              href={`/items/types/${tp.id}/edit`}
+              className="block rounded-card border border-white/10 bg-navy-800 p-4 transition hover:border-white/20"
+            >
+              {card}
+            </Link>
+          )
+        }
+        return (
+          <div key={tp.id} className="rounded-card border border-white/10 bg-navy-800 p-4">
+            {card}
+          </div>
+        )
+      })}
+    </div>
+
+    {/* Desktop : tableau dense */}
+    <div className="hidden overflow-x-auto rounded-xl border border-white/10 bg-navy-800 md:block">
       <table className="w-full min-w-[820px] text-sm">
         <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
           <tr>
@@ -275,6 +345,7 @@ function TypesTable({
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -324,7 +395,68 @@ function InstancesTable({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-navy-800">
+      {/* Mobile : carte par article. Empty state si filtre vide */}
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-white/10 bg-navy-800 p-8 text-center text-sm text-white/40 md:hidden">
+          {t.noItemsForFilters}
+        </div>
+      ) : (
+        <div className="space-y-3 md:hidden">
+          {items.map((it) => {
+            const card = (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-white">{it.itemType.name}</div>
+                    <div className="mt-0.5 truncate font-mono text-[11px] text-white/40">
+                      {t.colRfid} {it.rfidTag} · {it.itemType.category}
+                    </div>
+                  </div>
+                  <span className={cn(
+                    'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                    CONDITION_CLS[it.condition],
+                  )}>
+                    {conditionLabel(lang, it.condition)}
+                  </span>
+                </div>
+                <div className="mt-3 text-meta text-white/70">
+                  {it.currentLocker ? (
+                    <>
+                      <div className="truncate text-white/85">{it.currentLocker.distributor.name}</div>
+                      <div className="mt-0.5 text-[11px] text-white/40">
+                        {t.lockerHash}{it.currentLocker.position + 1} ·{' '}
+                        <span className="font-mono">{it.currentLocker.distributor.serialNumber}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-white/30">{t.orphan}</span>
+                  )}
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2 text-[11px] text-white/40">
+                  <span>{t.colInspection} · {fmtDate(lang, it.lastInspectedAt, t.never)}</span>
+                  <span className="tabular-nums">{t.colLoans} · {it.totalLoans}</span>
+                </div>
+              </>
+            )
+            return useDemo ? (
+              <div key={it.id} className="rounded-card border border-white/10 bg-navy-800 p-4">
+                {card}
+              </div>
+            ) : (
+              <Link
+                key={it.id}
+                href={`/items/instances/${it.id}/edit`}
+                className="block rounded-card border border-white/10 bg-navy-800 p-4 transition hover:border-white/20"
+              >
+                {card}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Desktop : tableau dense classique */}
+      <div className="hidden overflow-hidden rounded-xl border border-white/10 bg-navy-800 md:block">
         <table className="w-full text-sm">
           <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
             <tr>
