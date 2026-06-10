@@ -18,7 +18,9 @@ import { StripeNotConfiguredError, requireStripe } from '../lib/stripe.js'
  *
  * ## Sécurité
  *
- * Stripe signe chaque payload avec `STRIPE_WEBHOOK_SECRET` (HMAC-SHA256).
+ * Stripe signe chaque payload avec le secret de signature de CET endpoint
+ * (`STRIPE_CONNECT_WEBHOOK_SECRET`, fallback `STRIPE_WEBHOOK_SECRET`) en
+ * HMAC-SHA256 — Stripe attribue un secret distinct par endpoint enregistré.
  * Sans vérif, n'importe qui pourrait POST sur `/v1/webhooks/stripe` et
  * marquer une commune "verified" sans onboarding réel — fraude critique.
  *
@@ -73,7 +75,12 @@ export async function webhooksStripeRoutes(app: FastifyInstance) {
     // pas un JSON object → Fastify ne saurait pas le valider via Zod.
     config: { rawBody: true },
   }, async (req, reply) => {
-    if (!env.STRIPE_WEBHOOK_SECRET) {
+    // Stripe attribue un secret de signature PAR endpoint. Cet endpoint Connect
+    // a le sien (STRIPE_CONNECT_WEBHOOK_SECRET) ; fallback sur le secret du
+    // webhook paiements si non configuré (endpoint unique / legacy) → pas de
+    // régression, mais avec un secret dédié les signatures Connect valident enfin.
+    const webhookSecret = env.STRIPE_CONNECT_WEBHOOK_SECRET ?? env.STRIPE_WEBHOOK_SECRET
+    if (!webhookSecret) {
       // Secret pas configuré → on n'a aucun moyen de vérifier la signature
       // → on refuse plutôt que d'accepter aveuglément.
       reply.code(503).send({ error: 'stripe_webhook_not_configured' })
@@ -104,7 +111,7 @@ export async function webhooksStripeRoutes(app: FastifyInstance) {
       event = stripe.webhooks.constructEvent(
         req.body as Buffer,
         signature,
-        env.STRIPE_WEBHOOK_SECRET,
+        webhookSecret,
       )
     } catch (err) {
       req.log.warn({ err }, 'stripe webhook signature verification failed')
