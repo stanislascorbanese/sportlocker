@@ -44,6 +44,13 @@ const EnvSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Secret de signature dédié à l'endpoint webhook Stripe CONNECT
+  // (/v1/webhooks/stripe → account.updated). Stripe attribue un `whsec_…`
+  // DISTINCT par endpoint : si tu enregistres deux endpoints dans le dashboard
+  // Stripe (un pour les paiements, un pour Connect), chacun a son propre secret.
+  // Optionnel : si absent, on retombe sur STRIPE_WEBHOOK_SECRET (endpoint unique
+  // ou config legacy) → aucune régression.
+  STRIPE_CONNECT_WEBHOOK_SECRET: z.string().optional(),
   // Clé publishable Stripe (pk_test_… / pk_live_…). Exposée au client via
   // NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY côté PWA — déclarée ici uniquement pour
   // documentation/validation, l'API ne s'en sert pas directement.
