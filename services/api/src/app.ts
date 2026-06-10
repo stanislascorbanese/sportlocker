@@ -139,7 +139,13 @@ export async function buildApp() {
     if (status >= 500 && env.SENTRY_DSN) {
       Sentry.captureException(err, { extra: { url: req.url, method: req.method } })
     }
-    return reply.status(status).send({ error: err.message || 'internal_error' })
+    // 5xx → message générique : ne pas fuiter de détails internes au client
+    // (une erreur SQL/driver/Postgres non gérée peut contenir des noms de
+    // colonnes, des fragments de requête, voire des indices d'infra). Le détail
+    // reste loggé ci-dessus + envoyé à Sentry. 4xx → on conserve err.message
+    // (erreurs métier/validation utiles et non sensibles, ex. "reservation_not_found").
+    const body = status >= 500 ? 'internal_error' : err.message || 'internal_error'
+    return reply.status(status).send({ error: body })
   })
 
   return app
