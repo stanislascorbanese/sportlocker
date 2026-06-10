@@ -1,5 +1,4 @@
 import { fetchMaintenanceTickets, type MaintenanceTicket } from '../../lib/api'
-import { DEMO_MAINTENANCE_TICKETS } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
@@ -45,7 +44,10 @@ export default async function MaintenancePage() {
   }
 
   const useDemo = fetchError !== null || realTickets.length === 0
-  const tickets = useDemo ? DEMO_MAINTENANCE_TICKETS : realTickets
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  const tickets = useDemo
+    ? (await import('../../lib/demo-data')).DEMO_MAINTENANCE_TICKETS
+    : realTickets
 
   const grouped: Record<ColumnKey, MaintenanceTicket[]> = {
     open: [],

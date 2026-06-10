@@ -12,7 +12,6 @@ import {
   type DailyPoint,
   type Distributor,
 } from '../../lib/api'
-import { DEMO_COMMUNES, demoReservationsDaily, demoStatsDashboard } from '../../lib/demo-data'
 import { getSessionUser } from '../../lib/session-server'
 import { StatCard } from '../../components/StatCard'
 import { cn } from '../../lib/cn'
@@ -100,8 +99,18 @@ async function loadAdminTenantData(): Promise<AdminTenantData> {
   ])
 
   const useDemo = hadError || communes.length === 0
-  const commune = useDemo ? DEMO_COMMUNES[0]! : communes[0]!
-  const dailySeries = useDemo || daily.length === 0 ? demoReservationsDaily(30) : daily
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  const needsDailyFallback = useDemo || daily.length === 0
+  let commune: Commune
+  let dailySeries: DailyPoint[]
+  if (useDemo || needsDailyFallback) {
+    const demo = await import('../../lib/demo-data')
+    commune = useDemo ? demo.DEMO_COMMUNES[0]! : communes[0]!
+    dailySeries = needsDailyFallback ? demo.demoReservationsDaily(30) : daily
+  } else {
+    commune = communes[0]!
+    dailySeries = daily
+  }
   const totalReservations30d = dailySeries.reduce((acc, p) => acc + p.count, 0)
 
   return {
@@ -141,11 +150,13 @@ async function loadSuperAdminData(): Promise<SuperAdminData> {
 
   const useDemo = hadError || (communes.length === 0 && distributors.length === 0)
   if (useDemo) {
-    const demoStats = demoStatsDashboard(7)
+    // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+    const demo = await import('../../lib/demo-data')
+    const demoStats = demo.demoStatsDashboard(7)
     return {
-      communesCount: DEMO_COMMUNES.length,
-      distributorsCount: DEMO_COMMUNES.reduce((a, c) => a + c.distributorCount, 0),
-      lastCommune: DEMO_COMMUNES[0]!,
+      communesCount: demo.DEMO_COMMUNES.length,
+      distributorsCount: demo.DEMO_COMMUNES.reduce((a, c) => a + c.distributorCount, 0),
+      lastCommune: demo.DEMO_COMMUNES[0]!,
       reservations7d: demoStats.daily.reduce((a, p) => a + p.count, 0),
       useDemo: true,
     }

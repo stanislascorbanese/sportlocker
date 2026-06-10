@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
 import { fetchStatsDashboard, type StatsDashboard, type ReservationStatus } from '../../lib/api'
-import { demoStatsDashboard } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { Sparkline } from '../../components/Sparkline'
 import { DonutChart } from '../../components/DonutChart'
@@ -59,7 +58,10 @@ export default async function StatsPage({
     && real.topDistributors.every((d) => d.count === 0)
   const useDemo = fetchError !== null || !real || everythingEmpty
 
-  const stats: StatsDashboard = useDemo ? demoStatsDashboard(days) : real!
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  const stats: StatsDashboard = useDemo
+    ? (await import('../../lib/demo-data')).demoStatsDashboard(days)
+    : real!
 
   const total = stats.daily.reduce((a, p) => a + p.count, 0)
   const totalReturned = stats.byStatus.find((s) => s.status === 'returned')?.count ?? 0

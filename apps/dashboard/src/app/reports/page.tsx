@@ -10,11 +10,6 @@ import {
   type MaintenanceTicket,
   type StatsDashboard,
 } from '../../lib/api'
-import {
-  DEMO_COMMUNES,
-  DEMO_MAINTENANCE_TICKETS,
-  demoStatsDashboard,
-} from '../../lib/demo-data'
 import { getSessionUser } from '../../lib/session-server'
 import { Heatmap } from '../../components/Heatmap'
 import { RefreshButton } from '../../components/RefreshButton'
@@ -119,10 +114,15 @@ async function loadAll(days: number): Promise<LoadResult> {
     && realStats.topDistributors.every((d) => d.count === 0)
   const useDemo = fetchError !== null || realStats === null || allZero
 
-  const stats: StatsDashboard = useDemo ? demoStatsDashboard(days) : realStats!
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  let stats: StatsDashboard
   if (useDemo) {
-    if (communes.length === 0) communes = DEMO_COMMUNES
-    if (tickets.length === 0) tickets = DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
+    const demo = await import('../../lib/demo-data')
+    stats = demo.demoStatsDashboard(days)
+    if (communes.length === 0) communes = demo.DEMO_COMMUNES
+    if (tickets.length === 0) tickets = demo.DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
+  } else {
+    stats = realStats!
   }
 
   return { stats, distributors, tickets, communes, useDemo, fetchError }

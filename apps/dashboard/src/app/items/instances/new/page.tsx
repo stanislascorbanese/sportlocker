@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
 import { fetchAdminItemTypes } from '../../../../lib/api'
-import { DEMO_ITEM_TYPES } from '../../../../lib/demo-data'
 import { getLang } from '../../../../lib/lang-server'
 import { commonStrings } from '../../../../lib/i18n/common'
 import { itemsStrings } from '../../../../lib/i18n/items'
@@ -22,7 +21,8 @@ export default async function NewItemPage() {
   try {
     types = await fetchAdminItemTypes()
   } catch {
-    types = DEMO_ITEM_TYPES
+    // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+    types = (await import('../../../../lib/demo-data')).DEMO_ITEM_TYPES
   }
   try {
     lockers = await fetchAllLockerOptions()

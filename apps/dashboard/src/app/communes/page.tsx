@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
 import { fetchCommunes, type Commune } from '../../lib/api'
-import { DEMO_COMMUNES } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
 import { getLang } from '../../lib/lang-server'
@@ -66,7 +65,12 @@ export default async function CommunesPage() {
   }
 
   const useDemo = fetchError !== null || realCommunes.length === 0
-  const communes = useDemo ? DEMO_COMMUNES : realCommunes
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur) —
+  // évite d'embarquer les ~10k de fixtures dans le bundle de chaque page
+  // quand l'API renvoie des données réelles (cas nominal en prod tenant).
+  const communes = useDemo
+    ? (await import('../../lib/demo-data')).DEMO_COMMUNES
+    : realCommunes
 
   const totalDistributors = communes.reduce((a, c) => a + c.distributorCount, 0)
   const totalMonthlyRevenue = communes.reduce((a, c) => a + c.monthlyFeeCents, 0)

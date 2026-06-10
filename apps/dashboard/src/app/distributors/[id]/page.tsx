@@ -5,7 +5,6 @@ import {
   ApiError, fetchAdminItemTypes, fetchDistributor,
   type DistributorDetail, type DistributorLocker, type ItemTypeAdmin,
 } from '../../../lib/api'
-import { demoDistributorDetail, DEMO_ITEM_TYPES } from '../../../lib/demo-data'
 import { StatusPill } from '../../../components/StatusPill'
 import { BatteryGauge } from '../../../components/BatteryGauge'
 import { RefreshButton } from '../../../components/RefreshButton'
@@ -74,9 +73,16 @@ export default async function DistributorDetailPage(
     // Si le catalogue n'est pas dispo, le drawer reste utilisable en démo.
   }
 
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur) —
+  // chargé uniquement si distributor introuvable OU catalogue item_types vide.
   const useDemo = distributor == null
-  const data: DistributorDetail = distributor ?? demoDistributorDetail(id)
-  const types: ItemTypeAdmin[] = itemTypes.length > 0 ? itemTypes : DEMO_ITEM_TYPES
+  let data: DistributorDetail = distributor!  // narrow garanti par le if ci-dessous
+  let types: ItemTypeAdmin[] = itemTypes
+  if (useDemo || itemTypes.length === 0) {
+    const demo = await import('../../../lib/demo-data')
+    if (useDemo) data = demo.demoDistributorDetail(id)
+    if (itemTypes.length === 0) types = demo.DEMO_ITEM_TYPES
+  }
   const summary = summarizeLockerGrid(data.lockers)
   const loadable = loadableLockers(data.lockers).map((l) => ({ id: l.id, position: l.position }))
 

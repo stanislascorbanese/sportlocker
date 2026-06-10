@@ -10,11 +10,6 @@ import {
   type MaintenanceTicket,
   type Reservation,
 } from '../lib/api'
-import {
-  DEMO_RESERVATIONS,
-  DEMO_MAINTENANCE_TICKETS,
-  demoReservationsDaily,
-} from '../lib/demo-data'
 import { getSessionUser } from '../lib/session-server'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
@@ -90,18 +85,23 @@ export default async function HomePage() {
     && data.openTickets.length === 0
   const useDemo = data.hadError || everythingEmpty
 
-  const activeReservations = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => r.status === 'active')
-    : data.activeReservations
-  const overdueReservations = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => r.status === 'overdue')
-    : data.overdueReservations
-  const openTickets = useDemo
-    ? DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
-    : data.openTickets
-  const dailySeries = useDemo || data.dailySeries.length === 0
-    ? demoReservationsDaily(7)
-    : data.dailySeries
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  const needsDailyFallback = useDemo || data.dailySeries.length === 0
+  let activeReservations: Reservation[] = data.activeReservations
+  let overdueReservations: Reservation[] = data.overdueReservations
+  let openTickets: MaintenanceTicket[] = data.openTickets
+  let dailySeries: DailyPoint[] = data.dailySeries
+  if (useDemo || needsDailyFallback) {
+    const demo = await import('../lib/demo-data')
+    if (useDemo) {
+      activeReservations = demo.DEMO_RESERVATIONS.filter((r) => r.status === 'active')
+      overdueReservations = demo.DEMO_RESERVATIONS.filter((r) => r.status === 'overdue')
+      openTickets = demo.DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
+    }
+    if (needsDailyFallback) {
+      dailySeries = demo.demoReservationsDaily(7)
+    }
+  }
 
   // KPIs distributeurs (toujours via vraies données — la route est publique)
   const totalDistributors  = data.distributors.length

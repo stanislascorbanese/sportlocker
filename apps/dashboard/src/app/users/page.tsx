@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
 import { USER_ROLES, fetchUsers, type AdminUser, type UserRole } from '../../lib/api'
-import { DEMO_ADMIN_USERS } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
@@ -53,7 +52,10 @@ export default async function UsersPage({
   const noFilter = !role && !banned && !q
   const useDemo = fetchError !== null || (realUsers.length === 0 && noFilter)
 
-  let users = useDemo ? DEMO_ADMIN_USERS : realUsers
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  let users = useDemo
+    ? (await import('../../lib/demo-data')).DEMO_ADMIN_USERS
+    : realUsers
   if (useDemo) {
     if (role) users = users.filter((u) => u.role === role)
     if (banned === 'true') users = users.filter((u) => u.isBanned)
