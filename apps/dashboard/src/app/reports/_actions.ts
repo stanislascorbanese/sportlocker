@@ -7,7 +7,6 @@ import {
   type Commune,
   type StatsDashboard,
 } from '../../lib/api'
-import { demoStatsDashboard, DEMO_COMMUNES } from '../../lib/demo-data'
 import { getSessionUser } from '../../lib/session-server'
 
 import { generatePdfBuffer, type ReportFilters } from './pdf-generator'
@@ -57,8 +56,10 @@ export async function generateReportAction(filters: ReportFilters): Promise<PdfR
     }
   } catch (err) {
     if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-      stats = demoStatsDashboard(days)
-      communes = DEMO_COMMUNES
+      // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+      const demo = await import('../../lib/demo-data')
+      stats = demo.demoStatsDashboard(days)
+      communes = demo.DEMO_COMMUNES
       source = 'demo'
     } else {
       return { ok: false, error: err instanceof Error ? err.message : 'Erreur inconnue.' }
@@ -69,8 +70,9 @@ export async function generateReportAction(filters: ReportFilters): Promise<PdfR
   const allZero = stats.daily.every((p) => p.count === 0)
     && stats.topDistributors.every((d) => d.count === 0)
   if (source === 'live' && allZero) {
-    stats = demoStatsDashboard(days)
-    if (communes.length === 0) communes = DEMO_COMMUNES
+    const demo = await import('../../lib/demo-data')
+    stats = demo.demoStatsDashboard(days)
+    if (communes.length === 0) communes = demo.DEMO_COMMUNES
     source = 'demo'
   }
 

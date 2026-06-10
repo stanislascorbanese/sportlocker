@@ -14,13 +14,6 @@ import {
   type Reservation,
   type StatsDashboard,
 } from '../lib/api'
-import {
-  DEMO_COMMUNES,
-  DEMO_RESERVATIONS,
-  DEMO_MAINTENANCE_TICKETS,
-  demoReservationsDaily,
-  demoStatsDashboard,
-} from '../lib/demo-data'
 import { DistributorCard } from '../components/DistributorCard'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
@@ -96,31 +89,34 @@ export async function TenantHome({ communeId }: { communeId: string }) {
     && data.openTickets.length === 0
   const useDemo = data.hadError || everythingEmpty
 
-  // En mode démo, on simule le scope tenant : prend la commune Paris 11e
-  // (1ère fixture) et filtre les data dessus.
-  const demoCommune = DEMO_COMMUNES[0]!
-  const commune = useDemo ? demoCommune : (data.commune ?? demoCommune)
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  const needsDailyFallback = useDemo || data.dailySeries.length === 0
+  const needsTopFallback = useDemo || data.topDistributors.length === 0
+  let commune: Commune
+  let activeReservations: Reservation[] = data.activeReservations
+  let overdueReservations: Reservation[] = data.overdueReservations
+  let openTickets: MaintenanceTicket[] = data.openTickets
+  let dailySeries: DailyPoint[] = data.dailySeries
+  let topDistributors: StatsDashboard['topDistributors'] = data.topDistributors
+  if (useDemo || needsDailyFallback || needsTopFallback) {
+    const demo = await import('../lib/demo-data')
+    const demoCommune = demo.DEMO_COMMUNES[0]!
+    commune = useDemo ? demoCommune : (data.commune ?? demoCommune)
+    if (useDemo) {
+      activeReservations = demo.DEMO_RESERVATIONS.filter((r) => r.status === 'active')
+      overdueReservations = demo.DEMO_RESERVATIONS.filter((r) => r.status === 'overdue')
+      openTickets = demo.DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
+    }
+    if (needsDailyFallback) dailySeries = demo.demoReservationsDaily(7)
+    if (needsTopFallback) topDistributors = demo.demoStatsDashboard(7).topDistributors.slice(0, 3)
+  } else {
+    commune = data.commune!
+  }
 
   // En vrai mode (non démo), l'API renvoie déjà uniquement les distributeurs
-  // de la commune (scope serveur). En démo, on filtre côté client.
-  const distributors = useDemo
-    ? [] // pas de fixtures distributeurs scopées Paris 11e — on affiche 3 cartes synthétiques
-    : data.distributors
-  const activeReservations = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => r.status === 'active')
-    : data.activeReservations
-  const overdueReservations = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => r.status === 'overdue')
-    : data.overdueReservations
-  const openTickets = useDemo
-    ? DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
-    : data.openTickets
-  const dailySeries = useDemo || data.dailySeries.length === 0
-    ? demoReservationsDaily(7)
-    : data.dailySeries
-  const topDistributors = useDemo || data.topDistributors.length === 0
-    ? demoStatsDashboard(7).topDistributors.slice(0, 3)
-    : data.topDistributors
+  // de la commune (scope serveur). En démo, on n'a pas de fixtures distributeurs
+  // scopées Paris 11e — on affiche 3 cartes synthétiques construites plus bas.
+  const distributors = useDemo ? [] : data.distributors
 
   // Pour les fixtures démo de distributeurs : on prend les 3 premières du topDistributors démo
   // et on reconstruit des Distributor synthétiques cohérents

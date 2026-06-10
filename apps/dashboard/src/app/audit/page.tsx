@@ -7,7 +7,6 @@ import {
   type AuditEvent,
   type LockerEventType,
 } from '../../lib/api'
-import { demoAuditEvents } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
 import { getLang } from '../../lib/lang-server'
@@ -143,8 +142,9 @@ export default async function AuditPage({
   // Avec filtre, on respecte le vrai résultat (vide = "aucun event pour ces filtres").
   const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
 
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const items: AuditEvent[] = useDemo
-    ? demoAuditEvents().filter((e) => {
+    ? (await import('../../lib/demo-data')).demoAuditEvents().filter((e) => {
         if (eventType && e.eventType !== eventType) return false
         if (source && e.source !== source) return false
         if (distributorId && e.distributor.id !== distributorId) return false

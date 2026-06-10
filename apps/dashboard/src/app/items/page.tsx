@@ -3,7 +3,6 @@ import Link from 'next/link'
 import {
   fetchAdminItemTypes, fetchItems, type Item, type ItemCondition, type ItemTypeAdmin,
 } from '../../lib/api'
-import { DEMO_ITEMS, DEMO_ITEM_TYPES } from '../../lib/demo-data'
 import { getSessionUser } from '../../lib/session-server'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
@@ -84,9 +83,13 @@ export default async function ItemsPage({
   }
 
   const useDemo = fetchError !== null || (realTypes.length === 0 && realItems.length === 0)
-  const itemTypes: ItemTypeAdmin[] = useDemo ? DEMO_ITEM_TYPES : realTypes
-  let physicalItems: Item[] = useDemo ? DEMO_ITEMS : realItems
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  let itemTypes: ItemTypeAdmin[] = realTypes
+  let physicalItems: Item[] = realItems
   if (useDemo) {
+    const demo = await import('../../lib/demo-data')
+    itemTypes = demo.DEMO_ITEM_TYPES
+    physicalItems = demo.DEMO_ITEMS
     if (condFilter) physicalItems = physicalItems.filter((i: Item) => i.condition === condFilter)
     if (typeFilter) physicalItems = physicalItems.filter((i: Item) => i.itemType.id === typeFilter)
   }

@@ -10,7 +10,6 @@ import {
   type ReservationDetail,
   type ReservationStatus,
 } from '../../lib/api'
-import { DEMO_RESERVATIONS, demoReservationDetail } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { ClickableRow } from './ClickableRow'
 import { ExportCsvButton } from './ExportCsvButton'
@@ -163,8 +162,13 @@ export default async function ReservationsPage({
   // Avec filtre, on respecte le vrai résultat même s'il est vide (sinon UX trompeuse).
   const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
 
-  const items = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => {
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  // On charge la lib une seule fois et réutilise pour le drawer detail.
+  const demo = useDemo
+    ? await import('../../lib/demo-data')
+    : null
+  const items = demo
+    ? demo.DEMO_RESERVATIONS.filter((r) => {
         if (status && r.status !== status) return false
         if (from && r.createdAt < `${from}T00:00:00`) return false
         if (to && r.createdAt > `${to}T23:59:59.999Z`) return false
@@ -177,9 +181,9 @@ export default async function ReservationsPage({
   let detail: ReservationDetail | null = null
   let detailError: string | undefined
   if (detailId) {
-    if (useDemo) {
-      const demoMatch = DEMO_RESERVATIONS.find((r) => r.id === detailId)
-      if (demoMatch) detail = demoReservationDetail(demoMatch)
+    if (demo) {
+      const demoMatch = demo.DEMO_RESERVATIONS.find((r) => r.id === detailId)
+      if (demoMatch) detail = demo.demoReservationDetail(demoMatch)
       else detailError = t.distributorNotFoundDemo
     } else {
       try {
