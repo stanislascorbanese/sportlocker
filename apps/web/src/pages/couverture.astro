@@ -37,12 +37,17 @@ const installSteps = [
     <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
     <div class="container-x relative">
       <div class="max-w-3xl">
-        <span class="tag tag-brand inline-block mb-6" data-reveal>Couverture nationale</span>
-        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+        {/* Pas de `data-reveal` sur le hero : il est above-the-fold (déjà dans le
+            viewport au chargement), donc l'animation opacity:0 → JS ne fait que
+            masquer le contenu jusqu'à l'exécution de l'IntersectionObserver, ce
+            qui retardait le LCP à ~4,4 s (le <p> ci-dessous était l'élément LCP).
+            Rendu immédiat → LCP au FCP. Les sections plus bas gardent le reveal. */}
+        <span class="tag tag-brand inline-block mb-6">Couverture nationale</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6">
           Partout en France<br/>
           <span class="text-brand-400">métropolitaine.</span>
         </h1>
-        <p class="text-[1.15rem] text-white/65 leading-loose font-light" data-reveal data-reveal-delay="2">
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light">
           Aucune zone exclue. Du littoral atlantique aux communes alpines, en passant par l'Île-de-France
           et l'Occitanie : nous déployons partout. Cliquez sur la carte pour indiquer votre commune et
           recevoir une étude de site personnalisée.
