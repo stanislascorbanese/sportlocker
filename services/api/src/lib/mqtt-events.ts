@@ -136,6 +136,7 @@ export async function handleDoorUnlocked(
         lockerId: reservations.lockerId,
         distributorId: reservations.distributorId,
         openedAt: reservations.openedAt,
+        slotEndAt: reservations.slotEndAt,
       })
       .from(reservations)
       .where(eq(reservations.id, event.reservationId))
@@ -175,6 +176,12 @@ export async function handleDoorUnlocked(
       .set({
         status: 'active',
         openedAt,
+        // Deadline de retour = fin du créneau réservé (CGU art. 5 : « la
+        // restitution doit intervenir avant la fin du créneau réservé »). Sans
+        // ça, due_at restait NULL → detect-overdue (pénalité trust_score + push)
+        // ET la prolongation de résa étaient inopérants en prod. Résa legacy sans
+        // slot (slot_end_at NULL) : due_at reste NULL, comportement inchangé.
+        dueAt: res.slotEndAt,
         updatedAt: sql`now()`,
       })
       .where(eq(reservations.id, event.reservationId))
