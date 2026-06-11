@@ -14,7 +14,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
 export default function LoginPage() {
   const router = useRouter()
   const search = useSearchParams()
-  const redirectTo = search?.get('redirect') ?? '/'
+  // Anti open-redirect : on n'accepte qu'un chemin interne relatif. Un `redirect`
+  // absolu (`https://evil.com`) ou protocol-relative (`//evil.com`) serait suivi
+  // par router.replace → phishing. On le ramène à `/` si ce n'est pas un `/chemin`.
+  const rawRedirect = search?.get('redirect') ?? '/'
+  const redirectTo =
+    rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/'
   const lang = useLang()
   const t = authStrings(lang)
 
