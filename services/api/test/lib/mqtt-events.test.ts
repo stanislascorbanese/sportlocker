@@ -168,6 +168,44 @@ describe('handleEnvelope (door_unlocked)', () => {
     expect(events[0].metadata).toMatchObject({ jti: 'jti-event-1', mode: 'online' })
   })
 
+  it('pose due_at = slot_end_at à l\'activation (modèle slots, CGU art. 5)', async () => {
+    const f = await seedActiveCandidate({ resaStatus: 'scheduled' })
+    // Modèle slots : la résa a un créneau réservé → la deadline de retour doit
+    // être la fin du créneau (slot_end_at), pas NULL.
+    const slotStart = new Date(Date.now() - 5 * 60 * 1000)
+    const slotEnd = new Date(Date.now() + 25 * 60 * 1000)
+    await pgSql`UPDATE reservations
+                   SET slot_start_at = ${slotStart}, slot_end_at = ${slotEnd}
+                 WHERE id = ${f.reservationId}`
+
+    const { computeSignature } = await importHmac()
+    const { handleEnvelope } = await importModule()
+    const { db } = await import('../../src/db/client.js')
+
+    const data = {
+      type: 'door_unlocked',
+      deviceId: f.distributorId,
+      reservationId: f.reservationId,
+      lockerId: f.lockerId,
+      jti: 'jti-due-at',
+      openedAt: Math.floor(Date.now() / 1000),
+      mode: 'online',
+    }
+    const ok = await handleEnvelope(
+      { data, sig: computeSignature(data) },
+      f.distributorId,
+      { db, log },
+    )
+    expect(ok).toBe(true)
+
+    const [r] = await pgSql`SELECT status, due_at, slot_end_at
+                              FROM reservations WHERE id = ${f.reservationId}`
+    expect(r.status).toBe('active')
+    expect(r.due_at).not.toBeNull()
+    // Deadline = fin du créneau réservé.
+    expect(new Date(r.due_at).getTime()).toBe(new Date(r.slot_end_at).getTime())
+  })
+
   it('refuse une signature invalide sans toucher à la résa', async () => {
     const f = await seedActiveCandidate({ resaStatus: 'scheduled' })
     const { handleEnvelope } = await importModule()
