@@ -286,6 +286,25 @@ describe('runRgpdAnonymize', () => {
     expect(row!.email).toBe(`deleted-${u.id}@anonymized.local`)
   })
 
+  it('supprime les push_tokens du user anonymisé (et garde ceux des autres)', async () => {
+    const target = await seedUserWithGdpr({ requestedDaysAgo: 33 })
+    const other = await seedUserWithGdpr({ requestedDaysAgo: 5 }) // récent → non anonymisé
+
+    await pgSql`INSERT INTO push_tokens (id, user_id, endpoint, p256dh_key, auth_key)
+      VALUES (${randomUUID()}, ${target.id}, 'https://push.example/target', 'p', 'a')`
+    await pgSql`INSERT INTO push_tokens (id, user_id, endpoint, p256dh_key, auth_key)
+      VALUES (${randomUUID()}, ${other.id}, 'https://push.example/other', 'p', 'a')`
+
+    await (await getJob())(log)
+
+    const targetTokens = await pgSql`SELECT 1 FROM push_tokens WHERE user_id = ${target.id}`
+    const otherTokens = await pgSql`SELECT 1 FROM push_tokens WHERE user_id = ${other.id}`
+    // PII du device (endpoint + clés) effacée pour l'utilisateur anonymisé…
+    expect(targetTokens.length).toBe(0)
+    // …mais l'abonnement d'un autre utilisateur n'est pas affecté.
+    expect(otherTokens.length).toBe(1)
+  })
+
   it('traite plusieurs users dans un seul run', async () => {
     const u1 = await seedUserWithGdpr({ requestedDaysAgo: 31, displayName: 'A' })
     const u2 = await seedUserWithGdpr({ requestedDaysAgo: 45, displayName: 'B' })

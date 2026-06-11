@@ -33,6 +33,13 @@ import { reviews, users } from '../db/schema.js'
  * Champs touchés sur la table `reviews` (du user concerné) :
  *   - comment           → NULL (texte libre = potentiellement PII)
  *
+ * Table `push_tokens` (du user concerné) :
+ *   - lignes SUPPRIMÉES — `endpoint` + clés `p256dh`/`auth` identifient un
+ *     device de la personne (données personnelles). On ne supprimant pas la
+ *     ligne `users`, le CASCADE ne s'applique pas → suppression explicite ici,
+ *     sinon les abonnements survivent et les crons push cibleraient un user
+ *     « supprimé ».
+ *
  * Le job tourne 1 fois par jour. Idempotent : un user déjà anonymisé
  * (`gdpr_deleted_at IS NOT NULL`) est ignoré.
  *
@@ -67,6 +74,7 @@ export async function runRgpdAnonymize(log: FastifyBaseLogger): Promise<void> {
 
   let anonymized = 0
   let reviewsCleared = 0
+  let pushTokensDeleted = 0
 
   for (const { id } of candidates) {
     // 1. Pseudonymise le user. On utilise NOW() côté SQL plutôt que de passer
@@ -96,7 +104,18 @@ export async function runRgpdAnonymize(log: FastifyBaseLogger): Promise<void> {
       RETURNING id
     `)
     reviewsCleared += cleared.length
+
+    // 3. Supprime les abonnements push (endpoint + clés = données personnelles
+    //    d'un device identifiable). Pas de CASCADE car la ligne users survit →
+    //    suppression explicite, sinon les crons push continueraient à cibler un
+    //    user anonymisé.
+    const tokens = await db.execute<{ id: string }>(sql`
+      DELETE FROM push_tokens
+       WHERE user_id = ${id}::uuid
+      RETURNING id
+    `)
+    pushTokensDeleted += tokens.length
   }
 
-  log.info({ anonymized, reviewsCleared, window }, 'rgpd anonymization done')
+  log.info({ anonymized, reviewsCleared, pushTokensDeleted, window }, 'rgpd anonymization done')
 }
