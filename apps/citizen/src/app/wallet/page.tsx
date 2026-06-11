@@ -33,7 +33,16 @@ export default function WalletPage() {
   const { locale } = useI18n()
   const queryClient = useQueryClient()
 
-  const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: fetchWallet, retry: false })
+  // `enabled` : on n'interroge le wallet qu'une fois la session présente. Sans
+  // ça, la query part au premier paint avant que useRequireAuth ait redirigé →
+  // 401 + round-trip de refresh inutile (les autres écrans protégés ont déjà ce
+  // garde-fou).
+  const walletQuery = useQuery({
+    queryKey: ['wallet'],
+    queryFn: fetchWallet,
+    retry: false,
+    enabled: Boolean(user),
+  })
   const [intent, setIntent] = useState<TopupIntent | null>(null)
 
   const topupMutation = useMutation({
