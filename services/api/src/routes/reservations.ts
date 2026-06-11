@@ -1,10 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-
-import { PaymentProvider, PaymentStatus, ReservationStatus } from '@sportlocker/types'
 
 import { env } from '../config/env.js'
 import { db } from '../db/client.js'
@@ -21,204 +19,39 @@ import {
 import { requireStripe } from '../lib/stripe.js'
 import { redis } from '../redis/client.js'
 
-const RESERVATION_TTL_MS = 15 * 60 * 1000
-const DEVICE_TOKEN_TTL_SEC = 15 * 60
-const LOCK_TTL_SEC = 30
-const MAX_EXTENSIONS = 2
-const IDEMPOTENCY_TTL_SEC = 24 * 60 * 60
-const IDEMPOTENCY_KEY_MAX_LEN = 255
-// Fenêtre de blocage de l'annulation côté citoyen avant le début du slot.
-// Au-delà de ce délai, le créneau est considéré comme engagé (cf. CDC :
-// donne le temps au tenant de planifier le rechargement matériel et évite
-// les annulations "régret" juste avant arrivée).
-const CANCEL_CUTOFF_MIN = 30
+import {
+  CANCEL_CUTOFF_MIN,
+  DEVICE_TOKEN_TTL_SEC,
+  IDEMPOTENCY_TTL_SEC,
+  LOCK_TTL_SEC,
+  MAX_EXTENSIONS,
+  RESERVATION_TTL_MS,
+  readIdempotencyKey,
+  toDto,
+  type DbTx,
+} from './reservations/helpers.js'
+import {
+  CreateReservationBody,
+  CreateSlotReservationBody,
+  ErrorDTO,
+  PaymentIntentDTO,
+  ReservationBaseDTO,
+  ReservationCreatedDTO,
+  ReturnReservationBody,
+  SimulatedConfirmDTO,
+  SlotReservationCreatedDTO,
+  WalletPayDTO,
+} from './reservations/dtos.js'
+import { reservationViewsRoutes } from './reservations/views.js'
 
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0]
-
-const CreateReservationBody = z.object({
-  lockerId: z.string().uuid().describe('UUID du casier ciblé (scanné via QR ou choisi depuis l\'app)'),
-  itemId: z.string().uuid().describe('UUID de l\'item physique présent dans le casier (doit matcher `currentItemId`)'),
-  communeId: z.string().uuid().describe('Tenant du distributeur (cohérence avec le scope de l\'app)'),
-})
-
-const ReturnReservationBody = z.object({
-  returnLockerId: z.string().uuid().describe('Casier où l\'item est rendu (peut différer du casier d\'emprunt)'),
-  returnDistributorId: z.string().uuid().describe('Distributeur correspondant au returnLockerId'),
-})
-
-const ReservationBaseDTO = z.object({
-  id: z.string().uuid(),
-  status: ReservationStatus
-    .describe('État machine : scheduled (créneau futur) → active → returned (nominal modèle slots). pending = legacy modèle immédiat. overdue/cancelled/expired = terminal.'),
-  lockerId: z.string().uuid(),
-  itemId: z.string().uuid(),
-  distributorId: z.string().uuid(),
-  expiresAt: z.string().datetime().describe('TTL de la réservation pending (15min). Auto-expire au-delà.'),
-  dueAt: z.string().datetime().nullable().describe('Échéance de retour (active). Null tant que pending.'),
-  extensionCount: z.number().int().min(0).describe('Nombre de prolongations utilisées (max 2)'),
-})
-
-const ReservationCreatedDTO = ReservationBaseDTO.extend({
-  nonce: z.string().uuid().describe('Nonce anti-replay à embarquer dans le JWT QR. Usage unique côté firmware.'),
-  deviceToken: z.string().describe(
-    'JWT HS256 prêt à afficher en QR. Claims : reservationId, lockerId, distributorId, jti=nonce, exp=15min. '
-    + 'Signé avec JWT_DEVICE_SECRET (partagé avec le firmware, vérification offline).',
-  ),
-})
-
-const CreateSlotReservationBody = z.object({
-  distributorId: z.string().uuid().describe('Borne ciblée'),
-  itemTypeId: z.string().uuid().describe('Sport / type de matériel souhaité (depuis /v1/item-types)'),
-  slotStartAt: z.string().datetime({ offset: true })
-    .describe('Début du créneau réservé (ISO 8601, aligné sur :00 ou :30 UTC)'),
-  durationMinutes: z.number().int()
-    .refine((n) => [30, 60, 90, 120, 1440].includes(n), { message: 'duration_not_allowed' })
-    .describe('Durée du créneau, valeurs autorisées : 30, 60, 90, 120 (slots courts) ou 1440 (forfait journée)'),
-})
-
-const PaymentSummaryDTO = z.object({
-  id: z.string().uuid(),
-  amountCents: z.number().int().nonnegative(),
-  currency: z.string().describe('Code ISO 4217 (ex: EUR)'),
-  provider: PaymentProvider,
-  status: PaymentStatus,
-})
-
-const SlotReservationCreatedDTO = ReservationBaseDTO.extend({
-  slotStartAt: z.string().datetime().describe('Début du créneau réservé'),
-  slotEndAt: z.string().datetime().describe('Fin du créneau (= start + durationMinutes)'),
-  durationMinutes: z.number().int().describe('Durée du créneau en minutes'),
-  priceCents: z.number().int().nonnegative().describe('Prix figé à la création (snapshot)'),
-  payment: PaymentSummaryDTO.describe(
-    'Paiement à régler pour confirmer la résa. Tant que `status !== succeeded`, '
-    + 'la résa reste `pending_payment` et AUCUN QR n\'est délivré. '
-    + 'Appeler ensuite POST /:id/pay pour obtenir le clientSecret (stripe) ou confirmer (simulate).',
-  ),
-})
-
-const PaymentIntentDTO = z.object({
-  paymentId: z.string().uuid(),
-  provider: PaymentProvider,
-  status: PaymentStatus,
-  clientSecret: z.string().nullable().describe(
-    'Secret du PaymentIntent Stripe à passer à Stripe.js côté client. '
-    + 'null en mode `simulate` (le client appelle alors POST /:id/pay/confirm-simulated).',
-  ),
-})
-
-const SimulatedConfirmDTO = z.object({
-  paymentStatus: PaymentStatus,
-  reservationStatus: ReservationStatus,
-})
-
-const WalletPayDTO = z.object({
-  paymentStatus: z.literal('succeeded'),
-  reservationStatus: z.literal('scheduled'),
-  balanceCents: z.number().int().nonnegative()
-    .describe('Solde restant du porte-monnaie après débit, en centimes.'),
-})
-
-/**
- * DTO enrichi renvoyé par `GET /v1/reservations/active` : joint le distributeur
- * (name, adresse) et le type d'item (nom affichable) attendus par les clients
- * mobile/PWA pour rendre l'écran "réservation en cours" sans 2e round-trip.
- *
- * `qrToken` = JWT HS256 re-signé à la volée avec le `qr_jti` stable de la résa
- * (réutilisation du nonce → le firmware accepte au 1er scan, anti-replay
- * géré par `token_nonces`). TTL = secondes jusqu'à `expiresAt`.
- *
- * Les champs slot (`slotStartAt`, `slotEndAt`, `durationMinutes`, `priceCents`)
- * sont nullables : peuplés UNIQUEMENT pour les résas créées via le flow
- * `POST /v1/reservations/slots` (statut `scheduled`). Les résas legacy
- * `pending`/`active` les ont à null.
- */
-const ReservationActiveEnrichedDTO = z.object({
-  id: z.string().uuid(),
-  status: ReservationStatus,
-  createdAt: z.string().datetime(),
-  expiresAt: z.string().datetime(),
-  dueAt: z.string().datetime().nullable(),
-  extensionCount: z.number().int().min(0)
-    .describe('Nombre de prolongations utilisées (max ' + String(MAX_EXTENSIONS) + ')'),
-  qrToken: z.string().nullable().describe(
-    'JWT HS256 prêt à afficher en QR, re-signé à chaque GET avec le qr_jti stable. '
-    + 'null tant que la résa est `pending_payment` (paiement non réglé → pas de QR).',
-  ),
-  distributor: z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-    addressLine: z.string().nullable(),
-  }),
-  item: z.object({
-    id: z.string().uuid(),
-    typeName: z.string(),
-  }),
-  slotStartAt: z.string().datetime().nullable(),
-  slotEndAt: z.string().datetime().nullable(),
-  durationMinutes: z.number().int().nullable(),
-  priceCents: z.number().int().nonnegative().nullable(),
-})
-
-/**
- * DTO enrichi pour `GET /v1/reservations/me` (historique).
- *
- * Inclut tous les statuts (vivants ET terminaux) et joint les noms du
- * distributeur et du type d'item — la page /profile citizen affiche
- * directement sans round-trip supplémentaire.
- *
- * Pas de qrToken ici (l'historique n'en a pas besoin ; pour scanner la
- * résa vivante, le citoyen va sur /reservations/<id> qui appelle /active).
- */
-const ReservationHistoryDTO = z.object({
-  id: z.string().uuid(),
-  status: ReservationStatus,
-  createdAt: z.string().datetime(),
-  expiresAt: z.string().datetime(),
-  dueAt: z.string().datetime().nullable(),
-  openedAt: z.string().datetime().nullable(),
-  returnedAt: z.string().datetime().nullable(),
-  extensionCount: z.number().int().min(0),
-  slotStartAt: z.string().datetime().nullable(),
-  slotEndAt: z.string().datetime().nullable(),
-  durationMinutes: z.number().int().nullable(),
-  priceCents: z.number().int().nonnegative().nullable(),
-  distributor: z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-  }),
-  item: z.object({
-    id: z.string().uuid(),
-    typeName: z.string(),
-  }),
-})
-
-const ErrorDTO = z.object({ error: z.string() })
-
-function readIdempotencyKey(headers: Record<string, unknown>): string | null {
-  const raw = headers['idempotency-key']
-  if (typeof raw !== 'string') return null
-  const trimmed = raw.trim()
-  if (trimmed.length === 0 || trimmed.length > IDEMPOTENCY_KEY_MAX_LEN) return null
-  return trimmed
-}
-
-type ReservationRow = typeof reservations.$inferSelect
-
-function toDto(r: ReservationRow) {
-  return {
-    id: r.id,
-    status: r.status,
-    lockerId: r.lockerId,
-    itemId: r.itemId,
-    distributorId: r.distributorId,
-    expiresAt: r.expiresAt.toISOString(),
-    dueAt: r.dueAt?.toISOString() ?? null,
-    extensionCount: r.extensionCount,
-  }
-}
 
 export async function reservationRoutes(rawApp: FastifyInstance) {
   const app = rawApp.withTypeProvider<ZodTypeProvider>()
+
+  // Les routes read-only (GET /active + GET /me) sont enregistrées en
+  // sous-plugin pour rester isolées de la logique transactionnelle du reste
+  // du fichier. Cf. routes/reservations/views.ts.
+  await app.register(reservationViewsRoutes)
 
   /**
    * POST /v1/reservations — réserve un casier et émet un nonce QR.
@@ -869,169 +702,6 @@ export async function reservationRoutes(rawApp: FastifyInstance) {
     })
   })
 
-  /**
-   * GET /v1/reservations/active — réservation scheduled/pending/active courante.
-   *
-   * Pendant de la garde "une seule réservation vivante par user" : l'app
-   * mobile interroge cet endpoint au boot pour savoir s'il y a un emprunt
-   * en cours. Renvoie 404 sinon (plutôt que 200 avec null) pour éviter le
-   * piège des clients qui oublient de check null.
-   *
-   * Le DTO est enrichi (distributor.name, item.typeName, slot fields) pour
-   * que l'écran "résa en cours" se rende sans 2e round-trip. Le `qrToken`
-   * est un JWT re-signé à la volée à partir du `qr_jti` stable — le firmware
-   * accepte au 1er scan, anti-replay via `token_nonces`.
-   */
-  app.get('/active', {
-    onRequest: [app.authenticate],
-    schema: {
-      tags: ['Citoyens — Réservations'],
-      summary: 'Réservation scheduled/pending/active du citoyen courant',
-      description: 'Renvoie la réservation vivante du user (au plus 1 par contrainte métier), '
-        + 'enrichie avec le nom du distributeur, le type d\'item et un qrToken JWT prêt à scanner. '
-        + '404 `no_active_reservation` si aucune.',
-      security: [{ bearerAuth: [] }],
-      response: { 200: ReservationActiveEnrichedDTO, 404: ErrorDTO },
-    },
-  }, async (req, reply) => {
-    const [row] = await db
-      .select({
-        id: reservations.id,
-        status: reservations.status,
-        lockerId: reservations.lockerId,
-        itemId: reservations.itemId,
-        distributorId: reservations.distributorId,
-        qrJti: reservations.qrJti,
-        createdAt: reservations.createdAt,
-        expiresAt: reservations.expiresAt,
-        dueAt: reservations.dueAt,
-        extensionCount: reservations.extensionCount,
-        slotStartAt: reservations.slotStartAt,
-        slotEndAt: reservations.slotEndAt,
-        durationMinutes: reservations.durationMinutes,
-        priceCents: reservations.priceCents,
-        distributorName: distributors.name,
-        distributorAddressLine: distributors.addressLine,
-        itemTypeName: itemTypes.name,
-      })
-      .from(reservations)
-      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
-      .innerJoin(items, eq(items.id, reservations.itemId))
-      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
-      .where(and(
-        eq(reservations.userId, req.user.sub),
-        inArray(reservations.status, ['pending_payment', 'scheduled', 'pending', 'active']),
-      ))
-      .limit(1)
-
-    if (!row) return reply.code(404).send({ error: 'no_active_reservation' })
-
-    // Re-signe un device JWT avec le qr_jti stable. TTL = jusqu'à expiresAt
-    // (clamp à 60s minimum pour éviter un token déjà expiré sur un edge case).
-    // Embarque `slotStartAt` pour les résas scheduled — le firmware s'en sert
-    // pour bloquer un scan trop tôt (cf. PR 0010 slot-aware check-in).
-    //
-    // Exception `pending_payment` : aucun QR tant que le paiement n'a pas
-    // réussi. Le client affiche l'écran de paiement, pas le QR.
-    const qrToken = row.status === 'pending_payment'
-      ? null
-      : await signDeviceToken({
-        reservationId: row.id,
-        lockerId: row.lockerId,
-        distributorId: row.distributorId,
-        ...(row.slotStartAt ? { slotStartAt: Math.floor(row.slotStartAt.getTime() / 1000) } : {}),
-      }, Math.max(60, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000)), row.qrJti)
-
-    return reply.code(200).send({
-      id: row.id,
-      status: row.status,
-      createdAt: row.createdAt.toISOString(),
-      expiresAt: row.expiresAt.toISOString(),
-      dueAt: row.dueAt?.toISOString() ?? null,
-      extensionCount: row.extensionCount,
-      qrToken,
-      distributor: {
-        id: row.distributorId,
-        name: row.distributorName,
-        addressLine: row.distributorAddressLine,
-      },
-      item: {
-        id: row.itemId,
-        typeName: row.itemTypeName,
-      },
-      slotStartAt: row.slotStartAt?.toISOString() ?? null,
-      slotEndAt: row.slotEndAt?.toISOString() ?? null,
-      durationMinutes: row.durationMinutes,
-      priceCents: row.priceCents,
-    })
-  })
-
-  /**
-   * GET /v1/reservations/me — historique de l'utilisateur courant.
-   *
-   * DTO enrichi (distributor.name, item.typeName, champs slot) pour permettre
-   * à la page /profile citizen d'afficher la liste sans round-trip
-   * supplémentaire. Trié createdAt DESC (la plus récente en premier).
-   */
-  app.get('/me', {
-    onRequest: [app.authenticate],
-    schema: {
-      tags: ['Citoyens — Réservations'],
-      summary: 'Historique du citoyen courant',
-      description: 'Renvoie les 50 dernières réservations du user authentifié, '
-        + 'enrichies avec le nom du distributeur, le type d\'item et les champs slot, '
-        + 'triées par createdAt DESC. Inclut les statuts terminaux (returned/cancelled/'
-        + 'expired) en plus des vivants (scheduled/pending/active/overdue).',
-      security: [{ bearerAuth: [] }],
-      response: { 200: z.object({ items: z.array(ReservationHistoryDTO) }) },
-    },
-  }, async (req) => {
-    const rows = await db
-      .select({
-        id: reservations.id,
-        status: reservations.status,
-        createdAt: reservations.createdAt,
-        expiresAt: reservations.expiresAt,
-        dueAt: reservations.dueAt,
-        openedAt: reservations.openedAt,
-        returnedAt: reservations.returnedAt,
-        extensionCount: reservations.extensionCount,
-        slotStartAt: reservations.slotStartAt,
-        slotEndAt: reservations.slotEndAt,
-        durationMinutes: reservations.durationMinutes,
-        priceCents: reservations.priceCents,
-        distributorId: reservations.distributorId,
-        distributorName: distributors.name,
-        itemId: reservations.itemId,
-        itemTypeName: itemTypes.name,
-      })
-      .from(reservations)
-      .innerJoin(distributors, eq(distributors.id, reservations.distributorId))
-      .innerJoin(items, eq(items.id, reservations.itemId))
-      .innerJoin(itemTypes, eq(itemTypes.id, items.itemTypeId))
-      .where(eq(reservations.userId, req.user.sub))
-      .orderBy(desc(reservations.createdAt))
-      .limit(50)
-
-    return {
-      items: rows.map((row) => ({
-        id: row.id,
-        status: row.status,
-        createdAt: row.createdAt.toISOString(),
-        expiresAt: row.expiresAt.toISOString(),
-        dueAt: row.dueAt?.toISOString() ?? null,
-        openedAt: row.openedAt?.toISOString() ?? null,
-        returnedAt: row.returnedAt?.toISOString() ?? null,
-        extensionCount: row.extensionCount,
-        slotStartAt: row.slotStartAt?.toISOString() ?? null,
-        slotEndAt: row.slotEndAt?.toISOString() ?? null,
-        durationMinutes: row.durationMinutes,
-        priceCents: row.priceCents,
-        distributor: { id: row.distributorId, name: row.distributorName },
-        item: { id: row.itemId, typeName: row.itemTypeName },
-      })),
-    }
-  })
 
   /**
    * POST /v1/reservations/:id/cancel — annule avant ouverture.
