@@ -1,4 +1,20 @@
--- 0013_stripe_connect.sql
+-- 0019_stripe_connect.sql
+--
+-- ┌─ HISTORIQUE DE RENOMMAGE (2026-06-10) ──────────────────────────────────┐
+-- │ Cette migration s'appelait initialement 0013_stripe_connect (mergée la  │
+-- │ même journée que 0013_payments.sql qui avait pris le même numéro). Pour │
+-- │ respecter la convention "1 numéro = 1 migration unique" (cf.            │
+-- │ database/README.md), elle a été renommée 0019.                           │
+-- │                                                                          │
+-- │ Si la prod a déjà appliqué l'ancien nom (entrée                          │
+-- │ `0013_stripe_connect.sql` dans schema_migrations), le runner va          │
+-- │ considérer 0019 comme jamais appliquée et la rejouer. Aucun problème     │
+-- │ fonctionnel (idempotente via IF NOT EXISTS) mais on aura deux traces     │
+-- │ dans schema_migrations. Nettoyage manuel à faire en prod après deploy :  │
+-- │                                                                          │
+-- │   DELETE FROM schema_migrations                                          │
+-- │    WHERE filename = '0013_stripe_connect.sql';                           │
+-- └──────────────────────────────────────────────────────────────────────────┘
 --
 -- Ajoute les champs Stripe Connect Express à la table `communes` pour
 -- permettre l'onboarding KYC + le reversement automatique 75/25 (vitrine
