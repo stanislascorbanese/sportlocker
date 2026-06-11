@@ -34,7 +34,7 @@ const SCHEMA_PATH = join(REPO_ROOT, 'database', 'schema.sql')
 // autres migrations (0002-0004) sont déjà reflétées dans schema.sql.
 const MIGRATION_PATHS = [
   join(REPO_ROOT, 'database', 'migrations', '0001_fn_locker_is_available.sql'),
-  join(REPO_ROOT, 'database', 'migrations', '0005_reservations_unique_active.sql'),
+  join(REPO_ROOT, 'database', 'migrations', '0018_reservations_unique_active.sql'),
 ]
 
 let pgContainer: StartedPostgreSqlContainer
