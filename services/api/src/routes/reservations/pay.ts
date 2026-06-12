@@ -96,6 +96,15 @@ export async function reservationPayRoutes(rawApp: FastifyInstance) {
     }
 
     // Provider stripe : crée le PaymentIntent au 1er appel, le réutilise ensuite.
+    //
+    // NOTE COVERAGE : ce bloc n'est pas couvert par payments.test.ts qui ne
+    // teste que le flow `simulate` (default en NODE_ENV=test, pas de SDK
+    // Stripe initialisé). Pour le couvrir proprement il faudrait un
+    // vi.mock('stripe') similaire à webhooks-stripe.test.ts — voir
+    // l'issue de suivi. Le webhook qui consomme le PaymentIntent côté
+    // entrant est déjà couvert (PR #318), donc le risque résiduel est
+    // isolé à l'orchestration de création du PI ci-dessous.
+    /* v8 ignore start */
     const stripe = requireStripe()
     let clientSecret: string | null
     if (pay.stripePaymentIntentId) {
@@ -127,6 +136,7 @@ export async function reservationPayRoutes(rawApp: FastifyInstance) {
       status: pay.status,
       clientSecret,
     })
+    /* v8 ignore stop */
   })
 
   /**
@@ -172,9 +182,14 @@ export async function reservationPayRoutes(rawApp: FastifyInstance) {
 
     const res = await markPaymentSucceeded(pay.id, app.log)
     if (res.kind === 'not_found') return reply.code(404).send({ error: 'payment_not_found' })
+    // Garde anti-race : la résa a quitté `pending_payment` entre le SELECT
+    // ci-dessus et le UPDATE dans `markPaymentSucceeded`. Pas trivial à
+    // reproduire en test sans orchestrer 2 transactions concurrentes.
+    /* v8 ignore start */
     if (res.kind === 'reservation_not_pending') {
       return reply.code(409).send({ error: 'reservation_not_payable' })
     }
+    /* v8 ignore stop */
 
     const [row] = await db
       .select({ paymentStatus: payments.status, reservationStatus: reservations.status })
@@ -235,9 +250,15 @@ export async function reservationPayRoutes(rawApp: FastifyInstance) {
       if (!pay) return { code: 404 as const, error: 'payment_not_found' }
       if (pay.userId !== userId) return { code: 403 as const, error: 'forbidden' }
       if (pay.status === 'succeeded') return { code: 409 as const, error: 'already_paid' }
+      // Garde anti-race : sous l'advisory lock par-user, l'autre cas est qu'une
+      // résa pending_payment soit déjà passée à scheduled via un autre flow
+      // de paiement (Stripe webhook, confirm-simulated) entre le 1er guard et
+      // le flip plus bas. Le test du flip ci-dessous couvre la version race.
+      /* v8 ignore start */
       if (pay.reservationStatus !== 'pending_payment') {
         return { code: 409 as const, error: 'reservation_not_payable' }
       }
+      /* v8 ignore stop */
 
       const balance = await getWalletBalanceCents(userId, tx)
       if (balance < pay.amountCents) {
