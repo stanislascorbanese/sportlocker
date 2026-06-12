@@ -95,6 +95,37 @@ export async function buildApp() {
   await app.register(authPlugin)
   await app.register(mqttSubscriberPlugin)
 
+  // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
+  // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
+  if (env.SENTRY_DSN) {
+    Sentry.setupFastifyErrorHandler(app)
+  }
+
+  // ⚠️ L'error handler DOIT être posé AVANT toute `app.register(<route>)`.
+  // En Fastify, chaque `register` crée un contexte encapsulé qui capture
+  // l'error handler du parent au moment de son boot (ici immédiat car on
+  // `await` chaque register). Un `setErrorHandler` posé APRÈS les routes
+  // n'est donc PAS hérité par ces contextes → les 5xx repartiraient avec la
+  // sérialisation Fastify par défaut `{statusCode, code, message}` et
+  // fuiteraient le message brut (driver/SQL) au client. Cf. fix #325 rendu
+  // inopérant par cet ordre, re-corrigé ici.
+  app.setErrorHandler((err: FastifyError, req, reply) => {
+    app.log.error({ err }, 'unhandled error')
+    if (err.validation) return reply.status(400).send({ error: 'validation_error', details: err.validation })
+    // 5xx → Sentry. 4xx → on log mais on n'inonde pas la télémétrie.
+    const status = err.statusCode ?? 500
+    if (status >= 500 && env.SENTRY_DSN) {
+      Sentry.captureException(err, { extra: { url: req.url, method: req.method } })
+    }
+    // 5xx → message générique : ne pas fuiter de détails internes au client
+    // (une erreur SQL/driver/Postgres non gérée peut contenir des noms de
+    // colonnes, des fragments de requête, voire des indices d'infra). Le détail
+    // reste loggé ci-dessus + envoyé à Sentry. 4xx → on conserve err.message
+    // (erreurs métier/validation utiles et non sensibles, ex. "reservation_not_found").
+    const body = status >= 500 ? 'internal_error' : err.message || 'internal_error'
+    return reply.status(status).send({ error: body })
+  })
+
   await app.register(healthRoutes,       { prefix: '/health' })
   await app.register(authRoutes,         { prefix: '/v1/auth' })
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
@@ -125,29 +156,6 @@ export async function buildApp() {
   if (env.NODE_ENV !== 'production') {
     await app.register(devRoutes, { prefix: '/v1/dev' })
   }
-
-  // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
-  // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
-  if (env.SENTRY_DSN) {
-    Sentry.setupFastifyErrorHandler(app)
-  }
-
-  app.setErrorHandler((err: FastifyError, req, reply) => {
-    app.log.error({ err }, 'unhandled error')
-    if (err.validation) return reply.status(400).send({ error: 'validation_error', details: err.validation })
-    // 5xx → Sentry. 4xx → on log mais on n'inonde pas la télémétrie.
-    const status = err.statusCode ?? 500
-    if (status >= 500 && env.SENTRY_DSN) {
-      Sentry.captureException(err, { extra: { url: req.url, method: req.method } })
-    }
-    // 5xx → message générique : ne pas fuiter de détails internes au client
-    // (une erreur SQL/driver/Postgres non gérée peut contenir des noms de
-    // colonnes, des fragments de requête, voire des indices d'infra). Le détail
-    // reste loggé ci-dessus + envoyé à Sentry. 4xx → on conserve err.message
-    // (erreurs métier/validation utiles et non sensibles, ex. "reservation_not_found").
-    const body = status >= 500 ? 'internal_error' : err.message || 'internal_error'
-    return reply.status(status).send({ error: body })
-  })
 
   return app
 }

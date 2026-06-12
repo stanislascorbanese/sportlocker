@@ -492,9 +492,13 @@ describe('push-subscriptions — résilience erreurs DB', () => {
     }
   })
 
-  it('POST : erreur DB non-unique → propagée en 500 (pas avalée)', async () => {
+  it('POST : erreur DB non-unique → 500 redacté { error: "internal_error" } (pas de fuite du message brut)', async () => {
     const { db } = await import('../../src/db/client.js')
     // Erreur ≠ UNIQUE_VIOLATION → le catch rethrow → 500 (pas un 409).
+    // Non-régression #325 : l'error handler de redaction (app.ts) DOIT être
+    // hérité par cette route → la 5xx renvoie un body générique, JAMAIS le
+    // message brut du driver ("connection lost") ni la forme Fastify par défaut
+    // `{statusCode, code, message}`.
     const spy = vi.spyOn(db, 'insert').mockImplementationOnce(() => {
       throw Object.assign(new Error('connection lost'), { code: '08006' })
     })
@@ -507,6 +511,42 @@ describe('push-subscriptions — résilience erreurs DB', () => {
         payload: { endpoint: fakeEndpoint('db-down'), keys: { p256dh: 'p'.repeat(50), auth: 'a'.repeat(20) } },
       })
       expect(res.statusCode).toBe(500)
+      expect(res.json()).toEqual({ error: 'internal_error' })
+      expect(res.body).not.toContain('connection lost')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('POST : throw d\'une erreur brute non-Error → 500 reste { error: "internal_error" }', async () => {
+    const { db } = await import('../../src/db/client.js')
+    // Forme brute postgres-js (objet ≠ instanceof Error) avec des détails
+    // sensibles (fragment SQL + nom de colonne). On vérifie que même dans ce
+    // cas l'handler ne sérialise rien de tout ça : body EXACTEMENT
+    // { error: 'internal_error' }, aucun fragment interne ne fuite.
+    const raw = {
+      code: '42P01',
+      message: 'relation "push_tokens" does not exist',
+      detail: 'SELECT * FROM push_tokens WHERE secret_col = $1',
+      severity: 'ERROR',
+    }
+    const spy = vi.spyOn(db, 'insert').mockImplementationOnce(() => {
+      throw raw
+    })
+    try {
+      const u = await seedUser(pgSql, { role: 'citizen' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/push-subscriptions',
+        headers: { authorization: signSession(app, u.id, 'citizen') },
+        payload: { endpoint: fakeEndpoint('raw-throw'), keys: { p256dh: 'p'.repeat(50), auth: 'a'.repeat(20) } },
+      })
+      expect(res.statusCode).toBe(500)
+      expect(res.json()).toEqual({ error: 'internal_error' })
+      // Aucun détail interne (fragment SQL, nom de colonne, relation) ne fuite.
+      expect(res.body).not.toContain('push_tokens')
+      expect(res.body).not.toContain('secret_col')
+      expect(res.body).not.toContain('relation')
     } finally {
       spy.mockRestore()
     }
