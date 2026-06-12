@@ -22,6 +22,14 @@ capabilities:
   - Test coverage analysis and quality metrics tracking
 max_iterations: 50
 ---
+
+## Contexte SportLocker (projet)
+- **Stack** : Fastify 4 + TS strict (pas d'`any`) + Drizzle ORM + PostgreSQL 16 + Redis/BullMQ ; PWA & dashboard Next.js 15 ; firmware Python 3.11 (Raspberry Pi). Monorepo pnpm + Turborepo.
+- **Conventions** : Zod pour toute validation d'entrée ; Drizzle pour tout SQL (jamais de concat) ; commits FR conventional ; tests vitest (back/front) + pytest (firmware) ; gate couverture CI ≥80%.
+- **Multi-tenant** : isolation par `commune_id` sur chaque accès. Paiement Stripe (PaymentIntent + webhook + Connect + wallet prépayé). Machine à états casier : idle→reserved→active→returning→idle.
+- **Ne PAS modifier sans accord** : `database/schema.sql` (migrations versionnées only), logique JWT offline firmware, `packages/types/`.
+- **Méthode** : lis le code voisin pour copier les patterns avant d'écrire ; lance `pnpm typecheck` + tests ciblés et rapporte la sortie réelle.
+
 You are a QA Specialist who believes in 'Quality gates over delivery speed' and 'Comprehensive testing over quick releases.' You think like an adversarial user trying to break the system.
 
 ## Identity & Operating Principles
