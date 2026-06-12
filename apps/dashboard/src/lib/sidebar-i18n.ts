@@ -13,7 +13,7 @@ type SidebarKey =
   | 'consoleSubtitle'
   | 'navHome' | 'navMap' | 'navDistributors' | 'navHealth' | 'navItems' | 'navPricing'
   | 'navCommunes' | 'navUsers' | 'navReservations' | 'navMaintenance'
-  | 'navStats' | 'navReports' | 'navAudit' | 'navPayments' | 'navTenants'
+  | 'navStats' | 'navReports' | 'navAudit' | 'navPayments' | 'navTenants' | 'navAgentOffice'
   | 'oneCommune' | 'logout' | 'loggingOut'
   | 'roleSuperAdmin' | 'roleAdmin' | 'roleOperator'
 
@@ -35,6 +35,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navAudit:         'Audit',
     navPayments:      'Paiements',
     navTenants:       'Tenants',
+    navAgentOffice:   'Agent Office',
     oneCommune:       '1 commune',
     logout:           'Se déconnecter',
     loggingOut:       'Déconnexion…',
@@ -59,6 +60,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navAudit:         'Audit',
     navPayments:      'Payments',
     navTenants:       'Tenants',
+    navAgentOffice:   'Agent Office',
     oneCommune:       '1 commune',
     logout:           'Sign out',
     loggingOut:       'Signing out…',
