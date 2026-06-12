@@ -62,9 +62,10 @@ export async function buildApp() {
   //     dashboard ops en usage humain.
   //   - Skip côté Stripe webhook (signature vérifiée + IPs Stripe), health
   //     (probes Railway), Swagger (interne dev).
-  //   - Skip pour les utilisateurs authentifiés via @fastify/jwt — les
-  //     opérateurs et admins ne doivent jamais se faire bloquer (le rate-limit
-  //     vise les scanners non-auth, pas le trafic légitime).
+  //   - PAS de skip sur header Authorization brut (non validé à ce stade) : les
+  //     utilisateurs authentifiés restent couverts par la limite globale
+  //     généreuse (100/min/IP). Whitelister sur le header court-circuiterait
+  //     aussi les limites strictes par route ci-dessous (faille corrigée).
   //   - Les routes /v1/auth/signin-link, /v1/auth/password-reset et
   //     /v1/auth/register définissent leur propre limite plus stricte
   //     (5/min/IP) via `config: { rateLimit: { max: 5 } }` côté route.

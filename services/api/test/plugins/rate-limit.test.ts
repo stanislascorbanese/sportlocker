@@ -39,19 +39,24 @@ describe('shouldAllowList', () => {
     })
   })
 
-  describe('skips authenticated users', () => {
-    it('whiteliste si Authorization: Bearer ... est présent', () => {
-      expect(shouldAllowList(makeReq('/v1/reservations', 'Bearer eyJ...'))).toBe(true)
-      expect(shouldAllowList(makeReq('/v1/admin/users', 'Bearer abc123'))).toBe(true)
+  describe('ne whiteliste PAS sur un header Authorization non vérifié', () => {
+    // Le header n'est pas validé à ce stade (la vérif JWT a lieu en preHandler) :
+    // n'importe quel client peut attacher "Bearer x". Whitelister dessus
+    // court-circuiterait le rate-limit global ET les limites strictes par route.
+    it('ne whiteliste PAS un Bearer arbitraire', () => {
+      expect(shouldAllowList(makeReq('/v1/reservations', 'Bearer eyJ...'))).toBe(false)
+      expect(shouldAllowList(makeReq('/v1/admin/users', 'Bearer abc123'))).toBe(false)
     })
-    it('ne whiteliste PAS un header Authorization Basic (mauvais schéma)', () => {
+    it('ne whiteliste PAS un header Authorization Basic', () => {
       expect(shouldAllowList(makeReq('/v1/reservations', 'Basic xxx'))).toBe(false)
     })
-    it('ne whiteliste PAS un header malformé "Bearer" sans token', () => {
-      // Tolère "Bearer " avec espace — le JWT validator rejettera côté preHandler.
-      // Le rate-limit n'a pas vocation à faire l'auth, juste à éviter de bloquer
-      // un trafic qui se présente comme authentifié.
-      expect(shouldAllowList(makeReq('/v1/reservations', 'Bearer '))).toBe(true)
+    it('ne whiteliste PAS "Bearer " sans token', () => {
+      expect(shouldAllowList(makeReq('/v1/reservations', 'Bearer '))).toBe(false)
+    })
+    it('régression sécu : un Bearer bidon ne contourne PAS la limite stricte des routes /v1/auth/*', () => {
+      expect(shouldAllowList(makeReq('/v1/auth/password-reset', 'Bearer x'))).toBe(false)
+      expect(shouldAllowList(makeReq('/v1/auth/signin-link', 'Bearer eyJfake'))).toBe(false)
+      expect(shouldAllowList(makeReq('/v1/auth/register', 'Bearer abc'))).toBe(false)
     })
   })
 
