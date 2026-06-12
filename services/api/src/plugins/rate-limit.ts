@@ -19,22 +19,25 @@ import type { FastifyRequest } from 'fastify'
  *   - Skip les probes infra (`/health`, `/docs`, `/swagger`).
  *   - Skip les webhooks signés (`/v1/stripe/webhook`, `/v1/webhooks/*`) — la
  *     signature Stripe + l'IP whitelist Stripe couvrent déjà l'abuse.
- *   - Skip toute requête avec un header `Authorization: Bearer ...` — on
- *     fait confiance aux utilisateurs authentifiés. Le JWT est validé en
- *     `preHandler` ailleurs ; ici on veut juste éviter de bloquer un
- *     opérateur ou un admin légitime.
+ *
+ * IMPORTANT — on NE whiteliste PAS sur la simple présence d'un header
+ * `Authorization: Bearer ...`. Ce header n'est pas validé à ce stade (la vérif
+ * JWT a lieu plus tard en `preHandler`), donc n'importe quel client peut
+ * l'attacher. Whitelister dessus court-circuiterait le rate-limit global ET les
+ * limites strictes par route (`config.rateLimit`), rendant inopérante la
+ * protection des routes publiques `/v1/auth/*` (énumération d'e-mails, spam de
+ * magic-links, épuisement du quota Firebase `verifyIdToken`). Les utilisateurs
+ * authentifiés légitimes restent couverts par la limite globale généreuse
+ * (100/min/IP), très au-dessus d'un usage humain.
  *
  * Tout le reste (signin-link, password-reset, distributors/nearby, etc.)
- * est soumis au rate-limit global.
+ * est soumis au rate-limit.
  */
 export function shouldAllowList(req: Pick<FastifyRequest, 'url' | 'headers'>): boolean {
   if (req.url.startsWith('/health')) return true
   if (req.url.startsWith('/docs') || req.url.startsWith('/swagger')) return true
   if (req.url.startsWith('/v1/stripe/webhook')) return true
   if (req.url.startsWith('/v1/webhooks/')) return true
-
-  const auth = req.headers.authorization
-  if (typeof auth === 'string' && auth.startsWith('Bearer ')) return true
 
   return false
 }
