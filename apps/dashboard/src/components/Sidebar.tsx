@@ -20,6 +20,7 @@ import {
   FileText,
   ShieldCheck,
   Stethoscope,
+  Bot,
   LogOut,
   type LucideIcon,
 } from 'lucide-react'
@@ -54,6 +55,7 @@ const COMMON_ITEMS: Item[] = [
 
 const SUPER_ADMIN_ITEMS: Item[] = [
   { href: '/super-admin/tenants', labelKey: 'navTenants', icon: ShieldCheck },
+  { href: '/super-admin/agent-office', labelKey: 'navAgentOffice', icon: Bot },
 ]
 
 export function Sidebar({ user }: { user: SessionPayload | null }) {
