@@ -206,6 +206,39 @@ describe('handleEnvelope (door_unlocked)', () => {
     expect(new Date(r.due_at).getTime()).toBe(new Date(r.slot_end_at).getTime())
   })
 
+  it('branche legacy (slot_end_at NULL) : active sans poser de due_at (zéro régression #329)', async () => {
+    const f = await seedActiveCandidate({ resaStatus: 'scheduled' })
+    // Résa sans créneau réservé (modèle d'avant les slots) → pas de deadline
+    // calculable : due_at doit rester NULL, comportement inchangé.
+    await pgSql`UPDATE reservations
+                   SET slot_start_at = NULL, slot_end_at = NULL
+                 WHERE id = ${f.reservationId}`
+
+    const { computeSignature } = await importHmac()
+    const { handleEnvelope } = await importModule()
+    const { db } = await import('../../src/db/client.js')
+
+    const data = {
+      type: 'door_unlocked',
+      deviceId: f.distributorId,
+      reservationId: f.reservationId,
+      lockerId: f.lockerId,
+      jti: 'jti-due-at-legacy',
+      openedAt: Math.floor(Date.now() / 1000),
+      mode: 'online',
+    }
+    const ok = await handleEnvelope(
+      { data, sig: computeSignature(data) },
+      f.distributorId,
+      { db, log },
+    )
+    expect(ok).toBe(true)
+
+    const [r] = await pgSql`SELECT status, due_at FROM reservations WHERE id = ${f.reservationId}`
+    expect(r.status).toBe('active')
+    expect(r.due_at).toBeNull()
+  })
+
   it('refuse une signature invalide sans toucher à la résa', async () => {
     const f = await seedActiveCandidate({ resaStatus: 'scheduled' })
     const { handleEnvelope } = await importModule()
