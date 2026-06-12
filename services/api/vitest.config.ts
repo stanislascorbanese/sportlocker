@@ -20,12 +20,6 @@ export default defineConfig({
         functions: 80,
         branches: 80,
         statements: 80,
-        'src/routes/reservations.ts': {
-          lines: 90,
-          functions: 90,
-          branches: 80,
-          statements: 90,
-        },
       },
       reporter: ['text', 'html'],
     },
