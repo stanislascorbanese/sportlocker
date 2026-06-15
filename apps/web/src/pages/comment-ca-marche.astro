@@ -3,6 +3,7 @@ import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
 import JourneySimulation from '@/components/JourneySimulation.tsx'
+import ImmersiveLocker from '@/components/ImmersiveLocker.tsx'
 
 const citoyen = [
   {
@@ -152,8 +153,25 @@ const inclus = [
     </div>
   </section>
 
+  <!-- IMMERSION CASIER (scroll-driven) -->
+  <section id="immersion" class="bg-navy-800 scroll-mt-20 relative">
+    <div class="container-x pt-20 sm:pt-24">
+      <div class="mb-4 max-w-2xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>En conditions réelles</span>
+        <h2 class="section-title" data-reveal data-reveal-delay="1">
+          Le QR scanne,<br class="hidden sm:block" /> le casier s'ouvre.
+        </h2>
+        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
+          Faites défiler : l'onde du scan atteint la borne, les portes pivotent et le
+          matériel se révèle. Une mise en scène du geste réel, du téléphone au casier.
+        </p>
+      </div>
+    </div>
+    <ImmersiveLocker client:visible />
+  </section>
+
   <!-- DISTRIBUTEUR 3D -->
-  <section id="distributeur-3d" class="section bg-navy-800 scroll-mt-20">
+  <section id="distributeur-3d" class="section bg-navy-900 scroll-mt-20">
     <div class="container-x">
       <div class="mb-10 max-w-3xl">
         <span class="tag tag-brand mb-4 inline-block" data-reveal>Le distributeur en détail</span>
@@ -174,7 +192,7 @@ const inclus = [
   </section>
 
   <!-- ÉTABLISSEMENT -->
-  <section id="installation" class="section bg-navy-900 scroll-mt-20">
+  <section id="installation" class="section bg-navy-800 scroll-mt-20">
     <div class="container-x">
       <div class="mb-14">
         <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté établissement</span>
@@ -212,7 +230,7 @@ const inclus = [
   </section>
 
   <!-- CE QU'ON FOURNIT -->
-  <section class="section bg-navy-800">
+  <section class="section bg-navy-900">
     <div class="container-x">
       <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Ce qu'on fournit</span>
