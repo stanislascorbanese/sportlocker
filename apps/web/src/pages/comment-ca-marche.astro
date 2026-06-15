@@ -4,6 +4,7 @@ import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
 import JourneySimulation from '@/components/JourneySimulation.tsx'
 import ImmersiveLocker from '@/components/ImmersiveLocker.tsx'
+import Immersive3DStory from '@/components/Immersive3DStory.astro'
 
 const citoyen = [
   {
@@ -191,8 +192,25 @@ const inclus = [
     </div>
   </section>
 
+  <!-- IMMERSION 3D PILOTÉE AU SCROLL -->
+  <section id="immersion-3d" class="bg-navy-800 scroll-mt-20">
+    <div class="container-x pt-24 sm:pt-28">
+      <div class="mb-10 max-w-2xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>L'expérience, de bout en bout</span>
+        <h2 class="section-title" data-reveal data-reveal-delay="1">
+          Plongée dans le geste,<br class="hidden sm:block" /> de l'app au casier ouvert
+        </h2>
+        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
+          Faites défiler : la caméra voyage de votre téléphone jusqu'à la borne, suit le scan
+          du QR code, puis fait le tour du distributeur pour révéler chacun de ses composants.
+        </p>
+      </div>
+    </div>
+    <Immersive3DStory />
+  </section>
+
   <!-- ÉTABLISSEMENT -->
-  <section id="installation" class="section bg-navy-800 scroll-mt-20">
+  <section id="installation" class="section bg-navy-900 scroll-mt-20">
     <div class="container-x">
       <div class="mb-14">
         <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté établissement</span>
@@ -230,7 +248,7 @@ const inclus = [
   </section>
 
   <!-- CE QU'ON FOURNIT -->
-  <section class="section bg-navy-900">
+  <section class="section bg-navy-800">
     <div class="container-x">
       <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Ce qu'on fournit</span>

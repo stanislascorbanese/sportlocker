@@ -1,0 +1,1441 @@
+---
+// Scrollytelling 3D : une seule scène WebGL (Three.js r128, lazy CDN) dont la
+// caméra voyage au fil du scroll en 3 actes — App → Scan → Casier-composants.
+// Réutilise les helpers de construction du casier (rcol/rtex/rframe/tex…) et la
+// technique de chargement lazy + IntersectionObserver de LockerDistributor3D.
+//
+// Perf : init seulement à l'entrée dans le viewport, rAF mis en pause hors-vue,
+// dispose() au démontage. On ne rend que quand la caméra/les portes bougent.
+// A11y : prefers-reduced-motion → pas de scène scroll-driven, fallback HTML
+// statique pleinement lisible. Le contenu informatif existe en texte HTML.
+
+const acts = [
+  {
+    k: 'app',
+    eyebrow: 'Acte 1 — Sur le téléphone',
+    title: "Tout commence dans l'app",
+    desc: "Je repère un casier sur la carte, je choisis ma durée, l'app génère mon QR code. Trois écrans, trente secondes.",
+  },
+  {
+    k: 'scan',
+    eyebrow: 'Acte 2 — Le scan',
+    title: 'Mon téléphone parle à la borne',
+    desc: "Je présente le QR au lecteur du distributeur. Le décodage est local (JWT HS256) : ça déverrouille même sans réseau, en moins d'une seconde.",
+  },
+  {
+    k: 'locker',
+    eyebrow: 'Acte 3 — La borne',
+    title: 'Le casier et ses composants',
+    desc: "La porte s'ouvre. La borne se décompose : écran tactile, lecteur QR, clavier PIN, panneau solaire et casiers antivandal.",
+  },
+]
+
+// Composants annotés — existent aussi en texte pur (fallback + a11y).
+const components = [
+  { t: 'Écran tactile 7"', d: "Capacitif antivandale. Stock en temps réel, guide l'usager pendant la réservation." },
+  { t: 'Lecteur QR code', d: 'Caméra industrielle, décodage offline. Déverrouillage < 1 s même sans réseau.' },
+  { t: 'Clavier code PIN', d: 'Pour les usagers sans smartphone. Code unique valable 15 min.' },
+  { t: 'Panneau solaire', d: 'Module 80 W + batterie LiFePO4. Autonomie 5 jours sans soleil.' },
+  { t: 'Casiers antivandal', d: 'Acier, IP54, verrou électromécanique. Grands (matériel long) et petits (ballons).' },
+]
+
+// Cartes d'annotation overlay (style app) affichées quand la caméra cadre un
+// composant. `s`/`e` = plage de progression scroll où la carte est visible.
+// `icon` = glyphe SVG path-less (emoji-free) dessiné en CSS mask via data-icon.
+const annotations = [
+  // Acte 1 — l'app
+  { icon: 'map', t: 'Carte temps réel', d: 'Les casiers libres autour de moi, stock live servi en moins de 20 ms.', s: 0.0, e: 0.13 },
+  { icon: 'clock', t: 'Choix du créneau', d: 'Slots 30 / 60 / 90 / 120 min, prix affiché par la commune.', s: 0.13, e: 0.24 },
+  { icon: 'card', t: 'Paiement Stripe', d: 'Carte, Apple Pay, Google Pay, PayPal — réglé en un geste.', s: 0.24, e: 0.33 },
+  { icon: 'qr', t: 'QR hors-ligne', d: 'JWT HS256 signé sur le téléphone, valable 15 min même sans réseau.', s: 0.33, e: 0.5 },
+  // Acte 3 — la borne (cadrée composant par composant)
+  { icon: 'screen', t: 'Écran tactile 7"', d: "Capacitif antivandale, guide l'usager et affiche le stock en temps réel.", s: 0.66, e: 0.74 },
+  { icon: 'qr', t: 'Lecteur QR', d: 'Caméra industrielle, décodage offline. Déverrouillage en moins d’une seconde.', s: 0.74, e: 0.81 },
+  { icon: 'pin', t: 'Clavier code PIN', d: 'Pour les usagers sans smartphone : code unique valable 15 min.', s: 0.81, e: 0.88 },
+  { icon: 'sun', t: 'Panneau solaire', d: 'Module 80 W + batterie LiFePO4, 5 jours d’autonomie sans soleil.', s: 0.88, e: 0.95 },
+  { icon: 'lock', t: 'Casiers + LED', d: 'Acier IP54, verrou électromécanique, LED de statut par casier.', s: 0.95, e: 1.01 },
+]
+---
+
+<div id="i3d-root" class="relative" data-i3d>
+  <!-- Zone de scroll haute : la scène est sticky pendant qu'on parcourt ces 300vh -->
+  <div id="i3d-scroll" class="relative" style="height:300vh">
+    <div id="i3d-sticky" class="sticky top-0 h-screen w-full overflow-hidden">
+      <div
+        id="i3d-stage"
+        class="absolute inset-0"
+        role="img"
+        aria-label="Animation 3D pilotée au défilement : un téléphone affiche les écrans de l'application SportLocker, un faisceau de scan QR relie le téléphone au distributeur, puis le distributeur s'ouvre et présente ses composants — écran tactile, lecteur QR, clavier PIN, panneau solaire et casiers."
+      ></div>
+
+      <!-- Légendes HTML en overlay : animées en transform/opacity uniquement -->
+      <div id="i3d-captions" class="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
+        <!-- Scrim dégradé navy (lower-third ciné) : garde le texte lisible sur la 3D
+             sans masquer le sujet central. Gauche sur desktop, bas sur mobile. -->
+        <div class="i3d-scrim" aria-hidden="true"></div>
+        <div class="container-x h-full flex items-end sm:items-center pb-16 sm:pb-0 relative">
+          <div class="max-w-md">
+            {acts.map((a, i) => (
+              <div class="i3d-caption" data-caption={String(i)} style="position:absolute;will-change:transform,opacity">
+                <span class="tag tag-brand mb-3 inline-block">{a.eyebrow}</span>
+                <h3 class="font-extrabold text-display-md text-white mb-3">{a.title}</h3>
+                <p class="text-[1rem] leading-relaxed text-white/65 font-light">{a.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <!-- Indice de défilement (acte 1 seulement) -->
+        <div id="i3d-hint" class="absolute left-1/2 bottom-6 -translate-x-1/2 text-white/45 text-xs uppercase tracking-[0.14em] flex flex-col items-center gap-1">
+          <span>Défilez pour explorer</span>
+          <span class="text-base leading-none">↓</span>
+        </div>
+      </div>
+
+      <!-- Cartes d'annotation par composant (style app, verre navy + blur).
+           Une seule visible à la fois ; animées en transform/opacity. -->
+      <div id="i3d-annot" class="pointer-events-none absolute inset-0 z-20" aria-hidden="true">
+        <div class="container-x h-full flex items-center justify-end">
+          <div class="relative w-[19rem] max-w-[80vw] h-44">
+            {annotations.map((a, i) => (
+              <div class="i3d-annot-card" data-annot={String(i)} data-range={`${a.s},${a.e}`}>
+                <div class="flex items-start gap-3">
+                  <span class={`i3d-annot-ic i3d-ic-${a.icon}`} aria-hidden="true"></span>
+                  <div>
+                    <div class="i3d-annot-t">{a.t}</div>
+                    <div class="i3d-annot-d">{a.d}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FALLBACK statique : visible si prefers-reduced-motion, pas de WebGL,
+       ou si la 3D échoue. Contenu informatif complet en HTML pur. -->
+  <div id="i3d-fallback" class="hidden">
+    <div class="card-dark p-6 sm:p-8">
+      <span class="tag tag-brand mb-4 inline-block">L'expérience, de bout en bout</span>
+      <h3 class="font-extrabold text-display-md text-white mb-3">De l'app au casier ouvert</h3>
+      <p class="section-sub mb-8">
+        Je réserve sur mon téléphone, je présente mon QR au lecteur de la borne, le casier
+        s'ouvre. La borne réunit cinq composants clés :
+      </p>
+      <ul class="grid sm:grid-cols-2 gap-4">
+        {components.map((c) => (
+          <li class="card-dark p-5">
+            <div class="font-bold text-white text-sm mb-1.5">{c.t}</div>
+            <div class="text-sm text-white/55 font-light leading-relaxed">{c.d}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ COMPONENTS: components }}>
+  (function () {
+    var root = document.getElementById('i3d-root');
+    var scroll = document.getElementById('i3d-scroll');
+    var sticky = document.getElementById('i3d-sticky');
+    var stage = document.getElementById('i3d-stage');
+    var captionsWrap = document.getElementById('i3d-captions');
+    var fallback = document.getElementById('i3d-fallback');
+    var hint = document.getElementById('i3d-hint');
+    if (!root || !stage) return;
+
+    var reduce =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var hasWebGL = (function () {
+      try {
+        var c = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+      } catch (e) {
+        return false;
+      }
+    })();
+
+    function showFallback() {
+      if (scroll) scroll.style.display = 'none';
+      if (fallback) fallback.classList.remove('hidden');
+    }
+
+    // Pas de scène scroll-driven si mouvement réduit ou WebGL absent.
+    if (reduce || !hasWebGL) {
+      showFallback();
+      return;
+    }
+
+    var isMobile = window.matchMedia('(max-width: 767px)').matches;
+    var loaded = false;
+    var disposed = false;
+    var THREE;
+    var renderer, scene, camera;
+    var rafId = null;
+    var running = false; // boucle rAF active (section dans le viewport)
+    var dirty = true; // un re-render est nécessaire
+    var progress = 0; // 0 → 1, position de scroll dans la zone
+    var smooth = 0; // progress lissé (lerp) pour des mouvements fluides
+    var disposables = []; // geometries + materials à libérer
+
+    // ----- Keyframes caméra (position + cible) par acte -----
+    // p = position de progression ; les valeurs sont interpolées (lerp).
+    var KF = [
+      // Acte App : caméra serrée sur le téléphone pour LIRE l'écran
+      { p: 0.0, pos: [0, 1.05, 3.6], tgt: [0, 1.0, 0] },
+      { p: 0.28, pos: [0.4, 1.12, 3.2], tgt: [0, 1.05, 0] },
+      // Transition / Scan : recul + travelling téléphone → borne
+      { p: 0.42, pos: [2.4, 1.6, 6.2], tgt: [1.4, 1.4, -1.2] },
+      { p: 0.55, pos: [4.2, 2.0, 7.0], tgt: [2.6, 2.0, -3.0] },
+      // Acte Casier : on cadre la borne puis on balaye chaque composant
+      // (cibles alignées sur les plages des cartes d'annotation P4).
+      { p: 0.66, pos: [5.0, 3.4, 3.2], tgt: [4.2, 2.9, -3.6] }, // écran tactile (haut)
+      { p: 0.74, pos: [5.4, 2.6, 2.6], tgt: [4.4, 1.7, -3.6] }, // lecteur QR / PIN
+      { p: 0.81, pos: [5.6, 1.9, 2.6], tgt: [4.4, 1.2, -3.6] }, // clavier PIN
+      { p: 0.88, pos: [3.2, 4.0, 3.4], tgt: [3.0, 3.7, -4.0] }, // panneau solaire (haut)
+      { p: 0.95, pos: [1.4, 2.6, 3.6], tgt: [2.2, 2.2, -4.2] }, // casiers + LED (gauche)
+      { p: 1.0, pos: [3.0, 2.6, 4.6], tgt: [3.0, 2.3, -4.4] }, // vue d'ensemble finale
+    ];
+    // Mobile : mouvements de caméra plus courts / reculés (moins de débordement)
+    if (isMobile) {
+      KF = [
+        { p: 0.0, pos: [0, 1.1, 4.6], tgt: [0, 1.0, 0] },
+        { p: 0.28, pos: [0.25, 1.15, 4.2], tgt: [0, 1.05, 0] },
+        { p: 0.42, pos: [2.0, 1.7, 7.4], tgt: [1.4, 1.5, -1.4] },
+        { p: 0.55, pos: [3.4, 2.1, 8.2], tgt: [2.6, 2.0, -3.0] },
+        { p: 0.66, pos: [4.8, 3.4, 5.0], tgt: [4.2, 2.9, -3.6] },
+        { p: 0.74, pos: [5.2, 2.6, 4.6], tgt: [4.4, 1.7, -3.6] },
+        { p: 0.81, pos: [5.4, 1.9, 4.6], tgt: [4.4, 1.2, -3.6] },
+        { p: 0.88, pos: [3.2, 4.0, 5.4], tgt: [3.0, 3.7, -4.0] },
+        { p: 0.95, pos: [1.6, 2.6, 5.6], tgt: [2.2, 2.2, -4.2] },
+        { p: 1.0, pos: [3.0, 2.6, 6.6], tgt: [3.0, 2.3, -4.4] },
+      ];
+    }
+
+    var lerp = function (a, b, t) {
+      return a + (b - a) * t;
+    };
+    function sampleKF(p) {
+      var i = 0;
+      for (; i < KF.length - 1; i++) {
+        if (p <= KF[i + 1].p) break;
+      }
+      var a = KF[Math.min(i, KF.length - 1)];
+      var b = KF[Math.min(i + 1, KF.length - 1)];
+      var span = b.p - a.p || 1;
+      var t = Math.max(0, Math.min(1, (p - a.p) / span));
+      // easing doux (smoothstep)
+      t = t * t * (3 - 2 * t);
+      return {
+        px: lerp(a.pos[0], b.pos[0], t),
+        py: lerp(a.pos[1], b.pos[1], t),
+        pz: lerp(a.pos[2], b.pos[2], t),
+        tx: lerp(a.tgt[0], b.tgt[0], t),
+        ty: lerp(a.tgt[1], b.tgt[1], t),
+        tz: lerp(a.tgt[2], b.tgt[2], t),
+      };
+    }
+
+    // ----- Légendes : on n'affiche que l'acte courant -----
+    var captionEls = captionsWrap
+      ? Array.prototype.slice.call(captionsWrap.querySelectorAll('.i3d-caption'))
+      : [];
+    var actRanges = [
+      [0.0, 0.33],
+      [0.33, 0.58],
+      [0.58, 1.01],
+    ];
+    function updateCaptions(p) {
+      var current = 0;
+      for (var i = 0; i < actRanges.length; i++) {
+        if (p >= actRanges[i][0] && p < actRanges[i][1]) {
+          current = i;
+          break;
+        }
+      }
+      captionEls.forEach(function (el, i) {
+        var on = i === current;
+        el.style.opacity = on ? '1' : '0';
+        el.style.transform = on ? 'translateY(0)' : 'translateY(14px)';
+      });
+      if (hint) hint.style.opacity = p < 0.06 ? '1' : '0';
+    }
+
+    // ----- Cartes d'annotation : une seule visible selon sa plage [s,e] -----
+    var annotWrap = document.getElementById('i3d-annot');
+    var annotEls = annotWrap
+      ? Array.prototype.slice.call(annotWrap.querySelectorAll('.i3d-annot-card'))
+      : [];
+    var annotRanges = annotEls.map(function (el) {
+      var r = (el.getAttribute('data-range') || '0,0').split(',');
+      return [parseFloat(r[0]), parseFloat(r[1])];
+    });
+    var annotCurrent = -1;
+    function updateAnnotations(p) {
+      var next = -1;
+      for (var i = 0; i < annotRanges.length; i++) {
+        if (p >= annotRanges[i][0] && p < annotRanges[i][1]) {
+          next = i;
+          break;
+        }
+      }
+      if (next === annotCurrent) return; // évite les écritures DOM inutiles
+      annotCurrent = next;
+      for (var j = 0; j < annotEls.length; j++) {
+        if (j === next) annotEls[j].classList.add('is-on');
+        else annotEls[j].classList.remove('is-on');
+      }
+    }
+
+    // ====================================================================
+    //  Construction de la scène
+    // ====================================================================
+    function build() {
+      var W = stage.clientWidth || 800;
+      var H = stage.clientHeight || 600;
+
+      scene = new THREE.Scene();
+      // P5 : color grade navy unifié + brume exponentielle pour la profondeur ciné.
+      scene.fog = new THREE.FogExp2(0x0d1b2a, 0.03);
+      camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
+      renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+      renderer.setSize(W, H);
+      // Fond navy plein (pas de gris/transparent plat) : cohérent avec le fog.
+      renderer.setClearColor(0x0d1b2a, 1);
+      stage.appendChild(renderer.domElement);
+
+      renderer.domElement.addEventListener(
+        'webglcontextlost',
+        function (e) {
+          e.preventDefault();
+          stop();
+          showFallback();
+        },
+        false,
+      );
+
+      // P5 — Éclairage « film » : ambient bas, key douce, fill froid,
+      // et rim light teintée vert marque (#1D9E75) derrière les sujets pour
+      // détourer la silhouette et créer un halo de marque.
+      scene.add(new THREE.AmbientLight(0x1a2e42, 0.35));
+      scene.add(new THREE.HemisphereLight(0x9ad6c0, 0x0d1b2a, 0.4));
+      var key = new THREE.DirectionalLight(0xfff4e0, 0.95);
+      key.position.set(7, 9, 8);
+      scene.add(key);
+      var fill = new THREE.DirectionalLight(0x3a86dd, 0.25);
+      fill.position.set(-7, 4, 5);
+      scene.add(fill);
+      // Rim light verte derrière le téléphone (centre) et la borne (droite).
+      var rimPhone = new THREE.PointLight(0x1d9e75, 1.6, 14, 2);
+      rimPhone.position.set(0, 1.6, -2.6);
+      scene.add(rimPhone);
+      var rimMachine = new THREE.PointLight(0x1d9e75, 2.2, 16, 2);
+      rimMachine.position.set(3.0, 3.0, -7.0);
+      scene.add(rimMachine);
+
+      // -------- Helpers géométrie (repris de LockerDistributor3D) --------
+      function track(o) {
+        if (o.geometry) disposables.push(o.geometry);
+        if (o.material) {
+          if (Array.isArray(o.material)) disposables.push.apply(disposables, o.material);
+          else disposables.push(o.material);
+        }
+        return o;
+      }
+      function mat(c, r, m) {
+        return new THREE.MeshStandardMaterial({
+          color: c,
+          roughness: r == null ? 0.65 : r,
+          metalness: m == null ? 0.12 : m,
+        });
+      }
+      function box(w, h, d, c, r, m) {
+        return track(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c, r, m)));
+      }
+      function emap(t, r, mt) {
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          roughness: r == null ? 0.5 : r,
+          metalness: mt == null ? 0.05 : mt,
+        });
+      }
+      function tex(w, h, draw) {
+        var cv = document.createElement('canvas');
+        cv.width = w;
+        cv.height = h;
+        draw(cv.getContext('2d'), w, h);
+        var t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return t;
+      }
+      function rshape(w, h, r) {
+        var s = new THREE.Shape();
+        r = Math.min(r, w / 2 - 0.001, h / 2 - 0.001);
+        s.moveTo(-w / 2 + r, -h / 2);
+        s.lineTo(w / 2 - r, -h / 2);
+        s.absarc(w / 2 - r, -h / 2 + r, r, -Math.PI / 2, 0, false);
+        s.lineTo(w / 2, h / 2 - r);
+        s.absarc(w / 2 - r, h / 2 - r, r, 0, Math.PI / 2, false);
+        s.lineTo(-w / 2 + r, h / 2);
+        s.absarc(-w / 2 + r, h / 2 - r, r, Math.PI / 2, Math.PI, false);
+        s.lineTo(-w / 2, -h / 2 + r);
+        s.absarc(-w / 2 + r, -h / 2 + r, r, Math.PI, Math.PI * 1.5, false);
+        return s;
+      }
+      function uvg(w, h) {
+        var hw = w / 2,
+          hh = h / 2;
+        return {
+          generateTopUV: function (g, v, a, b, c) {
+            function u(i) {
+              return new THREE.Vector2((v[i * 3] + hw) / w, (v[i * 3 + 1] + hh) / h);
+            }
+            return [u(a), u(b), u(c)];
+          },
+          generateSideWallUV: function () {
+            return [
+              new THREE.Vector2(0, 0),
+              new THREE.Vector2(1, 0),
+              new THREE.Vector2(1, 1),
+              new THREE.Vector2(0, 1),
+            ];
+          },
+        };
+      }
+      function rgeo(w, h, depth, r) {
+        var g = new THREE.ExtrudeGeometry(rshape(w, h, r), {
+          depth: depth,
+          bevelEnabled: true,
+          bevelThickness: 0.012,
+          bevelSize: 0.012,
+          bevelSegments: 1,
+          curveSegments: 5,
+          UVGenerator: uvg(w, h),
+        });
+        g.translate(0, 0, -depth / 2);
+        return g;
+      }
+      function rcol(w, h, depth, r, c, ro, me) {
+        return track(new THREE.Mesh(rgeo(w, h, depth, r), mat(c, ro, me)));
+      }
+      function rtex(w, h, depth, r, t, base, ro) {
+        return track(new THREE.Mesh(rgeo(w, h, depth, r), [emap(t, ro == null ? 0.5 : ro), mat(base)]));
+      }
+      function rframe(ow, oh, iw, ih, depth, r, c, me) {
+        var s = rshape(ow, oh, r);
+        s.holes.push(rshape(iw, ih, Math.min(r, 0.05)));
+        var g = new THREE.ExtrudeGeometry(s, {
+          depth: depth,
+          bevelEnabled: true,
+          bevelThickness: 0.01,
+          bevelSize: 0.01,
+          bevelSegments: 1,
+          curveSegments: 5,
+        });
+        g.translate(0, 0, -depth / 2);
+        return track(new THREE.Mesh(g, mat(c, 0.5, me == null ? 0.3 : me)));
+      }
+
+      // =================================================================
+      //  ACTE 1 — Le téléphone (au centre, écrans qui s'enchaînent)
+      // =================================================================
+      var phone = new THREE.Group();
+      phone.position.set(0, 1.0, 0);
+      scene.add(phone);
+
+      // Coque
+      var shell = rcol(1.05, 2.1, 0.16, 0.18, 0x14181d, 0.45, 0.4);
+      phone.add(shell);
+      // Cadre interne
+      var bez = rcol(0.98, 2.02, 0.04, 0.15, 0x0b0e12, 0.4, 0.2);
+      bez.position.z = 0.082;
+      phone.add(bez);
+
+      // Trois textures d'écran d'app (carte → durée → QR)
+      function screenMap() {
+        function header(g, w) {
+          g.fillStyle = '#1D9E75';
+          g.fillRect(0, 0, w, 90);
+          g.fillStyle = '#ffffff';
+          g.beginPath();
+          g.arc(34, 48, 11, 0, 7);
+          g.fill();
+          g.fillStyle = '#ffffff';
+          g.font = "700 36px Syne, 'DM Sans', system-ui, sans-serif";
+          g.fillText('SportLocker', 56, 60);
+        }
+        var s1 = tex(420, 860, function (g, w, h) {
+          g.fillStyle = '#FFFFFF';
+          g.fillRect(0, 0, w, h);
+          // pseudo-carte (gris bleuté plus contrasté)
+          g.fillStyle = '#cfd8e2';
+          g.fillRect(0, 90, w, h - 90);
+          g.strokeStyle = '#aab6c4';
+          g.lineWidth = 2;
+          for (var i = 1; i < 7; i++) {
+            g.beginPath();
+            g.moveTo(0, 90 + i * 110);
+            g.lineTo(w, 90 + i * 110);
+            g.stroke();
+            g.beginPath();
+            g.moveTo(i * 60, 90);
+            g.lineTo(i * 60, h);
+            g.stroke();
+          }
+          // pins (le sélectionné en vert marque, halo)
+          var pins = [[120, 320], [280, 500], [200, 660]];
+          pins.forEach(function (p, idx) {
+            if (idx === 1) {
+              g.fillStyle = 'rgba(29,158,117,0.22)';
+              g.beginPath();
+              g.arc(p[0], p[1], 40, 0, 7);
+              g.fill();
+            }
+            g.fillStyle = idx === 1 ? '#1D9E75' : '#2a3340';
+            g.beginPath();
+            g.arc(p[0], p[1], idx === 1 ? 24 : 15, 0, 7);
+            g.fill();
+            g.fillStyle = '#ffffff';
+            g.beginPath();
+            g.arc(p[0], p[1] - (idx === 1 ? 4 : 2), idx === 1 ? 8 : 5, 0, 7);
+            g.fill();
+          });
+          header(g, w);
+          // carte d'info en bas, blanche, ombrée
+          g.fillStyle = '#ffffff';
+          g.fillRect(24, h - 150, w - 48, 110);
+          g.fillStyle = '#1D9E75';
+          g.fillRect(24, h - 150, 8, 110);
+          g.fillStyle = '#0D1B2A';
+          g.font = "700 30px 'DM Sans', system-ui, sans-serif";
+          g.fillText('Parc des Sports — Nord', 52, h - 96);
+          g.fillStyle = '#1D9E75';
+          g.font = "600 26px 'DM Sans', system-ui, sans-serif";
+          g.fillText('6 casiers libres · 120 m', 52, h - 58);
+        });
+        var s2 = tex(420, 860, function (g, w, h) {
+          g.fillStyle = '#FFFFFF';
+          g.fillRect(0, 0, w, h);
+          header(g, w);
+          g.fillStyle = '#0D1B2A';
+          g.font = "700 34px 'DM Sans', system-ui, sans-serif";
+          g.fillText('Choisissez la durée', 28, 170);
+          var slots = ['30 min · 1 €', '1 h · 2 €', '1 h 30 · 3 €', '2 h · 4 €'];
+          for (var i = 0; i < slots.length; i++) {
+            var y = 210 + i * 108;
+            var sel = i === 1;
+            g.fillStyle = sel ? '#1D9E75' : '#F1F4F7';
+            g.strokeStyle = sel ? '#1D9E75' : '#cdd6df';
+            g.lineWidth = 3;
+            g.fillRect(28, y, w - 56, 88);
+            g.strokeRect(28, y, w - 56, 88);
+            g.fillStyle = sel ? '#ffffff' : '#0D1B2A';
+            g.font = "600 30px 'DM Sans', system-ui, sans-serif";
+            g.fillText(slots[i], 54, y + 56);
+            if (sel) {
+              g.fillStyle = '#ffffff';
+              g.beginPath();
+              g.arc(w - 70, y + 44, 9, 0, 7);
+              g.fill();
+            }
+          }
+          g.fillStyle = '#1D9E75';
+          g.fillRect(28, h - 140, w - 56, 96);
+          g.fillStyle = '#ffffff';
+          g.font = "700 32px 'DM Sans', system-ui, sans-serif";
+          g.textAlign = 'center';
+          g.fillText('Réserver · Apple Pay', w / 2, h - 80);
+          g.textAlign = 'left';
+        });
+        var s3 = tex(420, 860, function (g, w, h) {
+          // dégradé navy → bleu profond pour faire ressortir le QR blanc
+          var grad = g.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, '#13263b');
+          grad.addColorStop(1, '#0D1B2A');
+          g.fillStyle = grad;
+          g.fillRect(0, 0, w, h);
+          header(g, w);
+          g.fillStyle = '#ffffff';
+          g.font = "700 34px 'DM Sans', system-ui, sans-serif";
+          g.textAlign = 'center';
+          g.fillText('Scannez à la borne', w / 2, 175);
+          // QR sur carte blanche arrondie + halo vert
+          var qx = 70,
+            qy = 240,
+            qs = w - 140;
+          g.fillStyle = 'rgba(43,194,149,0.18)';
+          g.fillRect(qx - 18, qy - 18, qs + 36, qs + 36);
+          g.fillStyle = '#FFFFFF';
+          g.fillRect(qx, qy, qs, qs);
+          g.fillStyle = '#0D1B2A';
+          var cells = 13,
+            cs = qs / (cells + 2);
+          for (var x = 0; x < cells; x++)
+            for (var y = 0; y < cells; y++) {
+              if ((x * 7 + y * 3 + x * y) % 3 === 0)
+                g.fillRect(qx + cs + x * cs, qy + cs + y * cs, cs - 1, cs - 1);
+            }
+          // finders
+          g.fillStyle = '#0D1B2A';
+          [[qx + cs, qy + cs], [qx + qs - cs * 4, qy + cs], [qx + cs, qy + qs - cs * 4]].forEach(function (f) {
+            g.fillRect(f[0], f[1], cs * 3, cs * 3);
+            g.fillStyle = '#FFFFFF';
+            g.fillRect(f[0] + cs, f[1] + cs, cs, cs);
+            g.fillStyle = '#0D1B2A';
+          });
+          g.fillStyle = '#2BC295';
+          g.font = "600 24px 'DM Sans', system-ui, sans-serif";
+          g.fillText('Valable 15 min · hors-ligne', w / 2, qy + qs + 64);
+          g.textAlign = 'left';
+        });
+        return [s1, s2, s3];
+      }
+      var screens = screenMap();
+      // P1 — Écran ALLUMÉ : émissif blanc piloté par la texture, non tone-mappé,
+      // pour qu'il « glow » comme un vrai écran et reste lisible de loin.
+      var screenMatDyn = new THREE.MeshStandardMaterial({
+        map: screens[0],
+        emissive: 0xffffff,
+        emissiveMap: screens[0],
+        emissiveIntensity: 1.0,
+        roughness: 0.45,
+        metalness: 0.0,
+      });
+      if ('toneMapped' in screenMatDyn) screenMatDyn.toneMapped = false;
+      disposables.push(screenMatDyn);
+      var screenMesh = track(
+        new THREE.Mesh(new THREE.PlaneGeometry(0.92, 1.92), screenMatDyn),
+      );
+      screenMesh.position.z = 0.124;
+      screenMesh.renderOrder = 2;
+      phone.add(screenMesh);
+      var screenTextures = screens; // gardés pour swap + dispose
+
+      // Caméra / encoche
+      var notch = box(0.26, 0.05, 0.02, 0x000000, 0.3, 0.0);
+      notch.position.set(0, 0.92, 0.104);
+      phone.add(notch);
+
+      // =================================================================
+      //  Équipements sport en profondeur (sprites/meshes d'arrière-plan)
+      // =================================================================
+      var bg = new THREE.Group();
+      scene.add(bg);
+      // P3 — Ballons texturés (panneaux / lignes / couture) aux couleurs de l'app,
+      // MeshStandard roughness ~0.5 + légère metalness. Peu nombreux, disposés en
+      // HAUT et à DROITE — JAMAIS dans la zone des légendes (bas-gauche).
+      function ballMesh(tx, x, y, z, r) {
+        var m = track(
+          new THREE.Mesh(new THREE.SphereGeometry(r, 28, 22), emap(tx, 0.5, 0.06)),
+        );
+        m.position.set(x, y, z);
+        bg.add(m);
+        return m;
+      }
+      // Ballon de foot — panneaux blancs/orange app (#F2F2F2 / #D85A30)
+      var footTex = tex(256, 256, function (g, w, h) {
+        g.fillStyle = '#F2F2F2';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#D85A30';
+        for (var ry = 0; ry < 4; ry++)
+          for (var rx = 0; rx < 4; rx++) {
+            if ((rx + ry) % 2 === 0) continue;
+            var cx = rx * 64 + 32,
+              cy = ry * 64 + 32;
+            g.beginPath();
+            for (var k = 0; k < 5; k++) {
+              var a = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
+              var px = cx + Math.cos(a) * 22,
+                py = cy + Math.sin(a) * 22;
+              if (k === 0) g.moveTo(px, py);
+              else g.lineTo(px, py);
+            }
+            g.closePath();
+            g.fill();
+          }
+      });
+      ballMesh(footTex, 3.6, 3.4, -7.0, 0.5);
+      // Basket — orange app + lignes navy
+      var bballTex = tex(256, 256, function (g, w, h) {
+        g.fillStyle = '#D85A30';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#0D1B2A';
+        g.lineWidth = 6;
+        g.beginPath();
+        g.moveTo(0, h / 2);
+        g.lineTo(w, h / 2);
+        g.moveTo(w / 2, 0);
+        g.lineTo(w / 2, h);
+        g.stroke();
+        g.beginPath();
+        g.arc(w / 2, -20, 90, 0, Math.PI);
+        g.arc(w / 2, h + 20, 90, Math.PI, 2 * Math.PI);
+        g.stroke();
+      });
+      ballMesh(bballTex, -3.6, 3.0, -6.2, 0.42);
+      // Balle de tennis — accent bleu app + couture blanche
+      var tennisTex = tex(256, 256, function (g, w, h) {
+        g.fillStyle = '#3A86DD';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#F2F2F2';
+        g.lineWidth = 7;
+        g.beginPath();
+        g.moveTo(0, h * 0.32);
+        g.bezierCurveTo(w * 0.4, h * 0.1, w * 0.6, h * 0.5, w, h * 0.28);
+        g.moveTo(0, h * 0.72);
+        g.bezierCurveTo(w * 0.4, h * 0.5, w * 0.6, h * 0.9, w, h * 0.68);
+        g.stroke();
+      });
+      ballMesh(tennisTex, 4.2, 1.4, -5.6, 0.28);
+
+      // =================================================================
+      //  ACTE 3 — La borne (décalée à droite : x≈3, z≈-4.4)
+      //  Géométrie/matériaux repris de LockerDistributor3D, simplifiés.
+      // =================================================================
+      var machine = new THREE.Group();
+      machine.position.set(3.0, 0, -4.4);
+      scene.add(machine);
+
+      var BODY = 0xd7dbd6,
+        DOOR = 0xe9ecea,
+        TEAL = 0x1d9e75;
+
+      // Composants éclatables : on les groupe pour pouvoir les "exploser"
+      var explode = []; // { obj, baseX, baseY, baseZ, dx, dy, dz }
+      function addExplode(obj, dx, dy, dz) {
+        explode.push({
+          obj: obj,
+          bx: obj.position.x,
+          by: obj.position.y,
+          bz: obj.position.z,
+          dx: dx,
+          dy: dy,
+          dz: dz,
+        });
+      }
+
+      // socle + corps
+      (function () {
+        var m = rcol(4.6, 0.3, 1.9, 0.08, 0x6e726c, 0.7, 0.05);
+        m.position.set(0, 0.15, 0);
+        machine.add(m);
+      })();
+      (function () {
+        var m = box(4.4, 4.0, 0.08, BODY);
+        m.position.set(0, 2.3, -0.86);
+        machine.add(m);
+      })();
+      [-2.18, 2.18].forEach(function (sx) {
+        var m = box(0.1, 4.0, 1.78, BODY);
+        m.position.set(sx, 2.3, 0);
+        machine.add(m);
+      });
+      (function () {
+        var m = box(4.36, 0.1, 1.78, 0xc9cdc7);
+        m.position.set(0, 4.28, 0);
+        machine.add(m);
+      })();
+      (function () {
+        var m = box(4.36, 0.12, 1.78, 0xc9cdc7);
+        m.position.set(0, 0.38, 0);
+        machine.add(m);
+      })();
+      (function () {
+        var m = rcol(4.3, 3.94, 0.05, 0.22, BODY, 0.6, 0.1);
+        m.position.set(0, 2.3, 0.83);
+        machine.add(m);
+      })();
+      (function () {
+        var s = rcol(4.24, 0.06, 0.06, 0.03, TEAL, 0.5, 0.1);
+        s.position.set(0, 4.18, 0.9);
+        machine.add(s);
+      })();
+
+      // ----- Portes (2 grandes + une ouvrable pour l'animation) -----
+      var bigDoors = [];
+      [-1.66, -0.9].forEach(function (dx, i) {
+        var w = 0.66,
+          h = 2.95,
+          y = 2.175;
+        var rec = rcol(w - 0.02, h - 0.02, 0.01, 0.06, 0x1d2024, 0.8, 0.0);
+        rec.position.set(dx, y, 0.902);
+        machine.add(rec);
+        var pivot = new THREE.Group();
+        pivot.position.set(dx - w / 2, y, 0.93);
+        machine.add(pivot);
+        var dtex = tex(220, 980, function (g, ww, hh) {
+          g.fillStyle = '#E9ECEA';
+          g.fillRect(0, 0, ww, hh);
+          g.strokeStyle = '#C7CBC5';
+          g.lineWidth = 4;
+          g.strokeRect(14, 14, ww - 28, hh - 28);
+          g.fillStyle = '#1D9E75';
+          g.beginPath();
+          g.arc(ww * 0.78, 60, 12, 0, 7);
+          g.fill();
+          g.fillStyle = '#3a3a37';
+          g.font = '600 36px sans-serif';
+          g.fillText(i === 0 ? 'Badminton' : 'Cônes', 24, hh - 60);
+        });
+        var door = rtex(w, h, 0.045, 0.06, dtex, DOOR, 0.6);
+        door.position.set(w / 2, 0, 0);
+        pivot.add(door);
+        var handle = rcol(0.05, 0.22, 0.04, 0.02, 0x8d918b, 0.5, 0.2);
+        handle.position.set(w - 0.11, 0, 0.04);
+        door.add(handle);
+        bigDoors.push({ pivot: pivot, open: i === 0 ? -1.55 : 0 });
+      });
+
+      // ----- 6 petites portes (ballons) -----
+      var smallSpots = [
+        [-0.13, 3.19],
+        [0.53, 3.19],
+        [-0.13, 2.18],
+        [0.53, 2.18],
+        [-0.13, 1.17],
+        [0.53, 1.17],
+      ];
+      var statusCols = [0x1d9e75, 0xefa12b, 0x3a86dd, 0x1d9e75, 0xe24b4a, 0x1d9e75];
+      smallSpots.forEach(function (sp, i) {
+        var w = 0.56,
+          h = 0.917;
+        var rec = rcol(w - 0.02, h - 0.02, 0.01, 0.06, 0x1d2024, 0.8, 0.0);
+        rec.position.set(sp[0], sp[1], 0.902);
+        machine.add(rec);
+        var door = rcol(w, h, 0.045, 0.06, DOOR, 0.55, 0.1);
+        door.position.set(sp[0], sp[1], 0.93);
+        machine.add(door);
+        var led = track(
+          new THREE.Mesh(
+            new THREE.SphereGeometry(0.03, 12, 10),
+            new THREE.MeshStandardMaterial({
+              color: statusCols[i],
+              emissive: statusCols[i],
+              emissiveIntensity: 0.9,
+              roughness: 0.4,
+            }),
+          ),
+        );
+        led.position.set(sp[0] + w / 2 - 0.11, sp[1] + h / 2 - 0.11, 0.95);
+        machine.add(led);
+      });
+
+      // ----- Colonne interface (écran, clavier, QR) -----
+      var IX = 1.5;
+      var ifaceCol = rcol(1.18, 3.18, 0.05, 0.16, 0x4a525a, 0.5, 0.4);
+      ifaceCol.position.set(IX, 2.18, 0.895);
+      machine.add(ifaceCol);
+
+      // -- Écran tactile (composant éclatable) --
+      var screenGrp = new THREE.Group();
+      screenGrp.position.set(IX, 2.86, 0.95);
+      machine.add(screenGrp);
+      var stex = tex(420, 300, function (g, w, h) {
+        g.fillStyle = '#EDEFF3';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1D9E75';
+        g.fillRect(0, 0, w, 48);
+        g.fillStyle = '#ffffff';
+        g.font = '600 24px sans-serif';
+        g.fillText('SportLocker', 16, 32);
+        g.fillStyle = '#3a4048';
+        g.font = '600 24px sans-serif';
+        g.textAlign = 'center';
+        g.fillText('Casier 4 — ouvert', w / 2, 160);
+        g.fillStyle = '#1D9E75';
+        g.font = '20px sans-serif';
+        g.fillText('Bonne pratique !', w / 2, 200);
+        g.textAlign = 'left';
+      });
+      var screenComp = rtex(0.84, 0.6, 0.03, 0.05, stex, 0x0e1418, 0.32);
+      screenGrp.add(screenComp);
+      var sframe = rframe(0.96, 0.72, 0.82, 0.58, 0.06, 0.07, 0x171c21);
+      sframe.position.z = 0.02;
+      screenGrp.add(sframe);
+      addExplode(screenGrp, 0.0, 0.55, 0.5);
+
+      // -- Clavier PIN (composant éclatable) --
+      var padGrp = new THREE.Group();
+      padGrp.position.set(IX, 1.62, 0.95);
+      machine.add(padGrp);
+      var padFrame = rcol(0.48, 0.56, 0.03, 0.05, 0x7f868a, 0.45, 0.55);
+      padGrp.add(padFrame);
+      var keypadTex = tex(280, 320, function (g, w, h) {
+        g.fillStyle = '#9aa0a4';
+        g.fillRect(0, 0, w, h);
+        var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
+        var mx = 18,
+          my = 14,
+          gap = 10,
+          kw = (w - 2 * mx - 2 * gap) / 3,
+          kh = (h - 2 * my - 3 * gap) / 4;
+        for (var k = 0; k < 12; k++) {
+          var cx = k % 3,
+            cy = Math.floor(k / 3),
+            x = mx + cx * (kw + gap),
+            y = my + cy * (kh + gap);
+          g.fillStyle = k === 11 ? '#1D9E75' : k === 9 ? '#c98a2a' : '#d7dadc';
+          g.fillRect(x, y, kw, kh);
+          g.fillStyle = k === 11 || k === 9 ? '#15240f' : '#2a2e30';
+          g.font = '600 24px sans-serif';
+          g.textAlign = 'center';
+          g.fillText(keys[k], x + kw / 2, y + kh / 2 + 8);
+          g.textAlign = 'left';
+        }
+      });
+      var padFace = rtex(0.42, 0.5, 0.035, 0.04, keypadTex, 0x8b9195, 0.45);
+      padFace.position.z = 0.025;
+      padGrp.add(padFace);
+      addExplode(padGrp, -0.2, -0.4, 0.55);
+
+      // -- Lecteur QR (composant éclatable) --
+      var qrGrp = new THREE.Group();
+      qrGrp.position.set(IX, 0.86, 0.95);
+      machine.add(qrGrp);
+      var qrFrame = rcol(0.5, 0.5, 0.03, 0.06, 0x171c21, 0.5, 0.3);
+      qrGrp.add(qrFrame);
+      var qrTex = tex(180, 180, function (g, w, h) {
+        g.fillStyle = '#11171B';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#F4F6F3';
+        g.fillRect(30, 30, 120, 120);
+        g.fillStyle = '#11171B';
+        for (var x = 0; x < 11; x++)
+          for (var y = 0; y < 11; y++) {
+            if ((x * 7 + y * 3 + x * y) % 3 === 0) g.fillRect(36 + x * 10, 36 + y * 10, 9, 9);
+          }
+        g.strokeStyle = '#1D9E75';
+        g.lineWidth = 5;
+        g.strokeRect(14, 14, 26, 26);
+      });
+      var qrFace = rtex(0.42, 0.42, 0.03, 0.05, qrTex, 0x141a1e);
+      qrFace.position.z = 0.022;
+      qrGrp.add(qrFace);
+      // halo de scan (rendu lumineux)
+      var qrGlow = track(
+        new THREE.Mesh(
+          new THREE.PlaneGeometry(0.46, 0.46),
+          new THREE.MeshBasicMaterial({ color: 0x2bc295, transparent: true, opacity: 0 }),
+        ),
+      );
+      qrGlow.position.z = 0.04;
+      qrGrp.add(qrGlow);
+      addExplode(qrGrp, 0.5, -0.5, 0.6);
+
+      // -- Panneau solaire (composant éclatable) --
+      var solarGrp = new THREE.Group();
+      solarGrp.position.set(0, 4.32, -0.55);
+      solarGrp.rotation.x = -0.36;
+      machine.add(solarGrp);
+      var solarTex = tex(512, 200, function (g, w, h) {
+        g.fillStyle = '#0a1626';
+        g.fillRect(0, 0, w, h);
+        var cols = 12,
+          rows = 5,
+          mx = 8,
+          my = 8,
+          gap = 5,
+          cw = (w - 2 * mx - (cols - 1) * gap) / cols,
+          ch = (h - 2 * my - (rows - 1) * gap) / rows;
+        for (var c = 0; c < cols; c++)
+          for (var r = 0; r < rows; r++) {
+            g.fillStyle = '#10294a';
+            g.fillRect(mx + c * (cw + gap), my + r * (ch + gap), cw, ch);
+          }
+      });
+      var solarMats = [
+        mat(0x223a5e, 0.5, 0.3),
+        mat(0x223a5e, 0.5, 0.3),
+        emap(solarTex, 0.35, 0.25),
+        mat(0x101b2e, 0.6, 0.2),
+        mat(0x223a5e, 0.5, 0.3),
+        mat(0x223a5e, 0.5, 0.3),
+      ];
+      disposables.push.apply(disposables, solarMats);
+      var panelGeo = new THREE.BoxGeometry(4.0, 0.07, 1.5);
+      disposables.push(panelGeo);
+      var panel = new THREE.Mesh(panelGeo, solarMats);
+      panel.position.set(0, 0, 0.78);
+      solarGrp.add(panel);
+      addExplode(solarGrp, 0.0, 0.7, 0.4);
+
+      // brand
+      var brandTex = tex(420, 90, function (g, w, h) {
+        g.fillStyle = '#11171B';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1D9E75';
+        g.beginPath();
+        g.arc(36, h / 2, 9, 0, 7);
+        g.fill();
+        g.fillStyle = '#eef1ee';
+        g.font = '600 30px sans-serif';
+        g.fillText('SportLocker', 60, h / 2 + 11);
+      });
+      (function () {
+        var m = rtex(0.94, 0.22, 0.03, 0.06, brandTex, 0x11171b);
+        m.position.set(IX, 3.52, 0.955);
+        machine.add(m);
+      })();
+
+      // =================================================================
+      //  Faisceau / onde de scan (Acte 2) : téléphone → lecteur QR borne
+      // =================================================================
+      var scanGrp = new THREE.Group();
+      scene.add(scanGrp);
+      // origine ≈ écran téléphone ; cible ≈ lecteur QR de la borne (monde)
+      var beamFrom = new THREE.Vector3(0, 1.0, 0.12);
+      var beamTo = new THREE.Vector3(3.0 + IX, 0.86, -4.4 + 0.97);
+      var beamVec = new THREE.Vector3().subVectors(beamTo, beamFrom);
+      var beamLen = beamVec.length();
+      var beamGeo = new THREE.CylinderGeometry(0.015, 0.04, beamLen, 8, 1, true);
+      disposables.push(beamGeo);
+      var beamMat = new THREE.MeshBasicMaterial({
+        color: 0x2bc295,
+        transparent: true,
+        opacity: 0,
+      });
+      disposables.push(beamMat);
+      var beam = new THREE.Mesh(beamGeo, beamMat);
+      // positionner et orienter le cylindre le long du vecteur
+      beam.position.copy(beamFrom).add(beamVec.clone().multiplyScalar(0.5));
+      beam.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        beamVec.clone().normalize(),
+      );
+      scanGrp.add(beam);
+      // anneaux d'onde qui filent le long du faisceau
+      var rings = [];
+      for (var ri = 0; ri < 3; ri++) {
+        var ringGeo = new THREE.TorusGeometry(0.08, 0.012, 6, 20);
+        disposables.push(ringGeo);
+        var ringMat = new THREE.MeshBasicMaterial({ color: 0x2bc295, transparent: true, opacity: 0 });
+        disposables.push(ringMat);
+        var ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.quaternion.copy(beam.quaternion);
+        ring.rotateX(Math.PI / 2);
+        scanGrp.add(ring);
+        rings.push(ring);
+      }
+
+      // sol / ombre douce
+      var shTex = tex(256, 256, function (g) {
+        var r = g.createRadialGradient(128, 128, 10, 128, 128, 120);
+        r.addColorStop(0, 'rgba(0,0,0,0.3)');
+        r.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = r;
+        g.fillRect(0, 0, 256, 256);
+      });
+      var shMat = new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false });
+      disposables.push(shMat);
+      var shGeo = new THREE.PlaneGeometry(7, 4.6);
+      disposables.push(shGeo);
+      var sh = new THREE.Mesh(shGeo, shMat);
+      sh.rotation.x = -Math.PI / 2;
+      sh.position.set(3.0, 0.02, -4.0);
+      scene.add(sh);
+
+      // =================================================================
+      //  Étagement de présence par acte (P2)
+      //  Fade un groupe entier en opacité (transform/opacity only côté GPU) :
+      //  rend les matériaux transparents et coupe `visible` quand ~invisible.
+      // =================================================================
+      function fadeGroup(group, o) {
+        var vis = o > 0.02;
+        group.visible = vis;
+        if (!vis) return;
+        group.traverse(function (n) {
+          if (!n.material) return;
+          var ms = Array.isArray(n.material) ? n.material : [n.material];
+          for (var i = 0; i < ms.length; i++) {
+            ms[i].transparent = o < 1;
+            ms[i].opacity = o;
+            ms[i].depthWrite = o >= 0.98;
+          }
+        });
+      }
+
+      // =================================================================
+      //  Application de la progression à toute la scène
+      // =================================================================
+      var tgtV = new THREE.Vector3();
+      function applyProgress(p) {
+        // --- caméra ---
+        var s = sampleKF(p);
+        camera.position.set(s.px, s.py, s.pz);
+        tgtV.set(s.tx, s.ty, s.tz);
+        camera.lookAt(tgtV);
+
+        // --- acte 1 : swap écran téléphone (carte → durée → QR) ---
+        var a1 = Math.max(0, Math.min(1, p / 0.33));
+        var screenIdx = a1 < 0.4 ? 0 : a1 < 0.78 ? 1 : 2;
+        if (screenMatDyn.map !== screenTextures[screenIdx]) {
+          screenMatDyn.map = screenTextures[screenIdx];
+          screenMatDyn.emissiveMap = screenTextures[screenIdx];
+          screenMatDyn.needsUpdate = true;
+        }
+        // léger flottement du téléphone (transform uniquement)
+        phone.rotation.y = Math.sin(p * 6) * 0.04 + (p > 0.33 ? (p - 0.33) * 0.6 : 0);
+        // P2 — Étagement : téléphone net en acte 1, fortement atténué dès l'acte 3.
+        var phoneFade = p < 0.45 ? 1 : Math.max(0, 1 - (p - 0.45) / 0.13);
+        fadeGroup(phone, phoneFade);
+        // P2 — Équipements : discrets, présents surtout en acte 1, fadés ensuite
+        // pour ne pas surcharger ni recouvrir la zone des légendes.
+        var bgFade = p < 0.33 ? 0.85 : Math.max(0.12, 0.85 - (p - 0.33) * 1.6);
+        fadeGroup(bg, bgFade);
+        // P2 — La borne monte en présence à l'approche de l'acte 2/3 (atténuée
+        // en acte 1 pour laisser le téléphone seul sujet net au centre).
+        var machineFade = p < 0.3 ? 0.18 : Math.min(1, 0.18 + (p - 0.3) * 4);
+        fadeGroup(machine, machineFade);
+
+        // --- acte 2 : faisceau de scan (0.33 → 0.55) ---
+        var scanT = (p - 0.33) / (0.55 - 0.33);
+        scanT = Math.max(0, Math.min(1, scanT));
+        var beamOn = p > 0.3 && p < 0.6;
+        var beamOpacity = beamOn ? Math.sin(Math.min(1, scanT) * Math.PI) * 0.6 : 0;
+        beamMat.opacity = beamOpacity;
+        beam.visible = beamOpacity > 0.01;
+        for (var i = 0; i < rings.length; i++) {
+          var frac = (scanT * 1.6 + i / rings.length) % 1;
+          rings[i].position.copy(beamFrom).add(beamVec.clone().multiplyScalar(frac));
+          var ro = beamOn ? Math.sin(frac * Math.PI) * 0.8 : 0;
+          rings[i].material.opacity = ro;
+          rings[i].visible = ro > 0.01;
+          var sc = 0.6 + frac * 1.2;
+          rings[i].scale.set(sc, sc, sc);
+        }
+        // halo du lecteur QR qui s'allume à l'impact
+        qrGlow.material.opacity = beamOn ? Math.max(0, scanT - 0.4) * 0.9 : 0;
+
+        // --- acte 3 : ouverture portes + vue éclatée (0.58 → 1) ---
+        var a3 = (p - 0.58) / (1 - 0.58);
+        a3 = Math.max(0, Math.min(1, a3));
+        var doorOpen = Math.max(0, Math.min(1, (p - 0.6) / 0.12));
+        bigDoors.forEach(function (d) {
+          d.pivot.rotation.y = d.open * doorOpen;
+        });
+        // explosion progressive des composants (amplitude réduite pour rester
+        // dans le cadre des cartes d'annotation P4)
+        var ex = a3 > 0.5 ? (a3 - 0.5) / 0.5 : 0;
+        ex = ex * ex * (3 - 2 * ex) * 0.45;
+        explode.forEach(function (e) {
+          e.obj.position.set(e.bx + e.dx * ex, e.by + e.dy * ex, e.bz + e.dz * ex);
+        });
+      }
+
+      // contrôleur exposé à la boucle
+      return {
+        render: function () {
+          applyProgress(smooth);
+          renderer.render(scene, camera);
+        },
+        resize: function () {
+          var w = stage.clientWidth || 800;
+          var h = stage.clientHeight || 600;
+          renderer.setSize(w, h);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          dirty = true;
+        },
+        screenTextures: screenTextures,
+      };
+    }
+
+    var ctrl = null;
+
+    // ====================================================================
+    //  Scroll progress (natif, throttlé via rAF) — pas de scroll-jacking
+    // ====================================================================
+    function computeProgress() {
+      var rect = scroll.getBoundingClientRect();
+      var vh = window.innerHeight;
+      // p = 0 quand le haut de la zone atteint le haut de l'écran,
+      // p = 1 quand le bas de la zone (hauteur - vh) a défilé.
+      var total = rect.height - vh;
+      if (total <= 0) return 0;
+      var scrolled = -rect.top;
+      return Math.max(0, Math.min(1, scrolled / total));
+    }
+    var ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
+        progress = computeProgress();
+        dirty = true;
+        ticking = false;
+      });
+    }
+
+    // ====================================================================
+    //  Boucle rAF : ne rend que si nécessaire (scroll ou lissage en cours)
+    // ====================================================================
+    function frame() {
+      if (!running) return;
+      rafId = requestAnimationFrame(frame);
+      var diff = progress - smooth;
+      if (Math.abs(diff) > 0.0005) {
+        smooth += diff * 0.12;
+        dirty = true;
+      } else if (dirty) {
+        smooth = progress;
+      }
+      if (dirty && ctrl) {
+        updateCaptions(smooth);
+        updateAnnotations(smooth);
+        ctrl.render();
+        if (Math.abs(progress - smooth) <= 0.0005) dirty = false;
+      }
+    }
+    function start() {
+      if (running || disposed) return;
+      running = true;
+      dirty = true;
+      rafId = requestAnimationFrame(frame);
+    }
+    function stop() {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
+    function dispose() {
+      stop();
+      disposed = true;
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+      if (ctrl && ctrl.screenTextures)
+        ctrl.screenTextures.forEach(function (t) {
+          t.dispose();
+        });
+      disposables.forEach(function (d) {
+        if (d && d.dispose) d.dispose();
+      });
+      disposables.length = 0;
+      if (renderer) {
+        renderer.dispose();
+        if (renderer.domElement && renderer.domElement.parentNode)
+          renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
+      scene = camera = renderer = ctrl = null;
+    }
+
+    function onResize() {
+      if (ctrl) ctrl.resize();
+      progress = computeProgress();
+      dirty = true;
+    }
+
+    // ====================================================================
+    //  Lazy init quand la section entre dans le viewport
+    // ====================================================================
+    function setup() {
+      THREE = window.THREE;
+      if (!THREE) return;
+      ctrl = build();
+      progress = computeProgress();
+      smooth = progress;
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onResize);
+      updateCaptions(smooth);
+      updateAnnotations(smooth);
+      start();
+    }
+
+    function loadThree() {
+      if (loaded) return;
+      loaded = true;
+      if (window.THREE) {
+        setup();
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.onload = setup;
+      s.onerror = showFallback;
+      document.head.appendChild(s);
+    }
+
+    if ('IntersectionObserver' in window) {
+      // 1) Charge la 3D quand la zone approche du viewport.
+      var loadIO = new IntersectionObserver(
+        function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            if (entries[i].isIntersecting) {
+              loadThree();
+              loadIO.disconnect();
+              break;
+            }
+          }
+        },
+        { rootMargin: '300px 0px' },
+      );
+      loadIO.observe(root);
+
+      // 2) Met en pause / reprend la boucle selon la visibilité (perf :
+      //    l'autre canvas #distributeur-3d tourne ailleurs sur la page).
+      var runIO = new IntersectionObserver(
+        function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            if (!loaded || disposed) continue;
+            if (entries[i].isIntersecting) {
+              if (window.THREE && !ctrl) setup();
+              else start();
+            } else {
+              stop();
+            }
+          }
+        },
+        { threshold: 0 },
+      );
+      runIO.observe(sticky);
+    } else {
+      loadThree();
+    }
+
+    // Pause aussi quand l'onglet passe en arrière-plan.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stop();
+      else if (loaded && !disposed && ctrl) start();
+    });
+
+    // Libération mémoire complète quand la page est quittée (navigation SPA/BFCache).
+    window.addEventListener('pagehide', function () {
+      if (loaded && !disposed) dispose();
+    });
+  })();
+</script>
+
+<style>
+  /* Scrim lower-third : dégradé navy depuis la gauche (desktop) pour la lisibilité
+     du texte sur la 3D, sans boîte ni bord. Sujet central peu affecté (fade ~46%). */
+  .i3d-scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      rgba(13, 27, 42, 0.82) 0%,
+      rgba(13, 27, 42, 0.55) 20%,
+      rgba(13, 27, 42, 0) 46%
+    );
+  }
+  @media (max-width: 767px) {
+    .i3d-scrim {
+      background: linear-gradient(
+        0deg,
+        rgba(13, 27, 42, 0.9) 0%,
+        rgba(13, 27, 42, 0.55) 26%,
+        rgba(13, 27, 42, 0) 52%
+      );
+    }
+  }
+
+  .i3d-caption {
+    transition:
+      opacity 0.5s ease,
+      transform 0.5s ease;
+    opacity: 0;
+    transform: translateY(14px);
+    /* absolute → ignore max-w-md du parent : on borne la largeur pour que le
+       texte se replie dans la colonne sombre de gauche, à l'écart du sujet 3D. */
+    max-width: 25rem;
+  }
+
+  /* P4 — Cartes d'annotation composant : verre navy + blur, accent vert,
+     radius 16, DM Sans. Animées en transform/opacity uniquement. */
+  .i3d-annot-card {
+    position: absolute;
+    inset: 0;
+    padding: 1rem 1.1rem;
+    border-radius: 16px;
+    background: rgba(13, 27, 42, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 3px solid #1d9e75;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.6);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+    transition:
+      opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity;
+  }
+  .i3d-annot-card.is-on {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .i3d-annot-t {
+    font-weight: 700;
+    font-size: 1.02rem;
+    line-height: 1.2;
+    color: #fff;
+    margin-bottom: 0.35rem;
+  }
+  .i3d-annot-d {
+    font-size: 0.86rem;
+    line-height: 1.45;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.66);
+  }
+  .i3d-annot-ic {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: rgba(29, 158, 117, 0.16);
+    position: relative;
+  }
+  .i3d-annot-ic::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    background: #2bc295;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+  .i3d-ic-map::after {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolygon points='3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21'/%3E%3Cline x1='9' y1='3' x2='9' y2='18'/%3E%3Cline x1='15' y1='6' x2='15' y2='21'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolygon points='3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21'/%3E%3Cline x1='9' y1='3' x2='9' y2='18'/%3E%3Cline x1='15' y1='6' x2='15' y2='21'/%3E%3C/svg%3E");
+  }
+  .i3d-ic-clock::after,
+  .i3d-ic-sun::after {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpolyline points='12 7 12 12 16 14'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpolyline points='12 7 12 12 16 14'/%3E%3C/svg%3E");
+  }
+  .i3d-ic-card::after,
+  .i3d-ic-screen::after {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='5' width='20' height='14' rx='2'/%3E%3Cline x1='2' y1='10' x2='22' y2='10'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='5' width='20' height='14' rx='2'/%3E%3Cline x1='2' y1='10' x2='22' y2='10'/%3E%3C/svg%3E");
+  }
+  .i3d-ic-qr::after,
+  .i3d-ic-pin::after {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7'/%3E%3Crect x='14' y='3' width='7' height='7'/%3E%3Crect x='3' y='14' width='7' height='7'/%3E%3Cline x1='14' y1='14' x2='21' y2='21'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7'/%3E%3Crect x='14' y='3' width='7' height='7'/%3E%3Crect x='3' y='14' width='7' height='7'/%3E%3Cline x1='14' y1='14' x2='21' y2='21'/%3E%3C/svg%3E");
+  }
+  .i3d-ic-lock::after {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E");
+  }
+  /* Fallback robuste : si JS désactivé, le mouvement réduit est respecté côté
+     CSS — on masque la zone de scroll et on montre le contenu statique. */
+  @media (prefers-reduced-motion: reduce) {
+    #i3d-scroll {
+      display: none;
+    }
+    #i3d-fallback {
+      display: block !important;
+    }
+    .i3d-caption {
+      transition: none;
+    }
+  }
+</style>
