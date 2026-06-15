@@ -106,7 +106,7 @@ labelRenderer.domElement.style.cssText='position:fixed;inset:0;pointer-events:no
 
 const scene=new THREE.Scene(); scene.background=new THREE.Color('#0e1018'); scene.fog=new THREE.Fog('#0e1018',24,50);
 const pmrem=new THREE.PMREMGenerator(renderer);
-scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.22;
+scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.32;
 
 const F=7.2; const camera=new THREE.OrthographicCamera(-F,F,F,-F,0.1,200); camera.position.set(16,15,16);
 const controls=new OrbitControls(camera,renderer.domElement);
@@ -161,11 +161,15 @@ const codeRows=Array.from({length:9},()=>({w:8+Math.random()*70,c:codeCols[(Math
 function updateScreen(t){ sxc.fillStyle='#0b0f17'; sxc.fillRect(0,0,128,80); const off=(t*14)%9;
   for(let i=0;i<9;i++){ const r=codeRows[(i+Math.floor(off))%9]; const y=4+i*8-(off%1)*8; sxc.fillStyle=r.c; sxc.globalAlpha=0.85; sxc.fillRect(6,y,r.w,3); }
   sxc.globalAlpha=1; screenTex.needsUpdate=true; }
+function radialTex(){ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  const g=x.createRadialGradient(64,64,0,64,64,64); g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.45,'rgba(255,255,255,0.5)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,128,128); return new THREE.CanvasTexture(c); }
+const softTex=radialTex();
 
 const matStd=(c,r=0.85,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
 const RB=(w,h,d)=>new THREE.BoxGeometry(w,h,d,3,3,3);
 const ROOM=9;
-const floorMat=new THREE.MeshStandardMaterial({color:'#e9edf6',roughness:0.95,map:floorTexture()});
+const floorMat=new THREE.MeshStandardMaterial({color:'#e9edf6',roughness:0.5,metalness:0.12,map:floorTexture()});
 const floor=new THREE.Mesh(new THREE.BoxGeometry(ROOM*2,0.3,ROOM*2),floorMat); floor.position.y=-0.15; floor.receiveShadow=true; scene.add(floor);
 const rug=new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.1,0.02,40),matStd('#586b8a',1)); rug.position.set(0,0.02,1.5); rug.receiveShadow=true; scene.add(rug);
 const wallMat=matStd('#f6f8fc',1);
@@ -236,8 +240,9 @@ function makeBot(col){ const g=new THREE.Group(); const c=new THREE.Color(col);
   for(const ex of[-0.1,0.1]){ const e=new THREE.Mesh(new THREE.CapsuleGeometry(0.035,0.05,4,8),eyeMat.clone()); e.rotation.z=Math.PI/2; e.position.set(ex,0.02,0.27); e.layers.enable(BLOOM); head.add(e); eyes.push(e); }
   const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.02,0.22,8),dark); ant.position.set(0,0.34,0); head.add(ant);
   const tip=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,12),glow); tip.position.set(0,0.46,0); tip.layers.enable(BLOOM); head.add(tip);
-  const blob=new THREE.Mesh(new THREE.CircleGeometry(0.36,24),new THREE.MeshBasicMaterial({color:'#000',transparent:true,opacity:0.2})); blob.rotation.x=-Math.PI/2; blob.position.y=0.012; g.add(blob);
-  return {g,body:torso,head,eyes,arms,tip}; }
+  const shadow=new THREE.Mesh(new THREE.PlaneGeometry(1.0,1.0),new THREE.MeshBasicMaterial({map:softTex,color:0x000000,transparent:true,opacity:0.34,depthWrite:false})); shadow.rotation.x=-Math.PI/2; shadow.position.y=0.013; g.add(shadow);
+  const puddle=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.5),new THREE.MeshBasicMaterial({map:softTex,color:c,transparent:true,opacity:0.18,blending:THREE.AdditiveBlending,depthWrite:false})); puddle.rotation.x=-Math.PI/2; puddle.position.y=0.02; g.add(puddle);
+  return {g,body:torso,head,eyes,arms,tip,puddle}; }
 function plate(name,color){ const el=document.createElement('div'); el.className='nameplate';
   el.innerHTML=`<div class="nm" style="color:${color}">${name}</div><div class="st"><span class="dot" style="color:${color};background:${color}"></span><span class="lab">idle</span></div><div class="bar" style="color:${color}"><i></i></div>`;
   const o=new CSS2DObject(el); o.position.set(0,1.95,0); return {o,el,lab:el.querySelector('.lab'),fill:el.querySelector('.bar i')}; }
@@ -276,15 +281,17 @@ agents.forEach(a=>setTimeout(()=>{ pickTarget(a); a.state='walk'; },Math.random(
 setInterval(()=>{ if(Math.random()<0.7) spawnWorker(WORKER_VERBS[(Math.random()*WORKER_VERBS.length)|0]); },11000);
 
 let cineMode='auto', cineT=6, cineFocus=null, cineHold=0;
-function stepCine(dt){ if(cineMode==='off'){ controls.autoRotate=true; controls.target.lerp(new THREE.Vector3(0,0.8,0),dt*1.5);
-    controls.object.zoom+=(1.0-controls.object.zoom)*Math.min(1,dt*1.5); controls.object.updateProjectionMatrix(); return; }
+const CENTER=new THREE.Vector3(0,0.8,0), _ct=new THREE.Vector3();
+function zoomTo(z,k){ controls.object.zoom+=(z-controls.object.zoom)*Math.min(1,k); controls.object.updateProjectionMatrix(); }
+function stepCine(dt){
+  controls.autoRotate=true;
+  if(cineMode==='off'){ controls.autoRotateSpeed=0.28; controls.target.lerp(CENTER,Math.min(1,dt*1.4)); zoomTo(1.0,dt*1.4); return; }
   cineT-=dt;
-  if(cineT<=0 && !cineFocus){ cineFocus=lastActive||agents[(Math.random()*agents.length)|0]; cineHold=4.5; controls.autoRotate=false; }
-  if(cineFocus){ cineHold-=dt; const p=cineFocus.g.position; controls.target.lerp(new THREE.Vector3(p.x,1.0,p.z),Math.min(1,dt*2.2));
-    controls.object.zoom+=(1.7-controls.object.zoom)*Math.min(1,dt*1.6); controls.object.updateProjectionMatrix();
-    if(cineHold<=0){ cineFocus=null; cineT=7+Math.random()*5; } }
-  else { controls.autoRotate=true; controls.target.lerp(new THREE.Vector3(0,0.8,0),dt*1.2);
-    controls.object.zoom+=(1.0-controls.object.zoom)*Math.min(1,dt*1.2); controls.object.updateProjectionMatrix(); } }
+  if(cineT<=0 && !cineFocus){ cineFocus=lastActive||agents[(Math.random()*agents.length)|0]; cineHold=6; }
+  if(cineFocus){ cineHold-=dt; controls.autoRotateSpeed=0.16; const p=cineFocus.g.position; _ct.set(p.x,1.0,p.z);
+    controls.target.lerp(_ct,Math.min(1,dt*1.4)); zoomTo(1.75,dt*1.05);
+    if(cineHold<=0){ cineFocus=null; cineT=8+Math.random()*5; } }
+  else { controls.autoRotateSpeed=0.3; controls.target.lerp(CENTER,Math.min(1,dt*1.1)); zoomTo(1.0,dt*1.0); } }
 
 const _c1=new THREE.Color(),_c2=new THREE.Color();
 function applyTheme(dt){ if(autoTheme){ autoThemeT-=dt; if(autoThemeT<=0){ themeTarget=themeTarget?0:1; autoThemeT=26; } }
