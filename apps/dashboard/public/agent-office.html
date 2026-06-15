@@ -202,8 +202,9 @@ function makeBot(col){ const g=new THREE.Group(); const c=new THREE.Color(col);
 function plate(name,color){ const el=document.createElement('div'); el.className='nameplate';
   el.innerHTML=`<div class="nm" style="color:${color}">${name}</div><div class="st"><span class="dot" style="color:${color};background:${color}"></span><span class="lab">idle</span></div><div class="bar" style="color:${color}"><i></i></div>`;
   const o=new CSS2DObject(el); o.position.set(0,1.95,0); return {o,el,lab:el.querySelector('.lab'),fill:el.querySelector('.bar i')}; }
-function makeAgent(def){ const bot=makeBot(def.color); const pl=plate(def.name,def.color); bot.g.add(pl.o); scene.add(bot.g);
-  const s=stations[def.home]; const a={def,...bot,pl,pos:s.pos.clone(),target:null,faceT:null,state:'idle',t:0,phase:Math.random()*7,speed:1.6,armSwing:0,workDur:1};
+function makeAgent(def,i){ const bot=makeBot(def.color); const pl=plate(def.name,def.color); bot.g.add(pl.o); scene.add(bot.g);
+  const ang=i/AGENTS.length*Math.PI*2; const off=new THREE.Vector3(Math.cos(ang)*0.62,0,Math.sin(ang)*0.62);
+  const s=stations[def.home]; const a={def,...bot,pl,off,pos:s.pos.clone().add(off),target:null,faceT:null,state:'idle',t:0,phase:Math.random()*7,speed:1.6,armSwing:0,workDur:1};
   bot.g.position.copy(a.pos); agents.push(a); return a; }
 AGENTS.forEach(makeAgent);
 
@@ -211,8 +212,9 @@ const WORKER_VERBS=['déploie une release','sync inventaire','heartbeat parc','j
 function spawnWorker(verb){ if(workers.length>4) return;
   const bot=makeBot('#7fe3d6'); const pl=plate('worker','#7fe3d6'); pl.el.classList.add('work'); pl.lab.textContent=verb; bot.g.add(pl.o); scene.add(bot.g);
   const dest=stations[SHARED[(Math.random()*SHARED.length)|0]];
+  const dpos=dest.pos.clone().add(new THREE.Vector3((Math.random()-.5)*1.3,0,(Math.random()-.5)*1.3));
   const w={...bot,pl,pos:stations['gateOut'].pos.clone(),phase:0,speed:1.95,armSwing:0,workDur:2.4,
-    plan:[stations['gate'].pos,stations['gateIn'].pos,dest.pos.clone(),stations['gateIn'].pos,stations['gate'].pos,stations['gateOut'].pos],
+    plan:[stations['gate'].pos,stations['gateIn'].pos,dpos,stations['gateIn'].pos,stations['gate'].pos,stations['gateOut'].pos],
     leg:0,faceT:null,state:'walk',t:0,verb};
   bot.g.position.copy(w.pos); workers.push(w); gatePulse=1; pushFeed('#7fe3d6','worker',verb); }
 let gatePulse=0;
@@ -224,7 +226,7 @@ function pushFeed(color,name,verb){ const r=document.createElement('div'); r.cla
 let lastActive=null;
 
 function pickTarget(a){ const home=Math.random()<0.6; const key=home?a.def.home:SHARED[(Math.random()*SHARED.length)|0];
-  const s=stations[key]; a.targetKey=key; a.target=s.pos.clone(); a.faceT=s.face?s.face.clone():null; }
+  const s=stations[key]; a.targetKey=key; a.target=s.pos.clone().add(a.off); a.faceT=s.face?s.face.clone():null; }
 function startWork(a){ a.state='work'; a.t=2.5+Math.random()*4; a.workDur=a.t;
   const home=a.targetKey===a.def.home;
   const verb=home? a.def.verbs[(Math.random()*a.def.verbs.length)|0] : ({kanban:'sync kanban',board:'planifie',desk1:'pair-programming',desk2:'revue'}[a.targetKey]||'travaille');
@@ -276,10 +278,10 @@ function tick(){ const dt=Math.min(clock.getDelta(),0.05), t=clock.elapsedTime;
     if(w.state==='walk'){ const tgt=w.plan[w.leg]; if(moveTowards(w,tgt,dt)){ w.leg++; if(w.leg===2) gatePulse=1; if(w.leg===3){ w.state='work'; w.t=w.workDur; }
         if(w.leg>=w.plan.length){ scene.remove(w.g); workers.splice(i,1); continue; } } setBar(w,0.4); }
     else if(w.state==='work'){ w.t-=dt; setBar(w,1-(w.t/w.workDur)); w.g.position.y=Math.sin(w.phase*1.6)*0.02; if(w.t<=0) w.state='walk'; } applyArms(w,dt); }
-  const all=[...agents,...workers], MIN=0.78;
-  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){ const A=all[i],B=all[j]; const dx=A.pos.x-B.pos.x, dz=A.pos.z-B.pos.z; let d=Math.hypot(dx,dz);
+  const all=[...agents,...workers], MIN=0.92;
+  for(let it=0;it<3;it++) for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){ const A=all[i],B=all[j]; const dx=A.pos.x-B.pos.x, dz=A.pos.z-B.pos.z; let d=Math.hypot(dx,dz);
     if(d>1e-4 && d<MIN){ const push=(MIN-d)*0.5, nx=dx/d, nz=dz/d; A.pos.x+=nx*push; A.pos.z+=nz*push; B.pos.x-=nx*push; B.pos.z-=nz*push; }
-    else if(d<=1e-4){ A.pos.x+=0.06; B.pos.x-=0.06; } }
+    else if(d<=1e-4){ A.pos.x+=0.08+0.02*i; B.pos.x-=0.08; } }
   for(const a of all){ a.pos.x=Math.max(-8.3,Math.min(8.3,a.pos.x)); a.pos.z=Math.max(-8.3,Math.min(8.3,a.pos.z)); a.g.position.x=a.pos.x; a.g.position.z=a.pos.z; }
   controls.update(); renderer.render(scene,camera); labelRenderer.render(scene,camera); requestAnimationFrame(tick); }
 tick();
