@@ -1,178 +1,299 @@
 ---
+// =============================================================================
+//  /comment-ca-marche — Expérience scroll-driven continue, façon apple.com.
+// =============================================================================
+//  PASSE 1 (cette passe) : STRUCTURE + SCAFFOLD + hooks data-*.
+//  La mécanique d'animation JS sera câblée en PASSE 2 par motion-engineer.
+//  AUCUNE logique JS d'animation ici — uniquement la charpente et les ancres.
+//
+//  Plan narratif (actes plein écran, façon ipad-pro) :
+//    ACTE 0 · Ouverture       → hero plein écran, <h1>, promesse + invite scroll.
+//    ACTE 1 · Le geste (3D)    → Immersive3DStory : héros produit app→scan→casier.
+//                                Composant auto-sticky (300vh interne) — NE PAS
+//                                l'envelopper dans un sticky supplémentaire.
+//    ACTE 2 · Le parcours      → titre épinglé + 4 étapes usager révélées en suite.
+//    ACTE 3 · Explore la borne → LockerDistributor3D : moment interactif.
+//    ACTE 4 · Côté établissement → titre épinglé + timeline onboarding 4 étapes.
+//    ACTE 5 · Tout est inclus  → grille des prestations.
+//    OUTRO  · CTA final.
+//
+//  CONSOLIDATION (cohérence Apple) :
+//    JourneySimulation, ImmersiveLocker et Immersive3DStory racontaient TOUS LES
+//    TROIS le parcours citoyen (téléphone → scan → casier). Pour une page
+//    focalisée et sans répétition, on ne garde qu'UN seul récit du geste :
+//    → GARDÉ   Immersive3DStory   (le plus riche : 3D scrollytelling, héros).
+//    → GARDÉ   LockerDistributor3D (autre intention : explorer/manipuler le produit).
+//    → RETIRÉ  ImmersiveLocker     (parallax tel→casier = doublon du héros 3D).
+//    → RETIRÉ  JourneySimulation   (mockup 4 étapes = doublon du héros 3D ;
+//                                    le contenu des 4 étapes est conservé en
+//                                    texte dans l'ACTE 2 ci-dessous).
+//
+//  HOOKS pour la PASSE 2 (motion-engineer) — TODO à câbler, pas ici :
+//    [data-scene-act="n"]   marque chaque acte plein écran (index narratif).
+//    [data-pin]             conteneur à épingler (sticky piloté JS / position:sticky).
+//    [data-pin-inner]       élément effectivement collé dans la zone d'épinglage.
+//    [data-progress]        cible à mapper sur la progression de scroll de l'acte.
+//    [data-parallax="±n"]   couche à translater (n = vitesse relative, signe = sens).
+//    [data-reveal]          révélation discrète (DÉJÀ géré par Base.astro, IO + CSS).
+//    [data-bg-act]          fond de l'acte → crossfades de fond inter-actes.
+//    [data-scroll-progress] barre de progression globale (acte courant / total).
+//
+//  PASSE 2 câblera : épinglage (data-pin/data-pin-inner), parallax des couches
+//  (data-parallax), crossfades de fond entre actes (data-bg-act), barre de
+//  progression (data-scroll-progress), et la cadence des reveals d'étapes.
+//  TOUT doit s'animer en transform/opacity uniquement, throttlé en rAF, et être
+//  neutralisé sous prefers-reduced-motion (cf. <style> en bas : sticky relatif,
+//  reveals visibles, parallax figé).
+//
+//  A11y / structure : un seul <h1> (ACTE 0). Sans JS / mouvement réduit, la page
+//  reste 100% lisible : les sticky retombent en flux normal, tout le contenu
+//  informatif est en HTML (les composants 3D ont déjà leur fallback statique).
+
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import JourneySimulation from '@/components/JourneySimulation.tsx'
-import ImmersiveLocker from '@/components/ImmersiveLocker.tsx'
 import Immersive3DStory from '@/components/Immersive3DStory.astro'
 
+// --- ACTE 2 : parcours usager (texte conservé de l'ancienne page) ------------
 const citoyen = [
   {
     n: '01',
     icon: '📍',
     title: 'Je trouve un casier proche',
-    desc: 'L\'application SportLocker affiche en temps réel tous les distributeurs autour de moi, avec le matériel disponible. Filtres par sport, distance et stock.',
+    desc: "L'application SportLocker affiche en temps réel tous les distributeurs autour de moi, avec le matériel disponible. Filtres par sport, distance et stock.",
     detail: 'GPS · Stock live WebSocket · Filtres sport',
   },
   {
     n: '02',
     icon: '📱',
     title: 'Je choisis ma durée',
-    desc: '30 min, 1 h, 1 h 30, 2 h ou la journée — je sélectionne le slot qui correspond à mon besoin. Le prix s\'affiche selon la grille fixée par l\'opérateur du site. Caution préautorisée en plus (30 à 150 € selon le matériel) — jamais débitée si retour OK. Validation en deux tap avec Apple Pay ou Google Pay.',
+    desc: "30 min, 1 h, 1 h 30, 2 h ou la journée — je sélectionne le slot qui correspond à mon besoin. Le prix s'affiche selon la grille fixée par l'opérateur du site. Caution préautorisée en plus (30 à 150 € selon le matériel) — jamais débitée si retour OK. Validation en deux tap avec Apple Pay ou Google Pay.",
     detail: '5 durées · prix paramétrable par site · Apple Pay / Google Pay',
   },
   {
     n: '03',
     icon: '🔓',
-    title: 'J\'ouvre avec mon QR',
-    desc: 'Devant le casier, je scanne le QR code généré par l\'app. Le casier s\'ouvre en moins d\'une seconde. Fonctionne même sans réseau grâce au cache embarqué.',
+    title: "J'ouvre avec mon QR",
+    desc: "Devant le casier, je scanne le QR code généré par l'app. Le casier s'ouvre en moins d'une seconde. Fonctionne même sans réseau grâce au cache embarqué.",
     detail: 'QR JWT HS256 · NFC · Mode offline 24h',
   },
   {
     n: '04',
     icon: '↩️',
     title: 'Je joue puis je rends',
-    desc: 'Je pratique. Rappel push 30 min avant la fin. Je rends le matériel dans n\'importe quel casier libre du réseau SportLocker. La location est encaissée selon la durée choisie, la caution est libérée automatiquement (jamais débitée si retour OK).',
+    desc: "Je pratique. Rappel push 30 min avant la fin. Je rends le matériel dans n'importe quel casier libre du réseau SportLocker. La location est encaissée selon la durée choisie, la caution est libérée automatiquement (jamais débitée si retour OK).",
     detail: 'Rappels push · RFID traçage · Retour multi-points',
   },
 ]
 
+// --- ACTE 4 : onboarding établissement ---------------------------------------
 const onboarding = [
   {
     n: '01',
     title: 'Devis & cadrage',
     duration: '1 semaine',
-    desc: 'Vous nous envoyez votre demande via le formulaire. On vous rappelle sous 24h pour qualifier le besoin : nombre de distributeurs, sports, emplacements envisagés, budget.',
+    desc: "Vous nous envoyez votre demande via le formulaire. On vous rappelle sous 24h pour qualifier le besoin : nombre de distributeurs, sports, emplacements envisagés, budget.",
     deliverables: ['Devis détaillé sous 48h', 'Configuration recommandée', 'Plan de financement (subventions incluses si éligible)'],
   },
   {
     n: '02',
     title: 'Visite technique',
     duration: '1 à 2 semaines',
-    desc: 'On vient sur place repérer les emplacements : alimentation électrique 230V, couverture 4G, ancrage au sol, signalétique. Validation des plans avec votre service technique.',
-    deliverables: ['Plan d\'implantation', 'Devis travaux annexes éventuels', 'Convention signée'],
+    desc: "On vient sur place repérer les emplacements : alimentation électrique 230V, couverture 4G, ancrage au sol, signalétique. Validation des plans avec votre service technique.",
+    deliverables: ["Plan d'implantation", 'Devis travaux annexes éventuels', 'Convention signée'],
   },
   {
     n: '03',
     title: 'Installation',
     duration: '2 à 3 semaines',
-    desc: 'On fabrique, on livre, on pose. Le matériel sportif est chargé dans les casiers. Configuration du tenant dans le dashboard. Formation de la personne référente côté établissement.',
+    desc: "On fabrique, on livre, on pose. Le matériel sportif est chargé dans les casiers. Configuration du tenant dans le dashboard. Formation de la personne référente côté établissement.",
     deliverables: ['Distributeurs en service', 'Formation admin (1h)', 'Documentation opérationnelle'],
   },
   {
     n: '04',
     title: 'Lancement & suivi',
     duration: 'Continu',
-    desc: 'Communication usagers (affichage + push), suivi 30/60/90 jours, ajustement du matériel selon usage observé. Hotline N2 SportLocker disponible 7j/7.',
+    desc: "Communication usagers (affichage + push), suivi 30/60/90 jours, ajustement du matériel selon usage observé. Hotline N2 SportLocker disponible 7j/7.",
     deliverables: ['Bilan trimestriel', 'Renouvellement matériel inclus', 'Support technique illimité'],
   },
 ]
 
+// --- ACTE 5 : ce qu'on fournit -----------------------------------------------
 const inclus = [
   { icon: '🔒', title: 'Distributeur antivandal', desc: 'Acier inox 2 mm, IP54, plage -10°C à +60°C, conçu pour 10 ans en extérieur.' },
   { icon: '⚽', title: 'Matériel sportif chargé', desc: 'Ballons, raquettes, frisbees, cordes à sauter. Adapté à votre site, renouvelé inclus.' },
   { icon: '📡', title: 'Connectivité 4G + cache', desc: 'Carte SIM M2M incluse. Fonctionnement garanti 24h hors-ligne.' },
   { icon: '🛠️', title: 'Maintenance N1 + N2', desc: 'Vous gérez les petits incidents (recharge matériel). On gère le reste à distance ou en intervention.' },
-  { icon: '📊', title: 'Dashboard temps réel', desc: 'Stats d\'usage, alertes maintenance, force-cancel réservations abusives.' },
+  { icon: '📊', title: 'Dashboard temps réel', desc: "Stats d'usage, alertes maintenance, force-cancel réservations abusives." },
   { icon: '🆙', title: 'Mises à jour OTA', desc: 'Firmware mis à jour à distance via Balena. Aucune intervention sur site.' },
 ]
 ---
 
 <Base
   title="Comment ça marche — usager et établissement"
-  description="Le parcours en 3 étapes côté usager (trouver, réserver, ouvrir). L'onboarding en 4 étapes côté établissement : devis, visite, installation, lancement. Délai moyen 4-6 semaines."
+  description="Le parcours en 4 étapes côté usager (trouver, réserver, ouvrir, rendre). L'onboarding en 4 étapes côté établissement : devis, visite, installation, lancement. Délai moyen 4-6 semaines."
 >
-  <!-- HEADER -->
-  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+  <!-- ====================================================================== -->
+  <!-- Barre de progression globale (ACTE courant / total).                   -->
+  <!-- PASSE 2 : mettre à jour --p (scaleX 0→1) selon la progression de page.  -->
+  <!-- ====================================================================== -->
+  <div
+    id="ccm-progress"
+    class="ccm-progress"
+    data-scroll-progress
+    aria-hidden="true"
+  >
+    <span class="ccm-progress-bar"></span>
+  </div>
+
+  <!-- ====================================================================== -->
+  <!-- ACTE 0 · OUVERTURE — hero plein écran, <h1>, invite à défiler.          -->
+  <!-- ====================================================================== -->
+  <section
+    class="ccm-act relative min-h-screen flex items-center overflow-hidden"
+    data-scene-act="0"
+    data-bg-act="hero"
+  >
     <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
-    <div class="container-x relative">
+    <!-- Couche décorative parallax (PASSE 2 : translateY léger au scroll). -->
+    <div class="ccm-orb" data-parallax="-2" aria-hidden="true"></div>
+
+    <div class="container-x relative w-full pt-28 pb-24 sm:pt-32 text-center">
       <span class="eyebrow" data-reveal>Comment ça marche</span>
-      <h1 class="font-extrabold text-display-xl text-white mt-3 mb-5" data-reveal data-reveal-delay="1">
-        Deux parcours.<br/>
+      <h1
+        class="font-extrabold text-display-xl text-white mt-4 mb-6 mx-auto max-w-4xl"
+        data-reveal
+        data-reveal-delay="1"
+      >
+        Deux parcours.<br />
         <span class="text-brand-400">Une même infrastructure.</span>
       </h1>
-      <p class="text-[1.15rem] text-white/65 leading-loose max-w-2xl font-light" data-reveal data-reveal-delay="2">
+      <p
+        class="text-[1.15rem] text-white/65 leading-loose max-w-2xl mx-auto font-light"
+        data-reveal
+        data-reveal-delay="2"
+      >
         L'usager emprunte en 30 secondes. L'établissement met en service en 4 à 6 semaines.
         Tout le reste — matériel, maintenance, support — est inclus dans l'abonnement mensuel.
       </p>
+      <div class="mt-9 flex flex-wrap gap-3 justify-center" data-reveal data-reveal-delay="3">
+        <a href="#geste" class="btn btn-primary">Voir le geste</a>
+        <a href="/contact#formulaire" class="btn btn-outline">Demander un devis</a>
+      </div>
+    </div>
+
+    <!-- Indice de défilement (PASSE 2 : fade-out dès le 1er scroll). -->
+    <div
+      class="ccm-scroll-hint absolute left-1/2 bottom-7 -translate-x-1/2 flex flex-col items-center gap-1 text-white/45 text-xs uppercase tracking-[0.14em]"
+      aria-hidden="true"
+    >
+      <span>Défilez</span>
+      <span class="text-base leading-none">↓</span>
     </div>
   </section>
 
-  <!-- CITOYEN -->
-  <section class="section bg-navy-800">
-    <div class="container-x">
-      <div class="mb-14">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté usager</span>
+  <!-- ====================================================================== -->
+  <!-- ACTE 1 · LE GESTE (3D) — héros produit app→scan→casier.                -->
+  <!-- Immersive3DStory gère SON PROPRE sticky (300vh interne) + fallback.     -->
+  <!-- On ne l'enveloppe donc PAS dans un data-pin : il s'auto-épingle.        -->
+  <!-- ====================================================================== -->
+  <section
+    id="geste"
+    class="ccm-act bg-navy-800 scroll-mt-20"
+    data-scene-act="1"
+    data-bg-act="navy-800"
+  >
+    <div class="container-x pt-24 sm:pt-28">
+      <div class="mb-2 max-w-2xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>L'expérience, de bout en bout</span>
         <h2 class="section-title" data-reveal data-reveal-delay="1">
-          De zéro à la pratique en 30 secondes
+          Du téléphone<br class="hidden sm:block" /> au casier ouvert
         </h2>
+        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
+          Faites défiler : la caméra voyage de votre téléphone jusqu'à la borne, suit le scan
+          du QR code, puis fait le tour du distributeur pour révéler chacun de ses composants.
+          Un seul geste, raconté en trois actes.
+        </p>
       </div>
+    </div>
+    <!-- HÉROS PRODUIT : scène 3D scrollytelling (auto-sticky, lazy, a11y OK). -->
+    <Immersive3DStory />
+  </section>
 
-      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {citoyen.map((s, i) => (
-          <div class="card-dark p-7 relative overflow-hidden group hover:border-brand-500/30 transition-colors" data-reveal data-reveal-delay={String(i + 1)}>
-            <div class="font-extrabold text-7xl text-brand-400 leading-none mb-3 select-none">{s.n}</div>
-            <div class="w-11 h-11 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-xl mb-4">
-              {s.icon}
-            </div>
-            <h3 class="font-bold text-white text-base mb-2.5">{s.title}</h3>
-            <p class="text-sm text-white/55 font-light leading-relaxed">{s.desc}</p>
-            <div class="mt-4 pt-4 border-t border-white/10 text-[0.7rem] text-brand-400 uppercase tracking-wider">
-              {s.detail}
-            </div>
+  <!-- ====================================================================== -->
+  <!-- ACTE 2 · LE PARCOURS USAGER — titre épinglé + 4 étapes en suite.        -->
+  <!-- Layout sticky 2 colonnes (desktop) : colonne gauche ÉPINGLÉE, colonne   -->
+  <!-- droite = étapes qui défilent et se révèlent une à une.                  -->
+  <!-- ====================================================================== -->
+  <section
+    id="parcours"
+    class="ccm-act bg-navy-900 scroll-mt-20 py-24 sm:py-28"
+    data-scene-act="2"
+    data-bg-act="navy-900"
+    data-progress
+  >
+    <div class="container-x">
+      <div class="grid lg:grid-cols-[0.9fr_1.1fr] gap-12 lg:gap-16 items-start">
+        <!-- Colonne épinglée (desktop). PASSE 2 : data-pin-inner = sticky. -->
+        <div class="ccm-pin" data-pin>
+          <div class="ccm-pin-inner lg:sticky lg:top-28" data-pin-inner>
+            <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté usager</span>
+            <h2 class="section-title" data-reveal data-reveal-delay="1">
+              De zéro à la pratique<br class="hidden sm:block" /> en 30 secondes
+            </h2>
+            <p class="section-sub mt-5" data-reveal data-reveal-delay="2">
+              Quatre temps, sans guichet ni dépôt de papiers. Tout se passe sur le téléphone,
+              puis devant la borne.
+            </p>
+            <a
+              href="/contact#formulaire"
+              class="btn btn-outline mt-8"
+              data-reveal
+              data-reveal-delay="3"
+            >
+              Recevoir l'accès anticipé
+            </a>
           </div>
-        ))}
-      </div>
-
-      <div class="mt-12 card-dark p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between" data-reveal>
-        <div>
-          <div class="font-extrabold text-white text-lg mb-1">L'app mobile arrive sur iOS & Android</div>
-          <div class="text-sm text-white/55 font-light">Lancement public prévu été 2026 — accès anticipé sur demande.</div>
         </div>
-        <a href="/contact#formulaire" class="btn btn-outline shrink-0">Recevoir l'accès anticipé</a>
+
+        <!-- Liste des étapes : chaque carte se révèle au scroll. -->
+        <ol class="ccm-steps flex flex-col gap-5">
+          {citoyen.map((s, i) => (
+            <li
+              class="card-dark p-7 sm:p-8 relative overflow-hidden group hover:border-brand-500/30 transition-colors"
+              data-reveal
+              data-reveal-delay={String(((i % 4) + 1))}
+              data-step={String(i)}
+            >
+              <div class="flex items-start gap-5">
+                <div class="font-extrabold text-5xl sm:text-6xl text-brand-400 leading-none select-none shrink-0">{s.n}</div>
+                <div>
+                  <div class="w-11 h-11 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-xl mb-4">
+                    {s.icon}
+                  </div>
+                  <h3 class="font-bold text-white text-lg mb-2.5">{s.title}</h3>
+                  <p class="text-sm text-white/55 font-light leading-relaxed">{s.desc}</p>
+                  <div class="mt-4 pt-4 border-t border-white/10 text-[0.7rem] text-brand-400 uppercase tracking-wider">
+                    {s.detail}
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   </section>
 
-  <!-- SIMULATION PARCOURS -->
-  <section id="simulation" class="section bg-navy-900 scroll-mt-20">
-    <div class="container-x">
-      <div class="mb-12 max-w-2xl">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>Le parcours en direct</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          Voyez l'emprunt se dérouler,<br class="hidden sm:block" /> écran par écran
-        </h2>
-        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
-          Une simulation animée des quatre étapes, telle que l'usager les vit sur son
-          téléphone. Lecture automatique — mettez en pause ou rejouez quand vous voulez.
-        </p>
-      </div>
-
-      <div data-reveal data-reveal-delay="3">
-        <JourneySimulation client:visible />
-      </div>
-    </div>
-  </section>
-
-  <!-- IMMERSION CASIER (scroll-driven) -->
-  <section id="immersion" class="bg-navy-800 scroll-mt-20 relative">
-    <div class="container-x pt-20 sm:pt-24">
-      <div class="mb-4 max-w-2xl">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>En conditions réelles</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          Le QR scanne,<br class="hidden sm:block" /> le casier s'ouvre.
-        </h2>
-        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
-          Faites défiler : l'onde du scan atteint la borne, les portes pivotent et le
-          matériel se révèle. Une mise en scène du geste réel, du téléphone au casier.
-        </p>
-      </div>
-    </div>
-    <ImmersiveLocker client:visible />
-  </section>
-
-  <!-- DISTRIBUTEUR 3D -->
-  <section id="distributeur-3d" class="section bg-navy-900 scroll-mt-20">
+  <!-- ====================================================================== -->
+  <!-- ACTE 3 · EXPLORE LA BORNE — moment interactif (LockerDistributor3D).    -->
+  <!-- ====================================================================== -->
+  <section
+    id="distributeur-3d"
+    class="ccm-act bg-navy-800 scroll-mt-20 py-24 sm:py-28"
+    data-scene-act="3"
+    data-bg-act="navy-800"
+  >
     <div class="container-x">
       <div class="mb-10 max-w-3xl">
         <span class="tag tag-brand mb-4 inline-block" data-reveal>Le distributeur en détail</span>
@@ -192,65 +313,81 @@ const inclus = [
     </div>
   </section>
 
-  <!-- IMMERSION 3D PILOTÉE AU SCROLL -->
-  <section id="immersion-3d" class="bg-navy-800 scroll-mt-20">
-    <div class="container-x pt-24 sm:pt-28">
-      <div class="mb-10 max-w-2xl">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>L'expérience, de bout en bout</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          Plongée dans le geste,<br class="hidden sm:block" /> de l'app au casier ouvert
-        </h2>
-        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
-          Faites défiler : la caméra voyage de votre téléphone jusqu'à la borne, suit le scan
-          du QR code, puis fait le tour du distributeur pour révéler chacun de ses composants.
-        </p>
-      </div>
-    </div>
-    <Immersive3DStory />
-  </section>
-
-  <!-- ÉTABLISSEMENT -->
-  <section id="installation" class="section bg-navy-900 scroll-mt-20">
+  <!-- ====================================================================== -->
+  <!-- ACTE 4 · CÔTÉ ÉTABLISSEMENT — titre épinglé + timeline onboarding.      -->
+  <!-- ====================================================================== -->
+  <section
+    id="installation"
+    class="ccm-act bg-navy-900 scroll-mt-20 py-24 sm:py-28"
+    data-scene-act="4"
+    data-bg-act="navy-900"
+    data-progress
+  >
     <div class="container-x">
-      <div class="mb-14">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté établissement</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          De la demande à la mise en service<br/>en 4 à 6 semaines
-        </h2>
-        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
-          Un parcours clé en main. Vous n'avez à gérer ni l'achat de matériel, ni la maintenance,
-          ni le support N2.
-        </p>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-5">
-        {onboarding.map((step, i) => (
-          <div class="card-dark p-7 sm:p-8" data-reveal data-reveal-delay={String(i + 1)}>
-            <div class="flex items-start justify-between mb-5">
-              <div class="font-extrabold text-5xl text-brand-400 leading-none">{step.n}</div>
-              <span class="tag tag-white text-[0.65rem]">{step.duration}</span>
-            </div>
-            <h3 class="font-extrabold text-white text-xl mb-3">{step.title}</h3>
-            <p class="text-sm text-white/60 font-light leading-relaxed mb-5">{step.desc}</p>
-            <div class="text-[0.7rem] uppercase tracking-wider text-white/60 mb-3">Livrables</div>
-            <ul class="space-y-2">
-              {step.deliverables.map((d) => (
-                <li class="flex items-start gap-2.5 text-sm text-white/70">
-                  <span class="text-brand-400 mt-1 shrink-0">✓</span>
-                  <span class="font-light">{d}</span>
-                </li>
-              ))}
-            </ul>
+      <div class="grid lg:grid-cols-[0.9fr_1.1fr] gap-12 lg:gap-16 items-start">
+        <!-- Colonne épinglée (desktop). -->
+        <div class="ccm-pin" data-pin>
+          <div class="ccm-pin-inner lg:sticky lg:top-28" data-pin-inner>
+            <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté établissement</span>
+            <h2 class="section-title" data-reveal data-reveal-delay="1">
+              De la demande à la mise<br class="hidden sm:block" /> en service en 4 à 6 semaines
+            </h2>
+            <p class="section-sub mt-5" data-reveal data-reveal-delay="2">
+              Un parcours clé en main. Vous n'avez à gérer ni l'achat de matériel, ni la maintenance,
+              ni le support N2.
+            </p>
+            <a
+              href="/contact#formulaire"
+              class="btn btn-outline mt-8"
+              data-reveal
+              data-reveal-delay="3"
+            >
+              Demander un devis
+            </a>
           </div>
-        ))}
+        </div>
+
+        <!-- Timeline onboarding : étapes révélées une à une. -->
+        <ol class="ccm-steps flex flex-col gap-5">
+          {onboarding.map((step, i) => (
+            <li
+              class="card-dark p-7 sm:p-8"
+              data-reveal
+              data-reveal-delay={String(((i % 4) + 1))}
+              data-step={String(i)}
+            >
+              <div class="flex items-start justify-between mb-5">
+                <div class="font-extrabold text-5xl text-brand-400 leading-none">{step.n}</div>
+                <span class="tag tag-white text-[0.65rem]">{step.duration}</span>
+              </div>
+              <h3 class="font-extrabold text-white text-xl mb-3">{step.title}</h3>
+              <p class="text-sm text-white/60 font-light leading-relaxed mb-5">{step.desc}</p>
+              <div class="text-[0.7rem] uppercase tracking-wider text-white/60 mb-3">Livrables</div>
+              <ul class="space-y-2">
+                {step.deliverables.map((d) => (
+                  <li class="flex items-start gap-2.5 text-sm text-white/70">
+                    <span class="text-brand-400 mt-1 shrink-0">✓</span>
+                    <span class="font-light">{d}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   </section>
 
-  <!-- CE QU'ON FOURNIT -->
-  <section class="section bg-navy-800">
+  <!-- ====================================================================== -->
+  <!-- ACTE 5 · TOUT EST INCLUS — grille des prestations.                      -->
+  <!-- ====================================================================== -->
+  <section
+    class="ccm-act bg-navy-800 py-24 sm:py-28"
+    data-scene-act="5"
+    data-bg-act="navy-800"
+  >
     <div class="container-x">
-      <div class="text-center mb-14">
+      <div class="text-center mb-14 max-w-2xl mx-auto">
         <span class="eyebrow" data-reveal>Ce qu'on fournit</span>
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
           Tout est inclus dans l'abonnement
@@ -274,10 +411,290 @@ const inclus = [
     </div>
   </section>
 
+  <!-- OUTRO · CTA final -->
   <FinalCta
     title="Prêt à voir si SportLocker fonctionne pour vous ?"
     sub="Un appel de 15 minutes suffit pour valider la faisabilité, le timing et le budget."
     primary={{ href: '/contact#formulaire', label: 'Demander un devis' }}
     secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
   />
+
+  <!-- ====================================================================== -->
+  <!-- PASSE 2 · MÉCANIQUE SCROLL — script inline, transform/opacity only.    -->
+  <!-- rAF-throttle ; parallax natif (pas de scroll-jacking) ; crossfade fond  -->
+  <!-- par couches superposées ; barre de progression ; cadence ; reduced-     -->
+  <!-- motion + mobile dégradés. Aucune dépendance. Style ES5 cohérent avec    -->
+  <!-- Immersive3DStory.astro (var/function/IIFE, listeners passifs, cleanup). -->
+  <!-- ====================================================================== -->
+  <script is:inline>
+    (function () {
+      var reduce =
+        window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // --- Couches de fond superposées pour le crossfade inter-actes -------
+      // On ne touche JAMAIS background-color en animation : on superpose deux
+      // calques fixes (navy-800 / navy-900) et on fade leur opacity. La couche
+      // de base (navy-900) reste sous tout le contenu, la couche claire
+      // (navy-800) se révèle/efface selon l'acte visible.
+      var bgRoot = null;
+      var bg800 = null;
+      function buildBgLayers() {
+        bgRoot = document.createElement('div');
+        bgRoot.setAttribute('aria-hidden', 'true');
+        bgRoot.style.cssText =
+          'position:fixed;inset:0;z-index:-1;pointer-events:none;background:#0b1622';
+        bg800 = document.createElement('div');
+        bg800.style.cssText =
+          'position:absolute;inset:0;background:#0d1b2a;opacity:0;' +
+          'transition:opacity 0.6s cubic-bezier(0.16,1,0.3,1);will-change:opacity';
+        bgRoot.appendChild(bg800);
+        document.body.appendChild(bgRoot);
+      }
+
+      // --- Barre de progression globale (scaleX via --p) -------------------
+      var progressBar = null;
+      var progressEl = document.querySelector('[data-scroll-progress]');
+      if (progressEl) {
+        progressBar = progressEl.querySelector('.ccm-progress-bar');
+      }
+
+      // --- Indice « Défilez » : fondu dès le premier scroll ----------------
+      var hint = document.querySelector('.ccm-scroll-hint');
+      var hintHidden = false;
+
+      // --- Couches parallax ------------------------------------------------
+      // Chaque entrée : { el, factor }. translate3d(0, y, 0) où y dépend de la
+      // position de la couche par rapport au centre du viewport × factor.
+      var layers = [];
+      var nodes = document.querySelectorAll('[data-parallax]');
+      var i;
+      for (i = 0; i < nodes.length; i++) {
+        var f = parseFloat(nodes[i].getAttribute('data-parallax') || '0');
+        if (!isNaN(f) && f !== 0) {
+          layers.push({ el: nodes[i], factor: f });
+        }
+      }
+
+      // Sous mouvement réduit : aucun pilotage JS. Le fond reste celui posé en
+      // HTML/CSS, les reveals (Base.astro) restent, la barre est masquée (CSS).
+      // Le contenu est 100% lisible en flux. On s'arrête là.
+      if (reduce) return;
+
+      // Mobile <768px : parallax désactivé (amplitudes nulles → pas de
+      // débordement horizontal, pas de jank). On garde crossfade + progression.
+      var mqMobile = window.matchMedia('(max-width: 767px)');
+      var isMobile = mqMobile.matches;
+
+      buildBgLayers();
+
+      // ---- Crossfade de fond par acte visible (IntersectionObserver) ------
+      // Chaque acte déclare data-bg-act = 'hero' | 'navy-800' | 'navy-900'.
+      // On suit l'acte dont le centre est le plus proche du centre d'écran et
+      // on fade la couche navy-800 en conséquence (hero ≈ navy-900 de base).
+      var actNodes = document.querySelectorAll('[data-bg-act]');
+      var acts = [];
+      for (i = 0; i < actNodes.length; i++) {
+        acts.push({
+          el: actNodes[i],
+          kind: actNodes[i].getAttribute('data-bg-act') || '',
+          visible: 0,
+        });
+      }
+      function applyBg() {
+        if (!bg800) return;
+        // Acte le plus visible gagne.
+        var best = null;
+        var bestV = 0;
+        for (var k = 0; k < acts.length; k++) {
+          if (acts[k].visible > bestV) {
+            bestV = acts[k].visible;
+            best = acts[k];
+          }
+        }
+        bg800.style.opacity = best && best.kind === 'navy-800' ? '1' : '0';
+      }
+      var bgIO = new IntersectionObserver(
+        function (entries) {
+          for (var e = 0; e < entries.length; e++) {
+            for (var k = 0; k < acts.length; k++) {
+              if (acts[k].el === entries[e].target) {
+                acts[k].visible = entries[e].intersectionRatio;
+                break;
+              }
+            }
+          }
+          applyBg();
+        },
+        { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] },
+      );
+      for (i = 0; i < acts.length; i++) bgIO.observe(acts[i].el);
+
+      // ---- Lecture/écriture throttlées en rAF -----------------------------
+      var ticking = false;
+
+      function render() {
+        ticking = false;
+        var vh = window.innerHeight || document.documentElement.clientHeight;
+        var doc = document.documentElement;
+
+        // Barre de progression : scroll de page mappé 0→1, écrit en scaleX.
+        if (progressBar) {
+          var scrollable = (doc.scrollHeight - vh) || 1;
+          var p = doc.scrollTop / scrollable;
+          if (p < 0) p = 0;
+          else if (p > 1) p = 1;
+          progressBar.style.transform = 'scaleX(' + p + ')';
+        }
+
+        // Indice de scroll : disparait une fois passé ~12% de viewport.
+        if (hint && !hintHidden && doc.scrollTop > vh * 0.12) {
+          hint.style.transition = 'opacity 0.4s ease';
+          hint.style.opacity = '0';
+          hintHidden = true;
+        }
+
+        // Parallax : déplacement vertical relatif au centre du viewport.
+        // Borné (amplitude max raisonnable) pour rester sobre et sans
+        // débordement ; transform composite uniquement.
+        if (!isMobile) {
+          for (var l = 0; l < layers.length; l++) {
+            var rect = layers[l].el.getBoundingClientRect();
+            var center = rect.top + rect.height / 2;
+            var delta = (center - vh / 2) * layers[l].factor * 0.06;
+            if (delta > 80) delta = 80;
+            else if (delta < -80) delta = -80;
+            layers[l].el.style.transform =
+              'translate3d(0,' + delta.toFixed(1) + 'px,0)';
+          }
+        }
+      }
+
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(render);
+      }
+
+      function onResize() {
+        isMobile = mqMobile.matches;
+        // Si l'on bascule en mobile, on remet les couches parallax à plat.
+        if (isMobile) {
+          for (var l = 0; l < layers.length; l++) {
+            layers[l].el.style.transform = '';
+          }
+        }
+        onScroll();
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onResize);
+      // Première passe de calcul (position au chargement / au rechargement).
+      onScroll();
+
+      // ---- Nettoyage : pas de fuite (listeners, observers, will-change) ----
+      function cleanup() {
+        window.removeEventListener('scroll', onScroll);
+        window.removeEventListener('resize', onResize);
+        if (bgIO) bgIO.disconnect();
+        // Retire les will-change posés en CSS une fois la page quittée.
+        if (progressBar) progressBar.style.willChange = 'auto';
+        if (bg800) bg800.style.willChange = 'auto';
+        for (var l = 0; l < layers.length; l++) {
+          layers[l].el.style.willChange = 'auto';
+        }
+      }
+      window.addEventListener('pagehide', cleanup);
+    })();
+  </script>
+
+  <style>
+    /* =====================================================================
+       PASSE 1 — styles de CHARPENTE uniquement (pas de keyframes d'anim).
+       La PASSE 2 (motion-engineer) ajoutera le pilotage JS (transform/opacity).
+       ===================================================================== */
+
+    /* Barre de progression globale, fixée en haut sous la nav.
+       PASSE 2 : piloter --p (0→1) → la barre grandit (scaleX). */
+    .ccm-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      z-index: 90;
+      pointer-events: none;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .ccm-progress-bar {
+      display: block;
+      height: 100%;
+      width: 100%;
+      transform: scaleX(var(--p, 0));
+      transform-origin: 0 50%;
+      background: #1d9e75;
+      will-change: transform;
+    }
+
+    /* Orbe décorative de l'ouverture (couche parallax).
+       Bornée pour ne jamais provoquer de scroll horizontal (overflow géré
+       par la section, qui est overflow-hidden). */
+    .ccm-orb {
+      position: absolute;
+      top: 18%;
+      right: -6rem;
+      width: 22rem;
+      height: 22rem;
+      max-width: 60vw;
+      border-radius: 9999px;
+      background: radial-gradient(
+        circle at 50% 50%,
+        rgba(29, 158, 117, 0.16),
+        rgba(29, 158, 117, 0) 70%
+      );
+      filter: blur(8px);
+      will-change: transform;
+    }
+
+    /* Indice de défilement : flottement doux (motion réduit → figé, cf. bas). */
+    .ccm-scroll-hint {
+      animation: ccm-bob 2.4s ease-in-out infinite;
+    }
+    @keyframes ccm-bob {
+      0%,
+      100% {
+        transform: translate(-50%, 0);
+      }
+      50% {
+        transform: translate(-50%, 6px);
+      }
+    }
+
+    /* La colonne épinglée a besoin d'une hauteur suffisante pour que le sticky
+       « accroche » pendant le défilement des étapes voisines. Sur mobile, pas
+       de sticky : la colonne reprend sa place dans le flux. */
+    .ccm-pin-inner {
+      will-change: transform;
+    }
+
+    /* =====================================================================
+       prefers-reduced-motion : structure 100% lisible, zéro mouvement.
+       On neutralise sticky + parallax + flottements ; tout reste en flux.
+       ===================================================================== */
+    @media (prefers-reduced-motion: reduce) {
+      .ccm-pin-inner {
+        position: static !important;
+        top: auto !important;
+      }
+      .ccm-scroll-hint {
+        animation: none;
+      }
+      .ccm-orb {
+        transform: none !important;
+      }
+      .ccm-progress {
+        display: none;
+      }
+    }
+  </style>
 </Base>
