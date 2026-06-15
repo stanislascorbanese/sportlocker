@@ -60,9 +60,10 @@ jobs:
   # données citoyens.
   #
   # Job HARD : fail la PR si une vuln ≥ high apparaît, hors GHSAs explicitement
-  # tracées dans docs/SECURITY.md. Au 2026-06, plus AUCUNE GHSA ignorée :
-  # toutes les vulns ≥ high sont résolues (overrides + upgrades). `IGNORED_GHSAS`
-  # reste en place (vide) comme soupape documentée si une nouvelle CVE sort.
+  # tracées dans docs/SECURITY.md. Au 2026-06, UNE seule GHSA ignorée
+  # (GHSA-gv7w-rqvm-qjhr / esbuild — cf. SECURITY.md §9 item #17) : le patch
+  # 0.28.1 casse `astro check`, le fix réel est le bump Astro/Vite à venir.
+  # Toutes les autres vulns ≥ high sont résolues (overrides + upgrades).
   # pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc le filtrage via jq.
   #
   # Pour ajouter une exception : la mettre dans `IGNORED_GHSAS` ci-dessous ET
@@ -93,7 +94,12 @@ jobs:
         env:
           # GHSAs ignorées — chacune doit avoir un item de suivi dans
           # docs/SECURITY.md §9 avec date cible et raison.
-          IGNORED_GHSAS: ''
+          # GHSA-gv7w-rqvm-qjhr : esbuild (transitif via Vite/Astro). Seule 0.28.1
+          # patche, mais elle casse `astro check` sur la cible navigateurs actuelle —
+          # le fix réel = bump Astro/Vite (cf. SECURITY.md §9 item #17). Advisory
+          # dev-tooling (intégrité binaire du module Deno via NPM_CONFIG_REGISTRY),
+          # non exploitable au runtime de l'app.
+          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
