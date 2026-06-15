@@ -1,0 +1,176 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import { SITE } from '@/data/site'
+
+// Page annexe « À propos » : crédibilise la vitrine B2B auprès des mairies,
+// campings et hôtels (qui achètent autant l'entreprise que le produit).
+// Contenu volontairement factuel et défendable — pas de chiffres inventés.
+
+const valeurs = [
+  {
+    icon: '🌍',
+    title: 'L\'accès au sport pour tous',
+    desc: 'Pas besoin de posséder son matériel pour jouer. Un ballon, une raquette, à deux pas de chez soi, à l\'heure qu\'on veut. Le sport redevient une décision spontanée.',
+  },
+  {
+    icon: '🛠️',
+    title: 'Clé en main, vraiment',
+    desc: 'On fournit la borne, le matériel, la connectivité, la maintenance et le support. L\'établissement n\'a rien à gérer au quotidien — c\'est notre métier, pas le sien.',
+  },
+  {
+    icon: '🔒',
+    title: 'Robuste et durable',
+    desc: 'Bornes antivandales conçues pour dix ans en extérieur, firmware mis à jour à distance, matériel renouvelé inclus. On construit pour durer, pas pour remplacer.',
+  },
+  {
+    icon: '🇫🇷',
+    title: 'Conçu et opéré en France',
+    desc: 'Hébergement des données en Europe, support en français, conformité RGPD by design. Une équipe joignable, pas un numéro surtaxé à l\'autre bout du monde.',
+  },
+]
+
+const chiffres = [
+  { value: '24/7', label: 'Libre-service, sans personnel sur site' },
+  { value: '3', label: 'Segments servis : mairies, campings, hôtels' },
+  { value: '< 1 s', label: 'Pour ouvrir un casier avec son QR code' },
+  { value: '4-6 sem.', label: 'De la demande à la mise en service' },
+]
+
+const aboutJsonLd = [
+  {
+    '@type': 'AboutPage',
+    name: `À propos — ${SITE.name}`,
+    description:
+      'La mission, les valeurs et l\'approche de SportLocker : rendre le matériel sportif accessible en libre-service 24/7 sur les sites publics et touristiques.',
+    url: `${SITE.url}/a-propos`,
+  },
+  {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Accueil', item: SITE.url + '/' },
+      { '@type': 'ListItem', position: 2, name: 'À propos', item: SITE.url + '/a-propos' },
+    ],
+  },
+]
+---
+
+<Base
+  title="À propos — notre mission"
+  description="SportLocker rend le matériel sportif accessible en libre-service 24/7 sur les terrains publics, les campings et les hôtels. Notre mission, nos valeurs et notre approche clé en main, conçue et opérée en France."
+  extraJsonLd={aboutJsonLd}
+>
+  <!-- HEADER -->
+  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <span class="eyebrow" data-reveal>À propos</span>
+      <h1 class="font-extrabold text-display-xl text-white mt-3 mb-5" data-reveal data-reveal-delay="1">
+        Le sport en libre-service,<br/>
+        <span class="text-brand-400">partout, tout le temps.</span>
+      </h1>
+      <p class="text-[1.15rem] text-white/65 leading-loose max-w-2xl font-light" data-reveal data-reveal-delay="2">
+        SportLocker installe des distributeurs connectés de matériel sportif sur les
+        terrains publics, les campings et les hôtels. Les usagers empruntent en 30 secondes
+        depuis leur téléphone. Les établissements offrent un nouveau service sans rien gérer.
+      </p>
+    </div>
+  </section>
+
+  <!-- MISSION -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="max-w-3xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>Notre mission</span>
+        <h2 class="section-title" data-reveal data-reveal-delay="1">
+          Lever le dernier frein entre l'envie de jouer<br class="hidden sm:block"/> et le fait de jouer
+        </h2>
+        <div class="mt-6 space-y-5 text-white/65 font-light leading-loose text-[1.05rem]" data-reveal data-reveal-delay="2">
+          <p>
+            On a tous renoncé à une partie improvisée faute de matériel sous la main.
+            Le ballon resté à la maison, la raquette qu'on n'a jamais achetée, l'équipement
+            qu'on ne transporte pas en vacances. C'est exactement ce frein que SportLocker
+            fait disparaître.
+          </p>
+          <p>
+            Une borne posée sur un city-stade, une plage de camping ou le jardin d'un hôtel,
+            et le matériel devient disponible à la demande — sans réservation contraignante,
+            sans personnel sur place, sans posséder quoi que ce soit. On scanne, on joue, on rend.
+          </p>
+          <p>
+            Notre conviction : le sport du quotidien ne devrait jamais dépendre de ce qu'on
+            possède ni de l'endroit où on se trouve.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHIFFRES -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {chiffres.map((c, i) => (
+          <div class="card-dark p-7 text-center" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="font-extrabold text-4xl sm:text-5xl text-brand-400 leading-none mb-3">{c.value}</div>
+            <div class="text-sm text-white/55 font-light leading-relaxed">{c.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- VALEURS -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Ce qui nous guide</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Quatre principes, zéro compromis
+        </h2>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        {valeurs.map((v, i) => (
+          <div class="card-dark p-7 sm:p-8" data-reveal data-reveal-delay={String((i % 2) + 1)}>
+            <div class="w-11 h-11 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-xl mb-4">
+              {v.icon}
+            </div>
+            <h3 class="font-bold text-white text-lg mb-2.5">{v.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{v.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- APPROCHE -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="max-w-3xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>Notre approche</span>
+        <h2 class="section-title" data-reveal data-reveal-delay="1">
+          On porte le risque technique, vous récoltez le service
+        </h2>
+        <div class="mt-6 space-y-5 text-white/65 font-light leading-loose text-[1.05rem]" data-reveal data-reveal-delay="2">
+          <p>
+            SportLocker est un modèle clé en main : la borne, le matériel sportif, la carte SIM,
+            la maintenance et le support sont inclus dans un abonnement mensuel. L'établissement
+            n'achète pas un équipement à amortir — il souscrit un service qui reste à jour.
+          </p>
+          <p>
+            Tout est pensé pour fonctionner sans surveillance : ouverture par QR code même hors
+            réseau, mises à jour firmware à distance, tableau de bord temps réel pour suivre
+            l'usage et les alertes. Quand quelque chose doit être réparé, on le voit avant l'usager.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <FinalCta
+    title="Envie d'équiper votre site ?"
+    sub="Un appel de 15 minutes suffit pour valider la faisabilité, le timing et le budget."
+    primary={{ href: '/contact#formulaire', label: 'Demander un devis' }}
+    secondary={{ href: '/comment-ca-marche', label: 'Comment ça marche' }}
+  />
+</Base>
