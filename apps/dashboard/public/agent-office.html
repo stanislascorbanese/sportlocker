@@ -72,6 +72,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const AGENTS = [
   { id:'api-route-builder', name:'api-route-builder', color:'#4ea1ff', home:'desk1',  verbs:['scaffolde une route','écrit du Zod','branche Drizzle'] },
@@ -83,8 +89,8 @@ const AGENTS = [
 ];
 
 const THEMES = {
-  night: { bg:'#0e1018', fog:'#0e1018', sky:'#cfe0ff', ground:'#2a2f44', hemi:0.78, sun:'#fff4e0', sunI:1.4, floor:'#e9edf6', screen:0.7, amb:0.0 },
-  day:   { bg:'#cfe0f4', fog:'#dCE8f6', sky:'#ffffff', ground:'#9fb4d6', hemi:1.15, sun:'#fff7ea', sunI:1.9, floor:'#fafcff', screen:0.32, amb:0.25 },
+  night: { bg:'#0c0e16', fog:'#0d1019', sky:'#acc2ea', ground:'#20253a', hemi:0.55, sun:'#ffe6c2', sunI:1.0, floor:'#7e879d', screen:0.7, amb:0.0 },
+  day:   { bg:'#aac3e2', fog:'#bcd0e8', sky:'#e6efff', ground:'#90a6cb', hemi:0.85, sun:'#fff1da', sunI:1.2, floor:'#9aa4ba', screen:0.32, amb:0.14 },
 };
 let themeTarget=0, autoTheme=true, autoThemeT=26; const themeMix={v:0};
 
@@ -92,23 +98,56 @@ const app=document.getElementById('app');
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.9;
 const W=()=>innerWidth||screen.width||1280, H=()=>innerHeight||screen.height||800;
 renderer.setSize(W(),H()); app.appendChild(renderer.domElement);
 const labelRenderer=new CSS2DRenderer(); labelRenderer.setSize(W(),H());
 labelRenderer.domElement.style.cssText='position:fixed;inset:0;pointer-events:none'; app.appendChild(labelRenderer.domElement);
 
 const scene=new THREE.Scene(); scene.background=new THREE.Color('#0e1018'); scene.fog=new THREE.Fog('#0e1018',24,50);
+const pmrem=new THREE.PMREMGenerator(renderer);
+scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.22;
+
 const F=7.2; const camera=new THREE.OrthographicCamera(-F,F,F,-F,0.1,200); camera.position.set(16,15,16);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enablePan=false; controls.minPolarAngle=0.45; controls.maxPolarAngle=1.15;
 controls.minZoom=0.55; controls.maxZoom=2.4; controls.enableDamping=true; controls.dampingFactor=0.08;
 controls.autoRotate=true; controls.autoRotateSpeed=0.4; controls.target.set(0,0.8,0);
 
+// ---- bloom SÉLECTIF : seuls les objets taggés (layer 1) brillent ----
+const BLOOM=1; const bloomLayer=new THREE.Layers(); bloomLayer.set(BLOOM);
+const darkMat=new THREE.MeshBasicMaterial({color:0x000000}); const _mats={};
+function darken(o){ if((o.isMesh||o.isPoints)&&!bloomLayer.test(o.layers)){ _mats[o.uuid]=o.material; o.material=darkMat; } }
+function restore(o){ if(_mats[o.uuid]){ o.material=_mats[o.uuid]; delete _mats[o.uuid]; } }
+const renderPass=new RenderPass(scene,camera);
+const bloomComposer=new EffectComposer(renderer); bloomComposer.renderToScreen=false; bloomComposer.addPass(renderPass);
+const bloom=new UnrealBloomPass(new THREE.Vector2(W(),H()),0.85,0.6,0.0); bloomComposer.addPass(bloom);
+const mixPass=new ShaderPass(new THREE.ShaderMaterial({
+  uniforms:{ baseTexture:{value:null}, bloomTexture:{value:bloomComposer.renderTarget2.texture} },
+  vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader:'uniform sampler2D baseTexture; uniform sampler2D bloomTexture; varying vec2 vUv; void main(){ gl_FragColor=texture2D(baseTexture,vUv)+texture2D(bloomTexture,vUv); }'
+}),'baseTexture'); mixPass.needsSwap=true;
+const VignetteShader={ uniforms:{ tDiffuse:{value:null}, offset:{value:1.12}, darkness:{value:1.0} },
+  vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader:'uniform sampler2D tDiffuse; uniform float offset; uniform float darkness; varying vec2 vUv; void main(){ vec4 c=texture2D(tDiffuse,vUv); vec2 uv=(vUv-0.5)*offset; float v=clamp(1.0-dot(uv,uv)*darkness,0.0,1.0); gl_FragColor=vec4(c.rgb*mix(1.0,v,0.82),c.a); }' };
+const composer=new EffectComposer(renderer);
+composer.addPass(renderPass); composer.addPass(mixPass); composer.addPass(new ShaderPass(VignetteShader)); composer.addPass(new OutputPass());
+function renderBloom(){ const bg=scene.background; scene.background=null; scene.traverse(darken); bloomComposer.render(); scene.traverse(restore); scene.background=bg; }
+
 const hemi=new THREE.HemisphereLight('#cfe0ff','#2a2f44',0.78); scene.add(hemi);
 const sun=new THREE.DirectionalLight('#fff4e0',1.4); sun.position.set(9,16,7);
 sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.near=1; sun.shadow.camera.far=60;
 Object.assign(sun.shadow.camera,{left:-16,right:16,top:16,bottom:-16}); sun.shadow.bias=-0.0004; sun.shadow.radius=5; scene.add(sun);
 const amb=new THREE.AmbientLight('#ffffff',0); scene.add(amb);
+const accentW=new THREE.PointLight('#ffcf9e',5,12,2.4); accentW.position.set(-4.5,3.8,2.5); scene.add(accentW);
+const accentC=new THREE.PointLight('#9ec5ff',4,12,2.4); accentC.position.set(5,3.8,-3); scene.add(accentC);
+for(const lx of[-3.2,3.2]){ const strip=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.07,6),
+  new THREE.MeshStandardMaterial({color:'#ffffff',emissive:new THREE.Color('#dce8ff'),emissiveIntensity:1.25})); strip.position.set(lx,3.35,-1); strip.layers.enable(BLOOM); scene.add(strip); }
+const DUST=150; const dustPos=new Float32Array(DUST*3);
+for(let i=0;i<DUST;i++){ dustPos[i*3]=(Math.random()-0.5)*16; dustPos[i*3+1]=0.4+Math.random()*3.4; dustPos[i*3+2]=(Math.random()-0.5)*16; }
+const dustGeo=new THREE.BufferGeometry(); dustGeo.setAttribute('position',new THREE.BufferAttribute(dustPos,3));
+const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:'#ffffff',size:0.05,transparent:true,opacity:0.45,depthWrite:false}));
+scene.add(dust);
 
 function floorTexture(){ const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
   x.fillStyle='#ffffff'; x.fillRect(0,0,512,512); x.strokeStyle='rgba(120,140,180,.10)'; x.lineWidth=2;
@@ -128,7 +167,7 @@ const RB=(w,h,d)=>new THREE.BoxGeometry(w,h,d,3,3,3);
 const ROOM=9;
 const floorMat=new THREE.MeshStandardMaterial({color:'#e9edf6',roughness:0.95,map:floorTexture()});
 const floor=new THREE.Mesh(new THREE.BoxGeometry(ROOM*2,0.3,ROOM*2),floorMat); floor.position.y=-0.15; floor.receiveShadow=true; scene.add(floor);
-const rug=new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.1,0.02,40),matStd('#dde6f5',1)); rug.position.set(0,0.02,1.5); rug.receiveShadow=true; scene.add(rug);
+const rug=new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.1,0.02,40),matStd('#586b8a',1)); rug.position.set(0,0.02,1.5); rug.receiveShadow=true; scene.add(rug);
 const wallMat=matStd('#f6f8fc',1);
 function wall(w,h,x,z,ry){ const m=new THREE.Mesh(RB(w,h,0.3),wallMat); m.position.set(x,h/2,z); m.rotation.y=ry; m.receiveShadow=m.castShadow=true; scene.add(m); }
 wall(ROOM*2,3.2,0,-ROOM,0); wall(ROOM*2,3.2,-ROOM,0,Math.PI/2);
@@ -143,7 +182,7 @@ function desk(id,x,z,ry,col){ const g=new THREE.Group(); g.position.set(x,0,z); 
   const top=new THREE.Mesh(RB(1.9,0.12,0.9),matStd('#9a6b43',0.8)); top.position.y=0.74; top.castShadow=top.receiveShadow=true; g.add(top);
   for(const ax of[-0.8,0.8])for(const az of[-0.35,0.35]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.74,0.1),matStd('#6f4a2c',0.8)); l.position.set(ax,0.37,az); l.castShadow=true; g.add(l); }
   const sc=new THREE.Mesh(RB(0.92,0.56,0.06),new THREE.MeshStandardMaterial({color:'#0b0f17',roughness:0.4,emissive:new THREE.Color(col),emissiveIntensity:0.6,emissiveMap:screenTex,map:screenTex}));
-  sc.position.set(0,1.18,-0.18); sc.castShadow=true; g.add(sc); screens.push(sc);
+  sc.position.set(0,1.18,-0.18); sc.castShadow=true; sc.layers.enable(BLOOM); g.add(sc); screens.push(sc);
   const st=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.07,0.2,8),matStd('#2a2f3a',0.6,0.3)); st.position.set(0,0.86,-0.18); g.add(st);
   const chair=new THREE.Group();
   const seat=new THREE.Mesh(RB(0.5,0.1,0.5),matStd('#3a4154',0.8)); seat.position.y=0.5; seat.castShadow=true; chair.add(seat);
@@ -165,8 +204,8 @@ function board(x,z){ const g=new THREE.Group(); g.position.set(x,0,z);
 let gateArm,gateBeam,gateLight;
 function gate(x,z){ const g=new THREE.Group(); g.position.set(x,0,z);
   for(const ax of[-0.7,0.7]){ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.0,12),matStd('#aeb6c6',0.4,0.6)); p.position.set(ax,0.5,0); p.castShadow=true; g.add(p);}
-  gateBeam=new THREE.Mesh(RB(1.4,0.05,0.05),new THREE.MeshStandardMaterial({color:'#36d399',emissive:new THREE.Color('#36d399'),emissiveIntensity:0.9,roughness:0.3})); gateBeam.position.set(0,0.85,0); g.add(gateBeam);
-  gateLight=new THREE.Mesh(new THREE.SphereGeometry(0.1,12,12),new THREE.MeshStandardMaterial({color:'#36d399',emissive:new THREE.Color('#36d399'),emissiveIntensity:1.2})); gateLight.position.set(0.7,1.05,0); g.add(gateLight);
+  gateBeam=new THREE.Mesh(RB(1.4,0.05,0.05),new THREE.MeshStandardMaterial({color:'#36d399',emissive:new THREE.Color('#36d399'),emissiveIntensity:1.8,roughness:0.3})); gateBeam.position.set(0,0.85,0); gateBeam.layers.enable(BLOOM); g.add(gateBeam);
+  gateLight=new THREE.Mesh(new THREE.SphereGeometry(0.1,12,12),new THREE.MeshStandardMaterial({color:'#36d399',emissive:new THREE.Color('#36d399'),emissiveIntensity:2.4})); gateLight.position.set(0.7,1.05,0); gateLight.layers.enable(BLOOM); g.add(gateLight);
   gateArm=new THREE.Mesh(RB(0.62,0.07,0.07),matStd('#d6dae6',0.4,0.5)); gateArm.geometry.translate(0.31,0,0); gateArm.position.set(0,0.62,0); g.add(gateArm);
   scene.add(g);
   stations['gate']={pos:new THREE.Vector3(x,0,z+1),face:new THREE.Vector3(x,0,z)};
@@ -181,22 +220,22 @@ const clock=new THREE.Clock(); const agents=[]; const workers=[];
 function makeBot(col){ const g=new THREE.Group(); const c=new THREE.Color(col);
   const body=new THREE.MeshStandardMaterial({color:c,roughness:0.5,metalness:0.08});
   const dark=new THREE.MeshStandardMaterial({color:'#11151f',roughness:0.3,metalness:0.4});
-  const glow=new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:0.9,roughness:0.4});
+  const glow=new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:1.6,roughness:0.4});
   for(const fx of[-0.14,0.14]){ const f=new THREE.Mesh(RB(0.18,0.12,0.26),body); f.position.set(fx,0.06,0.02); f.castShadow=true; g.add(f); }
   const torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.34,8,18),body); torso.position.y=0.55; torso.castShadow=true; g.add(torso);
   const belly=new THREE.Mesh(new THREE.SphereGeometry(0.24,16,16),new THREE.MeshStandardMaterial({color:'#f3f5fb',roughness:0.6})); belly.scale.set(0.9,0.78,0.55); belly.position.set(0,0.5,0.16); g.add(belly);
-  const core=new THREE.Mesh(new THREE.SphereGeometry(0.07,14,14),glow); core.position.set(0,0.6,0.27); g.add(core);
+  const core=new THREE.Mesh(new THREE.SphereGeometry(0.07,14,14),glow); core.position.set(0,0.6,0.27); core.layers.enable(BLOOM); g.add(core);
   const arms=[]; for(const s of[-1,1]){ const piv=new THREE.Group(); piv.position.set(s*0.3,0.66,0);
     const arm=new THREE.Mesh(new THREE.CapsuleGeometry(0.07,0.3,6,10),body); arm.position.y=-0.17; arm.castShadow=true; piv.add(arm);
-    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.085,12,12),glow); hand.position.y=-0.34; piv.add(hand); g.add(piv); arms.push(piv); }
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.085,12,12),glow); hand.position.y=-0.34; hand.layers.enable(BLOOM); piv.add(hand); g.add(piv); arms.push(piv); }
   const head=new THREE.Group(); head.position.y=1.12; g.add(head);
   const skull=new THREE.Mesh(new THREE.SphereGeometry(0.3,22,22),body); skull.scale.set(1,0.92,0.96); skull.castShadow=true; head.add(skull);
   const face=new THREE.Mesh(new THREE.SphereGeometry(0.255,22,22,Math.PI*0.5,Math.PI,Math.PI*0.28,Math.PI*0.44),dark); face.rotation.y=-Math.PI/2; face.position.z=0.02; head.add(face);
   for(const s of[-1,1]){ const ear=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.06,12),new THREE.MeshStandardMaterial({color:c,roughness:0.5})); ear.rotation.z=Math.PI/2; ear.position.set(s*0.29,0,0); head.add(ear); }
   const eyes=[]; const eyeMat=new THREE.MeshStandardMaterial({color:'#eaf6ff',emissive:new THREE.Color('#cdeaff'),emissiveIntensity:1.5,roughness:0.2});
-  for(const ex of[-0.1,0.1]){ const e=new THREE.Mesh(new THREE.CapsuleGeometry(0.035,0.05,4,8),eyeMat.clone()); e.rotation.z=Math.PI/2; e.position.set(ex,0.02,0.27); head.add(e); eyes.push(e); }
+  for(const ex of[-0.1,0.1]){ const e=new THREE.Mesh(new THREE.CapsuleGeometry(0.035,0.05,4,8),eyeMat.clone()); e.rotation.z=Math.PI/2; e.position.set(ex,0.02,0.27); e.layers.enable(BLOOM); head.add(e); eyes.push(e); }
   const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.02,0.22,8),dark); ant.position.set(0,0.34,0); head.add(ant);
-  const tip=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,12),glow); tip.position.set(0,0.46,0); head.add(tip);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,12),glow); tip.position.set(0,0.46,0); tip.layers.enable(BLOOM); head.add(tip);
   const blob=new THREE.Mesh(new THREE.CircleGeometry(0.36,24),new THREE.MeshBasicMaterial({color:'#000',transparent:true,opacity:0.2})); blob.rotation.x=-Math.PI/2; blob.position.y=0.012; g.add(blob);
   return {g,body:torso,head,eyes,arms,tip}; }
 function plate(name,color){ const el=document.createElement('div'); el.className='nameplate';
@@ -207,6 +246,12 @@ function makeAgent(def,i){ const bot=makeBot(def.color); const pl=plate(def.name
   const s=stations[def.home]; const a={def,...bot,pl,off,pos:s.pos.clone().add(off),target:null,faceT:null,state:'idle',t:0,phase:Math.random()*7,speed:1.6,armSwing:0,workDur:1};
   bot.g.position.copy(a.pos); agents.push(a); return a; }
 AGENTS.forEach(makeAgent);
+
+const rows=document.getElementById('rows');
+function pushFeed(color,name,verb){ const r=document.createElement('div'); r.className='row';
+  r.innerHTML=`<span class="d" style="color:${color};background:${color}"></span><div class="tx"><b style="color:${color}">${name}</b> <span>—</span> <em>${verb}</em></div>`;
+  rows.prepend(r); while(rows.children.length>10) rows.removeChild(rows.lastChild); }
+let lastActive=null;
 
 const WORKER_VERBS=['déploie une release','sync inventaire','heartbeat parc','job overdue','relance MQTT','purge RGPD','recalcul stock'];
 function spawnWorker(verb){ if(workers.length>4) return;
@@ -219,11 +264,7 @@ function spawnWorker(verb){ if(workers.length>4) return;
   bot.g.position.copy(w.pos); workers.push(w); gatePulse=1; pushFeed('#7fe3d6','worker',verb); }
 let gatePulse=0;
 
-const rows=document.getElementById('rows');
-function pushFeed(color,name,verb){ const r=document.createElement('div'); r.className='row';
-  r.innerHTML=`<span class="d" style="color:${color};background:${color}"></span><div class="tx"><b style="color:${color}">${name}</b> <span>—</span> <em>${verb}</em></div>`;
-  rows.prepend(r); while(rows.children.length>10) rows.removeChild(rows.lastChild); }
-let lastActive=null;
+const conn=document.getElementById('conn'), connlab=document.getElementById('connlab'); connlab.textContent='mode ambiant';
 
 function pickTarget(a){ const home=Math.random()<0.6; const key=home?a.def.home:SHARED[(Math.random()*SHARED.length)|0];
   const s=stations[key]; a.targetKey=key; a.target=s.pos.clone().add(a.off); a.faceT=s.face?s.face.clone():null; }
@@ -232,7 +273,7 @@ function startWork(a){ a.state='work'; a.t=2.5+Math.random()*4; a.workDur=a.t;
   const verb=home? a.def.verbs[(Math.random()*a.def.verbs.length)|0] : ({kanban:'sync kanban',board:'planifie',desk1:'pair-programming',desk2:'revue'}[a.targetKey]||'travaille');
   a.pl.lab.textContent=verb; a.pl.el.classList.add('work'); lastActive=a; pushFeed(a.def.color,a.def.name,verb); }
 agents.forEach(a=>setTimeout(()=>{ pickTarget(a); a.state='walk'; },Math.random()*2500));
-setInterval(()=>{ if(Math.random()<0.7) spawnWorker(WORKER_VERBS[(Math.random()*WORKER_VERBS.length)|0]); }, 11000);
+setInterval(()=>{ if(Math.random()<0.7) spawnWorker(WORKER_VERBS[(Math.random()*WORKER_VERBS.length)|0]); },11000);
 
 let cineMode='auto', cineT=6, cineFocus=null, cineHold=0;
 function stepCine(dt){ if(cineMode==='off'){ controls.autoRotate=true; controls.target.lerp(new THREE.Vector3(0,0.8,0),dt*1.5);
@@ -264,11 +305,11 @@ function setBar(a,p){ if(a.pl&&a.pl.fill) a.pl.fill.style.width=Math.max(0,Math.
 
 function tick(){ const dt=Math.min(clock.getDelta(),0.05), t=clock.elapsedTime;
   updateScreen(t); applyTheme(dt); stepCine(dt);
-  if(gatePulse>0){ gatePulse=Math.max(0,gatePulse-dt*1.2); gateBeam.material.emissiveIntensity=0.9+gatePulse*1.5;
+  if(gatePulse>0){ gatePulse=Math.max(0,gatePulse-dt*1.2); gateBeam.material.emissiveIntensity=1.8+gatePulse*1.8;
     gateLight.material.color.setHex(0xff5d6c); gateLight.material.emissive.setHex(0xff5d6c); gateArm.rotation.y=gatePulse*Math.PI*0.9; }
-  else { gateBeam.material.emissiveIntensity=0.9; gateLight.material.color.setHex(0x36d399); gateLight.material.emissive.setHex(0x36d399); gateArm.rotation.y*=(1-Math.min(1,dt*4)); }
-  for(const a of agents){ a.phase+=dt; const pulse=1.2+Math.sin(a.phase*3)*0.4; a.eyes.forEach(e=>e.material.emissiveIntensity=pulse);
-    if(a.tip) a.tip.material.emissiveIntensity=0.7+Math.sin(a.phase*2+1)*0.3;
+  else { gateBeam.material.emissiveIntensity=1.8; gateLight.material.color.setHex(0x36d399); gateLight.material.emissive.setHex(0x36d399); gateArm.rotation.y*=(1-Math.min(1,dt*4)); }
+  for(const a of agents){ a.phase+=dt; const pulse=1.55+Math.sin(a.phase*3)*0.45; a.eyes.forEach(e=>e.material.emissiveIntensity=pulse);
+    if(a.tip) a.tip.material.emissiveIntensity=1.5+Math.sin(a.phase*2+1)*0.4;
     if(a.state==='work'){ setBar(a,1-(a.t/a.workDur)); } else { a.pl.el.classList.remove('work'); }
     if(a.state==='walk'&&a.target){ if(moveTowards(a,a.target,dt)){ a.state='arrive'; a.t=0.15; } }
     else if(a.state==='arrive'){ a.t-=dt; a.body.scale.set(1,1,1); a.g.position.y=0; faceTo(a,a.faceT,dt); if(a.t<=0) startWork(a); }
@@ -283,7 +324,10 @@ function tick(){ const dt=Math.min(clock.getDelta(),0.05), t=clock.elapsedTime;
     if(d>1e-4 && d<MIN){ const push=(MIN-d)*0.5, nx=dx/d, nz=dz/d; A.pos.x+=nx*push; A.pos.z+=nz*push; B.pos.x-=nx*push; B.pos.z-=nz*push; }
     else if(d<=1e-4){ A.pos.x+=0.08+0.02*i; B.pos.x-=0.08; } }
   for(const a of all){ a.pos.x=Math.max(-8.3,Math.min(8.3,a.pos.x)); a.pos.z=Math.max(-8.3,Math.min(8.3,a.pos.z)); a.g.position.x=a.pos.x; a.g.position.z=a.pos.z; }
-  controls.update(); renderer.render(scene,camera); labelRenderer.render(scene,camera); requestAnimationFrame(tick); }
+  const dp=dust.geometry.attributes.position; for(let i=0;i<DUST;i++){ let y=dp.getY(i)+dt*0.12; if(y>3.9) y=0.4; dp.setY(i,y); } dp.needsUpdate=true;
+  bloom.strength=0.55+(1-themeMix.v)*0.35;
+  controls.update(); renderBloom(); composer.render(); labelRenderer.render(scene,camera);
+  requestAnimationFrame(tick); }
 tick();
 
 const legend=document.getElementById('legend');
@@ -292,7 +336,8 @@ const themeBtn=document.getElementById('theme');
 themeBtn.onclick=()=>{ autoTheme=false; themeTarget=themeTarget?0:1; themeBtn.textContent=themeTarget?'☾ Nuit':'☀︎ Jour'; };
 const cineBtn=document.getElementById('cine');
 cineBtn.onclick=()=>{ cineMode=cineMode==='auto'?'off':'auto'; cineBtn.textContent=cineMode==='auto'?'🎥 Ciné: auto':'🎥 Ciné: off'; if(cineMode==='off') cineFocus=null; };
-addEventListener('resize',()=>{ const asp=W()/H(); camera.left=-F*asp; camera.right=F*asp; camera.top=F; camera.bottom=-F; camera.updateProjectionMatrix(); renderer.setSize(W(),H()); labelRenderer.setSize(W(),H()); });
+addEventListener('resize',()=>{ const asp=W()/H(); camera.left=-F*asp; camera.right=F*asp; camera.top=F; camera.bottom=-F; camera.updateProjectionMatrix();
+  renderer.setSize(W(),H()); composer.setSize(W(),H()); bloomComposer.setSize(W(),H()); bloom.setSize(W(),H()); labelRenderer.setSize(W(),H()); });
 dispatchEvent(new Event('resize'));
 </script>
 </body>
