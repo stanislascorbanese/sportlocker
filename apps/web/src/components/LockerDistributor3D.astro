@@ -3,6 +3,18 @@
 // Three.js (r128) chargé en lazy quand la section entre dans le viewport.
 // Les traits d'étiquettes passent en pointillés quand le point d'ancrage
 // est occulté par la borne (raycast caméra → ancre chaque frame).
+
+// A11y : mêmes 6 étiquettes que le tableau `LABELS` du script (titre + détail),
+// restituées en texte pour lecteurs d'écran. Les `.sl5-label` visuelles restent
+// décoratives (aria-hidden). Garder ces deux sources synchronisées.
+const labels = [
+  { t: 'Panneau solaire', d: 'Module monocristallin 80 W. Autonomie 5 jours sans soleil grâce à la batterie LiFePO4 intégrée.' },
+  { t: 'Grandes portes (matériel long)', d: 'Hauteur 1 m pour raquettes, cordes, cônes et frisbees. Verrou électromécanique IP54.' },
+  { t: 'Petites portes (ballons)', d: 'Format 30×30×30 cm pour ballons foot, basket, volley, rugby. 6 casiers compacts.' },
+  { t: 'Écran tactile', d: "Écran capacitif 7\" antivandale. Affiche le stock en temps réel et guide l'usager pendant la réservation." },
+  { t: 'Clavier code PIN', d: 'Saisie sécurisée pour les usagers sans smartphone. Code unique généré à la réservation, valable 15 min.' },
+  { t: 'Lecteur QR code', d: "Caméra industrielle, décodage offline. JWT HS256, déverrouillage en moins d'une seconde même sans réseau." },
+]
 ---
 
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -32,6 +44,13 @@
   aria-label="Rendu 3D interactif annoté d'un distributeur SportLocker à huit casiers mixtes : écran tactile, clavier PIN, lecteur QR et panneau solaire. Des étiquettes reliées par des lignes de repère désignent les composants principaux."
 ></div>
 
+<!-- A11y : contenu des 6 étiquettes 3D restitué en texte pour lecteurs d'écran. -->
+<ul class="sr-only">
+  {labels.map((l) => (
+    <li><strong>{l.t}</strong> — {l.d}</li>
+  ))}
+</ul>
+
 <div class="flex flex-wrap gap-2 items-center mt-4 mb-3">
   <button id="sl5-open" class="btn btn-outline btn-sm" type="button">Ouvrir toutes les portes</button>
   <button id="sl5-rotate" class="btn btn-outline btn-sm" type="button">Rotation auto</button>
@@ -48,7 +67,7 @@
   <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#8A8A86"></span>Hors ligne</span>
 </div>
 
-<p class="text-[0.78rem] text-white/60 mt-3">
+<p class="text-[0.78rem] text-white/75 mt-3">
   Glissez pour pivoter · molette pour zoomer · cliquez une porte pour l'ouvrir · survolez (ou touchez) une étiquette pour en lire le détail. Les traits passent en pointillés quand le repère est masqué par la borne.
 </p>
 
@@ -749,7 +768,7 @@
         ".sl5-ic-pin::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.pin + "\");mask-image:url(\"data:image/svg+xml," + ICONS.pin + "\")}" +
         ".sl5-ic-qr::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.qr + "\");mask-image:url(\"data:image/svg+xml," + ICONS.qr + "\")}" +
         '.sl5-label-t{font-size:0.8rem;font-weight:700;line-height:1.2;white-space:nowrap;color:#fff}' +
-        '.sl5-label-d{max-height:0;overflow:hidden;opacity:0;font-size:0.76rem;font-weight:300;color:rgba(255,255,255,0.66);line-height:1.45;transition:max-height .25s ease,opacity .2s ease,margin-top .2s ease,padding-top .2s ease;white-space:normal}' +
+        '.sl5-label-d{max-height:0;overflow:hidden;opacity:0;font-size:0.76rem;font-weight:300;color:rgba(255,255,255,0.8);line-height:1.45;transition:max-height .25s ease,opacity .2s ease,margin-top .2s ease,padding-top .2s ease;white-space:normal}' +
         '.sl5-label:hover,.sl5-label.expanded{z-index:10;box-shadow:0 22px 48px -16px rgba(0,0,0,0.7);border-color:rgba(255,255,255,0.18);transform:translateY(-1px)}' +
         '.sl5-label:hover .sl5-label-t,.sl5-label.expanded .sl5-label-t{white-space:normal}' +
         '.sl5-label:hover .sl5-label-d,.sl5-label.expanded .sl5-label-d{max-height:130px;opacity:1;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,0.1)}' +
