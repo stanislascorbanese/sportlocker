@@ -313,10 +313,20 @@ const annotations = [
       scene.fog = new THREE.FogExp2(0x0d1b2a, 0.03);
       camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
       renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+      var dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
+      renderer.setPixelRatio(dpr);
       renderer.setSize(W, H);
       // Fond navy plein (pas de gris/transparent plat) : cohérent avec le fog.
       renderer.setClearColor(0x0d1b2a, 1);
+      // P1 — Color pipeline ciné : ACES Filmic + sortie sRGB. ACES assombrit et
+      // sature moins → on remonte les intensités lumières plus bas. L'écran
+      // téléphone reste `toneMapped=false` (déjà en place) pour ne pas être écrasé.
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.78;
+      if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
+      // P3 — Ombres douces : PCFSoft, ancre la borne via une key light castShadow.
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       stage.appendChild(renderer.domElement);
 
       renderer.domElement.addEventListener(
@@ -329,22 +339,73 @@ const annotations = [
         false,
       );
 
-      // P5 — Éclairage « film » : ambient bas, key douce, fill froid,
-      // et rim light teintée vert marque (#1D9E75) derrière les sujets pour
-      // détourer la silhouette et créer un halo de marque.
-      scene.add(new THREE.AmbientLight(0x1a2e42, 0.35));
-      scene.add(new THREE.HemisphereLight(0x9ad6c0, 0x0d1b2a, 0.4));
-      var key = new THREE.DirectionalLight(0xfff4e0, 0.95);
+      // P2 — IBL sans fichier HDRI : on génère une env map via PMREMGenerator à
+      // partir de RoomEnvironment (example r128, attaché à THREE). Donne des
+      // reflets/satinés réalistes sur les surfaces métal (borne, téléphone,
+      // ballons). Fallback : si l'example n'a pas chargé, on construit une petite
+      // scène gradient navy/vert rendue en env. `scene.environment` accroche les
+      // MeshStandardMaterial via leur `envMapIntensity`.
+      var envTex = null;
+      (function buildIBL() {
+        if (!THREE.PMREMGenerator) return;
+        var pmrem = new THREE.PMREMGenerator(renderer);
+        pmrem.compileEquirectangularShader();
+        var envScene = null;
+        if (THREE.RoomEnvironment) {
+          envScene = new THREE.RoomEnvironment();
+        } else {
+          // Fallback procédural : sol vert marque + ciel navy, deux émetteurs.
+          envScene = new THREE.Scene();
+          envScene.add(new THREE.HemisphereLight(0x9ad6c0, 0x0d1b2a, 1.0));
+          var em = new THREE.Mesh(
+            new THREE.BoxGeometry(10, 10, 10),
+            new THREE.MeshBasicMaterial({ color: 0x12283e, side: THREE.BackSide }),
+          );
+          envScene.add(em);
+          var glow = new THREE.Mesh(
+            new THREE.BoxGeometry(4, 0.2, 4),
+            new THREE.MeshBasicMaterial({ color: 0x1d9e75 }),
+          );
+          glow.position.set(0, -3, 0);
+          envScene.add(glow);
+        }
+        try {
+          envTex = pmrem.fromScene(envScene, 0.04).texture;
+          scene.environment = envTex;
+          disposables.push(envTex);
+        } catch (e) {
+          envTex = null;
+        }
+        if (envScene.dispose) envScene.dispose();
+        pmrem.dispose();
+      })();
+
+      // P5 — Éclairage « film » (intensités remontées pour compenser ACES) :
+      // ambient bas, key douce castShadow, fill froid, rim vert marque.
+      scene.add(new THREE.AmbientLight(0x1a2e42, 0.4));
+      scene.add(new THREE.HemisphereLight(0x9ad6c0, 0x0d1b2a, 0.55));
+      var key = new THREE.DirectionalLight(0xfff4e0, 2.0);
       key.position.set(7, 9, 8);
+      // P3 — La key projette une ombre douce sur le sol (ancrage de la borne).
+      key.castShadow = true;
+      key.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+      key.shadow.camera.near = 1;
+      key.shadow.camera.far = 30;
+      key.shadow.camera.left = -8;
+      key.shadow.camera.right = 8;
+      key.shadow.camera.top = 10;
+      key.shadow.camera.bottom = -2;
+      key.shadow.bias = -0.0008; // évite l'acné sur les grandes surfaces planes
+      key.shadow.normalBias = 0.02;
       scene.add(key);
-      var fill = new THREE.DirectionalLight(0x3a86dd, 0.25);
+      var fill = new THREE.DirectionalLight(0x3a86dd, 0.5);
       fill.position.set(-7, 4, 5);
       scene.add(fill);
       // Rim light verte derrière le téléphone (centre) et la borne (droite).
-      var rimPhone = new THREE.PointLight(0x1d9e75, 1.6, 14, 2);
+      var rimPhone = new THREE.PointLight(0x1d9e75, 3.0, 14, 2);
       rimPhone.position.set(0, 1.6, -2.6);
       scene.add(rimPhone);
-      var rimMachine = new THREE.PointLight(0x1d9e75, 2.2, 16, 2);
+      var rimMachine = new THREE.PointLight(0x1d9e75, 4.2, 16, 2);
       rimMachine.position.set(3.0, 3.0, -7.0);
       scene.add(rimMachine);
 
@@ -357,23 +418,31 @@ const annotations = [
         }
         return o;
       }
+      // P4 — MeshStandard réglés pour accrocher l'IBL : envMapIntensity monté sur
+      // les surfaces satinées/métal (la borne et le téléphone gagnent du relief).
       function mat(c, r, m) {
+        var me = m == null ? 0.12 : m;
         return new THREE.MeshStandardMaterial({
           color: c,
           roughness: r == null ? 0.65 : r,
-          metalness: m == null ? 0.12 : m,
+          metalness: me,
+          envMapIntensity: me > 0.25 ? 0.55 : 0.32,
         });
       }
       function box(w, h, d, c, r, m) {
         return track(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c, r, m)));
       }
       function emap(t, r, mt) {
+        var me = mt == null ? 0.05 : mt;
         return new THREE.MeshStandardMaterial({
           map: t,
           roughness: r == null ? 0.5 : r,
-          metalness: mt == null ? 0.05 : mt,
+          metalness: me,
+          envMapIntensity: me > 0.25 ? 0.5 : 0.3,
         });
       }
+      // P1 — Les textures canvas restent en sRGB pour que les couleurs de l'app
+      // (vert marque, navy) sortent correctes sous ACES + outputEncoding sRGB.
       function tex(w, h, draw) {
         var cv = document.createElement('canvas');
         cv.width = w;
@@ -381,6 +450,7 @@ const annotations = [
         draw(cv.getContext('2d'), w, h);
         var t = new THREE.CanvasTexture(cv);
         t.anisotropy = 4;
+        if ('encoding' in t) t.encoding = THREE.sRGBEncoding;
         return t;
       }
       function rshape(w, h, r) {
@@ -1049,6 +1119,24 @@ const annotations = [
       sh.position.set(3.0, 0.02, -4.0);
       scene.add(sh);
 
+      // P3 — Vrai sol récepteur d'ombre : ShadowMaterial (ne dessine que l'ombre,
+      // reste transparent ailleurs) sous la borne, pour une ombre portée douce
+      // pilotée par la key light en plus du contact-shadow baké ci-dessus.
+      var floorGeo = new THREE.PlaneGeometry(26, 18);
+      disposables.push(floorGeo);
+      var floorMat = new THREE.ShadowMaterial({ opacity: 0.32 });
+      disposables.push(floorMat);
+      var floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(2.0, 0.0, -3.0);
+      floor.receiveShadow = true;
+      scene.add(floor);
+      // La borne projette son ombre (corps + portes). Le téléphone, sujet flottant
+      // de l'acte 1, n'a pas d'ombre au sol (pas de surface sous lui à ce cadrage).
+      machine.traverse(function (n) {
+        if (n.isMesh) n.castShadow = true;
+      });
+
       // =================================================================
       //  Étagement de présence par acte (P2)
       //  Fade un groupe entier en opacité (transform/opacity only côté GPU) :
@@ -1137,11 +1225,51 @@ const annotations = [
         });
       }
 
+      // =================================================================
+      //  P5 — Bloom (EffectComposer + UnrealBloomPass), intégré au rendu à la
+      //  demande. Threshold HAUT : seules les sources vives bloomes (écran
+      //  téléphone émissif, LED de statut, rim/halo vert, faisceau de scan).
+      //  Désactivé sur mobile et si DPR faible (perf) ; les examples ne sont
+      //  alors même pas chargés. Si une classe manque (CDN), on retombe sur le
+      //  rendu direct sans bloom.
+      // =================================================================
+      var composer = null;
+      var bloomPass = null;
+      var dprNow = renderer.getPixelRatio();
+      var bloomOk =
+        !isMobile &&
+        dprNow >= 1 &&
+        THREE.EffectComposer &&
+        THREE.RenderPass &&
+        THREE.UnrealBloomPass;
+      if (bloomOk) {
+        try {
+          composer = new THREE.EffectComposer(renderer);
+          composer.setPixelRatio(Math.min(dprNow, 1.5)); // bloom moins cher
+          composer.setSize(W, H);
+          composer.addPass(new THREE.RenderPass(scene, camera));
+          bloomPass = new THREE.UnrealBloomPass(
+            new THREE.Vector2(W, H),
+            0.34, // strength
+            0.42, // radius
+            0.92, // threshold (haut → seules les sources vives bloomes)
+          );
+          composer.addPass(bloomPass);
+        } catch (e) {
+          composer = null;
+          bloomPass = null;
+        }
+      }
+
       // contrôleur exposé à la boucle
       return {
+        // Rendu à la demande : on garde l'appel piloté par `dirty` dans frame().
+        // Si le composer est actif, il REMPLACE renderer.render (même cadence,
+        // même caméra scroll-driven). Sinon rendu direct inchangé.
         render: function () {
           applyProgress(smooth);
-          renderer.render(scene, camera);
+          if (composer) composer.render();
+          else renderer.render(scene, camera);
         },
         resize: function () {
           var w = stage.clientWidth || 800;
@@ -1149,7 +1277,15 @@ const annotations = [
           renderer.setSize(w, h);
           camera.aspect = w / h;
           camera.updateProjectionMatrix();
+          if (composer) composer.setSize(w, h);
+          if (bloomPass && bloomPass.setSize) bloomPass.setSize(w, h);
           dirty = true;
+        },
+        dispose: function () {
+          if (composer && composer.dispose) composer.dispose();
+          if (bloomPass && bloomPass.dispose) bloomPass.dispose();
+          composer = null;
+          bloomPass = null;
         },
         screenTextures: screenTextures,
       };
@@ -1220,6 +1356,7 @@ const annotations = [
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', maybeLoad);
       window.removeEventListener('resize', maybeLoad);
+      if (ctrl && ctrl.dispose) ctrl.dispose(); // libère composer + bloomPass
       if (ctrl && ctrl.screenTextures)
         ctrl.screenTextures.forEach(function (t) {
           t.dispose();
@@ -1258,16 +1395,61 @@ const annotations = [
       start();
     }
 
+    // Charge en série une liste de scripts globaux (chaque suivant après onload
+    // du précédent). Les examples r128 attachent leurs classes à `THREE.*`.
+    function loadScriptsSeq(urls, done) {
+      var i = 0;
+      function next() {
+        if (i >= urls.length) {
+          done();
+          return;
+        }
+        var s = document.createElement('script');
+        s.src = urls[i++];
+        s.onload = next;
+        // Si un example échoue (CDN), on continue sans lui : la scène reste
+        // valide (IBL/bloom sont des bonus testés via présence des classes).
+        s.onerror = next;
+        document.head.appendChild(s);
+      }
+      next();
+    }
+
+    // Core three r128 : conservé tel quel (cdnjs, build UMD global `THREE`).
+    var CORE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    // Examples r128 : IBL (RoomEnvironment) + bloom (EffectComposer + passes).
+    // cdnjs ne publie pas le dossier examples/js → on les sert depuis jsdelivr
+    // (three@0.128.0, scripts globaux qui s'attachent à `THREE.*`). Chargés en
+    // lazy APRÈS le core, en série (chaque dépend du précédent). Le bloom n'est
+    // pas chargé sur mobile (perf) ; en cas d'échec CDN on rend sans bloom/IBL.
+    var EX_BASE = 'https://cdn.jsdelivr.net/npm/three@0.128.0/';
+    function exampleUrls() {
+      var urls = ['examples/js/environments/RoomEnvironment.js'];
+      if (!isMobile) {
+        urls.push('examples/js/shaders/CopyShader.js');
+        urls.push('examples/js/shaders/LuminosityHighPassShader.js');
+        urls.push('examples/js/postprocessing/EffectComposer.js');
+        urls.push('examples/js/postprocessing/RenderPass.js');
+        urls.push('examples/js/postprocessing/ShaderPass.js');
+        urls.push('examples/js/postprocessing/UnrealBloomPass.js');
+      }
+      return urls.map(function (u) {
+        return EX_BASE + u;
+      });
+    }
+
     function loadThree() {
       if (loaded) return;
       loaded = true;
       if (window.THREE) {
-        setup();
+        loadScriptsSeq(exampleUrls(), setup);
         return;
       }
       var s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      s.onload = setup;
+      s.src = CORE_URL;
+      s.onload = function () {
+        loadScriptsSeq(exampleUrls(), setup);
+      };
       s.onerror = showFallback;
       document.head.appendChild(s);
     }
