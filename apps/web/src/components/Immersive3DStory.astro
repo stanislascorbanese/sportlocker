@@ -12,19 +12,19 @@
 const acts = [
   {
     k: 'app',
-    eyebrow: 'Acte 1 — Sur le téléphone',
+    eyebrow: 'Sur le téléphone',
     title: "Tout commence dans l'app",
     desc: "Je repère un casier sur la carte, je choisis ma durée, l'app génère mon QR code. Trois écrans, trente secondes.",
   },
   {
     k: 'scan',
-    eyebrow: 'Acte 2 — Le scan',
+    eyebrow: 'Le scan',
     title: 'Mon téléphone parle à la borne',
     desc: "Je présente le QR au lecteur du distributeur. Le décodage est local (JWT HS256) : ça déverrouille même sans réseau, en moins d'une seconde.",
   },
   {
     k: 'locker',
-    eyebrow: 'Acte 3 — La borne',
+    eyebrow: 'La borne',
     title: 'Le casier et ses composants',
     desc: "La porte s'ouvre. La borne se décompose : écran tactile, lecteur QR, clavier PIN, panneau solaire et casiers antivandal.",
   },
@@ -68,6 +68,18 @@ const annotations = [
         aria-label="Animation 3D pilotée au défilement : un téléphone affiche les écrans de l'application SportLocker, un faisceau de scan QR relie le téléphone au distributeur, puis le distributeur s'ouvre et présente ses composants — écran tactile, lecteur QR, clavier PIN, panneau solaire et casiers."
       ></div>
 
+      <!-- A11y : contenu des annotations 3D restitué en texte pour lecteurs
+           d'écran / clavier (les conteneurs visuels sont aria-hidden). Reste
+           lisible même quand la 3D tourne (sr-only, jamais `hidden`). -->
+      <ul class="sr-only">
+        {annotations.map((a) => (
+          <li><strong>{a.t}</strong> — {a.d}</li>
+        ))}
+        {components.map((c) => (
+          <li><strong>{c.t}</strong> — {c.d}</li>
+        ))}
+      </ul>
+
       <!-- Légendes HTML en overlay : animées en transform/opacity uniquement -->
       <div id="i3d-captions" class="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
         <!-- Scrim dégradé navy (lower-third ciné) : garde le texte lisible sur la 3D
@@ -79,7 +91,7 @@ const annotations = [
               <div class="i3d-caption" data-caption={String(i)} style="position:absolute;will-change:transform,opacity">
                 <span class="tag tag-brand mb-3 inline-block">{a.eyebrow}</span>
                 <h3 class="font-extrabold text-display-md text-white mb-3">{a.title}</h3>
-                <p class="text-[1rem] leading-relaxed text-white/65 font-light">{a.desc}</p>
+                <p class="text-[1rem] leading-relaxed text-white/75 font-light">{a.desc}</p>
               </div>
             ))}
           </div>
@@ -127,7 +139,7 @@ const annotations = [
         {components.map((c) => (
           <li class="card-dark p-5">
             <div class="font-bold text-white text-sm mb-1.5">{c.t}</div>
-            <div class="text-sm text-white/55 font-light leading-relaxed">{c.d}</div>
+            <div class="text-sm text-white/75 font-light leading-relaxed">{c.d}</div>
           </li>
         ))}
       </ul>
@@ -1206,6 +1218,8 @@ const annotations = [
       disposed = true;
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', maybeLoad);
+      window.removeEventListener('resize', maybeLoad);
       if (ctrl && ctrl.screenTextures)
         ctrl.screenTextures.forEach(function (t) {
           t.dispose();
@@ -1258,6 +1272,20 @@ const annotations = [
       document.head.appendChild(s);
     }
 
+    // Garde-fou de chargement (aligné sur LockerDistributor3D) : certains
+    // navigateurs (sessions automatisées, IO throttlé, vieux moteurs) ne
+    // déclenchent jamais le callback IO même pour un élément visible — le bloc
+    // de 300vh resterait alors vide. On double l'IO avec un fallback scroll +
+    // des checks géométriques différés. `if (loaded) return;` partout.
+    function nearViewport() {
+      var r = root.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      return r.top < vh * 1.4 && r.bottom > -vh * 0.4;
+    }
+    function maybeLoad() {
+      if (!loaded && nearViewport()) loadThree();
+    }
+
     if ('IntersectionObserver' in window) {
       // 1) Charge la 3D quand la zone approche du viewport.
       var loadIO = new IntersectionObserver(
@@ -1273,6 +1301,14 @@ const annotations = [
         { rootMargin: '300px 0px' },
       );
       loadIO.observe(root);
+
+      // Filets de secours : scroll/resize passifs + checks différés.
+      window.addEventListener('scroll', maybeLoad, { passive: true });
+      window.addEventListener('resize', maybeLoad, { passive: true });
+      [200, 800, 1600].forEach(function (t) {
+        setTimeout(maybeLoad, t);
+      });
+      maybeLoad();
 
       // 2) Met en pause / reprend la boucle selon la visibilité (perf :
       //    l'autre canvas #distributeur-3d tourne ailleurs sur la page).
@@ -1380,7 +1416,7 @@ const annotations = [
     font-size: 0.86rem;
     line-height: 1.45;
     font-weight: 300;
-    color: rgba(255, 255, 255, 0.66);
+    color: rgba(255, 255, 255, 0.8);
   }
   .i3d-annot-ic {
     flex: 0 0 auto;
