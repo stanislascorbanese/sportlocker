@@ -99,7 +99,13 @@ jobs:
           # le fix réel = bump Astro/Vite (cf. SECURITY.md §9 item #17). Advisory
           # dev-tooling (intégrité binaire du module Deno via NPM_CONFIG_REGISTRY),
           # non exploitable au runtime de l'app.
-          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr'
+          # GHSA-8hv8-536x-4wqp / GHSA-2pvr-wf23-7pc7 : astro (XSS slot non échappé /
+          # SSRF Host header sur error page prerender). Patch UNIQUEMENT en Astro 6.x
+          # (>=6.3.3 / >=6.4.6) ; on reste en Astro 5 car 6 exige Node >=22.12 alors
+          # que la CI tourne en Node 20 (cf. §9 #14). Risque réel faible : apps/web est
+          # `output: static` (pas de SSR/slot dynamique côté requête). Fix = migration
+          # Astro 6 + Node 22 (cf. §9 item #18).
+          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
