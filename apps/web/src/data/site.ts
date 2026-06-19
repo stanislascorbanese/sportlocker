@@ -16,6 +16,7 @@ export const NAV = [
   { href: '/hotels', label: 'Hôtels' },
   { href: '/couverture', label: 'Couverture' },
   { href: '/tarifs', label: 'Tarifs' },
+  { href: '/a-propos', label: 'À propos' },
 ] as const
 
 export const PRICING = {

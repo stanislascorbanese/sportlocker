@@ -347,6 +347,49 @@ describe('Gardes propriétaire', () => {
     expect(res.statusCode).toBe(404)
     expect(res.json().error).toBe('payment_not_found')
   })
+
+  it('pay par un autre user → 403 forbidden', async () => {
+    const f = await seedAll()
+    const id = (await createSlot(f)).json().id
+
+    const otherUserId = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email)
+      VALUES (${otherUserId}, ${'fb-' + otherUserId.slice(0, 8)}, ${'thief@test.local'})`
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${id}/pay`,
+      headers: { authorization: authHeader(otherUserId) },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toBe('forbidden')
+  })
+
+  it('pay sur une résa déjà scheduled → 409 reservation_not_payable', async () => {
+    const f = await seedAll()
+    const id = (await createSlot(f)).json().id
+    // bascule manuelle pending_payment → scheduled (simule un confirm parallèle)
+    await pgSql`UPDATE reservations SET status = 'scheduled' WHERE id = ${id}`
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${id}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('reservation_not_payable')
+  })
+
+  it('confirm-simulated sur une résa inexistante → 404 payment_not_found', async () => {
+    const f = await seedAll()
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${randomUUID()}/pay/confirm-simulated`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('payment_not_found')
+  })
 })
 
 describe('Cron expire-reservations — paniers abandonnés', () => {

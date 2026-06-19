@@ -251,6 +251,32 @@ describe('Porte-monnaie prépayé', () => {
     expect(second.statusCode).toBe(409)
   })
 
+  it('pay/wallet sur une résa inexistante → 404 payment_not_found', async () => {
+    const f = await seedTenant()
+    await topup(f.userId, 2000)
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${randomUUID()}/pay/wallet`,
+      headers: { authorization: citizenHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('payment_not_found')
+  })
+
+  it('pay/wallet par un autre user → 403 forbidden', async () => {
+    const f = await seedTenant()
+    const rid = await createSlot(f)
+    const other = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email)
+      VALUES (${other}, ${'fb-' + other.slice(0, 8)}, ${other.slice(0, 8) + '@test.local'})`
+    await topup(other, 2000)
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay/wallet`,
+      headers: { authorization: citizenHeader(other) },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toBe('forbidden')
+  })
+
   it('401 sans token', async () => {
     const res = await app.inject({ method: 'GET', url: '/v1/wallet' })
     expect(res.statusCode).toBe(401)
