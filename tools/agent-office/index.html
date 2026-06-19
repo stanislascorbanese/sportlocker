@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SportLocker · Agent Office</title>
+<title>SportLocker · Agent Office (live)</title>
 <style>
   :root { --txt:#e8ecf6; --dim:#8b93ad; --line:rgba(255,255,255,.09); --panel:rgba(18,22,36,.72); }
   *{box-sizing:border-box} html,body{margin:0;height:100%;background:#0e1018;color:var(--txt);
@@ -26,7 +26,8 @@
   #title h1 b{color:#6ea8ff}
   #title p{margin:3px 0 0;font-size:11px;color:var(--dim);letter-spacing:.4px}
   #title .conn{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:10px;letter-spacing:1.5px;color:var(--dim)}
-  #title .conn i{width:7px;height:7px;border-radius:50%;background:#6ea8ff;box-shadow:0 0 8px #6ea8ff;animation:pulse 2.2s infinite}
+  #title .conn i{width:7px;height:7px;border-radius:50%;background:#f4c04e;box-shadow:0 0 8px #f4c04e}
+  #title .conn.on i{background:#36d399;box-shadow:0 0 8px #36d399;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
   #feed{top:18px;right:18px;width:300px;max-height:64vh;padding:12px 13px;border-radius:14px;background:var(--panel);
     border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);overflow:hidden;pointer-events:none}
@@ -51,8 +52,8 @@
 <div id="app"></div>
 <div id="title" class="hud">
   <h1>SPORTLOCKER<b>·</b>AGENT OFFICE</h1>
-  <p>console super-admin — visualisation de la flotte d'agents</p>
-  <div class="conn" id="conn"><i></i><span id="connlab">mode ambiant</span></div>
+  <p>orchestration multi-agents — flux temps réel</p>
+  <div class="conn" id="conn"><i></i><span id="connlab">connexion…</span></div>
 </div>
 <div id="feed" class="hud"><h2><span class="live"></span> ACTIVITY FEED</h2><div id="rows"></div></div>
 <div id="legend" class="hud"></div>
@@ -408,7 +409,7 @@ function spawnWorker(verb){
   const w={...bot,pl,pos:stations['gateOut'].pos.clone(),phase:0,speed:1.95,armSwing:0,workDur:2.4,
     plan:[stations['gate'].pos,stations['gateIn'].pos,dpos,stations['gateIn'].pos,stations['gate'].pos,stations['gateOut'].pos],
     leg:0,faceT:null,state:'walk',t:0,verb};
-  bot.g.position.copy(w.pos); workers.push(w); gatePulse=1; pushFeed('#7fe3d6','worker',verb); }
+  bot.g.position.copy(w.pos); workers.push(w); gatePulse=1; }
 let gatePulse=0;
 
 /* ================= feed + activation réelle ================= */
@@ -422,9 +423,15 @@ function activate(id,verb){ const a=agents.find(x=>x.def.id===id); if(!a) return
   a.realVerb=verb; a.realUntil=clock.elapsedTime+5; a.realDur=5; a.realStart=clock.elapsedTime; lastActive=a;
   a.pl.lab.textContent=verb; a.pl.el.classList.add('work'); pushFeed(a.def.color,a.def.name,verb); }
 
-/* ================= état ambiant ================= */
-const conn=document.getElementById('conn'), connlab=document.getElementById('connlab'); connlab.textContent='mode ambiant';
-const WORKER_VERBS=['déploie une release','sync inventaire','heartbeat parc','job overdue','relance MQTT','purge RGPD','recalcul stock'];
+/* ================= SSE ================= */
+const conn=document.getElementById('conn'), connlab=document.getElementById('connlab');
+function connect(){ let es; try{ es=new EventSource('/api/stream'); }catch{ return; }
+  es.onopen=()=>{ conn.classList.add('on'); connlab.textContent='LIVE — transcript de session'; };
+  es.onerror=()=>{ conn.classList.remove('on'); connlab.textContent='hors-ligne (mode ambiant)'; };
+  es.onmessage=(m)=>{ let ev; try{ ev=JSON.parse(m.data); }catch{ return; }
+    if(ev.agent==='*worker'){ spawnWorker(ev.verb); pushFeed('#7fe3d6','worker',ev.verb); }
+    else if(byId[ev.agent]) activate(ev.agent,ev.verb); }; }
+connect();
 
 /* ================= IA ambiante ================= */
 function pickTarget(a){ const r=Math.random();
@@ -437,9 +444,8 @@ function startWork(a){ a.sport=a.targetKey==='gym'; a.state='work'; a.t=a.sport?
   if(clock.elapsedTime<a.realUntil) return;
   const home=a.targetKey===a.def.home;
   const verb=home? a.def.verbs[(Math.random()*a.def.verbs.length)|0] : ({kanban:'sync kanban',board:'planifie',desk1:'pair-programming',desk2:'revue',gym:'fait du sport 💪',smoke:'pause clope 🚬',break:'pause café ☕'}[a.targetKey]||'travaille');
-  a.pl.lab.textContent=verb; a.pl.el.classList.add('work'); lastActive=a; pushFeed(a.def.color,a.def.name,verb); }
+  a.pl.lab.textContent=verb; a.pl.el.classList.add('work'); }
 agents.forEach(a=>setTimeout(()=>{ pickTarget(a); a.state='walk'; },Math.random()*2500));
-setInterval(()=>{ if(Math.random()<0.7) spawnWorker(WORKER_VERBS[(Math.random()*WORKER_VERBS.length)|0]); },11000);
 
 /* ================= caméra cinématique ================= */
 let cineMode='auto', cineT=6, cineFocus=null, cineHold=0;

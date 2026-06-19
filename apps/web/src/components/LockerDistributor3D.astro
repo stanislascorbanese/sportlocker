@@ -3,6 +3,18 @@
 // Three.js (r128) chargé en lazy quand la section entre dans le viewport.
 // Les traits d'étiquettes passent en pointillés quand le point d'ancrage
 // est occulté par la borne (raycast caméra → ancre chaque frame).
+
+// A11y : mêmes 6 étiquettes que le tableau `LABELS` du script (titre + détail),
+// restituées en texte pour lecteurs d'écran. Les `.sl5-label` visuelles restent
+// décoratives (aria-hidden). Garder ces deux sources synchronisées.
+const labels = [
+  { t: 'Panneau solaire', d: 'Module monocristallin 80 W. Autonomie 5 jours sans soleil grâce à la batterie LiFePO4 intégrée.' },
+  { t: 'Grandes portes (matériel long)', d: 'Hauteur 1 m pour raquettes, cordes, cônes et frisbees. Verrou électromécanique IP54.' },
+  { t: 'Petites portes (ballons)', d: 'Format 30×30×30 cm pour ballons foot, basket, volley, rugby. 6 casiers compacts.' },
+  { t: 'Écran tactile', d: "Écran capacitif 7\" antivandale. Affiche le stock en temps réel et guide l'usager pendant la réservation." },
+  { t: 'Clavier code PIN', d: 'Saisie sécurisée pour les usagers sans smartphone. Code unique généré à la réservation, valable 15 min.' },
+  { t: 'Lecteur QR code', d: "Caméra industrielle, décodage offline. JWT HS256, déverrouillage en moins d'une seconde même sans réseau." },
+]
 ---
 
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -32,6 +44,13 @@
   aria-label="Rendu 3D interactif annoté d'un distributeur SportLocker à huit casiers mixtes : écran tactile, clavier PIN, lecteur QR et panneau solaire. Des étiquettes reliées par des lignes de repère désignent les composants principaux."
 ></div>
 
+<!-- A11y : contenu des 6 étiquettes 3D restitué en texte pour lecteurs d'écran. -->
+<ul class="sr-only">
+  {labels.map((l) => (
+    <li><strong>{l.t}</strong> — {l.d}</li>
+  ))}
+</ul>
+
 <div class="flex flex-wrap gap-2 items-center mt-4 mb-3">
   <button id="sl5-open" class="btn btn-outline btn-sm" type="button">Ouvrir toutes les portes</button>
   <button id="sl5-rotate" class="btn btn-outline btn-sm" type="button">Rotation auto</button>
@@ -48,7 +67,7 @@
   <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#8A8A86"></span>Hors ligne</span>
 </div>
 
-<p class="text-[0.78rem] text-white/60 mt-3">
+<p class="text-[0.78rem] text-white/75 mt-3">
   Glissez pour pivoter · molette pour zoomer · cliquez une porte pour l'ouvrir · survolez (ou touchez) une étiquette pour en lire le détail. Les traits passent en pointillés quand le repère est masqué par la borne.
 </p>
 
@@ -86,11 +105,16 @@
       ];
 
       var scene = new THREE.Scene();
+      // Color grade navy unifié + brume exponentielle pour la profondeur ciné
+      // (cohérent avec le héros Immersive3DStory). Le distributeur « ressort »
+      // sur un fond plein navy plutôt que posé sur du vide clair.
+      scene.fog = new THREE.FogExp2(0x0d1b2a, 0.028);
       var camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 100);
       var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(W, H);
-      renderer.setClearColor(0x000000, 0);
+      // Fond navy plein (au lieu du transparent plat) : socle du rig « film ».
+      renderer.setClearColor(0x0d1b2a, 1);
       stage.appendChild(renderer.domElement);
 
       // Resilience WebGL : Safari/macOS peut "perdre" le contexte WebGL
@@ -108,27 +132,42 @@
           '</div>';
       }, false);
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x70726c, 0.95));
-      var key = new THREE.DirectionalLight(0xffffff, 0.85);
+      // Éclairage « film » (repris du héros Immersive3DStory) : ambient bas,
+      // hémisphère ciel vert pâle → sol navy, key chaude, fill froid bleu, et
+      // surtout des rim lights teintées vert marque (#1D9E75) qui détourent la
+      // silhouette de la borne pour créer un halo premium.
+      scene.add(new THREE.AmbientLight(0x1a2e42, 0.45));
+      scene.add(new THREE.HemisphereLight(0x9ad6c0, 0x0d1b2a, 0.5));
+      var key = new THREE.DirectionalLight(0xfff4e0, 1.0);
       key.position.set(7, 9, 8);
       scene.add(key);
-      var fill = new THREE.DirectionalLight(0xffffff, 0.3);
-      fill.position.set(-7, 4, 3);
+      var fill = new THREE.DirectionalLight(0x3a86dd, 0.28);
+      fill.position.set(-7, 4, 5);
       scene.add(fill);
+      // Spot avant doux sur la colonne interface (écran/PIN/QR) pour la lecture.
       scene.add(
         (function () {
-          var p = new THREE.PointLight(0xffffff, 0.5, 8);
-          p.position.set(1.5, 2.6, 2.3);
+          var p = new THREE.PointLight(0xffffff, 0.45, 9, 2);
+          p.position.set(1.5, 2.6, 2.6);
           return p;
         })(),
       );
+      // Rim light verte derrière/au-dessus de la borne : halo de détourage marque.
+      var rimBack = new THREE.PointLight(0x1d9e75, 2.4, 18, 2);
+      rimBack.position.set(0, 3.4, -3.4);
+      scene.add(rimBack);
+      // Rim verte latérale gauche (rebond sur les portes / arête solaire).
+      var rimSide = new THREE.PointLight(0x1d9e75, 1.4, 14, 2);
+      rimSide.position.set(-4.0, 3.0, -1.0);
+      scene.add(rimSide);
 
       var machine = new THREE.Group();
       scene.add(machine);
 
       function mat(c, r, m) {
-        return new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.65 : r, metalness: m == null ? 0.12 : m });
+        // Défauts plus « premium » : carrosserie satinée (roughness ↓) avec une
+        // pointe de metalness pour accrocher key + rim sans devenir miroir.
+        return new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.5 : r, metalness: m == null ? 0.22 : m });
       }
       function box(w, h, d, c, r, m) {
         return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c, r, m));
@@ -208,8 +247,11 @@
         return new THREE.Mesh(g, mat(c, 0.5, me == null ? 0.3 : me));
       }
 
-      var BODY = 0xd7dbd6,
-        DOOR = 0xe9ecea,
+      // Carrosserie légèrement assombrie/refroidie pour mieux capter la rim
+      // verte et ne pas « cramer » en blanc sur le fond navy. Les portes
+      // restent claires (lisibilité), le liseré de marque reste TEAL.
+      var BODY = 0xc4cad0,
+        DOOR = 0xe4e8e8,
         TEAL = 0x1d9e75,
         DARK = 0x2b3137;
 
@@ -272,6 +314,11 @@
       machine.add(
         (function () {
           var s = rcol(4.24, 0.06, 0.06, 0.03, TEAL, 0.5, 0.1);
+          // Liseré de marque émissif : fin trait vert qui « glow » en façade.
+          var sm = s.material;
+          sm.emissive = new THREE.Color(TEAL);
+          sm.emissiveIntensity = 0.8;
+          if ('toneMapped' in sm) sm.toneMapped = false;
           s.position.set(0, 4.18, 0.9);
           return s;
         })(),
@@ -350,15 +397,15 @@
           im.position.set(lk.x, lk.y, 0.76);
           machine.add(im);
         }
-        var led = new THREE.Mesh(
-          new THREE.SphereGeometry(0.033, 12, 10),
-          new THREE.MeshStandardMaterial({
-            color: STATUS[lk.status],
-            emissive: STATUS[lk.status],
-            emissiveIntensity: 0.9,
-            roughness: 0.4,
-          }),
-        );
+        var ledMat = new THREE.MeshStandardMaterial({
+          color: STATUS[lk.status],
+          emissive: STATUS[lk.status],
+          emissiveIntensity: 1.35,
+          roughness: 0.35,
+        });
+        // Non tone-mappé : la LED « glow » franchement sur le fond navy assombri.
+        if ('toneMapped' in ledMat) ledMat.toneMapped = false;
+        var led = new THREE.Mesh(new THREE.SphereGeometry(0.033, 12, 10), ledMat);
         led.position.set(lk.x + lk.w / 2 - 0.13, lk.y + lk.h / 2 - 0.13, 0.92);
         machine.add(led);
         var pivot = new THREE.Group();
@@ -677,7 +724,8 @@
 
       var shTex = tex(256, 256, function (g) {
         var r = g.createRadialGradient(128, 128, 10, 128, 128, 120);
-        r.addColorStop(0, 'rgba(0,0,0,0.34)');
+        // Ombre au sol plus dense (sur fond navy plein) pour ancrer la borne.
+        r.addColorStop(0, 'rgba(0,0,0,0.5)');
         r.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = r;
         g.fillRect(0, 0, 256, 256);
@@ -698,33 +746,59 @@
       svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;color:rgba(255,255,255,0.55)';
       stage.appendChild(svg);
 
+      // Cartes d'annotation « verre navy » alignées sur le héros Immersive3DStory :
+      // fond rgba(13,27,42,.82) + blur 14px, bord 1px blanc/10 %, accent vert 3px
+      // à gauche, radius 16, ombre portée, petite icône mask SVG accent vert.
+      var ICONS = {
+        sun: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cline x1='12' y1='2' x2='12' y2='5'/%3E%3Cline x1='12' y1='19' x2='12' y2='22'/%3E%3Cline x1='2' y1='12' x2='5' y2='12'/%3E%3Cline x1='19' y1='12' x2='22' y2='12'/%3E%3Cline x1='4.9' y1='4.9' x2='7' y2='7'/%3E%3Cline x1='17' y1='17' x2='19.1' y2='19.1'/%3E%3Cline x1='4.9' y1='19.1' x2='7' y2='17'/%3E%3Cline x1='17' y1='7' x2='19.1' y2='4.9'/%3E%3C/svg%3E",
+        lock: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E",
+        screen: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='5' width='20' height='14' rx='2'/%3E%3Cline x1='2' y1='10' x2='22' y2='10'/%3E%3C/svg%3E",
+        pin: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Ccircle cx='8' cy='8' r='1'/%3E%3Ccircle cx='12' cy='8' r='1'/%3E%3Ccircle cx='16' cy='8' r='1'/%3E%3Ccircle cx='8' cy='12' r='1'/%3E%3Ccircle cx='12' cy='12' r='1'/%3E%3Ccircle cx='16' cy='12' r='1'/%3E%3C/svg%3E",
+        qr: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7'/%3E%3Crect x='14' y='3' width='7' height='7'/%3E%3Crect x='3' y='14' width='7' height='7'/%3E%3Cline x1='14' y1='14' x2='21' y2='21'/%3E%3C/svg%3E",
+      };
       var styleEl = document.createElement('style');
       styleEl.textContent =
-        '.sl5-label{position:absolute;pointer-events:auto;cursor:help;background:rgba(13,27,42,0.92);border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:5px 10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:box-shadow .2s ease,border-color .2s ease;max-width:220px;z-index:1;color:#fff}' +
-        '.sl5-label-t{font-size:12px;font-weight:500;line-height:1.25;white-space:nowrap}' +
-        '.sl5-label-d{max-height:0;overflow:hidden;opacity:0;font-size:11px;font-weight:400;color:rgba(255,255,255,0.72);line-height:1.4;transition:max-height .25s ease,opacity .2s ease,margin-top .2s ease,padding-top .2s ease;white-space:normal}' +
-        '.sl5-label:hover,.sl5-label.expanded{z-index:10;box-shadow:0 8px 28px rgba(0,0,0,0.5);border-color:rgba(29,158,117,0.55)}' +
+        ".sl5-label{position:absolute;pointer-events:auto;cursor:help;background:rgba(13,27,42,0.82);border:1px solid rgba(255,255,255,0.1);border-left:3px solid #1d9e75;border-radius:16px;padding:0.6rem 0.75rem;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 18px 40px -18px rgba(0,0,0,0.6);font-family:'DM Sans',system-ui,sans-serif;transition:box-shadow .25s ease,border-color .25s ease,transform .25s cubic-bezier(.16,1,.3,1);max-width:230px;z-index:1;color:#fff}" +
+        '.sl5-label-h{display:flex;align-items:center;gap:0.5rem}' +
+        '.sl5-label-ic{flex:0 0 auto;width:26px;height:26px;border-radius:8px;background:rgba(29,158,117,0.16);position:relative}' +
+        '.sl5-label-ic::after{content:"";position:absolute;inset:5px;background:#2bc295;-webkit-mask-position:center;mask-position:center;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-size:contain;mask-size:contain}' +
+        ".sl5-ic-sun::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.sun + "\");mask-image:url(\"data:image/svg+xml," + ICONS.sun + "\")}" +
+        ".sl5-ic-lock::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.lock + "\");mask-image:url(\"data:image/svg+xml," + ICONS.lock + "\")}" +
+        ".sl5-ic-screen::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.screen + "\");mask-image:url(\"data:image/svg+xml," + ICONS.screen + "\")}" +
+        ".sl5-ic-pin::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.pin + "\");mask-image:url(\"data:image/svg+xml," + ICONS.pin + "\")}" +
+        ".sl5-ic-qr::after{-webkit-mask-image:url(\"data:image/svg+xml," + ICONS.qr + "\");mask-image:url(\"data:image/svg+xml," + ICONS.qr + "\")}" +
+        '.sl5-label-t{font-size:0.8rem;font-weight:700;line-height:1.2;white-space:nowrap;color:#fff}' +
+        '.sl5-label-d{max-height:0;overflow:hidden;opacity:0;font-size:0.76rem;font-weight:300;color:rgba(255,255,255,0.8);line-height:1.45;transition:max-height .25s ease,opacity .2s ease,margin-top .2s ease,padding-top .2s ease;white-space:normal}' +
+        '.sl5-label:hover,.sl5-label.expanded{z-index:10;box-shadow:0 22px 48px -16px rgba(0,0,0,0.7);border-color:rgba(255,255,255,0.18);transform:translateY(-1px)}' +
         '.sl5-label:hover .sl5-label-t,.sl5-label.expanded .sl5-label-t{white-space:normal}' +
-        '.sl5-label:hover .sl5-label-d,.sl5-label.expanded .sl5-label-d{max-height:120px;opacity:1;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.12)}';
+        '.sl5-label:hover .sl5-label-d,.sl5-label.expanded .sl5-label-d{max-height:130px;opacity:1;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,0.1)}' +
+        '@media (prefers-reduced-motion: reduce){.sl5-label{transition:none}.sl5-label-d{transition:opacity .15s ease}}';
       stage.appendChild(styleEl);
 
       var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
       var LABELS = [
-        { t: 'Panneau solaire', d: 'Module monocristallin 80 W. Autonomie 5 jours sans soleil grâce à la batterie LiFePO4 intégrée.', a: new THREE.Vector3(0, 4.78, -0.05), side: 'left', ly: 0.1 },
-        { t: 'Grandes portes (matériel long)', d: 'Hauteur 1 m pour raquettes, cordes, cônes et frisbees. Verrou électromécanique IP54.', a: new THREE.Vector3(-1.66, 2.4, 1.0), side: 'left', ly: 0.46 },
-        { t: 'Petites portes (ballons)', d: 'Format 30×30×30 cm pour ballons foot, basket, volley, rugby. 6 casiers compacts.', a: new THREE.Vector3(0.2, 1.6, 1.05), side: 'left', ly: 0.8 },
-        { t: 'Écran tactile', d: 'Écran capacitif 7" antivandale. Affiche le stock en temps réel et guide l\'usager pendant la réservation.', a: new THREE.Vector3(1.5, 2.86, 1.0), side: 'right', ly: 0.18 },
-        { t: 'Clavier code PIN', d: 'Saisie sécurisée pour les usagers sans smartphone. Code unique généré à la réservation, valable 15 min.', a: new THREE.Vector3(1.5, 1.62, 1.0), side: 'right', ly: 0.5 },
-        { t: 'Lecteur QR code', d: 'Caméra industrielle, décodage offline. JWT HS256, déverrouillage en moins d\'une seconde même sans réseau.', a: new THREE.Vector3(1.5, 0.86, 0.98), side: 'right', ly: 0.82 },
+        { icon: 'sun', t: 'Panneau solaire', d: 'Module monocristallin 80 W. Autonomie 5 jours sans soleil grâce à la batterie LiFePO4 intégrée.', a: new THREE.Vector3(0, 4.78, -0.05), side: 'left', ly: 0.1 },
+        { icon: 'lock', t: 'Grandes portes (matériel long)', d: 'Hauteur 1 m pour raquettes, cordes, cônes et frisbees. Verrou électromécanique IP54.', a: new THREE.Vector3(-1.66, 2.4, 1.0), side: 'left', ly: 0.46 },
+        { icon: 'lock', t: 'Petites portes (ballons)', d: 'Format 30×30×30 cm pour ballons foot, basket, volley, rugby. 6 casiers compacts.', a: new THREE.Vector3(0.2, 1.6, 1.05), side: 'left', ly: 0.8 },
+        { icon: 'screen', t: 'Écran tactile', d: 'Écran capacitif 7" antivandale. Affiche le stock en temps réel et guide l\'usager pendant la réservation.', a: new THREE.Vector3(1.5, 2.86, 1.0), side: 'right', ly: 0.18 },
+        { icon: 'pin', t: 'Clavier code PIN', d: 'Saisie sécurisée pour les usagers sans smartphone. Code unique généré à la réservation, valable 15 min.', a: new THREE.Vector3(1.5, 1.62, 1.0), side: 'right', ly: 0.5 },
+        { icon: 'qr', t: 'Lecteur QR code', d: 'Caméra industrielle, décodage offline. JWT HS256, déverrouillage en moins d\'une seconde même sans réseau.', a: new THREE.Vector3(1.5, 0.86, 0.98), side: 'right', ly: 0.82 },
       ];
       LABELS.forEach(function (L) {
         var d = document.createElement('div');
         d.className = 'sl5-label';
+        // En-tête : petite icône carrée (mask SVG, accent vert) + titre.
+        var head = document.createElement('div');
+        head.className = 'sl5-label-h';
+        var icEl = document.createElement('span');
+        icEl.className = 'sl5-label-ic sl5-ic-' + L.icon;
+        head.appendChild(icEl);
         var titleEl = document.createElement('div');
         titleEl.className = 'sl5-label-t';
         titleEl.textContent = L.t;
-        d.appendChild(titleEl);
+        head.appendChild(titleEl);
+        d.appendChild(head);
         var descEl = document.createElement('div');
         descEl.className = 'sl5-label-d';
         descEl.textContent = L.d;
@@ -745,7 +819,8 @@
         L.line = ln;
         var dot = document.createElementNS(NS, 'circle');
         dot.setAttribute('r', '3.5');
-        dot.setAttribute('fill', 'currentColor');
+        // Point d'ancrage teinté vert marque pour matcher l'accent des cartes.
+        dot.setAttribute('fill', '#2bc295');
         svg.appendChild(dot);
         L.dot = dot;
       });
@@ -984,6 +1059,18 @@
       document.head.appendChild(s);
     }
 
+    // Lazy-load à l'approche du viewport, avec garde-fous : certains navigateurs
+    // (sessions automatisées, IO throttlé, vieux moteurs) ne déclenchent jamais
+    // le callback IO même pour un élément visible. On ajoute donc un fallback
+    // scroll + des checks géométriques différés pour garantir le chargement.
+    function nearViewport() {
+      var r = stage.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      return r.top < vh * 1.4 && r.bottom > -vh * 0.4;
+    }
+    function maybeLoad() {
+      if (!loaded && nearViewport()) loadThree();
+    }
     if ('IntersectionObserver' in window) {
       var io = new IntersectionObserver(
         function (entries) {
@@ -995,11 +1082,15 @@
             }
           }
         },
-        { rootMargin: '200px 0px' },
+        { rootMargin: '300px 0px' },
       );
       io.observe(stage);
-    } else {
-      loadThree();
     }
+    window.addEventListener('scroll', maybeLoad, { passive: true });
+    window.addEventListener('resize', maybeLoad, { passive: true });
+    [200, 800, 1600].forEach(function (t) {
+      setTimeout(maybeLoad, t);
+    });
+    maybeLoad();
   })();
 </script>
