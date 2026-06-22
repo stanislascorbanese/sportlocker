@@ -1,11 +1,43 @@
 ---
 // =============================================================================
-//  /comment-ca-marche — Expérience scroll-driven plein écran, façon apple.com.
+//  /comment-ca-marche — Narration scroll CONTINUE et UNIFIÉE (un seul flux).
 // =============================================================================
-//  PASSE 1 (cette passe) : STRUCTURE + SCAFFOLD + hooks data-*. AUCUN JS de
-//  motion ici — uniquement la charpente, les ancres et le CSS de fallback
-//  (reduced-motion / sans-JS lisible). La PASSE 2 (motion-engineer) câblera la
-//  mécanique de scroll.
+//  PASSE STRUCTURE-CONTINUITÉ (cette passe) : on transforme les 5 actes
+//  « plein écran qui se cognent » en UNE narration qui se fond. AUCUN JS de
+//  motion ici — uniquement la charpente du flux, les hooks data-* et le CSS de
+//  repos/fallback (reduced-motion / sans-JS lisible). Le contenu, les messages
+//  et l'ordre des actes NE CHANGENT PAS (UX validée) : seul le FLUX visuel bouge.
+//
+//  ─────────────────────────────────────────────────────────────────────────
+//  STRATÉGIE DE CONTINUITÉ (ce qui change vs la passe « actes alternés ») :
+//
+//  1. FOND CONTINU UNIQUE — fini l'alternance dure navy-800/900 et le crossfade
+//     à 2 couches « screen ». UNE seule couche fixe `.ccm-bg-flow`
+//     ([data-bg-progress]) couvre tout le scroll : un dégradé navy profond
+//     (#0D1B2A) → nuances le long du parcours → navy de clôture. Les valeurs de
+//     teinte sont exposées en variables CSS (--bg-c0..--bg-c3, --bg-glow) avec
+//     un état de repos navy ; la PASSE 2 lerpera ces variables selon la
+//     progression globale (0→1) pour MORPHER la teinte en continu.
+//     → Les sections sont TRANSPARENTES (plus de bg-navy-800/900 opaques qui
+//       coupent) : le fond traverse toute la page. Le contraste local est tenu
+//       par les `card-dark` (déjà bg-white/[0.04]) et la bande récap translucide.
+//     → ANCRES qui gardent un fond à eux : le hero (hero-glow par-dessus le flux)
+//       et l'outro FinalCta (bg-cta-gradient, hors de ce fichier) — ils bornent
+//       le flux sans le rompre.
+//
+//  2. TRANSITIONS SANS RUPTURE — chaque acte est enveloppé d'un wrapper
+//     [data-act-fade] (état de repos = pleinement visible, lisible sans JS).
+//     La PASSE 2 liera opacity + translateY/scale légers à la position du
+//     wrapper dans le viewport : l'acte sortant se dissout pendant que le
+//     suivant entre (zones de recouvrement), sans bordure ni saut de fond.
+//     → Plus de `min-h-screen` qui se cognent : padding vertical généreux et
+//       régulier pour la respiration, pics 3D (héros, borne) laissés respirer.
+//
+//  3. FIL CONDUCTEUR — barre de progression conservée ([data-scroll-progress]).
+//     Ajout d'un fil vertical décoratif [data-thread] (accent vert, aria-hidden)
+//     qui relie les actes comme un seul parcours ; sa progression de remplissage
+//     suit la même valeur que la barre (PASSE 2).
+//  ─────────────────────────────────────────────────────────────────────────
 //
 //  ANGLE (passe 0) : bénéfice ÉTABLISSEMENT d'abord. Le geste citoyen est la
 //  PREUVE (héros 3D, puis bande récap condensée), pas le sujet. On marque
@@ -30,21 +62,44 @@
 //                 le récap usager survit en TEXTE dans la bande de transition).
 //
 //  ─────────────────────────────────────────────────────────────────────────
-//  TODO — HOOKS à câbler en PASSE 2 (motion-engineer), transform/opacity only,
-//  rAF-throttle, listeners passifs, dispose au pagehide, neutralisé sous
-//  prefers-reduced-motion :
+//  TODO — HOOKS à câbler en PASSE 2 (motion-engineer), transform/opacity only
+//  (+ lerp de variables CSS de teinte pour le fond), rAF-throttle, listeners
+//  passifs, dispose au pagehide, TOUT neutralisé sous prefers-reduced-motion :
+//
+//   CONTINUITÉ (nouveaux / refondus) :
+//    [data-bg-progress]       → ★ MORPH DE FOND CONTINU. Couche fixe unique.
+//                               Lerper les variables CSS de teinte
+//                               (--bg-c0..--bg-c3, --bg-glow-x/y/a) selon la
+//                               progression GLOBALE de page (0→1) → la couleur
+//                               se déplace en continu, navy profond → nuances →
+//                               navy de clôture. JAMAIS d'anim background-color
+//                               brute : on anime les custom props consommées par
+//                               un gradient, ou l'opacité de halos. Pas de
+//                               crossfade par acte (l'ancienne logique [data-bg-act]
+//                               est SUPPRIMÉE).
+//    [data-act-fade]          → ★ DISSOLVE D'ACTES SCROLL-LINKED. Un wrapper par
+//                               acte. Mapper sa position dans le viewport →
+//                               opacity (~0.35→1→0.35 aux extrémités) + translateY
+//                               léger (±16px) et/ou scale (0.98→1). Zones de
+//                               recouvrement entre actes adjacents : l'un sort
+//                               pendant que l'autre entre. NE PAS toucher aux
+//                               composants 3D internes (Immersive3DStory /
+//                               LockerDistributor3D gèrent leur scroll propre) —
+//                               le fade joue sur l'enveloppe AUTOUR, sobre, et ne
+//                               doit pas masquer le contenu 3D à mi-acte.
+//    [data-thread]            → ★ FIL CONDUCTEUR vertical (accent vert, décoratif,
+//                               aria-hidden). Piloter le remplissage (scaleY ou
+//                               hauteur d'un span interne) avec la MÊME valeur que
+//                               la barre de progression. Caché sous reduced-motion.
+//
+//   CONSERVÉS (mécanique inchangée) :
 //    [data-scroll-progress]   → barre de progression globale (scaleX 0→1 via --p).
-//    [data-scene-act="0..4"]  → index narratif de chaque acte plein écran.
-//    [data-bg-act]            → crossfade de fond inter-actes (couches superposées).
+//    [data-scene-act="0..4"]  → index narratif de chaque acte (repères IO).
 //    [data-parallax="±n"]     → couche décorative translatée (transform Y borné).
-//    [data-pin] / [data-pin-inner] → colonne épinglée (ACTE 3) ; sticky CSS de
-//                               base déjà posé, à renforcer si besoin.
-//    [data-progress]          → mapper la progression de l'acte sur la cadence
-//                               des reveals d'étapes (ACTE 3).
-//    [data-floating-cta]      → CTA flottant : apparaît après le hero, disparaît
-//                               quand FinalCta entre dans le viewport.
-//    [data-mobile-cta]        → barre d'action fixe bas mobile (même logique
-//                               d'apparition/disparition que le CTA flottant).
+//    [data-pin] / [data-pin-inner] → colonne épinglée (ACTE 3) ; sticky CSS posé.
+//    [data-progress]          → cadence des reveals d'étapes (ACTE 3).
+//    [data-floating-cta]      → CTA flottant : après le hero → avant FinalCta.
+//    [data-mobile-cta]        → barre d'action fixe bas mobile (même logique).
 //    [data-scroll-hint]       → invite « Défilez » : fondu dès le 1er scroll.
 //    [data-reveal]            → DÉJÀ géré par Base.astro (IO + CSS). Ne pas recâbler.
 //  ─────────────────────────────────────────────────────────────────────────
@@ -123,13 +178,24 @@ const inclus = [
   </div>
 
   <!-- ====================================================================== -->
-  <!-- FOND CINÉMATIQUE — 2 couches fixes superposées, crossfade par OPACITY   -->
-  <!-- (jamais d'animation de background-color). Pilotées par l'acte le plus   -->
-  <!-- visible (IntersectionObserver). Décoratif, navy cohérent, derrière main.-->
+  <!-- FOND CONTINU UNIFIÉ — UNE couche fixe plein écran qui MORPHE le long du  -->
+  <!-- scroll (plus d'alternance navy-800/900, plus de crossfade par acte).    -->
+  <!-- Le dégradé consomme des variables CSS de teinte (état de repos = navy    -->
+  <!-- profond, lisible sans JS). PASSE 2 : lerper ces variables via            -->
+  <!-- [data-bg-progress] selon la progression GLOBALE → la couleur se déplace  -->
+  <!-- en continu. Décoratif, derrière le contenu, pointer-events:none.        -->
   <!-- ====================================================================== -->
-  <div class="ccm-bg" aria-hidden="true">
-    <span class="ccm-bg-layer ccm-bg-a" data-bg-layer="a"></span>
-    <span class="ccm-bg-layer ccm-bg-b" data-bg-layer="b"></span>
+  <div class="ccm-bg-flow" data-bg-progress aria-hidden="true"></div>
+
+  <!-- ====================================================================== -->
+  <!-- FIL CONDUCTEUR — ligne verticale décorative (accent vert) qui relie les  -->
+  <!-- actes comme un seul parcours. Décoratif (aria-hidden). PASSE 2 : son     -->
+  <!-- remplissage (.ccm-thread-fill) suit la MÊME valeur que la barre de       -->
+  <!-- progression. Masqué sous reduced-motion et sur petits écrans.           -->
+  <!-- ====================================================================== -->
+  <div class="ccm-thread" data-thread aria-hidden="true">
+    <span class="ccm-thread-track"></span>
+    <span class="ccm-thread-fill"></span>
   </div>
 
   <!-- ====================================================================== -->
@@ -138,13 +204,13 @@ const inclus = [
   <section
     class="ccm-act relative min-h-screen flex items-center overflow-hidden"
     data-scene-act="0"
-    data-bg-act="hero"
   >
     <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
     <!-- Couche décorative parallax (PASSE 2 : translateY léger au scroll). -->
     <div class="ccm-orb" data-parallax="-2" aria-hidden="true"></div>
 
-    <div class="container-x relative w-full pt-28 pb-28 sm:pt-32 text-center">
+    <!-- Enveloppe de dissolve scroll-linked (état de repos = visible). -->
+    <div class="ccm-act-fade container-x relative w-full pt-28 pb-28 sm:pt-32 text-center" data-act-fade>
       <span class="eyebrow" data-reveal>Comment ça marche</span>
       <h1
         class="font-extrabold text-display-xl text-white mt-4 mb-6 mx-auto max-w-4xl"
@@ -186,12 +252,11 @@ const inclus = [
   <!-- ====================================================================== -->
   <section
     id="geste"
-    class="ccm-act bg-navy-800 scroll-mt-20"
+    class="ccm-act scroll-mt-20"
     data-scene-act="1"
-    data-bg-act="navy-800"
   >
     <div class="container-x pt-24 sm:pt-28">
-      <div class="mb-2 max-w-2xl">
+      <div class="ccm-act-fade mb-2 max-w-2xl" data-act-fade>
         <span class="tag tag-brand mb-4 inline-block" data-reveal>La preuve, côté usager</span>
         <h2 class="section-title" data-reveal data-reveal-delay="1">
           Du téléphone<br class="hidden sm:block" /> au casier ouvert.
@@ -214,16 +279,18 @@ const inclus = [
   <!-- ====================================================================== -->
   <section
     id="recap-usager"
-    class="ccm-recap bg-navy-800 scroll-mt-20 pb-20 sm:pb-24"
+    class="ccm-recap scroll-mt-20 pb-20 sm:pb-24"
     aria-labelledby="recap-title"
   >
-    <div class="container-x">
+    <div class="ccm-act-fade container-x" data-act-fade>
       <p id="recap-title" class="text-sm text-white/75 font-light text-center mb-8 max-w-2xl mx-auto" data-reveal>
         En clair, côté usager : <span class="text-white">trouver, réserver, ouvrir, rendre</span> — sans guichet ni dépôt de papiers.
       </p>
-      <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-xl overflow-hidden border border-white/10">
+      <!-- Cartes translucides (card-dark) : le fond continu traverse, le voile
+           léger + bordure assure le contraste de lecture. -->
+      <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-xl overflow-hidden border border-white/10 backdrop-blur-sm">
         {recap.map((s, i) => (
-          <li class="bg-navy-800 p-5 sm:p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
+          <li class="card-dark !rounded-none p-5 sm:p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
             <div class="flex items-center gap-3 mb-2">
               <span class="font-extrabold text-2xl text-brand-400 leading-none">{s.n}</span>
               <span class="font-bold text-white text-base">{s.label}</span>
@@ -246,12 +313,11 @@ const inclus = [
   <!-- ====================================================================== -->
   <section
     id="distributeur-3d"
-    class="ccm-act bg-navy-900 scroll-mt-20 py-24 sm:py-28 min-h-screen flex flex-col justify-center"
+    class="ccm-act scroll-mt-20 py-28 sm:py-36 flex flex-col justify-center"
     data-scene-act="2"
-    data-bg-act="navy-900"
   >
     <div class="container-x">
-      <div class="mb-10 max-w-3xl">
+      <div class="ccm-act-fade mb-10 max-w-3xl" data-act-fade>
         <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté terrain</span>
         <h2 class="section-title" data-reveal data-reveal-delay="1">
           La borne installée<br class="hidden sm:block" /> sur vos sites.
@@ -273,7 +339,7 @@ const inclus = [
   <!-- ====================================================================== -->
   <!-- BASCULE · « côté usager → côté vous » — marqueur visuel de transition.  -->
   <!-- ====================================================================== -->
-  <div class="bg-navy-900" aria-hidden="true">
+  <div aria-hidden="true">
     <div class="container-x">
       <div class="ccm-switch" data-reveal>
         <span class="ccm-switch-from">Côté usager</span>
@@ -289,9 +355,8 @@ const inclus = [
   <!-- ====================================================================== -->
   <section
     id="installation"
-    class="ccm-act bg-navy-900 scroll-mt-20 pb-24 sm:pb-28 pt-4"
+    class="ccm-act scroll-mt-20 pb-24 sm:pb-28 pt-4"
     data-scene-act="3"
-    data-bg-act="navy-900"
     data-progress
   >
     <div class="container-x">
@@ -318,8 +383,10 @@ const inclus = [
           </div>
         </div>
 
-        <!-- Timeline onboarding : 4 étapes révélées une à une au scroll. -->
-        <ol class="ccm-steps flex flex-col gap-5">
+        <!-- Timeline onboarding : 4 étapes révélées une à une au scroll.
+             data-act-fade UNIQUEMENT ici (pas sur la colonne épinglée : un
+             ancêtre transformé casserait position:sticky du data-pin-inner). -->
+        <ol class="ccm-act-fade ccm-steps flex flex-col gap-5" data-act-fade>
           {onboarding.map((step, i) => (
             <li
               class="card-dark p-7 sm:p-8"
@@ -353,11 +420,10 @@ const inclus = [
   <!-- ACTE 4 · TOUT EST INCLUS — grille des prestations, suivie de FinalCta.   -->
   <!-- ====================================================================== -->
   <section
-    class="ccm-act bg-navy-800 py-24 sm:py-28"
+    class="ccm-act py-24 sm:py-28"
     data-scene-act="4"
-    data-bg-act="navy-800"
   >
-    <div class="container-x">
+    <div class="ccm-act-fade container-x" data-act-fade>
       <div class="text-center mb-14 max-w-2xl mx-auto">
         <span class="eyebrow" data-reveal>Tout est inclus</span>
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
@@ -426,14 +492,15 @@ const inclus = [
       // --- Hooks -------------------------------------------------------------
       var progressBar = doc.querySelector('[data-scroll-progress]')
       var parallaxEls = [].slice.call(doc.querySelectorAll('[data-parallax]'))
-      var bgA = doc.querySelector('[data-bg-layer="a"]')
-      var bgB = doc.querySelector('[data-bg-layer="b"]')
-      var sceneActs = [].slice.call(doc.querySelectorAll('[data-scene-act]'))
       var floatingCta = doc.querySelector('[data-floating-cta]')
       var mobileCta = doc.querySelector('[data-mobile-cta]')
       var scrollHint = doc.querySelector('[data-scroll-hint]')
       var heroAct = doc.querySelector('[data-scene-act="0"]')
       var finalCta = doc.getElementById('ccm-final-cta')
+      // Continuité (PASSE 2) : fond morphant, dissolves d'actes, fil conducteur.
+      var bgFlow = doc.querySelector('[data-bg-progress]')
+      var threadFill = doc.querySelector('[data-thread] .ccm-thread-fill')
+      var actFades = [].slice.call(doc.querySelectorAll('[data-act-fade]'))
 
       var reduced =
         window.matchMedia &&
@@ -441,9 +508,10 @@ const inclus = [
 
       // ---------------------------------------------------------------------
       //  prefers-reduced-motion : on laisse un état LISIBLE et FONCTIONNEL puis
-      //  on sort. La barre est masquée par CSS, le parallax figé, le fond fixé
-      //  sur la couche A, le hint visible, et les CTA flottant/mobile rendus
-      //  visibles immédiatement (sans glissement) pour rester convertissants.
+      //  on sort. La barre est masquée par CSS, le parallax figé, le fond continu
+      //  reste sur sa teinte de repos (aucun morph), les actes restent pleinement
+      //  visibles (aucun dissolve), le fil conducteur est masqué, le hint visible,
+      //  et les CTA flottant/mobile rendus visibles d'emblée (sans glissement).
       // ---------------------------------------------------------------------
       if (reduced) {
         if (progressBar) progressBar.style.display = 'none'
@@ -458,6 +526,55 @@ const inclus = [
 
       function clamp(v, lo, hi) {
         return v < lo ? lo : v > hi ? hi : v
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t
+      }
+
+      // ---------------------------------------------------------------------
+      //  MORPH DE FOND — keyframes de TEINTE le long du scroll global (0→1).
+      //  On interpole en RVB (composantes décomposées une fois) puis on écrit
+      //  les custom props consommées par le gradient CSS. JAMAIS d'animation de
+      //  background-color brut : on ne touche QUE les variables --bg-*.
+      //  c0..c3 = arrêts du linear-gradient · glow = halo brand (x/y/alpha).
+      // ---------------------------------------------------------------------
+      // navy profond → nuances tièdes le long du parcours → navy de clôture.
+      var BG_KEYS = [
+        // p=0   ouverture : navy profond, halo brand haut-droite (repos)
+        { c0: [13, 27, 42], c1: [16, 33, 52], c2: [26, 46, 66], c3: [13, 27, 42], gx: 78, gy: 12, ga: 0.1 },
+        // p≈0.33 héros/borne : bleu un peu plus profond, halo qui descend à gauche
+        { c0: [11, 24, 40], c1: [16, 36, 58], c2: [22, 44, 70], c3: [14, 30, 48], gx: 28, gy: 42, ga: 0.14 },
+        // p≈0.66 bascule établissement : teinte plus chaude/sourde, halo bas-droite
+        { c0: [16, 30, 44], c1: [22, 38, 56], c2: [30, 48, 66], c3: [16, 28, 42], gx: 70, gy: 74, ga: 0.12 },
+        // p=1   clôture : retour navy profond, halo recentré bas
+        { c0: [13, 27, 42], c1: [15, 30, 47], c2: [20, 38, 56], c3: [12, 24, 38], gx: 50, gy: 92, ga: 0.08 },
+      ]
+
+      function rgb(t) {
+        return 'rgb(' + Math.round(t[0]) + ',' + Math.round(t[1]) + ',' + Math.round(t[2]) + ')'
+      }
+      function mixRgb(a, b, t) {
+        return rgb([lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)])
+      }
+
+      function applyBgMorph(p) {
+        if (!bgFlow) return
+        // segment courant entre deux keyframes
+        var span = BG_KEYS.length - 1
+        var seg = clamp(p * span, 0, span)
+        var i = Math.min(Math.floor(seg), span - 1)
+        var t = seg - i
+        var k0 = BG_KEYS[i]
+        var k1 = BG_KEYS[i + 1]
+        var s = bgFlow.style
+        s.setProperty('--bg-c0', mixRgb(k0.c0, k1.c0, t))
+        s.setProperty('--bg-c1', mixRgb(k0.c1, k1.c1, t))
+        s.setProperty('--bg-c2', mixRgb(k0.c2, k1.c2, t))
+        s.setProperty('--bg-c3', mixRgb(k0.c3, k1.c3, t))
+        s.setProperty('--bg-glow-x', lerp(k0.gx, k1.gx, t).toFixed(1) + '%')
+        s.setProperty('--bg-glow-y', lerp(k0.gy, k1.gy, t).toFixed(1) + '%')
+        s.setProperty('--bg-glow-a', lerp(k0.ga, k1.ga, t).toFixed(3))
       }
 
       // Affiche/masque un CTA. Sous mouvement réduit, applique directement
@@ -510,6 +627,28 @@ const inclus = [
           var hintOpacity = clamp(1 - y / (winH * 0.12), 0, 1)
           scrollHint.style.opacity = String(hintOpacity)
         }
+
+        // 3a) MORPH DE FOND CONTINU selon la progression globale.
+        applyBgMorph(p)
+
+        // 3b) FIL CONDUCTEUR : remplissage = progression globale (scaleY via --p).
+        if (threadFill) threadFill.style.setProperty('--p', String(p))
+
+        // 3c) DISSOLVE D'ACTES lié au scroll (desktop). Chaque wrapper se fond en
+        //     entrant par le bas et s'estompe légèrement en sortant par le haut —
+        //     plancher d'opacité 0.35 pour ne jamais disparaître en transition.
+        if (!mqMobile.matches) {
+          for (var a = 0; a < actFades.length; a++) {
+            var af = actFades[a]
+            var r = af.getBoundingClientRect()
+            var enter = clamp((winH * 0.96 - r.top) / (winH * 0.4), 0, 1)
+            var exit = clamp((r.bottom - winH * 0.04) / (winH * 0.4), 0, 1)
+            var vis = clamp(enter < exit ? enter : exit, 0, 1)
+            af.style.opacity = String((0.5 + 0.5 * vis).toFixed(3))
+            var ty = (1 - enter) * 22 - (1 - exit) * 10
+            af.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0)'
+          }
+        }
       }
 
       function onScroll() {
@@ -522,53 +661,27 @@ const inclus = [
 
       function onResize() {
         winH = window.innerHeight
-        // parallax figé sur mobile : on remet les couches à plat
+        // mobile : parallax figé ET dissolve désactivé → on remet tout à plat
         if (mqMobile.matches) {
           for (var i = 0; i < parallaxEls.length; i++) {
             parallaxEls[i].style.transform = ''
+          }
+          for (var a = 0; a < actFades.length; a++) {
+            actFades[a].style.opacity = ''
+            actFades[a].style.transform = ''
           }
         }
         onScroll()
       }
 
       // ====================================================================
-      //  3) Crossfade de fond inter-actes — opacity de 2 couches superposées,
-      //     pilotée par l'acte le plus visible (IntersectionObserver).
-      //     Actes 0 (hero) & 1 (geste, navy-800) → couche A.
-      //     Actes 2/3/4 (borne, établissement, navy-900) → couche B.
+      //  3) FOND CONTINU + DISSOLVE D'ACTES + FIL CONDUCTEUR — NON CÂBLÉS ICI.
+      //     PASSE 2 (motion-engineer) : voir le bloc TODO en tête de fichier.
+      //       · [data-bg-progress] → lerp des variables de teinte (fond continu).
+      //       · [data-act-fade]    → opacity/translateY/scale scroll-linked.
+      //       · [data-thread]      → remplissage du fil = valeur de progression.
+      //     Tous neutralisés sous prefers-reduced-motion (return ci-dessus).
       // ====================================================================
-      var bgIo = null
-      var ratios = {}
-      function updateBg() {
-        if (!bgA || !bgB) return
-        var best = -1
-        var bestAct = 0
-        for (var key in ratios) {
-          if (ratios[key] > best) {
-            best = ratios[key]
-            bestAct = parseInt(key, 10)
-          }
-        }
-        var toB = bestAct >= 2
-        bgA.style.opacity = toB ? '0' : '1'
-        bgB.style.opacity = toB ? '1' : '0'
-      }
-      if (bgA && bgB && sceneActs.length) {
-        bgIo = new IntersectionObserver(
-          function (entries) {
-            for (var i = 0; i < entries.length; i++) {
-              var e = entries[i]
-              var act = e.target.getAttribute('data-scene-act')
-              ratios[act] = e.isIntersecting ? e.intersectionRatio : 0
-            }
-            updateBg()
-          },
-          { threshold: [0, 0.25, 0.5, 0.75, 1] },
-        )
-        for (var s = 0; s < sceneActs.length; s++) bgIo.observe(sceneActs[s])
-        // état initial : couche A (haut de page)
-        bgA.style.opacity = '1'
-      }
 
       // ====================================================================
       //  4) CTA flottant + barre mobile — apparaissent une fois le hero passé,
@@ -642,7 +755,6 @@ const inclus = [
         } else if (mqMobile.removeListener) {
           mqMobile.removeListener(onMqChange)
         }
-        if (bgIo) bgIo.disconnect()
         if (heroIo) heroIo.disconnect()
         if (finalIo) finalIo.disconnect()
         // retire les will-change (plus d'animation après démontage)
@@ -651,8 +763,6 @@ const inclus = [
           var pb = progressBar.querySelector('.ccm-progress-bar')
           if (pb) wc.push(pb)
         }
-        if (bgA) wc.push(bgA)
-        if (bgB) wc.push(bgB)
         for (var i = 0; i < wc.length; i++) wc[i].style.willChange = 'auto'
       }
       window.addEventListener('pagehide', dispose)
@@ -661,8 +771,9 @@ const inclus = [
 
   <style>
     /* =====================================================================
-       PASSE 1 — styles de CHARPENTE + état de repos des hooks motion.
-       La PASSE 2 (motion-engineer) pilotera l'apparition (transform/opacity).
+       PASSE STRUCTURE-CONTINUITÉ — styles de CHARPENTE du FLUX + état de repos
+       des hooks. La PASSE 2 (motion-engineer) pilotera le morph de fond, les
+       dissolves d'actes et le fil conducteur (transform/opacity + custom props).
        ===================================================================== */
 
     /* Barre de progression globale, fixée en haut sous la nav.
@@ -687,44 +798,111 @@ const inclus = [
       will-change: transform;
     }
 
-    /* Fond cinématique : 2 couches fixes plein écran, crossfade en OPACITY
-       (jamais d'animation de background-color). Passe d'étalonnage façon
-       « color-grade » par acte : overlay TRÈS léger (alpha bornée), au-dessus
-       du fond solide des sections mais pointer-events:none, et d'intensité
-       faible pour ne jamais nuire à la lisibilité du texte. */
-    .ccm-bg {
+    /* =====================================================================
+       FOND CONTINU UNIFIÉ — une seule couche fixe plein écran qui MORPHE le
+       long du scroll (plus d'alternance navy-800/900, plus de crossfade).
+       Le dégradé consomme des variables CSS de teinte : la PASSE 2 lerpe ces
+       variables via [data-bg-progress] selon la progression globale (0→1) →
+       la couleur se déplace en continu, navy profond → nuances → navy de
+       clôture. État de repos = lisible sans JS (navy profond #0D1B2A → #1A2E42)
+       avec un halo brand sobre. Le body est déjà bg-navy-900 : aucun flash.
+       Custom props exposées pour le motion :
+         --bg-c0  arrêt du dégradé en haut  (défaut navy-900)
+         --bg-c1  arrêt intermédiaire haut  (défaut navy-900)
+         --bg-c2  arrêt intermédiaire bas   (défaut navy-800)
+         --bg-c3  arrêt du dégradé en bas   (défaut navy-900)
+         --bg-glow-x / --bg-glow-y / --bg-glow-a  position + alpha du halo brand
+       ===================================================================== */
+    .ccm-bg-flow {
       position: fixed;
       inset: 0;
-      z-index: 5;
+      /* z négatif : reste DERRIÈRE tout le contenu en flux (sections
+         transparentes, switch, FinalCta) tout en couvrant le body navy. */
+      z-index: -1;
       pointer-events: none;
-      mix-blend-mode: screen;
-    }
-    .ccm-bg-layer {
-      position: absolute;
-      inset: 0;
-      display: block;
-      opacity: 0;
-      will-change: opacity;
-      transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    /* Couche A : ambiance « côté usager » — halo brand diffus en haut/droite. */
-    .ccm-bg-a {
+      --bg-c0: #0d1b2a;
+      --bg-c1: #102134;
+      --bg-c2: #1a2e42;
+      --bg-c3: #0d1b2a;
+      --bg-glow-x: 78%;
+      --bg-glow-y: 12%;
+      --bg-glow-a: 0.1;
       background:
-        radial-gradient(130% 90% at 78% -5%, rgba(29, 158, 117, 0.12), rgba(29, 158, 117, 0) 55%),
-        radial-gradient(90% 70% at 15% 100%, rgba(43, 194, 149, 0.05), rgba(43, 194, 149, 0) 60%);
+        radial-gradient(
+          120% 80% at var(--bg-glow-x) var(--bg-glow-y),
+          rgba(29, 158, 117, var(--bg-glow-a)),
+          rgba(29, 158, 117, 0) 55%
+        ),
+        linear-gradient(
+          180deg,
+          var(--bg-c0) 0%,
+          var(--bg-c1) 34%,
+          var(--bg-c2) 68%,
+          var(--bg-c3) 100%
+        );
+      /* PASSE 2 : animer les custom props ci-dessus (transition douce), jamais
+         le background-color brut. will-change posé seulement au câblage. */
     }
-    /* Couche B : ambiance « côté vous » — halo plus profond, ancré bas/gauche. */
-    .ccm-bg-b {
-      background:
-        radial-gradient(120% 80% at 18% 108%, rgba(29, 158, 117, 0.1), rgba(29, 158, 117, 0) 55%),
-        radial-gradient(80% 60% at 90% 0%, rgba(15, 120, 90, 0.06), rgba(15, 120, 90, 0) 60%);
-    }
-    /* Le contenu des actes reste au-dessus du wash : le texte n'est jamais
-       teinté (overlay screen à alpha faible = lueur ambiante, pas un voile). */
+
+    /* Le contenu des actes reste au-dessus du fond continu. */
     .ccm-act,
     .ccm-recap {
       position: relative;
       z-index: 10;
+    }
+
+    /* =====================================================================
+       FIL CONDUCTEUR — ligne verticale décorative reliant les actes. Centré
+       en colonne étroite à gauche du contenu sur grand écran ; masqué quand
+       il n'y a pas la place (≤ 1280px) pour ne jamais chevaucher le texte.
+       PASSE 2 : .ccm-thread-fill suit la valeur de progression (scaleY 0→1).
+       ===================================================================== */
+    .ccm-thread {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: max(1.25rem, calc((100vw - 1160px) / 2 - 1.5rem));
+      width: 2px;
+      z-index: 6;
+      pointer-events: none;
+    }
+    .ccm-thread-track,
+    .ccm-thread-fill {
+      position: absolute;
+      inset: 0;
+      display: block;
+      border-radius: 9999px;
+    }
+    .ccm-thread-track {
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .ccm-thread-fill {
+      background: linear-gradient(
+        180deg,
+        rgba(29, 158, 117, 0) 0%,
+        #1d9e75 12%,
+        #2bc295 100%
+      );
+      transform: scaleY(var(--p, 0));
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    /* Sous 1280px : pas assez de marge → on masque le fil pour éviter tout
+       chevauchement avec le contenu (le ruban de progression suffit). */
+    @media (max-width: 1279px) {
+      .ccm-thread {
+        display: none;
+      }
+    }
+
+    /* =====================================================================
+       DISSOLVE D'ACTES — état de REPOS de chaque enveloppe [data-act-fade] :
+       pleinement visible et lisible (aucune dépendance au JS / sans-JS OK).
+       PASSE 2 mappera opacity + translateY/scale légers sur la position du
+       wrapper dans le viewport (zones de recouvrement entre actes voisins).
+       ===================================================================== */
+    .ccm-act-fade {
+      opacity: 1;
     }
 
     /* Orbe décorative de l'ouverture (couche parallax). Bornée pour ne jamais
@@ -866,15 +1044,18 @@ const inclus = [
       .ccm-progress {
         display: none;
       }
-      /* Fond cinématique figé : une seule couche douce, sans crossfade. */
-      .ccm-bg-layer {
-        transition: none;
+      /* Fond continu figé sur sa teinte de repos (aucun morph). */
+      .ccm-bg-flow {
+        transition: none !important;
       }
-      .ccm-bg-a {
-        opacity: 1;
+      /* Aucun dissolve : chaque acte reste pleinement visible et en place. */
+      .ccm-act-fade {
+        opacity: 1 !important;
+        transform: none !important;
       }
-      .ccm-bg-b {
-        opacity: 0;
+      /* Fil conducteur masqué (décoratif, sa progression est une animation). */
+      .ccm-thread {
+        display: none;
       }
       /* CTA flottant + barre mobile visibles d'emblée, sans glissement. */
       .ccm-floating-cta,
