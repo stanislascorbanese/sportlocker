@@ -8,7 +8,7 @@ overrides:
   '@xmldom/xmldom': '>=0.8.13'
   fast-jwt: '>=6.2.4'
   fast-uri: '>=3.1.2'
-  undici: '>=6.24.0'
+  undici: '>=6.27.0 <7'
   drizzle-orm: '>=0.45.2'
   rollup: '>=3.30.0'
   tar: '>=7.5.4'
@@ -7227,8 +7227,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@6.25.0:
-    resolution: {integrity: sha512-ZgpWDC5gmNiuY9CnLVXEH8rl50xhRCuLNA97fAUnKi8RRuV4E6KG31pDTsLVUKnohJE0I3XDrTeEydAXRw47xg==}
+  undici@6.27.0:
+    resolution: {integrity: sha512-YmfV3YnEDzXRC5lZ2jWtWWHKGUm1zIt8AhesR1tens+HTNv+YZlN/dp6G727LOvMJ8xjP9Be7Y2Sdr96LDm+pg==}
     engines: {node: '>=18.17'}
 
   unicode-properties@1.4.1:
@@ -15648,7 +15648,7 @@ snapshots:
       ssh-remote-port-forward: 1.0.4
       tar-fs: 3.1.2
       tmp: 0.2.7
-      undici: 6.25.0
+      undici: 6.27.0
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -15859,7 +15859,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@6.25.0: {}
+  undici@6.27.0: {}
 
   unicode-properties@1.4.1:
     dependencies:
