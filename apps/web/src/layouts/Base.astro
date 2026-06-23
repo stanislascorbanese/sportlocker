@@ -55,6 +55,25 @@ const orgJsonLd = {
   },
 }
 
+// Schema WebSite : aide Google à identifier l'entité « site » (nom, langue,
+// éditeur). Pas de SearchAction (sitelinks searchbox) car la vitrine n'a pas
+// de moteur de recherche interne — déclarer un potentialAction non fonctionnel
+// serait trompeur.
+const webSiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE.name,
+  alternateName: SITE.legalName,
+  url: SITE.url,
+  description: SITE.description,
+  inLanguage: 'fr-FR',
+  publisher: {
+    '@type': 'Organization',
+    name: SITE.legalName,
+    url: SITE.url,
+  },
+}
+
 const pageJsonLd = extraJsonLd.map((schema) => ({
   '@context': 'https://schema.org',
   ...schema,
@@ -113,6 +132,10 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     <script
       type="application/ld+json"
       set:html={JSON.stringify(orgJsonLd)}
+    />
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(webSiteJsonLd)}
     />
     {pageJsonLd.map((schema) => (
       <script
