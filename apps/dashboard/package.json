@@ -21,7 +21,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "swr": "^2.2.5",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sportlocker/types": "workspace:*",
