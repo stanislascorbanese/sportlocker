@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@sportlocker/web", "dev"],
+      "port": 4000
+    },
+    {
+      "name": "voxel-game",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Volumes/Samsung_T5/cubeland"],
+      "port": 8765
+    },
+    {
+      "name": "agent-office",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/stanislascorbanese/Downloads/sportlocker-agent-office/server.mjs"],
+      "port": 4567
+    },
+    {
+      "name": "tinyhouse",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/Users/stanislascorbanese/Downloads/App tiny house/node_modules/vite/bin/vite.js",
+        "/Users/stanislascorbanese/Downloads/App tiny house",
+        "--port",
+        "5173"
+      ],
+      "port": 5173
+    }
+  ]
+}
