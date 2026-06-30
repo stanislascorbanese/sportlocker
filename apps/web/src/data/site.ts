@@ -2,7 +2,7 @@ export const SITE = {
   name: 'SportLocker',
   legalName: 'SportLocker SAS',
   url: 'https://sportlocker.fr',
-  email: 'contact@sportlocker.fr',
+  email: 'stanislas.corbanese@gmail.com',
   description:
     'Distributeurs de matériel sportif en libre-service 24/7. Une solution clé en main pour mairies, campings et hôtels.',
   defaultOgImage: '/og-default.png',

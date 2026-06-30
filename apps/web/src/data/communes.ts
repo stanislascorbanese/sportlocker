@@ -63,4 +63,33 @@ export const COMMUNES: Commune[] = [
       "Étudiants de l'Icam, familles des parcs yonnais et sportifs du Vendéspace : "
       + "un accès au matériel sans contrainte d'horaires.",
   },
+  {
+    slug: 'pornic',
+    name: 'Pornic',
+    postalCode: '44210',
+    department: 'Loire-Atlantique',
+    departmentCode: '44',
+    intro:
+      "À Pornic, SportLocker installe des distributeurs de matériel sportif en "
+      + "libre-service 24/7 sur les terrains municipaux et les espaces balnéaires. "
+      + "Ballons, raquettes et équipements de plage s'empruntent en 30 secondes "
+      + "via QR code — sans guichet, disponibles toute la saison.",
+    context:
+      "Entre le front de mer, la voie verte et les terrains de sport du Pays de Retz : "
+      + "du matériel accessible à toute heure pour les habitants et les estivants.",
+  },
+  {
+    slug: 'saint-nazaire',
+    name: 'Saint-Nazaire',
+    postalCode: '44600',
+    department: 'Loire-Atlantique',
+    departmentCode: '44',
+    intro:
+      "À Saint-Nazaire, SportLocker déploie des casiers connectés sur les terrains "
+      + "sportifs et espaces publics de l'agglomération. Emprunt via QR code en 30 secondes, "
+      + "retour sur place — le sport spontané accessible 24h/24 aux Nazairiens.",
+    context:
+      "Du bassin de Saint-Nazaire au parc paysager de l'estuaire : des équipements "
+      + "de sport en libre-service au plus près des habitants.",
+  },
 ]
