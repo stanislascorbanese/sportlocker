@@ -111,7 +111,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import Immersive3DStory from '@/components/Immersive3DStory.astro'
+
 
 // --- TRANSITION : récap usager condensé (4 puces, 1 ligne + micro-détail) ----
 // Sert aussi de fallback texte lisible du héros 3D (l'ACTE 1).
@@ -246,30 +246,62 @@ const inclus = [
   </section>
 
   <!-- ====================================================================== -->
-  <!-- ACTE 1 · LE GESTE (3D) — héros produit app→scan→casier (raconté 1 fois).-->
-  <!-- Immersive3DStory gère SON PROPRE sticky (300vh interne) + fallback :     -->
-  <!-- on ne l'enveloppe donc PAS dans un data-pin.                            -->
+  <!-- ACTE 1 · LE GESTE — 3 étapes illustrées en CSS (remplace la 3D).     -->
   <!-- ====================================================================== -->
   <section
     id="geste"
-    class="ccm-act scroll-mt-20"
+    class="ccm-act scroll-mt-20 py-24 sm:py-28"
     data-scene-act="1"
   >
-    <div class="container-x pt-24 sm:pt-28">
-      <div class="ccm-act-fade mb-2 max-w-2xl" data-act-fade>
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>La preuve, côté usager</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          Du téléphone<br class="hidden sm:block" /> au casier ouvert.
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté usager</span>
+        <h2 class="section-title mx-auto" data-reveal data-reveal-delay="1">
+          Du téléphone au casier ouvert.
         </h2>
-        <p class="section-sub !text-white/75 mt-4" data-reveal data-reveal-delay="2">
-          Faites défiler : la caméra voyage de votre téléphone jusqu'à la borne, suit le scan
-          du QR code, puis fait le tour du distributeur. Un seul geste, raconté une fois — pour
-          montrer ce que vivront les usagers de vos terrains.
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          30 secondes, 3 gestes — sans badge, sans agent, sans guichet.
         </p>
       </div>
+      <div class="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+        {[
+          {
+            n: '01',
+            icon: '📱',
+            title: 'Je choisis',
+            desc: "J’ouvre l’app, je trouve le distributeur le plus proche avec ses casiers libres en temps réel, je réserve un créneau et je paie en 2 taps.",
+            tech: 'GPS · stock Redis < 20 ms · Apple/Google Pay',
+          },
+          {
+            n: '02',
+            icon: '🔲',
+            title: 'Je scanne',
+            desc: "J'arrive devant la borne, j'affiche mon QR code — même sans réseau. Le distributeur lit le JWT, valide et ouvre le casier en moins d'une seconde.",
+            tech: 'JWT HS256 offline · NFC · 15 min de validité',
+          },
+          {
+            n: '03',
+            icon: '🏃',
+            title: 'Je profite & rends',
+            desc: "Je récupère mon matériel. À la fin, je le remets dans n'importe quel casier libre du réseau. Un rappel push avant la fin du créneau.",
+            tech: 'Rappel push · RFID · multi-points de retour',
+          },
+        ].map((step, i) => (
+          <div class="card-dark p-8 relative" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="flex items-center gap-3 mb-5">
+              <span class="font-mono text-3xl font-bold text-brand-500/25 leading-none">{step.n}</span>
+              <span class="text-3xl">{step.icon}</span>
+            </div>
+            <h3 class="font-bold text-lg mb-3" style="color:var(--text-0)">{step.title}</h3>
+            <p class="text-sm leading-relaxed font-light mb-4" style="color:var(--text-1)">{step.desc}</p>
+            <div class="text-xs font-mono text-brand-400/70 border-t pt-3" style="border-color:var(--border)">{step.tech}</div>
+            {i < 2 && (
+              <div class="hidden md:block absolute top-1/2 -right-3 -translate-y-1/2 text-brand-500/30 text-2xl z-10" aria-hidden="true">→</div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
-    <!-- HÉROS PRODUIT : scène 3D scrollytelling (auto-sticky, lazy, a11y OK). -->
-    <Immersive3DStory />
   </section>
 
   <!-- ====================================================================== -->
