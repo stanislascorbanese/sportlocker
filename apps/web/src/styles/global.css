@@ -355,6 +355,80 @@ html.light .btn-theme:hover { background: rgba(0, 0, 0, 0.09); }
   color: var(--text-0);
 }
 .hero-metric-accent { color: #2BC295; }
+/* ─── Hero layout 60/40 ─────────────────────────────────────────────────────── */
+.hero-layout {
+  display: flex;
+  align-items: center;
+  gap: 4rem;
+}
+.hero-text-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.hero-visual-col {
+  flex: 0 0 340px;
+  width: 340px;
+  display: none;
+}
+@media (min-width: 1024px) {
+  .hero-visual-col { display: block; }
+  .hero-headline { font-size: clamp(2.8rem, 5vw, 4.6rem); }
+}
+
+.hero-product-frame {
+  position: relative;
+  padding: 2rem;
+}
+.hero-product-halo {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(29,158,117,0.18) 0%, transparent 70%);
+  filter: blur(30px);
+  pointer-events: none;
+}
+.hero-distributor {
+  width: 200px;
+  height: 370px;
+  margin: 0 auto;
+  position: relative;
+  filter: drop-shadow(0 24px 48px rgba(29,158,117,0.25));
+}
+
+/* Badges flottants */
+.hero-badge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(13,27,42,0.92);
+  border: 1px solid rgba(255,255,255,0.12);
+  backdrop-filter: blur(12px);
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  animation: badge-float 4s ease-in-out infinite alternate;
+}
+.hero-badge-1 { bottom: 60px; left: -20px; animation-delay: 0s; }
+.hero-badge-2 { top: 80px; right: -10px; animation-delay: -2s; color: #2BC295; }
+.hero-badge-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #2BC295;
+  flex-shrink: 0;
+  animation: badge-dot-pulse 2s ease-in-out infinite;
+}
+@keyframes badge-float {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-6px); }
+}
+@keyframes badge-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .hero-metric-label {
   font-size: 0.75rem;
   color: var(--text-1);
@@ -378,6 +452,47 @@ html.light .btn-theme:hover { background: rgba(0, 0, 0, 0.09); }
 [data-reveal-delay='2'] { transition-delay: 0.2s; }
 [data-reveal-delay='3'] { transition-delay: 0.3s; }
 [data-reveal-delay='4'] { transition-delay: 0.4s; }
+
+/* ─── CTA finale plein vert ──────────────────────────────────────────────────── */
+.cta-finale {
+  position: relative;
+  overflow: hidden;
+  padding: 7rem 0;
+  background: linear-gradient(135deg, #0F6E56 0%, #1D9E75 50%, #2BC295 100%);
+}
+.cta-finale-blob {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 80% at 20% 50%, rgba(255,255,255,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 30%, rgba(0,0,0,0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+.cta-finale-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 900;
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.15);
+}
+.cta-finale-sub {
+  font-size: 1.1rem;
+  color: rgba(255,255,255,0.82);
+  line-height: 1.75;
+  margin-bottom: 2.5rem;
+  font-weight: 300;
+}
+.cta-finale-link {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.7);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+.cta-finale-link:hover { color: #fff; }
 
 /* ─── Light mode overrides for page backgrounds ──────────────────────────────── */
 html.light .bg-navy-900 { background-color: var(--bg-0) !important; }
