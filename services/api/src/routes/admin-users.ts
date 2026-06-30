@@ -5,9 +5,9 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { communes, users } from '../db/schema.js'
-import { requireAdminOrOperator } from '../lib/commune-scope.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
-const USER_ROLE = ['citizen', 'operator', 'admin'] as const
+const USER_ROLE = ['citizen', 'operator', 'admin', 'super_admin'] as const
 
 const UserDTO = z.object({
   id: z.string().uuid(),
@@ -113,6 +113,11 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
   app.get('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Utilisateurs'],
+      summary: 'Liste des utilisateurs',
+      description: 'Tri par createdAt DESC, limite 200. Filtres : `role`, `banned` ("true"/"false"), '
+        + '`q` (recherche ILIKE sur email/displayName). Admin scopé : voit uniquement les users de sa commune.',
+      security: [{ bearerAuth: [] }],
       querystring: ListQuery,
       response: {
         200: z.object({ items: z.array(UserDTO) }),
@@ -120,7 +125,7 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { role, banned, q } = req.query
@@ -160,21 +165,29 @@ export async function adminUserRoutes(rawApp: FastifyInstance) {
   app.patch('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Utilisateurs'],
+      summary: 'Action admin sur un user (ban, role, RGPD, trust)',
+      description: 'Champs : `role`, `isBanned` + `bannedReason`, `trustScore` (0..100), '
+        + '`gdprDeleteRequestedAt` (ISO date ou null pour annuler).\n\n'
+        + '**Sécurité** : seul super_admin peut changer le rôle (403 `forbidden_role_change_super_admin_only` '
+        + 'pour un admin scopé). `gdprDeletedAt` n\'est jamais modifiable depuis l\'API — c\'est le cron RGPD '
+        + 'qui le pose lors du nettoyage effectif après 30j.',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       body: UpdateBody,
       response: { 200: UserDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const body = req.body
 
-    // Sécurité : seul admin peut changer le rôle (élévation de privilège).
-    // Un operator peut bannir/débannir, ajuster trustScore, déclencher RGPD
-    // — pas promouvoir quelqu'un en operator/admin.
+    // Sécurité : seul super_admin peut changer le rôle (élévation de privilège).
+    // Un admin scoped peut bannir/débannir, ajuster trustScore, déclencher RGPD
+    // — pas promouvoir quelqu'un en admin/super_admin.
     if (body.role !== undefined && auth.scope) {
-      return reply.code(403).send({ error: 'forbidden_role_change_admin_only' })
+      return reply.code(403).send({ error: 'forbidden_role_change_super_admin_only' })
     }
 
     // Scope check : operator doit confirmer que l'user cible est bien dans sa commune.

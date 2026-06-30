@@ -5,9 +5,13 @@ import { Download } from 'lucide-react'
 
 import type { ReservationExportFilters } from '../../lib/api'
 import { cn } from '../../lib/cn'
+import { useLang } from '../../lib/lang-client'
+import { reservationsStrings } from '../../lib/i18n/reservations'
 import { exportReservationsCsvAction } from './_actions'
 
 export function ExportCsvButton({ filters }: { filters: ReservationExportFilters }) {
+  const lang = useLang()
+  const t = reservationsStrings(lang)
   const [pending, startTransition] = useTransition()
 
   const onClick = () => {
@@ -28,8 +32,7 @@ export function ExportCsvButton({ filters }: { filters: ReservationExportFilters
         document.body.removeChild(a)
         URL.revokeObjectURL(url)
         if (res.source === 'demo') {
-          // Petit indicateur — pas de toast lib donc on garde simple
-          setTimeout(() => alert('Export téléchargé (mode démo — données fictives).'), 100)
+          setTimeout(() => alert(t.exportDemoToast), 100)
         }
       })()
     })
@@ -46,7 +49,7 @@ export function ExportCsvButton({ filters }: { filters: ReservationExportFilters
       )}
     >
       <Download className={cn('h-4 w-4', pending && 'animate-pulse')} />
-      <span>{pending ? 'Export…' : 'Exporter CSV'}</span>
+      <span>{pending ? t.exportBtnPending : t.exportBtnIdle}</span>
     </button>
   )
 }

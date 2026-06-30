@@ -3,8 +3,10 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { ReservationStatus } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
-import { requireAdminOrOperator } from '../lib/commune-scope.js'
+import { requireAdminScope } from '../lib/commune-scope.js'
 
 const DailyQuery = z.object({
   days: z.coerce.number().int().min(1).max(90).default(7),
@@ -28,6 +30,11 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
   app.get('/reservations-daily', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Stats'],
+      summary: 'Comptage réservations par jour',
+      description: 'Série temporelle des créations sur les `days` derniers jours, jours à zéro inclus '
+        + '(`generate_series`). Tous statuts confondus (pending/active/returned/overdue/cancelled/expired).',
+      security: [{ bearerAuth: [] }],
       querystring: DailyQuery,
       response: {
         200: z.object({ points: z.array(DailyPoint) }),
@@ -35,7 +42,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { days } = req.query
@@ -79,15 +86,26 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
   app.get('/dashboard', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Stats'],
+      summary: 'Agrégats KPI page Stats du dashboard',
+      description: '5 queries en parallèle, 1 round-trip côté client :\n'
+        + '- `daily` : série temporelle des créations (jours à zéro inclus)\n'
+        + '- `byStatus` : répartition par statut (tous les 6 statuts renvoyés, même à 0)\n'
+        + '- `topDistributors` : top 5 distributeurs par volume\n'
+        + '- `topItemTypes` : top 5 types d\'objets empruntés\n'
+        + '- `hourly` : heatmap jour-de-semaine × heure (dow=0=dimanche, 6=samedi)\n\n'
+        + 'Admin scopé : agrégats restreints à sa commune. Super_admin : tout le parc.',
+      security: [{ bearerAuth: [] }],
       querystring: z.object({
-        days: z.coerce.number().int().min(7).max(180).default(30),
+        days: z.coerce.number().int().min(7).max(180).default(30)
+          .describe('Fenêtre d\'analyse en jours (7..180, défaut 30)'),
       }),
       response: {
         200: z.object({
           days: z.number().int(),
           daily: z.array(DailyPoint),
           byStatus: z.array(z.object({
-            status: z.enum(['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired']),
+            status: ReservationStatus,
             count: z.number().int().nonnegative(),
           })),
           topDistributors: z.array(z.object({
@@ -111,7 +129,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const auth = requireAdminOrOperator(req, reply)
+    const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
     const { days } = req.query
@@ -204,7 +222,7 @@ export async function adminStatsRoutes(rawApp: FastifyInstance) {
       `),
     ])
 
-    const ALL_STATUSES = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+    const ALL_STATUSES = ['pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
     const byStatusMap = new Map(statusRows.map((r) => [r.status, r.count]))
     const byStatus = ALL_STATUSES.map((status) => ({
       status,

@@ -94,58 +94,220 @@ acteur multi-sport en libre-service 24/7 sur le marché B2B France.
   - Réserver puis ouvrir un casier en 30 secondes (QR code scan)
   - Comprendre la caution avant de payer (transparence)
   - Récupérer sa caution automatiquement après retour en bon état
-- **NE doit PAS** : payer pour le service lui-même (gratuit), gérer un
-  compte par tenant (single account suffit)
+- **NE doit PAS** : avoir à créer un compte par tenant (single account
+  suffit), comprendre ou interagir avec la mécanique SportLocker ↔ tenant
 
 ---
 
 ## 4. Modèle commercial
 
-### 4.1 Pricing SaaS (côté client / tenant)
+> **Pivots successifs mai 2026** : le modèle a évolué en 3 itérations sur
+> quelques jours après tests/réflexion produit :
+> 1. V0 : service gratuit citoyen, revenu = abo tenant uniquement
+> 2. V1 : marketplace 5€/jour day pass + 25% commission
+> 3. **V2 actuel : marketplace slots courts (15min → 2h max), prix
+>    variable par item, configuré par tenant, + 25% commission**
+>
+> Ce CDC reflète V2.
+
+### 4.1 Vue d'ensemble — 3 flux de revenu
+
+```
+┌──────────────────┐  paye slot 15/30/60/    ┌──────────────────┐
+│     CITOYEN      │  90/120min (var/item)   │      STRIPE      │
+│  (utilisateur)   │ ─────────────────────▶  │   (Connect)      │
+│                  │  + caution préauto      │                  │
+└──────────────────┘                          └──────────────────┘
+                                                       │
+                                                       │ split à chaque tx
+                                       ┌───────────────┼───────────────┐
+                                       ▼                               ▼
+                              ┌───────────────────┐         ┌──────────────────┐
+                              │   TENANT (75%)    │         │ SPORTLOCKER (25%)│
+                              │ commune / camping │         │  application_fee │
+                              │  / hôtel          │         │                  │
+                              └───────────────────┘         └──────────────────┘
+                                                                      ▲
+                                                                      │
+                              ┌───────────────────┐                   │
+                              │   TENANT          │  abo 350-500€/mois│
+                              │  paye abo SaaS    │ ──────────────────┘
+                              └───────────────────┘
+```
+
+### 4.2 Revenu 1 — Abonnement SaaS (tenant → SportLocker)
 
 | Composant | Montant indicatif | Détails |
 |---|---|---|
 | **Abonnement mensuel par distributeur** | 350-500 € HT | Tout inclus : matériel sportif, maintenance, logiciel, hotline N2, mises à jour OTA |
 | **Setup fee one-shot** | 500-1 000 € HT | Déplacement, installation, formation admin, configuration initiale |
-| **Engagement** | 24 mois (campings) / 36 mois (mairies) | Permet d'amortir le distributeur |
+| **Engagement** | 24 mois (campings/hôtels) / 36 mois (mairies) | Permet d'amortir le distributeur |
 | **Facturation** | Mensuelle, prélèvement SEPA via Stripe | Facture automatique générée |
 
-**Calcul cible** : 10 clients × 4 distributeurs moyens × 425 €/mois = **17 000 €/mois de MRR** à 12 mois.
+### 4.3 Revenu 2 — Location citoyen (slots courts variables)
 
-### 4.2 Caution citoyen
+**Modèle : 5 slots courts au choix, prix variable par item type, configuré
+par le tenant.**
 
-**Variable selon l'item** (autorisation Stripe sur CB ou Apple/Google Pay).
+#### Slots disponibles
+Le tenant active tout ou partie de ces 5 slots dans sa config :
+- 15 minutes
+- 30 minutes
+- 1 heure
+- 1 heure 30
+- **2 heures (maximum strict d'une session)**
 
-| Item type | Caution affichée | Logique |
+#### Prix
+Variable selon `(item_type × duration)`. Stocké dans la table `pricing_rules`
+de la DB. Le tenant configure dans son dashboard :
+
+```
+Ballon foot        : 0,50 €/15min  -  1 €/30min  -  2 €/1h  -  3 €/2h
+Raquette tennis    : 1 €/15min     -  2 €/30min  -  3,50 €/1h  -  6 €/2h
+Équipement plage   : 1 €/15min     -  2 €/30min  -  3 €/1h  -  5 €/2h
+```
+
+(prix exacts à finaliser, ce sont juste des exemples)
+
+#### Split commission
+
+| Composant | Pourcentage | Mécanisme |
 |---|---|---|
-| Ballon foot / basket | 30 € | Couvre coût de remplacement |
-| Raquette tennis / badminton | 80 € | idem |
-| Frisbee, équipement léger | 20 € | idem |
-| Équipement « pro » (matériel valeur > 150 €) | **plafonnée à 150 €** | Au-delà, signature mandat SEPA in-app pour la différence en cas de non-retour |
+| **Commission SportLocker** | **25%** | `application_fee` Stripe Connect prélevée à chaque tx |
+| **Reversement tenant** | **75%** | Reversement automatique J+2 sur compte Stripe Express |
 
-**Pourquoi plafond 150 €** : éviter les refus banque sur cartes plafonnées
-(le client perd la vente). Le risque résiduel au-delà de 150 € est couvert
-par engagement contractuel citoyen (mandat SEPA) puis par le tenant en
-dernier ressort.
+#### Retard de retour (au-delà des 2h)
 
-### 4.3 Qui paie quoi en cas de problème
+| Composant | Montant | Note |
+|---|---|---|
+| **Pénalité forfaitaire retard** | **2 € flat** | Débitée à la 1ère minute de dépassement |
+| **Auto-renew par tranches de 15 min** | tarif item × 15min | Continue à débiter jusqu'au retour |
+
+→ Pas de capture caution automatique pour retard. La caution n'est capturée
+QUE si dégradation ou non-retour avéré (> 6h après l'expiration probablement).
+
+#### Templates par défaut (à l'install d'un nouveau tenant)
+
+3 templates pré-configurés pour démarrer rapidement (le tenant pick 1, peut
+customiser ensuite via dashboard) :
+
+1. **"Communal léger"** (mairies équipement grand public)
+   - Ballons / raquettes ping-pong / frisbees
+   - Tarifs : 0,50€/15min, 1€/30min, 2€/1h, 3€/2h
+
+2. **"Saisonnier camping/plage"**
+   - Raquettes plage, beach-tennis, équipement snorkel, frisbees
+   - Tarifs : 1€/15min, 2€/30min, 3€/1h, 5€/2h
+   - Slot 1h30 désactivé (peu pertinent côté plage)
+
+3. **"Hôtel premium"**
+   - Raquettes tennis pro, équipement pool, accessoires fitness haut de gamme
+   - Tarifs : 2€/15min, 4€/30min, 7€/1h, 12€/2h
+
+Les prix exacts seront affinés au fil des installations réelles. Templates
+modifiables en V1 quand le dashboard tarification custom sortira.
+
+#### Pourquoi ce modèle (vs précédentes itérations)
+
+**Vs day pass 5€/jour** :
+- Anti-monopolisation : avec day pass, un citoyen pouvait bloquer 1 item
+  toute la journée (gros frein rotation matos = perte revenu tenant)
+- Granularité : un usage "ballon 30min" ne devrait pas coûter 5€
+
+**Vs prix unique par item** (tarif horaire flat) :
+- Permet la pricing power au tenant (premium hôtel vs communal léger)
+- S'adapte aux contextes (camping en haute saison peut surfacturer)
+
+#### Pourquoi 25% de commission
+
+- Standard marketplaces B2C (Uber Eats 30%, Deliveroo 30%, Airbnb 15%, Doctolib 15%)
+- Couvre frais Stripe Connect (1,4% + 0,25€ par tx) + marge SportLocker
+- Permet d'avoir un abo SaaS attractif (350-500€/mois) sans amputer la marge
+
+### 4.4 Revenu 3 (indirect) — Caution citoyen (préautorisation Stripe)
+
+La caution n'est PAS un revenu — c'est un mécanisme de **dissuasion + couverture risque** pour le tenant.
+
+**Variable selon l'item** (autorisation Stripe sur CB ou Apple/Google Pay) :
+
+| Item type | Caution préautorisée | Capturée vers |
+|---|---|---|
+| Ballon foot / basket / frisbee | 30 € | Compte tenant si dégradation |
+| Raquette tennis / badminton / ping-pong | 80 € | idem |
+| Équipement plage (raquettes plage, masque snorkel) | 50 € | idem |
+| Équipement « pro » (matériel valeur > 150 €) | **plafond 150 €** | idem + mandat SEPA in-app pour différence |
+
+**Important** : la caution **n'est jamais débitée si retour OK** — c'est juste une préautorisation (hold) sur la CB. Capturée par le **tenant** si dégradation/vol confirmé.
+
+### 4.5 Qui paie quoi en cas de problème
 
 | Scénario | Qui paie |
 |---|---|
-| Retour matériel intact | Personne, caution remboursée 100% |
-| Dégradation légère (rayure, déchirure mineure) | Caution capturée (couvre la réparation) |
-| Perte / vol citoyen | Caution capturée + relance SEPA pour différence si > 150 € |
-| Vandalisme tiers (distributeur cassé hors emprunt) | **Tenant** (mairie/camping), couvert par son assurance ou son budget |
-| Bug technique SportLocker (locker pas ouvert mais débité) | **SportLocker** rembourse intégralement |
+| Retour matériel intact | Personne ; caution préauto **libérée** ; commission SportLocker conservée |
+| Dégradation légère | Tenant **capture** la caution (partielle ou totale selon barème) |
+| Perte / vol citoyen | Tenant capture caution + relance SEPA pour différence si > 150 € |
+| Vandalisme tiers (distributeur cassé hors emprunt) | **Tenant** (assurance ou budget) |
+| Remplacement matériel usé (vétusté normale) | **Tenant** (assumé dans son budget d'exploitation) |
+| Bug technique SportLocker (locker pas ouvert mais débité) | **SportLocker** rembourse intégralement (forfait + libère caution) |
 
-### 4.4 Compte « Premium Citoyen » (post-MVP)
+**Important** : SportLocker ne porte AUCUN risque matériel — le tenant assume
+remplacement, vandalisme, vétusté, perte non-couverte par caution. C'est ce
+qui justifie l'abo mensuel SaaS pur (pas de "lease").
 
-À étudier en V2 : abonnement citoyen 3-5 €/mois donnant :
-- Caution mutualisée sans plafond
-- Réservations prioritaires en haute saison
+### 4.6 Calcul cible 12 mois
+
+Hypothèses prudentes (modèle slots, panier moyen 2,50 €/location) :
+- 10 clients tenants signés
+- 4 distributeurs moyens par client = 40 distributeurs
+- Abo moyen 425 €/mois HT
+- **15 locations/jour/distributeur** (mature — slots courts = plus de rotation
+  que day pass donc volume supérieur)
+- Panier moyen 2,50 € (mix entre 0,50€/15min ballon et 12€/2h hôtel pro)
+- Commission moyenne 2,50 × 25% = 0,625 €/location
+
+| Source | Calcul | Montant mensuel |
+|---|---|---|
+| MRR abos | 40 × 425 € | **17 000 € HT** |
+| Commission locations | 40 × 15 × 30 × 0,625 € | **11 250 € HT** |
+| **Total** | | **28 250 €/mois HT** |
+
+→ Slots courts génèrent un peu moins de commission par location qu'un day
+pass à 5€ (1,25€), mais la rotation matos plus rapide compense
+partiellement. À tester en réel.
+
+### 4.7 Compte « Premium Citoyen » (post-MVP)
+
+À étudier en V2 : abonnement citoyen 5 €/mois donnant :
+- 5 slots de 1h offerts par mois (ou équivalent)
+- Caution mutualisée sans plafond (SportLocker porte le risque, via assurance partenaire)
+- Réservations prioritaires haute saison
 - Historique étendu
 
-→ Source de revenus secondaire B2C, augmente rétention.
+→ Source de revenu B2C récurrente, augmente rétention citoyen, lisse
+les revenus de commission (fluctuants par nature).
+
+### 4.8 Schéma DB induit (à implémenter `[api]`)
+
+Nouvelle table `pricing_rules` à ajouter en migration `0006_pricing_rules.sql` :
+
+```sql
+CREATE TABLE pricing_rules (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        UUID NOT NULL REFERENCES communes(id) ON DELETE CASCADE,
+  item_type_id     UUID NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (15, 30, 60, 90, 120)),
+  price_cents      INTEGER NOT NULL CHECK (price_cents >= 0),
+  active           BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, item_type_id, duration_minutes)
+);
+```
+
+Et update `reservations` :
+- Ajouter `duration_minutes INTEGER NOT NULL`
+- Ajouter `price_cents INTEGER NOT NULL`
+- Ajouter `late_penalty_cents INTEGER NOT NULL DEFAULT 0`
+- Le `stripe_payment_intent_id` existe déjà (migration 0004)
 
 ---
 

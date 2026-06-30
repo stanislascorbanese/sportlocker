@@ -1,0 +1,220 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Safe areas iOS — respecter les notchs/home indicator des iPhone */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+    /* Tokens motion exposés en CSS vars pour usage hors classes Tailwind. */
+    --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --duration-fast: 100ms;
+    --duration-base: 150ms;
+    --duration-slow: 250ms;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    background: #ffffff;
+    color: #0D1B2A;
+  }
+
+  html.dark {
+    background: #0d1b2a;
+    color: #ffffff;
+  }
+
+  body {
+    /* Désactive le bounce iOS et le zoom sur double tap */
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: none;
+  }
+
+  /* Respecte la préférence "réduction des animations" (iOS/Android a11y). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ─── Splash screen cold start ────────────────────────────────────────────
+ *
+ * Affiché immédiatement (SSR, avant providers React) pour couvrir l'attente
+ * d'hydratation et le premier check Firebase Auth (~100-500ms IDB). Disparaît
+ * dès que <SplashHide /> pose `data-splash-done` sur <html> au premier paint.
+ *
+ * Tout est inline-friendly : background couleurs en dur (pas de vars Tailwind
+ * qui pourraient ne pas être prêtes), animations purement CSS, aucun JS
+ * bloquant. La feuille globals.css est de toute façon render-blocking, donc
+ * elle est garantie chargée avant que <body> rende.
+ */
+#sl-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #0D1B2A;
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Évite que le splash reste cliquable s'il persiste anormalement. */
+  pointer-events: none;
+  /* Respecte la safe-area iOS pour PWA standalone. */
+  padding: var(--safe-top) 0 var(--safe-bottom);
+}
+
+html.dark #sl-splash {
+  background: #0d1b2a;
+  color: #ffffff;
+}
+
+.sl-splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  animation: sl-splash-enter 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.sl-splash-mark {
+  width: 128px;
+  height: 128px;
+  background-image: url('/splash-logo-light.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 6px 18px rgb(16 185 129 / 0.28));
+  animation: sl-splash-mark-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+html.dark .sl-splash-mark {
+  background-image: url('/splash-logo-dark.png');
+}
+
+.sl-splash-word {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  background: linear-gradient(120deg, #15785A 0%, #34d399 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Léger fade décalé pour donner une cadence à l'entrée. */
+  animation: sl-splash-word-in 480ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+.sl-splash-bar {
+  width: 140px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(13, 27, 42, 0.08);
+  overflow: hidden;
+  animation: sl-splash-word-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
+}
+
+html.dark .sl-splash-bar {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sl-splash-bar > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #15785A, #34d399);
+  transform-origin: left center;
+  animation: sl-splash-progress 700ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+}
+
+/* Sortie : pose `data-splash-done` sur <html> via <SplashHide />. */
+html[data-splash-done] #sl-splash {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+@keyframes sl-splash-enter {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sl-splash-mark-in {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sl-splash-word-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sl-splash-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Pas d'animations exubérantes en mode réduction — le splash existe quand
+ * même mais sans cadence. La règle globale @media reduce ramène déjà les
+ * durées à ~0, donc le splash apparaît et disparaît quasi instantanément.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .sl-splash-inner,
+  .sl-splash-mark,
+  .sl-splash-word,
+  .sl-splash-bar,
+  .sl-splash-bar > span {
+    animation: none !important;
+  }
+}
+
+/* Reset MapLibre canvas pour qu'il puisse occuper 100% */
+.maplibregl-map {
+  font-family: inherit;
+}
+
+/* ─── View Transitions API ────────────────────────────────────────────────
+ *
+ * Active le cross-fade natif entre les routes Next.js. Chrome 111+ et
+ * Safari 18+ le supportent ; Firefox dégrade silencieusement (no-op).
+ *
+ * Next.js 15 App Router wrappe automatiquement `router.push()` dans
+ * `document.startViewTransition()` quand cette CSS est présente.
+ *
+ * Durée volontairement courte (180ms) pour ne pas ralentir la navigation
+ * perçue. Easing aligné sur `--ease-out-soft`.
+ */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}

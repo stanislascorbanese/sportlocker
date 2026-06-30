@@ -39,13 +39,26 @@ from .nonce_store import NonceStore
 log = structlog.get_logger(__name__)
 
 GPIO_PULSE_SECONDS = 0.5
+# Watchdog défensif sur l'opération GPIO. Le pulse réel prend ~0.5s ;
+# 5s laisse une marge confortable mais protège du driver qui resterait
+# bloqué (filesystem GPIO inaccessible, etc.) et évite que le thread
+# paho callback ne fige indéfiniment.
+GPIO_PULSE_TIMEOUT_S = 5.0
+GPIO_PULSE_MAX_RETRIES = 1
+
+# Tolérance d'horloge pour le check ``slot_start_at`` du JWT (cf. PR 0010).
+# L'horloge du Raspberry Pi peut dériver de ~60s entre 2 synchronisations
+# NTP, l'horloge du smartphone qui a signé le QR aussi. On accepte qu'un
+# user scanne jusqu'à 60s avant le début théorique de son créneau pour
+# éviter les refus à cause de skew.
+SLOT_START_CLOCK_TOLERANCE_S = 60
 
 try:
-    import RPi.GPIO as GPIO  # type: ignore[import]
+    import RPi.GPIO as GPIO
 
     _GPIO_AVAILABLE = True
 except (ImportError, RuntimeError):
-    GPIO = None  # type: ignore[assignment]
+    GPIO = None
     _GPIO_AVAILABLE = False
 
 
@@ -59,6 +72,8 @@ class UnlockOutcome(StrEnum):
     HARDWARE_FAULT = "hardware_fault"
     CACHE_MISS_OFFLINE = "cache_miss_offline"
     INTERNAL_ERROR = "internal_error"
+    # PR 0010 — modèle slots : le user scanne avant le début de son créneau.
+    SLOT_NOT_YET_OPEN = "slot_not_yet_open"
 
 
 @dataclass(frozen=True)
@@ -150,22 +165,98 @@ class LockerController:
         for pin in self._gpio_mapping.values():
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
 
-    def _pulse_open(self, locker_id: str) -> bool:
+    def _pulse_open(
+        self,
+        locker_id: str,
+        *,
+        retries: int = GPIO_PULSE_MAX_RETRIES,
+        timeout_s: float = GPIO_PULSE_TIMEOUT_S,
+    ) -> bool:
+        """Pulse LOW puis HIGH le GPIO du casier.
+
+        - ``timeout_s`` : si le pulse n'aboutit pas dans ce délai (driver GPIO
+          bloqué, fs en lecture seule…), on abandonne et on force HIGH pour
+          rester fail-secure.
+        - ``retries`` : on retente une fois en cas d'échec — ouvrir un casier
+          déjà ouvert est idempotent (la serrure reste relâchée le temps du
+          pulse, le citoyen retire la porte).
+        """
         pin = self._gpio_mapping.get(locker_id)
         if pin is None:
             log.error("gpio_pin_not_mapped", locker_id=locker_id)
             return False
-        try:
-            if _GPIO_AVAILABLE:
+
+        attempts = retries + 1
+        last_err: str | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                self._run_pulse_with_timeout(pin, timeout_s)
+                log.info(
+                    "gpio_pulse_ok",
+                    locker_id=locker_id, pin=pin, attempt=attempt,
+                    simulated=not _GPIO_AVAILABLE,
+                )
+                return True
+            except Exception as exc:  # noqa: BLE001
+                last_err = str(exc)
+                log.warning(
+                    "gpio_pulse_attempt_failed",
+                    locker_id=locker_id, pin=pin, attempt=attempt,
+                    err=last_err,
+                )
+                # Force le retour HIGH au cas où on serait coincé en LOW —
+                # idempotent et fail-secure.
+                self._force_high_safe(pin)
+
+        log.error(
+            "gpio_pulse_exhausted",
+            locker_id=locker_id, pin=pin, attempts=attempts, err=last_err,
+        )
+        return False
+
+    def _run_pulse_with_timeout(self, pin: int, timeout_s: float) -> None:
+        """Exécute le pulse dans un thread daemon avec watchdog.
+
+        Lève ``TimeoutError`` si le pulse dépasse ``timeout_s`` — le thread
+        daemon survit mais ne bloquera pas la coroutine.
+        """
+        if not _GPIO_AVAILABLE:
+            log.info("gpio_pulse_simulated", pin=pin)
+            time.sleep(min(GPIO_PULSE_SECONDS, timeout_s))
+            return
+
+        done = threading.Event()
+        err_box: list[BaseException] = []
+
+        def _run() -> None:
+            try:
                 GPIO.output(pin, GPIO.LOW)
                 time.sleep(GPIO_PULSE_SECONDS)
                 GPIO.output(pin, GPIO.HIGH)
-            else:
-                log.info("gpio_pulse_simulated", locker_id=locker_id, pin=pin)
-            return True
+            except BaseException as exc:  # noqa: BLE001
+                err_box.append(exc)
+            finally:
+                done.set()
+
+        worker = threading.Thread(
+            target=_run, daemon=True, name=f"gpio-pulse-{pin}",
+        )
+        worker.start()
+        if not done.wait(timeout=timeout_s):
+            raise TimeoutError(
+                f"gpio pulse exceeded {timeout_s}s on pin {pin}"
+            )
+        if err_box:
+            raise err_box[0]
+
+    def _force_high_safe(self, pin: int) -> None:
+        """Best-effort GPIO HIGH (fail-secure). Swallow toute erreur."""
+        if not _GPIO_AVAILABLE:
+            return
+        try:
+            GPIO.output(pin, GPIO.HIGH)
         except Exception as exc:  # noqa: BLE001
-            log.exception("gpio_pulse_failed", locker_id=locker_id, pin=pin, err=str(exc))
-            return False
+            log.warning("gpio_force_high_failed", pin=pin, err=str(exc))
 
     # ─── Cache réservations ────────────────────────────────────────────────
 
@@ -287,7 +378,25 @@ class LockerController:
             locker_id=claims.locker_id,
         )
 
-        # 2. Anti-replay
+        # 2. Modèle slots : refuse l'ouverture avant le début du créneau.
+        # On check AVANT l'anti-replay pour ne pas consommer le nonce —
+        # le user pourra re-scanner le même QR à l'heure dite.
+        if claims.slot_start_at is not None:
+            now_ts = int(time.time())
+            if now_ts + SLOT_START_CLOCK_TOLERANCE_S < claims.slot_start_at:
+                wait_s = claims.slot_start_at - now_ts
+                bound.warning(
+                    "slot_not_yet_open",
+                    slot_start_at=claims.slot_start_at, wait_seconds=wait_s,
+                )
+                return UnlockResult(
+                    UnlockOutcome.SLOT_NOT_YET_OPEN,
+                    reservation_id=claims.reservation_id,
+                    locker_id=claims.locker_id,
+                    detail=f"wait_{wait_s}s",
+                )
+
+        # 3. Anti-replay
         if self._nonces.seen(claims.jti):
             bound.warning("replay_blocked")
             return UnlockResult(
@@ -303,7 +412,7 @@ class LockerController:
                 locker_id=claims.locker_id,
             )
 
-        # 3. Cohérence du mapping GPIO
+        # 4. Cohérence du mapping GPIO
         if claims.locker_id not in self._gpio_mapping:
             bound.error("locker_not_mapped")
             return UnlockResult(
@@ -312,7 +421,7 @@ class LockerController:
                 locker_id=claims.locker_id,
             )
 
-        # 4. Cache réservation → mode dégradé
+        # 5. Cache réservation → mode dégradé
         cached = self._lookup_reservation(claims.reservation_id)
         online = self._mqtt.is_connected
 
@@ -342,7 +451,7 @@ class LockerController:
                     locker_id=claims.locker_id,
                 )
 
-        # 5. Ouverture physique
+        # 6. Ouverture physique
         if not self._pulse_open(claims.locker_id):
             bound.error("gpio_pulse_failed")
             return UnlockResult(
@@ -351,7 +460,7 @@ class LockerController:
                 locker_id=claims.locker_id,
             )
 
-        # 6. Event MQTT signé (avec fallback file locale)
+        # 7. Event MQTT signé (avec fallback file locale)
         published = self._publish_signed(
             "event",
             {
@@ -365,7 +474,7 @@ class LockerController:
             },
         )
 
-        # 7. Purge périodique des nonces > 24 h
+        # 8. Purge périodique des nonces > 24 h
         self._nonces.purge_expired()
 
         bound.info("unlock_success", mqtt_published=published)

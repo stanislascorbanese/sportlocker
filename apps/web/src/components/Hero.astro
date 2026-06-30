@@ -1,0 +1,58 @@
+---
+interface Props {
+  tag?: string
+  title: string
+  highlight?: string
+  desc: string
+  primary?: { href: string; label: string }
+  secondary?: { href: string; label: string }
+}
+const {
+  tag,
+  title,
+  highlight,
+  desc,
+  primary = { href: '/contact#formulaire', label: 'Demander un devis' },
+  secondary = { href: '/comment-ca-marche#distributeur-3d', label: 'Voir comment ça marche' },
+} = Astro.props
+---
+
+<section class="min-h-screen flex items-center pt-28 pb-20 relative overflow-hidden">
+  <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+  <div class="container-x relative z-10">
+    <div class="max-w-3xl">
+      {
+        tag && (
+          <div data-reveal class="mb-6">
+            <span class="tag tag-brand">{tag}</span>
+          </div>
+        )
+      }
+      <h1
+        data-reveal
+        data-reveal-delay="1"
+        class="font-extrabold text-display-xl text-white mb-6"
+      >
+        {title}
+        {highlight && (
+          <>
+            <br />
+            <span class="text-brand-400">{highlight}</span>
+          </>
+        )}
+      </h1>
+      <p
+        data-reveal
+        data-reveal-delay="2"
+        class="text-[1.15rem] text-white/65 leading-loose max-w-xl mb-10 font-light"
+      >
+        {desc}
+      </p>
+      <div data-reveal data-reveal-delay="3" class="flex items-center gap-3 flex-wrap">
+        <a href={primary.href} class="btn btn-primary">{primary.label} →</a>
+        <a href={secondary.href} class="btn btn-outline">{secondary.label}</a>
+      </div>
+      <slot />
+    </div>
+  </div>
+</section>

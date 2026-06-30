@@ -1,0 +1,45 @@
+---
+interface Props {
+  title?: string
+  sub?: string
+  primary?: { href: string; label: string }
+  secondary?: { href: string; label: string }
+  fine?: string
+}
+
+const {
+  title = 'Vos terrains méritent du matériel.',
+  sub = '15 minutes pour voir si SportLocker a du sens pour votre site. Aucun engagement au-delà de la conversation.',
+  primary = { href: '/contact#formulaire', label: 'Demander un devis' },
+  secondary = { href: '/comment-ca-marche#distributeur-3d', label: 'Voir comment ça marche' },
+  fine = 'Réponse sous 24h ouvrées · Devis sans engagement · Visite de site offerte',
+} = Astro.props
+---
+
+<section class="bg-cta-gradient py-24 sm:py-28 text-center">
+  <div class="container-x">
+    <h2
+      data-reveal
+      class="font-extrabold text-display-lg text-white tracking-tight mb-5"
+    >
+      {title}
+    </h2>
+    <p
+      data-reveal
+      data-reveal-delay="1"
+      class="text-white/80 max-w-xl mx-auto mb-9 font-light"
+    >
+      {sub}
+    </p>
+    <div data-reveal data-reveal-delay="2" class="flex justify-center items-center gap-3 flex-wrap">
+      <a href={primary.href} class="btn btn-white">{primary.label} →</a>
+      <a
+        href={secondary.href}
+        class="btn bg-transparent text-white border-2 border-white/40 hover:border-white hover:bg-white/10"
+      >
+        {secondary.label}
+      </a>
+    </div>
+    <p class="mt-9 text-xs text-white/60">{fine}</p>
+  </div>
+</section>

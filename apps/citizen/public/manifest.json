@@ -1,0 +1,49 @@
+{
+  "name": "SportLocker — Emprunter du matériel sport",
+  "short_name": "SportLocker",
+  "description": "Réserve gratuitement du matériel sportif dans un distributeur près de chez toi. Créneaux 30 min à journée, jusqu'à 7 jours à l'avance.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D1B2A",
+  "theme_color": "#0D1B2A",
+  "categories": ["sports", "lifestyle", "utilities"],
+  "lang": "fr",
+  "scope": "/",
+  "id": "fr.sportlocker.app",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Trouver un distributeur",
+      "short_name": "Distributeurs",
+      "description": "Carte des distributeurs SportLocker disponibles autour de toi.",
+      "url": "/",
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
+    },
+    {
+      "name": "Mes emprunts",
+      "short_name": "Profil",
+      "description": "Historique de tes emprunts et préférences notifications.",
+      "url": "/profile",
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}

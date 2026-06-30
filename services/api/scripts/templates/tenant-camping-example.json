@@ -1,0 +1,73 @@
+{
+  "_comment": "Template d'onboarding tenant — camping. Voir docs/ONBOARDING-TENANT.md.",
+
+  "_camping_doc": "Un camping n'a pas de code INSEE (entité privée). Convention : on prend le code INSEE de la commune d'implantation et on suffixe le nom — limite de la modélisation actuelle (insee_code est UNIQUE en base, donc UN seul camping par commune via ce schéma). Pour gérer plusieurs sites privés dans la même commune, attendre la migration `tenants` séparée (chantier futur). Workaround d'ici-là : utiliser un code arbitraire à 5 caractères (ex: 'C1234') et le marquer dans le nom.",
+
+  "commune": {
+    "insee_code": "C0001",
+    "name": "Camping Les Mimosas — Hyères",
+    "postal_code": "83400",
+    "department": "83",
+    "region": "Provence-Alpes-Côte d'Azur",
+    "contact_email": "direction@camping-mimosas.fr",
+    "contact_phone": "+33 4 94 00 00 00",
+    "contract_start": "2026-06-15",
+    "contract_end": "2028-06-14",
+    "monthly_fee_cents": 40000
+  },
+
+  "_distributors_doc": "Pour un camping, on cible les zones piscine/plage et les terrains de sport. Privilégier 2-3 emplacements distincts avec stocks adaptés à l'usage saisonnier.",
+  "distributors": [
+    {
+      "serial_number": "SL-MIMOSAS-PISCINE-001",
+      "name": "Pool deck — bord piscine principale",
+      "latitude": 43.1133,
+      "longitude": 6.1287,
+      "address_line": "Camping Les Mimosas, Avenue de la Mer, 83400 Hyères",
+      "locker_layout": [
+        "frisbee",
+        "frisbee",
+        "frisbee",
+        "ballon-foot",
+        "ballon-basket"
+      ]
+    },
+    {
+      "serial_number": "SL-MIMOSAS-COURT-001",
+      "name": "Court de tennis",
+      "latitude": 43.1141,
+      "longitude": 6.1295,
+      "address_line": "Camping Les Mimosas, près du terrain sportif, 83400 Hyères",
+      "locker_layout": [
+        "raquette-tennis",
+        "raquette-tennis",
+        "raquette-tennis",
+        "raquette-tennis"
+      ]
+    }
+  ],
+
+  "_pricing_doc": "Grille type 'Pleine saison' (apps/web/src/data/site.ts) — pratique courante en bord de mer. Tarifs plus élevés que mairie communale.",
+  "pricing_rules": [
+    { "item_type_slug": "frisbee",         "duration_minutes": 30,   "price_cents": 100 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 60,   "price_cents": 200 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 120,  "price_cents": 300 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 1440, "price_cents": 500 },
+
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 30,   "price_cents": 100 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 60,   "price_cents": 200 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 120,  "price_cents": 400 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 1440, "price_cents": 500 },
+
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 30,   "price_cents": 100 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 60,   "price_cents": 200 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 120,  "price_cents": 400 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 1440, "price_cents": 500 },
+
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 30,   "price_cents": 200 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 60,   "price_cents": 400 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 90,   "price_cents": 600 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 120,  "price_cents": 800 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 1440, "price_cents": 1500 }
+  ]
+}

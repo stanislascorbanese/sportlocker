@@ -4,6 +4,8 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
+import { DistributorStatus } from '@sportlocker/types'
+
 import {
   ApiError,
   DistributorCreateInput,
@@ -24,20 +26,30 @@ const optionalNumber = z
   .transform((v) => (v === '' ? undefined : Number(v)))
   .pipe(z.number().optional())
 
+const optionalString = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => (v === '' ? undefined : v))
+    .optional()
+
 const CreateForm = z.object({
   serialNumber: z.string().trim().min(3).max(40),
   communeId:    z.string().trim().uuid(),
   name:         z.string().trim().min(1).max(120),
   latitude:     optionalNumber.pipe(z.number().min(-90).max(90).optional()),
   longitude:    optionalNumber.pipe(z.number().min(-180).max(180).optional()),
+  addressLine:  optionalString(200),
   lockerCount:  z.coerce.number().int().min(1).max(64),
 })
 
 const UpdateForm = z.object({
-  name:      z.string().trim().min(1).max(120),
-  status:    z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
-  latitude:  optionalNumber.pipe(z.number().min(-90).max(90).optional()),
-  longitude: optionalNumber.pipe(z.number().min(-180).max(180).optional()),
+  name:        z.string().trim().min(1).max(120),
+  status:      DistributorStatus,
+  latitude:    optionalNumber.pipe(z.number().min(-90).max(90).optional()),
+  longitude:   optionalNumber.pipe(z.number().min(-180).max(180).optional()),
+  addressLine: optionalString(200),
 })
 
 export async function createDistributorAction(
@@ -54,6 +66,7 @@ export async function createDistributorAction(
     lockerCount:  parsed.data.lockerCount,
     latitude:     parsed.data.latitude ?? null,
     longitude:    parsed.data.longitude ?? null,
+    addressLine:  parsed.data.addressLine ?? null,
   }
 
   try {
@@ -78,10 +91,11 @@ export async function updateDistributorAction(
   if (!parsed.success) return zodToState(parsed.error)
 
   const input: DistributorUpdateInput = {
-    name:      parsed.data.name,
-    status:    parsed.data.status,
-    latitude:  parsed.data.latitude ?? null,
-    longitude: parsed.data.longitude ?? null,
+    name:        parsed.data.name,
+    status:      parsed.data.status,
+    latitude:    parsed.data.latitude ?? null,
+    longitude:   parsed.data.longitude ?? null,
+    addressLine: parsed.data.addressLine ?? null,
   }
 
   try {

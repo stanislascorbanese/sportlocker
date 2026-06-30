@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 --  SportLocker — Schéma PostgreSQL 16
 -- ═══════════════════════════════════════════════════════════════════════════
---  14 tables principales pour le service de prêt de matériel sportif IoT.
+--  15 tables principales pour le service de prêt de matériel sportif IoT.
 --  Convention : noms de tables au pluriel, snake_case, timestamps UTC.
 --  À appliquer sur une base vide. Les migrations versionnées vivent dans
 --  ./migrations/ et sont produites par Drizzle Kit.
@@ -15,7 +15,12 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";     -- recherche textuelle
 
 -- ─── ENUMS ────────────────────────────────────────────────────────────────
 
-CREATE TYPE user_role AS ENUM ('citizen', 'operator', 'admin');
+-- Sémantique multi-tenant :
+--   citizen     : utilisateur app mobile
+--   admin       : responsable d'une commune (scoping commune_id obligatoire)
+--   super_admin : équipe SportLocker (bypass scoping, voit tous les tenants)
+--   operator    : DEPRECATED (migration 0004) — conservé pour compat enum
+CREATE TYPE user_role AS ENUM ('citizen', 'operator', 'admin', 'super_admin');
 
 CREATE TYPE distributor_status AS ENUM (
   'online',         -- heartbeat reçu < 5 min
@@ -35,7 +40,9 @@ CREATE TYPE locker_state AS ENUM (
 CREATE TYPE item_condition AS ENUM ('new', 'good', 'worn', 'damaged', 'lost');
 
 CREATE TYPE reservation_status AS ENUM (
-  'pending',        -- créée, casier réservé, QR émis
+  'pending_payment', -- créneau réservé (slot + item tenus), QR PAS encore émis — attente paiement (migration 0013)
+  'scheduled',      -- créneau futur réservé, QR émis (modèle slots)
+  'pending',        -- créée, casier réservé, QR émis (legacy modèle immédiat)
   'active',         -- item retiré
   'returned',       -- rendu dans les délais
   'overdue',        -- non rendu après 24h
@@ -52,6 +59,15 @@ CREATE TYPE maintenance_status AS ENUM ('open', 'in_progress', 'resolved', 'wont
 
 CREATE TYPE notification_channel AS ENUM ('push', 'email', 'sms');
 
+-- Paiement Stripe d'une location de casier (migration 0013).
+CREATE TYPE payment_status AS ENUM (
+  'pending',     -- intent créé, paiement pas encore confirmé
+  'succeeded',   -- paiement confirmé → résa passée en 'scheduled'
+  'failed',      -- échec (carte refusée, etc.) — le citoyen peut réessayer
+  'cancelled',   -- abandonné / expiré par le cron
+  'refunded'     -- remboursé (post-MVP)
+);
+
 -- ─── 1. communes ───────────────────────────────────────────────────────────
 
 CREATE TABLE communes (
@@ -67,11 +83,26 @@ CREATE TABLE communes (
   monthly_fee_cents INTEGER NOT NULL DEFAULT 0,
   contact_email  VARCHAR(180),
   contact_phone  VARCHAR(20),
+  -- Stripe Connect Express (migration 0013). Le tenant onboarde son compte
+  -- depuis le dashboard ops, suit le flow KYC Stripe-hosted, et nous renvoie
+  -- l'`acct_XXX`. Les 2 flags `charges_enabled` / `payouts_enabled` traduisent
+  -- l'état Stripe (vérification ID + RIB validé) et conditionnent la
+  -- capacité à recevoir des paiements et des payouts.
+  stripe_connect_account_id      VARCHAR(255),
+  stripe_connect_charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  stripe_connect_payouts_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  stripe_connect_onboarded_at    TIMESTAMPTZ,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_communes_insee ON communes(insee_code);
+-- Index UNIQUE partial : permet plusieurs lignes NULL mais garantit qu'un
+-- account_id Stripe ne peut pas être réutilisé par 2 communes (sécurité
+-- contre les bugs de copy-paste).
+CREATE UNIQUE INDEX idx_communes_stripe_connect_account_id
+  ON communes(stripe_connect_account_id)
+  WHERE stripe_connect_account_id IS NOT NULL;
 
 -- ─── 2. users ──────────────────────────────────────────────────────────────
 
@@ -85,6 +116,10 @@ CREATE TABLE users (
   commune_id               UUID REFERENCES communes(id) ON DELETE SET NULL,
   trust_score              SMALLINT NOT NULL DEFAULT 100 CHECK (trust_score BETWEEN 0 AND 100),
   total_reservations       INTEGER NOT NULL DEFAULT 0,
+  -- Préférence push (migration 0011) : combien de minutes avant `slot_start_at`
+  -- le cron `slot-reminders` envoie le rappel. UI propose 15/30/60/120.
+  reminder_minutes_before  INTEGER NOT NULL DEFAULT 15
+    CHECK (reminder_minutes_before BETWEEN 5 AND 1440),
   is_banned                BOOLEAN NOT NULL DEFAULT FALSE,
   banned_reason            TEXT,
   last_active_at           TIMESTAMPTZ,
@@ -97,8 +132,26 @@ CREATE TABLE users (
 CREATE INDEX idx_users_firebase    ON users(firebase_uid);
 CREATE INDEX idx_users_email       ON users(email);
 CREATE INDEX idx_users_role        ON users(role);
+CREATE INDEX idx_users_commune_id  ON users(commune_id);
 CREATE INDEX idx_users_gdpr_delete ON users(gdpr_delete_requested_at)
   WHERE gdpr_delete_requested_at IS NOT NULL;
+
+-- ─── admin_invites — onboarding magique tenant ─────────────────────────────
+--  Un super_admin émet un invite avec email + commune_id ; l'admin tenant
+--  clique le lien (token one-time), s'authentifie via Firebase, et son user
+--  est créé avec role='admin' + commune_id. Voir migration 0004.
+
+CREATE TABLE admin_invites (
+  token        TEXT PRIMARY KEY,
+  email        VARCHAR(180) NOT NULL,
+  commune_id   UUID NOT NULL REFERENCES communes(id) ON DELETE CASCADE,
+  expires_at   TIMESTAMPTZ NOT NULL,
+  accepted_at  TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_invites_email      ON admin_invites(email);
+CREATE INDEX idx_admin_invites_commune_id ON admin_invites(commune_id);
 
 -- ─── 3. distributors ───────────────────────────────────────────────────────
 
@@ -204,7 +257,7 @@ CREATE TABLE reservations (
   locker_id       UUID NOT NULL REFERENCES lockers(id) ON DELETE RESTRICT,
   item_id         UUID NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
   distributor_id  UUID NOT NULL REFERENCES distributors(id) ON DELETE RESTRICT,
-  status          reservation_status NOT NULL DEFAULT 'pending',
+  status          reservation_status NOT NULL DEFAULT 'scheduled',
   qr_jti          VARCHAR(64) NOT NULL UNIQUE,   -- JWT ID = nonce attendu
   expires_at      TIMESTAMPTZ NOT NULL,
   opened_at       TIMESTAMPTZ,
@@ -214,6 +267,16 @@ CREATE TABLE reservations (
   cancellation_reason TEXT,
   due_at          TIMESTAMPTZ,                   -- deadline retour, posée à l'ouverture
   extension_count SMALLINT NOT NULL DEFAULT 0,   -- max 2 prolongations
+  -- ─── Modèle slots (PR 0008) ───
+  slot_start_at    TIMESTAMPTZ,                  -- début du créneau réservé
+  slot_end_at      TIMESTAMPTZ,                  -- fin (= start + duration_minutes)
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes IN (30, 60, 90, 120, 1440)),
+  price_cents      INTEGER CHECK (price_cents IS NULL OR price_cents >= 0),
+  CONSTRAINT reservations_slot_range_check CHECK (
+    (slot_start_at IS NULL AND slot_end_at IS NULL)
+    OR (slot_start_at IS NOT NULL AND slot_end_at IS NOT NULL
+        AND slot_end_at > slot_start_at)
+  ),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -226,6 +289,25 @@ CREATE INDEX idx_reservations_expires     ON reservations(expires_at)
   WHERE status IN ('pending', 'active');
 CREATE INDEX idx_reservations_distributor ON reservations(distributor_id);
 CREATE INDEX idx_reservations_created     ON reservations(created_at DESC);
+-- Pagination cursor admin : ORDER BY (created_at DESC, id DESC) + tiebreaker.
+CREATE INDEX idx_reservations_created_id  ON reservations(created_at DESC, id DESC);
+-- Liste admin filtrée par status, triée created_at DESC.
+CREATE INDEX idx_reservations_status_created
+  ON reservations(status, created_at DESC);
+-- Stats dashboard scopées commune (distributor_id IN ... AND created_at >= ...).
+CREATE INDEX idx_reservations_distributor_created
+  ON reservations(distributor_id, created_at DESC);
+
+-- NB : les index UNIQUE PARTIAL `idx_reservations_one_live_per_user`
+-- (anti-monopole, migration 0008 — remplace 0005) et `idx_reservations_item_slot`
+-- (check overlap de slot par item, migration 0008) ne sont PAS déclarés ici.
+-- Raison : le setup de tests d'intégration applique schema.sql + uniquement
+-- la migration 0001, jamais 0005/0008. Les seeders insèrent plusieurs
+-- réservations "vivantes" par user — comportement légitime pour des
+-- fixtures d'agrégats stats. Activer la contrainte côté schema.sql ferait
+-- sauter ~20 tests sans valeur métier ajoutée. La contrainte est appliquée
+-- en prod par la migration 0008. Pour une DB fraîche bootstrappée via
+-- schema.sql, l'opérateur passe le runner de migrations ensuite.
 
 -- ─── 9. reviews ────────────────────────────────────────────────────────────
 
@@ -296,18 +378,37 @@ CREATE TABLE maintenance_tickets (
 
 CREATE INDEX idx_maintenance_distributor ON maintenance_tickets(distributor_id);
 CREATE INDEX idx_maintenance_status      ON maintenance_tickets(status);
+-- Listing admin tickets : ORDER BY severity DESC, created_at DESC.
+CREATE INDEX idx_maintenance_severity_created
+  ON maintenance_tickets(severity DESC, created_at DESC);
+-- Listing filtré par status + tri (severity, created_at).
+CREATE INDEX idx_maintenance_status_severity_created
+  ON maintenance_tickets(status, severity DESC, created_at DESC);
 
 -- ─── 13. push_tokens ───────────────────────────────────────────────────────
 
 CREATE TABLE push_tokens (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expo_token  VARCHAR(200) NOT NULL UNIQUE,
-  device_info JSONB NOT NULL DEFAULT '{}'::jsonb,
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- ─── Web Push (RFC 8030 + VAPID, migration 0010) ───
+  endpoint     VARCHAR(500),
+  p256dh_key   VARCHAR(200),
+  auth_key     VARCHAR(50),
+  -- Vestige Expo Push (apps/mobile supprimé en mai 2026) : nullable pour
+  -- compat, à droper dans une migration future.
+  expo_token   VARCHAR(200),
+  device_info  JSONB NOT NULL DEFAULT '{}'::jsonb,
   last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Index UNIQUE non-partial : nécessaire pour que Drizzle `onConflictDoUpdate`
+-- puisse l'utiliser comme target d'`ON CONFLICT (endpoint)`. Un partial index
+-- (avec `WHERE endpoint IS NOT NULL`) ne match pas sans clause WHERE explicite
+-- côté INSERT. NULL traité comme distinct par PG par défaut → safe pour les
+-- vieilles rows endpoint=NULL (vestige Expo Push). Cf. migration 0012.
+CREATE UNIQUE INDEX idx_push_tokens_endpoint
+  ON push_tokens(endpoint);
 CREATE INDEX idx_push_tokens_user ON push_tokens(user_id);
 
 -- ─── 14. notification_logs ─────────────────────────────────────────────────
@@ -326,6 +427,71 @@ CREATE TABLE notification_logs (
 CREATE INDEX idx_notification_logs_user    ON notification_logs(user_id);
 CREATE INDEX idx_notification_logs_channel ON notification_logs(channel);
 
+-- ─── 15. pricing_rules ─────────────────────────────────────────────────────
+--  Tarification configurée par tenant : (commune × item_type × duration).
+--  Une ligne absente = ce slot n'est pas proposé pour cet item dans cette
+--  commune. price_cents = 0 autorisé (slot offert).
+
+CREATE TABLE pricing_rules (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  commune_id       UUID NOT NULL REFERENCES communes(id)   ON DELETE CASCADE,
+  item_type_id     UUID NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (30, 60, 90, 120, 1440)),
+  price_cents      INTEGER NOT NULL CHECK (price_cents >= 0),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX pricing_rules_commune_item_type_duration_uq
+  ON pricing_rules(commune_id, item_type_id, duration_minutes);
+CREATE INDEX idx_pricing_rules_commune   ON pricing_rules(commune_id);
+CREATE INDEX idx_pricing_rules_item_type ON pricing_rules(item_type_id);
+
+-- ─── 16. payments ────────────────────────────────────────────────────────────
+--  Paiement Stripe d'une location (modèle slots, migration 0013). 1:1 avec une
+--  réservation. amount_cents = snapshot du price_cents figé à la création.
+--  provider = 'stripe' (réel) ou 'simulate' (dev offline, auto-réussite).
+
+CREATE TABLE payments (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reservation_id           UUID NOT NULL UNIQUE REFERENCES reservations(id) ON DELETE CASCADE,
+  user_id                  UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  amount_cents             INTEGER NOT NULL CHECK (amount_cents >= 0),
+  currency                 VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  status                   payment_status NOT NULL DEFAULT 'pending',
+  provider                 VARCHAR(20) NOT NULL DEFAULT 'stripe',
+  stripe_payment_intent_id VARCHAR(255) UNIQUE,
+  error_message            TEXT,
+  paid_at                  TIMESTAMPTZ,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_payments_status_created ON payments(status, created_at);
+CREATE INDEX idx_payments_user           ON payments(user_id);
+
+-- ─── 17. wallet_topups ───────────────────────────────────────────────────────
+--  Recharges du porte-monnaie prépayé citoyen (carnet/pass, migration 0017).
+--  Le SOLDE = Σ(wallet_topups succeeded) − Σ(payments provider='wallet' succeeded).
+--  updated_at maintenu côté application (pas de trigger ici).
+
+CREATE TABLE wallet_topups (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount_cents             INTEGER NOT NULL CHECK (amount_cents > 0),
+  currency                 VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  status                   payment_status NOT NULL DEFAULT 'pending',
+  provider                 VARCHAR(20) NOT NULL DEFAULT 'stripe',
+  stripe_payment_intent_id VARCHAR(255) UNIQUE,
+  error_message            TEXT,
+  paid_at                  TIMESTAMPTZ,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_wallet_topups_user   ON wallet_topups(user_id);
+CREATE INDEX idx_wallet_topups_status ON wallet_topups(status, created_at);
+
 -- ─── Triggers updated_at ───────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION trg_set_updated_at() RETURNS trigger AS $$
@@ -340,7 +506,7 @@ DECLARE t TEXT;
 BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'communes', 'users', 'distributors', 'lockers', 'items',
-    'reservations', 'maintenance_tickets'
+    'reservations', 'maintenance_tickets', 'pricing_rules', 'payments'
   ])
   LOOP
     EXECUTE format(

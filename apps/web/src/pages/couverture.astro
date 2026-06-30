@@ -1,0 +1,134 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import CoverageMap from '@/components/CoverageMap.tsx'
+import { COMMUNES } from '@/data/communes'
+
+const installSteps = [
+  {
+    n: '01',
+    title: 'Étude de site (15 min)',
+    desc: 'Call rapide pour comprendre vos terrains, vos sports prioritaires, votre timing budgétaire.',
+  },
+  {
+    n: '02',
+    title: 'Visite & devis (sous 7 j)',
+    desc: 'Repérage des emplacements, vérification alimentation électrique, devis ferme sous 48 h après la visite.',
+  },
+  {
+    n: '03',
+    title: 'Installation (4-6 semaines)',
+    desc: 'Fabrication, transport, pose, formation du référent site. Inclus dans le setup fee.',
+  },
+  {
+    n: '04',
+    title: 'Mise en service & suivi',
+    desc: 'Communication usagers, monitoring 24/7, suivi 30/60/90 jours, reversement automatique J+2.',
+  },
+]
+---
+
+<Base
+  title="Couverture France — déploiement national"
+  description="SportLocker déploie ses distributeurs de matériel sportif partout en France métropolitaine. Cliquez sur la carte pour indiquer votre commune et recevoir un devis ciblé."
+  ogImage="/og-default.png"
+>
+  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        {/* Pas de `data-reveal` sur le hero : il est above-the-fold (déjà dans le
+            viewport au chargement), donc l'animation opacity:0 → JS ne fait que
+            masquer le contenu jusqu'à l'exécution de l'IntersectionObserver, ce
+            qui retardait le LCP à ~4,4 s (le <p> ci-dessous était l'élément LCP).
+            Rendu immédiat → LCP au FCP. Les sections plus bas gardent le reveal. */}
+        <span class="tag tag-brand inline-block mb-6">Couverture nationale</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6">
+          Partout en France<br/>
+          <span class="text-brand-400">métropolitaine.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light">
+          Aucune zone exclue. Du littoral atlantique aux communes alpines, en passant par l'Île-de-France
+          et l'Occitanie : nous déployons partout. Cliquez sur la carte pour indiquer votre commune et
+          recevoir une étude de site personnalisée.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CARTE INTERACTIVE -->
+  <section class="section bg-navy-800 pt-0">
+    <div class="container-x">
+      <div data-reveal>
+        {/* min-height réserve l'espace de l'île React avant hydratation :
+            client:only ne rend rien côté serveur, donc sans hauteur réservée
+            la carte Leaflet surgit au montage et provoque un gros CLS (~0.20).
+            Valeurs alignées sur la hauteur rendue (1 col mobile carte+panneau,
+            2 col en lg). bg-navy-800 = couleur de section → réserve invisible. */}
+        <div class="min-h-[1000px] sm:min-h-[1080px] lg:min-h-[600px] rounded-2xl bg-navy-800">
+          <CoverageMap client:only="react" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DÉLAIS -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Délais types</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          De votre clic à la mise en service
+        </h2>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {installSteps.map((s, i) => (
+          <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
+            <div class="font-extrabold text-2xl text-brand-400 leading-none mb-3 tabular-nums">
+              {s.n}
+            </div>
+            <h3 class="font-bold text-white text-base mb-2">{s.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{s.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- VILLES COUVERTES -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Déjà sur le terrain</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Villes couvertes</h2>
+        <p class="mt-3 text-white/60 font-light max-w-2xl mx-auto" data-reveal data-reveal-delay="2">
+          SportLocker est déjà déployé dans ces communes. Cliquez pour voir le service localement.
+        </p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+        {COMMUNES.map((c, i) => (
+          <a
+            href={`/communes/${c.slug}`}
+            class="card-dark p-5 block hover:border-brand-500/40 transition-colors"
+            data-reveal
+            data-reveal-delay={String((i % 3) + 1)}
+          >
+            <h3 class="font-bold text-white text-base">{c.name}</h3>
+            <p class="mt-1 text-sm text-white/55 font-light">{c.department} · {c.departmentCode}</p>
+            <span class="mt-3 inline-block text-brand-400 text-sm font-medium">
+              Matériel sportif à {c.name} →
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <FinalCta
+    title="Votre commune est éligible."
+    sub="15 min de call pour cadrer le pilote, identifier les emplacements idéaux et estimer les subventions mobilisables (ANS / DETR / DSIL pour les communes)."
+    primary={{ href: '/contact#formulaire', label: 'Demander une étude de site' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs détaillés' }}
+    fine="Réponse sous 24h ouvrées · Devis sans engagement · Visite offerte en Île-de-France"
+  />
+</Base>

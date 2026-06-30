@@ -42,6 +42,10 @@ COPY --from=builder /install /usr/local
 COPY pyproject.toml ./
 COPY src/sportlocker_firmware ./sportlocker_firmware
 
+# CA cert EMQX Cloud (publique, bundlée dans l'image pour validation TLS du broker).
+# Le chemin est fixe → MQTT_CA_CERT_PATH peut hériter du default ci-dessous.
+COPY emqxsl-ca.crt /etc/sportlocker/emqxsl-ca.crt
+
 # SQLite local (anti-replay + réservations cachées).
 VOLUME ["/var/lib/sportlocker"]
 
@@ -51,6 +55,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MQTT_CA_CERT_PATH=/etc/sportlocker/emqxsl-ca.crt
 
 CMD ["python", "-m", "sportlocker_firmware"]

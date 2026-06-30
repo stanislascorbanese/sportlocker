@@ -1,0 +1,35 @@
+-- 0007_distributors_address_line.sql
+--
+-- Garantit que la colonne `address_line` existe sur la table `distributors`.
+--
+-- Cette colonne est déjà déclarée dans database/schema.sql (le bootstrap
+-- appliqué sur une DB vide), mais aucune migration versionnée ne l'avait
+-- ajoutée explicitement. Pour les DB existantes créées avant l'ajout de la
+-- colonne dans schema.sql, cette migration la crée. Pour les DB fraîches,
+-- elle ne fait rien (IF NOT EXISTS).
+--
+-- Contexte : exposition de address_line dans l'API POST/PUT /v1/distributors
+-- pour persister l'adresse postale auto-remplie par l'autocomplete BAN
+-- (cf. apps/dashboard/src/app/distributors/AddressAutocomplete.tsx).
+--
+-- Idempotent : safe à re-jouer (IF NOT EXISTS).
+--
+-- ┌─ HISTORIQUE DE RENOMMAGE (2026-05-20) ──────────────────────────────────┐
+-- │ Cette migration s'appelait initialement 0006_distributors_address_line  │
+-- │ (PR #50, mergée 4 min après #37 qui avait déjà pris le numéro 0006 pour │
+-- │ `0006_performance_indexes.sql`). Pour respecter la convention "1 numéro │
+-- │ = 1 migration unique", elle a été renommée 0007.                        │
+-- │                                                                          │
+-- │ Si la prod a déjà appliqué l'ancien nom (entrée                          │
+-- │ `0006_distributors_address_line.sql` dans schema_migrations), le runner  │
+-- │ va considérer 0007 comme jamais appliquée et la rejouer. Aucun problème  │
+-- │ fonctionnel (idempotente via IF NOT EXISTS) mais on aura deux traces     │
+-- │ dans schema_migrations. Nettoyage manuel possible une fois la PR de      │
+-- │ renommage déployée :                                                     │
+-- │                                                                          │
+-- │   DELETE FROM schema_migrations                                          │
+-- │    WHERE filename = '0006_distributors_address_line.sql';                │
+-- └──────────────────────────────────────────────────────────────────────────┘
+
+ALTER TABLE distributors
+  ADD COLUMN IF NOT EXISTS address_line VARCHAR(200);

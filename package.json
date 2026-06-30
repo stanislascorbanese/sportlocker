@@ -14,10 +14,28 @@
     "db:studio":  "pnpm --filter @sportlocker/api db:studio"
   },
   "devDependencies": {
-    "turbo":            "^2.0.0",
-    "typescript":       "^5.4.0",
-    "eslint":           "^8.57.0",
-    "@types/node":      "^20.0.0",
-    "prettier":         "^3.2.0"
+    "turbo":            "^2.9.18",
+    "typescript":       "^5.9.3",
+    "eslint":           "^8.57.1",
+    "@types/node":      "^22.0.0",
+    "prettier":         "^3.8.4"
+  },
+  "pnpm": {
+    "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9).",
+    "overrides": {
+      "@xmldom/xmldom": ">=0.8.13",
+      "fast-jwt":       ">=6.2.4",
+      "fast-uri":       ">=3.1.2",
+      "undici":         ">=6.27.0 <7",
+      "drizzle-orm":    ">=0.45.2",
+      "rollup":         ">=3.30.0",
+      "tar":            ">=7.5.4",
+      "tmp":            ">=0.2.6",
+      "ws":             ">=8.21.0",
+      "form-data":      ">=4.0.6",
+      "protobufjs":     ">=7.6.3",
+      "@grpc/grpc-js@1.14.3": "1.14.4"
+    },
+    "//audit": "Les GHSAs non couvertes par les overrides ci-dessus sont filtrées dans .github/workflows/security.yml (pnpm 9 n'applique pas pnpm.auditConfig.ignoreCves). Voir docs/SECURITY.md §9."
   }
 }

@@ -1,0 +1,194 @@
+import type { FastifyInstance } from 'fastify'
+import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import { eq } from 'drizzle-orm'
+import { z } from 'zod'
+
+import { db } from '../db/client.js'
+import { users } from '../db/schema.js'
+import { env } from '../config/env.js'
+import { getFirebaseAdmin } from '../lib/firebase-admin.js'
+
+const LoginBody = z.object({
+  firebaseIdToken: z.string().min(20)
+    .describe('Firebase ID token obtenu côté dashboard (firebase-auth-web). JWT à 3 segments.'),
+})
+
+const SessionUser = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'super_admin'])
+    .describe('`admin` = scopé à une commune. `super_admin` = équipe SportLocker, cross-tenant.'),
+  communeId: z.string().uuid().nullable().describe('Tenant pour `admin`. Null pour `super_admin`.'),
+})
+
+const LoginResponse = z.object({
+  sessionToken: z.string().describe('JWT de session SportLocker (HS256, TTL 7 jours). À renvoyer en Bearer.'),
+  user: SessionUser,
+})
+
+const ErrorDTO = z.object({ error: z.string() })
+
+interface FirebaseClaims {
+  sub: string
+  email?: string
+  name?: string
+}
+
+/**
+ * Décode un JWT Firebase *sans vérifier la signature* — fallback dev quand
+ * FIREBASE_SERVICE_ACCOUNT_KEY n'est pas configuré. JAMAIS en production.
+ */
+function decodeFirebaseTokenUnsafe(idToken: string): FirebaseClaims | null {
+  const parts = idToken.split('.')
+  if (parts.length !== 3) return null
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8'))
+    if (typeof payload?.sub !== 'string') return null
+    return payload as FirebaseClaims
+  } catch {
+    return null
+  }
+}
+
+type AuthLogger = {
+  warn: (obj: unknown, msg: string) => void
+  error: (obj: unknown, msg: string) => void
+}
+
+async function verifyFirebaseTokenSecure(
+  idToken: string,
+  log: AuthLogger,
+): Promise<FirebaseClaims | null> {
+  const admin = await getFirebaseAdmin()
+  if (!admin) return null
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken)
+    return {
+      sub: decoded.uid,
+      ...(decoded.email !== undefined && { email: decoded.email }),
+      ...(decoded.name !== undefined && { name: decoded.name as string }),
+    }
+  } catch (err) {
+    // Surface la vraie cause : sinon `invalid_id_token` est opaque et masque
+    // aussi bien une clé de service account mal formée (PEM newlines cassés à
+    // l'init) qu'un token rejeté (audience/signature). Sans ce log, le bug est
+    // invisible en prod.
+    log.error(
+      {
+        err: err instanceof Error ? err.message : String(err),
+        projectId: env.FIREBASE_PROJECT_ID,
+      },
+      'admin-auth: vérification Firebase sécurisée échouée',
+    )
+    return null
+  }
+}
+
+/** Vérification Firebase avec fallback dev. Logique factorisée pour usage
+ *  partagé avec le flow accept-invite. */
+export async function verifyFirebaseToken(
+  idToken: string,
+  log: AuthLogger,
+): Promise<FirebaseClaims | null> {
+  const secure = await verifyFirebaseTokenSecure(idToken, log)
+  if (secure) return secure
+  if (env.NODE_ENV === 'production') return null
+  const unsafe = decodeFirebaseTokenUnsafe(idToken)
+  if (unsafe) {
+    log.warn(
+      { sub: unsafe.sub },
+      'admin-auth: token decoded WITHOUT signature verification (dev mode only)',
+    )
+  }
+  return unsafe
+}
+
+export async function adminAuthRoutes(rawApp: FastifyInstance) {
+  const app = rawApp.withTypeProvider<ZodTypeProvider>()
+
+  /**
+   * POST /v1/admin/auth/login — échange un Firebase ID token contre un JWT
+   * de session admin. Le user DOIT exister en DB avec role ∈ {admin, super_admin}.
+   *
+   * Pas d'auto-création : un admin n'arrive en DB que via le flow d'invite
+   * (POST /v1/admin/invites/accept) ou par opération manuelle super_admin.
+   */
+  app.post('/login', {
+    schema: {
+      tags: ['Auth admin'],
+      summary: 'Login admin (échange Firebase ID token)',
+      description: 'Vérifie le Firebase ID token et émet un JWT de session. Le user DOIT déjà exister en DB '
+        + 'avec `role ∈ {admin, super_admin}`. Pas d\'auto-création : passe par le flow `/v1/admin/invites/accept` '
+        + 'ou par `pnpm bootstrap-super-admin`.\n\n'
+        + '**Erreurs** : 401 `invalid_id_token` · 401 `admin_user_not_found` · 401 `not_an_admin` · 401 `user_banned`.\n\n'
+        + '**Exemple body** : `{ "firebaseIdToken": "eyJhbGc..." }`',
+      body: LoginBody,
+      response: {
+        200: LoginResponse,
+        400: ErrorDTO,
+        401: ErrorDTO,
+      },
+    },
+  }, async (req, reply) => {
+    const claims = await verifyFirebaseToken(req.body.firebaseIdToken, req.log)
+    if (!claims) {
+      return reply.code(401).send({ error: 'invalid_id_token' })
+    }
+
+    const [u] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        role: users.role,
+        communeId: users.communeId,
+        isBanned: users.isBanned,
+        gdprDeletedAt: users.gdprDeletedAt,
+      })
+      .from(users)
+      .where(eq(users.firebaseUid, claims.sub))
+      .limit(1)
+
+    if (!u) {
+      return reply.code(401).send({ error: 'admin_user_not_found' })
+    }
+    if (u.role !== 'admin' && u.role !== 'super_admin') {
+      return reply.code(401).send({ error: 'not_an_admin' })
+    }
+    if (u.isBanned) {
+      return reply.code(401).send({ error: 'user_banned' })
+    }
+    // RGPD : un user soft-deleted (gdpr_deleted_at posé par le cron de
+    // nettoyage 30j) ne peut plus se reconnecter, même s'il a un compte
+    // Firebase encore actif. Le cron suppose que toute session admin
+    // future serait illégitime sur des données anonymisées.
+    if (u.gdprDeletedAt !== null) {
+      return reply.code(401).send({ error: 'user_deleted' })
+    }
+    // Multi-tenant : un admin (par opposition à super_admin) DOIT avoir
+    // une commune assignée, sinon il pourrait se logger et émettre un JWT
+    // sans communeId → bypass de tout le scoping commune côté
+    // requireAdminScope (qui renvoie scope=null si pas de communeId).
+    // Fail-safe : on refuse au login plutôt que de risquer une fuite
+    // cross-tenant en aval.
+    if (u.role === 'admin' && !u.communeId) {
+      return reply.code(401).send({ error: 'admin_missing_commune' })
+    }
+
+    const sessionToken = app.jwt.sign({
+      sub: u.id,
+      email: u.email,
+      role: u.role,
+      ...(u.communeId ? { communeId: u.communeId } : {}),
+    })
+
+    return reply.code(200).send({
+      sessionToken,
+      user: {
+        id: u.id,
+        email: u.email,
+        role: u.role,
+        communeId: u.communeId,
+      },
+    })
+  })
+}

@@ -31,10 +31,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node 20 + pnpm (via corepack)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -49,7 +49,7 @@ jobs:
         run: echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -57,33 +57,54 @@ jobs:
             pnpm-${{ runner.os }}-
 
       - name: Cache turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
 
-      # --ignore-scripts : pnpm avec --frozen-lockfile télécharge TOUS les
-      # packages du lockfile dans le store et exécute leurs postinstall,
-      # indépendamment d'un éventuel --filter. react-native-screens (dep
-      # de apps/mobile) a un postinstall qui exige `bob` non dispo sur les
-      # runners. Même fix que sur Nixpacks dashboard (commit beb31b8).
+      # --ignore-scripts : héritage de l'époque où `apps/mobile` (Expo RN,
+      # supprimé en mai 2026) embarquait `react-native-screens` dont le
+      # postinstall exigeait `bob`/`husky`. Maintenu pour l'instant car
+      # nos postinstall critiques (esbuild, sharp) sont rebuild explicitement
+      # ci-dessous. À tenter de retirer dans une PR séparée pour valider
+      # qu'aucune autre dep tierce n'introduit un postinstall problématique.
       - name: Install dependencies (sans postinstall scripts)
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       # esbuild a besoin de son binaire natif (téléchargé normalement par
-      # son postinstall) pour que vitest fonctionne. On rebuild juste ce
-      # package — pnpm rebuild sans args rebuilderait TOUT et re-déclencherait
-      # le postinstall react-native-screens.
-      - name: Rebuild esbuild (binaire natif pour vitest)
-        run: pnpm rebuild esbuild || true
+      # son postinstall) pour que vitest fonctionne.
+      # sharp a aussi un binaire natif (libvips) requis par astro:assets
+      # pour générer les variantes WebP/AVIF au build (sinon « Could not
+      # find Sharp »). Cf. incident #93/#94.
+      # On les rebuild explicitement — pnpm rebuild sans args rebuilderait
+      # TOUT et re-déclencherait le postinstall react-native-screens.
+      - name: Rebuild binaires natifs (esbuild pour vitest, sharp pour astro:assets)
+        run: |
+          pnpm rebuild esbuild || true
+          pnpm rebuild sharp || true
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Tests
-        run: pnpm test
+      # Tests de tous les packages SAUF l'API (turbo, mis en cache).
+      - name: Tests (hors API)
+        run: pnpm exec turbo run test --filter='!@sportlocker/api'
+
+      # Gate de couverture API : vitest.config impose des seuils per-fichier
+      # (80% sur src/routes/**, 90% sur reservations.ts). `pnpm test` ne passe
+      # pas --coverage, donc ces seuils n'étaient jamais vérifiés en CI et la
+      # couverture pouvait dériver. On relance l'API avec --coverage pour faire
+      # échouer le build si une route critique repasse sous son seuil.
+      - name: Tests + couverture API (gate seuils routes)
+        run: pnpm --filter @sportlocker/api test:coverage
+
+      # Build du site vitrine — `astro check` (typecheck) ne lance pas la
+      # pipeline d'optimisation d'images, donc des bugs comme « sharp not
+      # found » ou des assets manquants passent inaperçus. Cf. #94.
+      - name: Build (apps/web)
+        run: pnpm --filter @sportlocker/web build
 
   # ─── Firmware Python (services/firmware) ─────────────────────────────
   # Job parallèle au job Node ci-dessus. Lance ruff + pytest avec coverage
@@ -96,10 +117,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'

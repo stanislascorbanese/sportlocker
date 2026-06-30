@@ -12,8 +12,8 @@ expliquant le **comment**.
 |---|---|---|---|
 | API backend | Fastify 4 + Drizzle + TS | Railway (Dockerfile) | US West |
 | Dashboard ops | Next.js 15 App Router | Railway (Nixpacks) | US West |
-| Site vitrine | HTML statique + `serve` | Railway (Dockerfile) | US West |
-| App mobile | Expo SDK 51 / RN 0.74 | Pas hébergé (build EAS) | - |
+| App citoyenne | Next.js 15 PWA | Railway (Dockerfile) | EU West |
+| Site vitrine | Astro statique | Railway (Dockerfile) | US West |
 | Firmware IoT | Python 3.11 (paho, OpenCV, jose) | Balena (Raspberry Pi CM4) | sur site |
 | Base de données | PostgreSQL 16 managé | **Supabase** | EU Central (Frankfurt) |
 | Cache & queues | Redis 7 + BullMQ | Railway service | US West |
@@ -30,7 +30,7 @@ expliquant le **comment**.
 | API | `https://sportlockerapi-production.up.railway.app` |
 | Dashboard | `https://sportlockerdashboard-production.up.railway.app` |
 | Site web | Railway → `@sportlocker/web` → Settings → Networking |
-| Mobile | (build Expo → TestFlight / Play Store quand prêt) |
+| App citoyenne | `https://app.sportlocker.fr` |
 
 ### Endpoints API utiles
 - `GET /health/` — healthcheck (utilisé par Railway probe)
@@ -56,7 +56,6 @@ expliquant le **comment**.
 | Sentry | https://sentry.io | Erreurs prod (à activer) |
 | Balena | https://www.balena.io | OTA firmware Pi (à activer) |
 | Stripe | https://dashboard.stripe.com | Paiements / cautions (à activer) |
-| Expo EAS | https://expo.dev | Builds mobile + push (à activer) |
 
 ---
 
@@ -82,8 +81,8 @@ cp .env.example .env  # remplir les secrets locaux
 |---|---|---|
 | API | `pnpm --filter @sportlocker/api dev` | 3000 |
 | Dashboard | `pnpm --filter @sportlocker/dashboard dev` | 3001 |
+| Citizen PWA | `pnpm --filter @sportlocker/citizen dev` | 3002 |
 | Web | `pnpm --filter @sportlocker/web dev` | 4000 |
-| Mobile | `pnpm --filter @sportlocker/mobile dev` | Expo (QR code) |
 | Tous en parallèle | `pnpm dev` | (turbo) |
 
 ### Tests
@@ -237,11 +236,65 @@ gh run view <run-id> --log   # logs détaillés d'un run échoué
 | `FIREBASE_PROJECT_ID` | api | ID projet Firebase |
 | `INTERNAL_API_URL` | dashboard | URL API (server-side fetch) |
 | `NEXT_PUBLIC_FIREBASE_*` | dashboard | Config Firebase Auth web (API_KEY, AUTH_DOMAIN, PROJECT_ID, APP_ID) |
-| `SENTRY_DSN` | api, dashboard, mobile, firmware | DSN Sentry par service |
+| `SENTRY_DSN` | api, firmware | DSN Sentry côté Node (server-only) |
+| `NEXT_PUBLIC_SENTRY_DSN` | dashboard, citizen | DSN Sentry côté Next.js (client + server, write-only) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | api | Clés Web Push pour le cron `slot-reminders` (`npx web-push generate-vapid-keys`) |
+| `VAPID_SUBJECT` | api | Contact RFC 8292, default `mailto:contact@sportlocker.fr` |
 
 ---
 
-## 10. Pour aller plus loin
+## 10. Activer Sentry (observabilité)
+
+Sans Sentry, les erreurs prod sont invisibles tant qu'un user ne râle pas.
+Le code est déjà câblé sur **api / dashboard / citizen** ; il suffit de
+fournir les DSN. Plan free : 5 000 erreurs + 10 000 events perf / mois,
+amplement suffisant pour un MVP.
+
+### Création d'un projet Sentry
+
+1. [sentry.io](https://sentry.io) → connexion → **Create project**
+2. Crée **3 projets séparés** (un par surface — permet de voir les erreurs filtrées) :
+   - `sportlocker-api` (platform : **Node.js / Express**)
+   - `sportlocker-dashboard` (platform : **Next.js**)
+   - `sportlocker-citizen` (platform : **Next.js**)
+3. Pour chacun, Sentry te donne un **DSN** type `https://<key>@o<orgid>.ingest.sentry.io/<projid>`
+
+### Variables Railway à poser
+
+| Service | Variable | Valeur |
+|---|---|---|
+| `@sportlocker/api` | `SENTRY_DSN` | DSN du projet `sportlocker-api` |
+| `@sportlocker/dashboard` | `NEXT_PUBLIC_SENTRY_DSN` | DSN du projet `sportlocker-dashboard` |
+| `citizen` | `NEXT_PUBLIC_SENTRY_DSN` | DSN du projet `sportlocker-citizen` |
+
+Au prochain redéploiement, les 3 services émettent vers Sentry. Aucun
+code à toucher — le SDK est no-op tant que le DSN est absent.
+
+### Vérifier que ça remonte
+
+Test rapide une fois set :
+
+```bash
+# API : déclenche une 500
+curl https://api.sportlocker.fr/v1/admin/audit  # 401 attendu, pas 500 → ok
+# Trigger volontaire : ajoute un throw temporaire dans une route, déploie, hit la route.
+# Tu dois voir l'erreur dans sentry.io dans la minute.
+```
+
+Côté browser, ouvre la console PWA citizen et tape `throw new Error('test')` —
+ça doit apparaître dans le projet `sportlocker-citizen` côté Sentry.
+
+### Bonus : source maps déminifiées
+
+Pour avoir des stack traces lisibles (pas du `chunks/720-b6f5c1.js:1:42`),
+génère un auth token Sentry (Settings → Account → API → User Auth Tokens,
+scope `project:releases`) et set `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` +
+`SENTRY_PROJECT` côté build Railway. Le `withSentryConfig` upload les
+source maps au build et Sentry les utilise au runtime.
+
+---
+
+## 11. Pour aller plus loin
 
 - Architecture détaillée : voir `docs/ARCHITECTURE.md`
 - Schéma DB : voir `database/schema.sql` (1165 lignes commentées)

@@ -1,0 +1,269 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import Faq from '@/components/Faq.astro'
+import { buildSegmentSchemas } from '@/data/site'
+
+const arguments_ = [
+  {
+    icon: '💰',
+    title: 'OPEX maîtrisé, zéro CAPEX',
+    desc: 'Pas d\'achat de matériel à amortir, pas de stock à gérer. Un abonnement mensuel prévisible, inscriptible au budget de fonctionnement.',
+  },
+  {
+    icon: '🌟',
+    title: 'Image dynamique et moderne',
+    desc: 'Un service citoyen innovant, communicable, qui montre une commune qui investit dans le sport et le numérique de proximité.',
+  },
+  {
+    icon: '♿',
+    title: 'Accessibilité 24/7',
+    desc: 'Vos administrés accèdent au matériel sportif quand ils peuvent — soir, week-end, jour férié. Pas seulement aux horaires du guichet.',
+  },
+  {
+    icon: '📜',
+    title: 'Conformité achat public',
+    desc: 'Marché < 40 000 € HT : procédure adaptée simplifiée. SportLocker fournit le dossier-type (devis, CCAP, CCTP) prêt à signer.',
+  },
+  {
+    icon: '🎯',
+    title: 'Politique sportive pilotée par la donnée',
+    desc: 'Rapports d\'usage hebdomadaires : items les plus loués, terrains les plus actifs, pic horaire. Pour adapter votre offre sport.',
+  },
+  {
+    icon: '🇫🇷',
+    title: 'Subventions CNDS / ANS éligibles',
+    desc: 'Le projet peut entrer dans les dossiers ANS (Agence Nationale du Sport). Nous accompagnons le montage du dossier de subvention.',
+  },
+]
+
+const usecases = [
+  {
+    title: 'Parc municipal sportif',
+    desc: 'Distributeur à l\'entrée du parc, à proximité des terrains multi-sport. Ballons, raquettes de badminton, frisbees.',
+    config: '1 distributeur · 24 casiers · 4 sports',
+  },
+  {
+    title: 'Base nautique communale',
+    desc: 'Distributeur près du ponton, ou à l\'accueil de la base. Cordes, gilets de sauvetage taille enfant, frisbees plage.',
+    config: '1 distributeur · 16 casiers · 3 sports',
+  },
+  {
+    title: 'École / collège (hors temps scolaire)',
+    desc: 'Distributeur à l\'extérieur de l\'établissement, accessible aux familles le week-end. Permet d\'animer la cour scolaire le samedi.',
+    config: '1 distributeur · 20 casiers · 5 sports',
+  },
+]
+
+const faqMairie = [
+  {
+    q: 'Quelle procédure d\'achat public ?',
+    a: 'Pour un pilote 4-5 distributeurs (< 40 000 € HT), procédure adaptée simplifiée — aucun appel d\'offres formel requis. Nous fournissons devis, CCAP et CCTP types. Pour un déploiement plus large, nous accompagnons aussi en marché à procédure adaptée (MAPA).',
+  },
+  {
+    q: 'Qui est responsable en cas de vandalisme du distributeur ?',
+    a: 'La commune (assurance dommages aux biens). Le distributeur est conçu antivandal (IP54, acier 2 mm) mais reste un bien municipal une fois installé. SportLocker prend en charge la maintenance technique et les réparations courantes.',
+  },
+  {
+    q: 'Peut-on co-brander le distributeur avec le logo de la commune ?',
+    a: 'Oui. Sticker logo mairie + identifiant interne sur la face avant inclus dans le setup fee. Pour un wrapping personnalisé complet, devis sur mesure.',
+  },
+  {
+    q: 'Le service est-il accessible aux personnes sans smartphone ?',
+    a: 'L\'app mobile est requise pour le MVP. Une borne d\'inscription en mairie (V2) est à l\'étude pour les administrés non équipés. À aborder dans la convention si critique.',
+  },
+  {
+    q: 'Comment résilier si ça ne marche pas ?',
+    a: 'Engagement 36 mois par défaut (pour amortir le distributeur). Clause de sortie anticipée possible à 18 mois si le KPI d\'usage convenu n\'est pas atteint. À cadrer dans la convention.',
+  },
+]
+---
+
+<Base
+  title="Distributeurs de matériel sportif pour mairies"
+  description="Solution clé en main pour communes : distributeurs IoT de matériel sportif en libre-service 24/7 sur vos parcs, bases nautiques et écoles. À partir de 425 € HT/mois/dist, subventions ANS / DETR / DSIL éligibles."
+  ogImage="/og/mairies.png"
+  extraJsonLd={buildSegmentSchemas('mairie')}
+>
+  <!-- HEADER -->
+  <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-brand inline-block mb-6" data-reveal>Pour les mairies</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+          Offrez un service sport citoyen<br/>
+          <span class="text-brand-400">à coût maîtrisé.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light mb-9" data-reveal data-reveal-delay="2">
+          Transformez vos terrains publics, bases nautiques et cours d'école en services
+          sportifs autonomes 24/7. Un abonnement mensuel tout inclus, conforme aux règles
+          d'achat public, finançable par les subventions CNDS et ANS.
+        </p>
+        <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
+          <a href="/contact?type=mairie#formulaire" class="btn btn-primary">Demander un devis pour ma commune →</a>
+          <a href="/tarifs?type=mairie#simulateur" class="btn btn-outline">Estimer mon budget →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARGUMENTS -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Pourquoi SportLocker</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Six raisons qui pèsent en conseil municipal
+        </h2>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {arguments_.map((arg, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-2xl mb-5">
+              {arg.icon}
+            </div>
+            <h3 class="font-bold text-white text-base mb-2.5">{arg.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{arg.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- CAS D'USAGE -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Cas d'usage type</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Là où nos distributeurs<br/>font le plus de bien
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        {usecases.map((uc, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
+            <h3 class="font-extrabold text-white text-xl mb-3">{uc.title}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed mb-5">{uc.desc}</p>
+            <div class="pt-4 border-t border-white/10">
+              <div class="text-[0.7rem] uppercase tracking-wider text-brand-400">{uc.config}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- SIMULATION -->
+  <section id="simulation" class="section bg-navy-800">
+    <div class="container-x">
+      <div class="grid lg:grid-cols-2 gap-14 items-center">
+        <div>
+          <span class="eyebrow" data-reveal>Simulation budget</span>
+          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+            Une commune de 8 000 habitants<br/>peut s'équiper pour 1 700 €/mois
+          </h2>
+          <p class="section-sub mb-7" data-reveal data-reveal-delay="2">
+            Configuration médiane observée : 4 distributeurs répartis sur les principaux sites
+            sportifs municipaux (parc central, base nautique, école, city-stade).
+          </p>
+          <a href="/tarifs?type=mairie#simulateur" class="btn btn-primary" data-reveal data-reveal-delay="3">
+            Simulation personnalisée pour ma commune →
+          </a>
+        </div>
+
+        <div class="card-dark p-8 sm:p-10" data-reveal data-reveal-delay="1">
+          <div class="text-xs uppercase tracking-[0.12em] text-white/60 mb-1">Configuration type</div>
+          <div class="font-extrabold text-white text-2xl mb-6">4 distributeurs — commune 8 000 hab.</div>
+
+          <div class="space-y-3 pb-6 border-b border-white/10">
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Setup one-shot (4 dist.)</span>
+              <span class="text-white font-medium tabular-nums">4 000 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Subvention CNDS (35%)</span>
+              <span class="text-brand-400 font-medium tabular-nums">- 1 400 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Subvention FEDER (jusqu'à 20%)</span>
+              <span class="text-brand-400 font-medium tabular-nums">- 800 €</span>
+            </div>
+            <div class="flex justify-between pt-3">
+              <span class="text-white font-medium">Reste à charge installation</span>
+              <span class="font-extrabold text-white tabular-nums">1 800 €</span>
+            </div>
+          </div>
+
+          <div class="pt-6">
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-white/55 font-light">Abonnement mensuel HT</span>
+              <span class="text-white font-medium tabular-nums">1 700 €</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-white/55 font-light">Revenu locations citoyens (75 % × 4 dist.)</span>
+              <span class="text-brand-400 font-medium tabular-nums">+ 320 € est.</span>
+            </div>
+            <div class="flex justify-between text-sm pt-2 border-t border-white/5">
+              <span class="text-white/85 font-medium">Coût net mensuel</span>
+              <span class="text-white font-medium tabular-nums">~ 1 380 €</span>
+            </div>
+            <div class="mt-5 p-4 rounded-lg bg-brand-500/10 border border-brand-500/30">
+              <div class="text-xs text-brand-400 font-medium mb-1">≈ 2,07 € / habitant / an net</div>
+              <div class="text-[0.7rem] text-white/60 leading-relaxed font-light">
+                À comparer aux 12-18 € que coûte un agent municipal dédié à 0,5 ETP sur la même mission.
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-6 text-[0.7rem] text-white/60 italic leading-relaxed">
+            Estimation indicative — hypothèse 180 locations/mois cumulées sur 4 distributeurs avec un
+            panier moyen ~2,40 € (template « Communal léger » : 0,50 €/30 min → 3 €/journée).
+            Subventions sous conditions d'éligibilité de la commune et du projet —
+            SportLocker accompagne le montage du dossier.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TÉMOIGNAGE -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="max-w-3xl mx-auto text-center" data-reveal>
+        <div class="text-brand-400 text-7xl font-serif leading-none mb-2" aria-hidden="true">"</div>
+        <p class="font-extrabold text-2xl sm:text-3xl text-white leading-relaxed mb-7">
+          SportLocker permet à notre commune d'offrir un service sportif moderne sans
+          mobiliser de personnel supplémentaire. Pour le prix d'un agent, on équipe
+          quatre sites, en service 24/7.
+        </p>
+        <div class="text-sm text-white/55">
+          <strong class="text-white/80 font-medium">[Élu·e délégué·e aux sports]</strong>
+          <br/>
+          Commune pilote · témoignage en cours de validation
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>FAQ mairies</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Les questions qu'on nous pose<br/>en comité de direction
+        </h2>
+      </div>
+      <Faq items={faqMairie} />
+    </div>
+  </section>
+
+  <FinalCta
+    title="Engagez le sport citoyen dans votre commune."
+    sub="Un appel de 15 min pour cadrer le pilote, identifier les emplacements et estimer les subventions mobilisables."
+    primary={{ href: '/contact?type=mairie#formulaire', label: 'Demander un devis pour ma commune' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+    fine="Réponse sous 24h ouvrées · Devis sans engagement · Visite de site offerte en Île-de-France"
+  />
+</Base>

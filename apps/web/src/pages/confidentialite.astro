@@ -1,0 +1,195 @@
+---
+import Base from '@/layouts/Base.astro'
+import { SITE } from '@/data/site'
+---
+
+<Base
+  title="Politique de confidentialité"
+  description="Politique de confidentialité et traitement des données personnelles SportLocker."
+  noindex={true}
+>
+  <section class="pt-32 pb-20 sm:pt-40">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow">Confidentialité</span>
+      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Politique de confidentialité</h1>
+
+      <div class="text-white/70 font-light leading-relaxed space-y-7">
+        <p class="text-white/55 italic">Dernière mise à jour : juin 2026 — version 3.</p>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">1. Responsable(s) de traitement</h2>
+          <p>
+            {SITE.legalName} (« SportLocker ») détermine les finalités et les moyens des traitements
+            décrits ci-dessous, au sens du RGPD (Règlement UE 2016/679). Selon le traitement concerné,
+            SportLocker agit :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li>
+              en tant que <strong class="text-white/85">responsable de traitement</strong> (seul) pour les
+              données du site vitrine (demandes de devis B2B), des comptes administrateurs du dashboard
+              opérateur et des logs techniques ;
+            </li>
+            <li>
+              en tant que <strong class="text-white/85">responsable de traitement conjoint</strong>
+              (art. 26 RGPD), avec l'opérateur — mairie, camping ou hôtel, le « tenant » — sur le site duquel
+              le distributeur est installé, pour les données des citoyens liées à l'usage du service
+              (réservation, prêt, suivi du parc), conformément à l'article 10 des CGV opérateurs.
+            </li>
+          </ul>
+          <p class="mt-3">
+            La répartition des obligations entre SportLocker et le tenant peut être formalisée par un
+            accord de traitement conjoint (DPA) sur demande.<br/>
+            Contact DPO / délégué : <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a><br/>
+            <span class="text-white/60 text-sm">(à compléter : SIRET, adresse postale du siège social, une fois la société immatriculée.)</span>
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">2. Données collectées et finalités</h2>
+          <p class="mb-4">
+            Nous distinguons 3 surfaces : le site vitrine (ce site), l'application citoyenne
+            <strong class="text-white/85">app.sportlocker.fr</strong> (la PWA de réservation), et le dashboard opérateur
+            <strong class="text-white/85">ops.sportlocker.fr</strong> (réservé aux tenants).
+          </p>
+
+          <h3 class="text-white/90 font-semibold mt-5 mb-2">a) Vitrine (ce site)</h3>
+          <p>
+            <strong class="text-white/85">Données :</strong> via le formulaire de devis — nom de l'organisation, localité,
+            type d'établissement, nombre estimé de distributeurs, email professionnel, numéro de téléphone, message libre.<br/>
+            <strong class="text-white/85">Finalité :</strong> répondre à votre demande commerciale (prospection B2B).<br/>
+            <strong class="text-white/85">Base légale :</strong> mesures précontractuelles à la demande de la personne (RGPD art. 6.1.b).
+          </p>
+
+          <h3 class="text-white/90 font-semibold mt-5 mb-2">b) Application citoyenne (app.sportlocker.fr)</h3>
+          <p class="mb-2">À l'inscription via Firebase Authentication, nous collectons :</p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li>Adresse e-mail, identifiant Firebase (UID), prénom/nom si fourni</li>
+            <li>Méthode d'authentification utilisée (Google, Apple, email magic link)</li>
+          </ul>
+          <p class="mt-3 mb-2">Lors de l'usage du service, nous traitons en plus :</p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li>Position GPS au moment de la recherche du distributeur le plus proche (utilisée en temps réel, non conservée)</li>
+            <li>Historique des réservations (date, sport choisi, distributeur, créneau, prix affiché)</li>
+            <li>Si vous activez les notifications : l'endpoint de votre service push (Google FCM, Mozilla, Apple), les clés de chiffrement publiques générées par votre navigateur, votre préférence de délai de rappel</li>
+            <li>User-Agent du navigateur (pour distinguer vos devices dans votre profil)</li>
+            <li>Pour les logs d'erreurs techniques : page consultée, message d'erreur, navigateur (via Sentry — pas de contenu de formulaire)</li>
+          </ul>
+          <p class="mt-3">
+            <strong class="text-white/85">Finalités :</strong> fournir le service de réservation et de prêt de matériel,
+            vous envoyer les notifications de rappel que vous avez demandées, détecter les bugs techniques.<br/>
+            <strong class="text-white/85">Base légale :</strong> exécution du contrat (RGPD art. 6.1.b) pour les réservations,
+            consentement explicite (RGPD art. 6.1.a) pour les notifications push.
+          </p>
+
+          <h3 class="text-white/90 font-semibold mt-5 mb-2">c) Dashboard opérateur (ops.sportlocker.fr)</h3>
+          <p>
+            <strong class="text-white/85">Données :</strong> e-mail professionnel et rôle du compte admin (admin commune, super-admin SportLocker),
+            historique des actions sensibles (audit logs internes).<br/>
+            <strong class="text-white/85">Finalité :</strong> permettre aux opérateurs (mairies, campings, hôtels) de gérer leur parc et leurs tarifs.<br/>
+            <strong class="text-white/85">Base légale :</strong> exécution du contrat tenant.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">3. Sous-traitants</h2>
+          <p>
+            Nous utilisons des sous-traitants techniques au sens RGPD art. 28. Chacun est lié par un
+            engagement de confidentialité et opère dans les conditions ci-dessous :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li><strong class="text-white/85">Firebase / Google Cloud</strong> — authentification utilisateurs. UE et États-Unis (clauses contractuelles types).</li>
+            <li><strong class="text-white/85">Supabase</strong> — hébergement de la base de données (PostgreSQL, EU Central / Frankfurt).</li>
+            <li><strong class="text-white/85">Railway Corp.</strong> — hébergement des serveurs applicatifs (USA, garanties contractuelles).</li>
+            <li><strong class="text-white/85">EMQX Cloud</strong> — broker MQTT entre les distributeurs et notre API (EU Central).</li>
+            <li><strong class="text-white/85">Push services tiers</strong> — Google FCM / Mozilla Autopush / Apple Push (selon votre navigateur), utilisés uniquement pour acheminer les notifications de rappel que vous avez activées.</li>
+            <li><strong class="text-white/85">Sentry</strong> — collecte des erreurs techniques (UE).</li>
+            <li><strong class="text-white/85">Web3Forms</strong> — transmission du formulaire de contact de la vitrine.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">4. Durée de conservation</h2>
+          <ul class="list-disc list-inside space-y-1.5 ml-2">
+            <li><strong class="text-white/85">Compte citoyen actif :</strong> tant que votre compte existe.</li>
+            <li><strong class="text-white/85">Compte citoyen supprimé :</strong> les données personnelles directement identifiantes sont anonymisées dans les <strong>30 jours</strong> suivant votre demande. L'historique de réservations est conservé sous forme agrégée pour les statistiques tenant.</li>
+            <li><strong class="text-white/85">Demandes de devis B2B :</strong> 3 ans à compter de notre dernier échange (recommandation CNIL prospection B2B).</li>
+            <li><strong class="text-white/85">Logs d'erreurs Sentry :</strong> 30 jours.</li>
+            <li><strong class="text-white/85">Données comptables tenant :</strong> 10 ans (obligation légale française).</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">5. Vos droits</h2>
+          <p>
+            Conformément au RGPD (articles 15 à 22), vous disposez d'un droit d'accès, de rectification,
+            d'effacement, de limitation, d'opposition et de portabilité de vos données.
+          </p>
+          <p class="mt-3">
+            Vous pouvez :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-2">
+            <li>Désactiver les notifications push à tout moment depuis votre profil dans l'app citoyenne</li>
+            <li>Demander la suppression complète de votre compte en écrivant à <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a></li>
+            <li>Demander une copie de vos données dans un format structuré</li>
+          </ul>
+          <p class="mt-3">
+            En cas de différend non résolu avec nous, vous pouvez introduire une réclamation auprès de la
+            <a href="https://www.cnil.fr/fr/plaintes" target="_blank" rel="noopener noreferrer" class="text-brand-400 hover:underline">CNIL</a>.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">6. Sécurité</h2>
+          <p>
+            Toutes les communications avec nos serveurs sont chiffrées en HTTPS (TLS 1.2+). Les mots
+            de passe ne sont jamais stockés en clair (délégation à Firebase Authentication).
+            Les jetons d'ouverture du casier (QR codes) sont signés cryptographiquement (JWT HS256) et
+            ont une durée de validité limitée. Les notifications push sont chiffrées de bout en bout
+            (RFC 8030 + VAPID).
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">7. Cookies et traceurs</h2>
+          <p>
+            Le site vitrine n'utilise <strong class="text-white/85">aucun cookie de mesure d'audience, de
+            profilage ou de traçage publicitaire</strong>. Aucun consentement n'est requis pour le simple
+            affichage des pages.
+          </p>
+          <p class="mt-3">
+            L'application citoyenne et le dashboard utilisent des cookies strictement techniques (session
+            d'authentification, préférence de langue). Ils sont nécessaires au fonctionnement du service
+            et ne sont pas soumis à consentement préalable au sens de la directive ePrivacy.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">8. Mineurs</h2>
+          <p>
+            Le service est destiné à un usage tout public. Pour les mineurs de moins de 15 ans, l'inscription
+            doit être effectuée avec l'accord d'un parent ou représentant légal. Nous ne collectons pas
+            sciemment de données concernant un mineur sans cet accord.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">9. Transferts hors Union européenne</h2>
+          <p>
+            Certains sous-traitants techniques (Firebase, Railway) sont basés aux États-Unis.
+            Ces transferts sont encadrés par les clauses contractuelles types de la Commission européenne
+            (décision 2021/914) et, le cas échéant, par le cadre <em>EU–US Data Privacy Framework</em>.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">10. Évolution de la politique</h2>
+          <p>
+            Nous pouvons être amenés à modifier cette politique pour refléter des évolutions techniques
+            ou réglementaires. La date de dernière mise à jour est indiquée en haut de cette page.
+            Les modifications substantielles font l'objet d'une information dans l'application.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

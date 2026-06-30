@@ -1,0 +1,250 @@
+---
+import Base from '@/layouts/Base.astro'
+import { SITE } from '@/data/site'
+---
+
+<Base
+  title="Conditions Générales de Vente"
+  description="Conditions générales de vente B2B SportLocker pour les opérateurs (mairies, campings, hôtels)."
+  noindex={true}
+>
+  <section class="pt-32 pb-20 sm:pt-40">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow">CGV opérateurs</span>
+      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Conditions Générales de Vente</h1>
+
+      <div class="text-white/70 font-light leading-relaxed space-y-7">
+        <p class="text-white/55 italic">Dernière mise à jour : mai 2026 — version 1. Réservé aux opérateurs professionnels (tenants).</p>
+
+        <p>
+          Les présentes Conditions Générales de Vente (« CGV ») régissent la fourniture par {SITE.legalName}
+          (le « Prestataire ») à un opérateur professionnel — mairie, communauté de communes, camping,
+          hôtel, ou toute autre personne morale (le « Client » ou « Tenant ») — d'un service de distributeurs
+          de matériel sportif connectés et de la plateforme logicielle associée (le « Service »).
+        </p>
+
+        <p>
+          Toute commande emporte acceptation sans réserve des présentes CGV, qui prévalent sur les
+          conditions générales d'achat du Client, sauf dérogation expresse écrite.
+        </p>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">1. Objet et périmètre</h2>
+          <p>
+            Le Prestataire fournit au Client :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li>Un ou plusieurs distributeurs IoT (matériel) installés sur les sites désignés par le Client ;</li>
+            <li>La connexion permanente de ces distributeurs à la plateforme SportLocker (firmware + MQTT) ;</li>
+            <li>Un accès au dashboard opérateur <strong class="text-white/85">ops.sportlocker.fr</strong> pour la gestion du parc, des tarifs et du suivi des prêts ;</li>
+            <li>L'accès à l'application citoyenne <strong class="text-white/85">app.sportlocker.fr</strong> pour les utilisateurs finaux ;</li>
+            <li>La maintenance préventive et corrective des distributeurs (cf. article 6) ;</li>
+            <li>Les mises à jour logicielles (OTA) des distributeurs et de la plateforme.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">2. Devis et commande</h2>
+          <p>
+            Chaque mission fait l'objet d'un devis nominatif établi par le Prestataire, précisant :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li>Le nombre et la configuration des distributeurs ;</li>
+            <li>Les frais d'installation (one-shot) ;</li>
+            <li>L'abonnement mensuel par distributeur ;</li>
+            <li>La durée d'engagement ;</li>
+            <li>Les conditions particulières éventuelles.</li>
+          </ul>
+          <p class="mt-3">
+            Le devis est valable 30 jours à compter de sa date d'émission. La commande est ferme à
+            réception du devis signé et de l'acompte (cf. article 4).
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">3. Tarifs indicatifs</h2>
+          <p>
+            Les tarifs indicatifs publiés sur le site vitrine sont les suivants (HT, par distributeur) :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li><strong class="text-white/85">Mairies :</strong> 1 000 € installation + 425 €/mois — engagement 36 mois ;</li>
+            <li><strong class="text-white/85">Campings :</strong> 850 € installation + 400 €/mois — engagement 24 mois ;</li>
+            <li><strong class="text-white/85">Hôtels :</strong> 900 € installation + 475 €/mois — engagement 24 mois.</li>
+          </ul>
+          <p class="mt-3">
+            Ces tarifs sont susceptibles de varier en fonction des volumes, des contraintes d'installation
+            et des options retenues. Seul le devis fait foi.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">4. Modalités de paiement</h2>
+          <p>
+            Sauf disposition contraire au devis :
+          </p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li><strong class="text-white/85">Frais d'installation :</strong> 30 % à la commande, solde à la mise en service ;</li>
+            <li><strong class="text-white/85">Abonnement :</strong> facturé mensuellement, payable à 30 jours fin de mois ;</li>
+            <li><strong class="text-white/85">Reversement marketplace :</strong> le Prestataire encaisse le paiement citoyen (lorsque le paiement sera activé) et reverse au Client 75 % du montant collecté, sous 2 jours ouvrés via Stripe Connect.</li>
+          </ul>
+          <p class="mt-3">
+            Tout retard de paiement entraîne, sans mise en demeure préalable, l'application d'intérêts de
+            retard au taux de la BCE majoré de 10 points, ainsi qu'une indemnité forfaitaire pour frais
+            de recouvrement de 40 € (art. L.441-10 du Code de commerce).
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">5. Durée et résiliation</h2>
+          <p>
+            Le contrat est conclu pour une durée ferme correspondant à la durée d'engagement indiquée
+            au devis (24 ou 36 mois). À l'issue de cette durée, il est reconduit tacitement par périodes
+            de 12 mois, sauf dénonciation par l'une ou l'autre des parties par lettre recommandée avec
+            accusé de réception, avec un préavis de 3 mois.
+          </p>
+          <p class="mt-3">
+            En cas de manquement grave de l'une des parties (notamment défaut de paiement non régularisé
+            sous 30 jours, dégradation volontaire du matériel, violation de la confidentialité), le contrat
+            peut être résilié de plein droit après mise en demeure restée infructueuse pendant 30 jours.
+          </p>
+          <p class="mt-3">
+            En cas de résiliation anticipée à l'initiative du Client hors manquement grave du Prestataire,
+            les abonnements restant dus jusqu'au terme initial du contrat restent exigibles.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">6. Obligations du Prestataire</h2>
+          <p>Le Prestataire s'engage à :</p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li>Livrer et installer les distributeurs sur le site convenu dans un délai de 8 semaines à compter de la commande ferme ;</li>
+            <li>Assurer une disponibilité de la plateforme de 99,5 % en moyenne mensuelle (hors fenêtres de maintenance programmée) ;</li>
+            <li>Intervenir sur site sous 5 jours ouvrés en cas de panne matérielle bloquante signalée via le dashboard ;</li>
+            <li>Mettre à disposition gratuitement les mises à jour logicielles et de sécurité ;</li>
+            <li>Fournir un support technique aux administrateurs Client, par e-mail, du lundi au vendredi en jours ouvrés.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">7. Obligations du Client</h2>
+          <p>Le Client s'engage à :</p>
+          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
+            <li>Mettre à disposition un emplacement conforme aux prérequis techniques (alimentation 230 V, accès Wi-Fi ou 4G de qualité, surface stable, à l'abri des intempéries directes) ;</li>
+            <li>Désigner un référent opérationnel et fournir une adresse e-mail professionnelle valide pour la création du compte admin ;</li>
+            <li>Assurer une surveillance raisonnable du distributeur (signalement de dégradation, vandalisme, vol) ;</li>
+            <li>Recharger et entretenir le stock de matériel sportif (le matériel est la propriété du Client, sauf disposition contraire au devis) ;</li>
+            <li>Régler les factures aux échéances convenues ;</li>
+            <li>Ne pas tenter de désassembler, contourner ou modifier le firmware des distributeurs.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">8. Propriété et garde du matériel</h2>
+          <p>
+            Sauf disposition contraire au devis, le distributeur reste la propriété du Prestataire pendant
+            toute la durée du contrat. Le Client en a la garde et s'engage à le restituer en bon état (sous
+            réserve de l'usure normale) à l'issue du contrat.
+          </p>
+          <p class="mt-3">
+            Le matériel sportif inséré dans le distributeur reste la propriété du Client (ou du citoyen
+            emprunteur pendant le créneau).
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">9. Tarification citoyen</h2>
+          <p>
+            Le Client fixe librement, depuis le dashboard, le tarif des créneaux proposés à ses utilisateurs
+            finaux (par durée et par sport, de 0 € à un montant libre). Le Prestataire fournit des templates
+            tarifaires pré-configurés à titre indicatif, sans valeur contractuelle.
+          </p>
+          <p class="mt-3">
+            Le Client est seul responsable du caractère raisonnable et non-discriminatoire de sa grille tarifaire.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">10. Données personnelles et RGPD</h2>
+          <p>
+            Dans le cadre du Service, le Prestataire traite des données personnelles de citoyens utilisateurs
+            en qualité de <strong class="text-white/85">responsable de traitement conjoint</strong> (art. 26 RGPD)
+            avec le Client pour les finalités strictement opérationnelles (réservation, suivi du parc).
+          </p>
+          <p class="mt-3">
+            Les modalités de répartition des obligations, les durées de conservation et les droits des
+            personnes concernées sont détaillés dans notre
+            <a href="/confidentialite" class="text-brand-400 hover:underline">Politique de confidentialité</a>,
+            qui constitue une annexe contractuelle.
+          </p>
+          <p class="mt-3">
+            Un accord de traitement conjoint (DPA) peut être signé sur demande du Client.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">11. Confidentialité</h2>
+          <p>
+            Chaque partie s'engage à préserver la confidentialité des informations à caractère commercial,
+            technique ou stratégique communiquées par l'autre partie pendant et après l'exécution du contrat,
+            pour une durée de 5 ans à compter de leur communication.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">12. Responsabilité</h2>
+          <p>
+            La responsabilité du Prestataire est limitée aux dommages directs et prévisibles. Sont expressément
+            exclus les dommages indirects (perte d'exploitation, perte de chiffre d'affaires, perte d'image).
+            Le plafond global de responsabilité du Prestataire est limité au montant total des sommes effectivement
+            versées par le Client au titre des 12 mois précédant l'événement générateur.
+          </p>
+          <p class="mt-3">
+            Cette limitation ne s'applique pas en cas de faute lourde, de dol, ou d'atteinte aux personnes.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">13. Force majeure</h2>
+          <p>
+            Aucune partie ne pourra être tenue responsable du non-respect de ses obligations en cas de force
+            majeure au sens de l'article 1218 du Code civil (catastrophe naturelle, conflit armé, pandémie
+            avec restriction administrative, panne généralisée d'un fournisseur cloud tiers). La partie
+            concernée doit en informer l'autre partie sans délai.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">14. Sous-traitance</h2>
+          <p>
+            Le Prestataire s'appuie sur des sous-traitants techniques (Firebase, Supabase, Railway, EMQX Cloud,
+            Sentry — liste détaillée dans la Politique de confidentialité). Chaque sous-traitant est lié par
+            un engagement contractuel équivalent en matière de confidentialité et de sécurité. Le Prestataire
+            demeure pleinement responsable vis-à-vis du Client.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">15. Évolution des CGV</h2>
+          <p>
+            Les présentes CGV peuvent être modifiées par le Prestataire pour refléter des évolutions
+            réglementaires ou techniques. Toute modification substantielle est notifiée au Client par
+            e-mail au moins 60 jours avant son entrée en vigueur.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">16. Droit applicable et juridiction compétente</h2>
+          <p>
+            Les présentes CGV sont régies par le droit français. Tout litige relatif à leur interprétation
+            ou à leur exécution sera, à défaut de résolution amiable dans un délai de 30 jours, soumis aux
+            tribunaux compétents du ressort du siège social du Prestataire.
+          </p>
+        </div>
+
+        <p class="text-xs text-white/60 pt-6">
+          Contact commercial : <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a>
+        </p>
+      </div>
+    </div>
+  </section>
+</Base>

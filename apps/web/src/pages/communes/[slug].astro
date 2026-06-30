@@ -1,0 +1,141 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import Faq from '@/components/Faq.astro'
+import { COMMUNES } from '@/data/communes'
+
+export function getStaticPaths() {
+  return COMMUNES.map((commune) => ({
+    params: { slug: commune.slug },
+    props: { commune },
+  }))
+}
+
+const { commune } = Astro.props
+const { name, postalCode, department, departmentCode, intro, context } = commune
+
+const title = `Matériel sportif en libre-service à ${name} (${departmentCode})`
+const description =
+  `Distributeurs de matériel sportif en libre-service 24/7 à ${name} (${department}). `
+  + `Empruntez ballons, raquettes et équipements via QR code, sans guichet — pour la durée `
+  + `de votre choix (30 min à la journée), prix affiché avant l'emprunt. Service pour `
+  + `communes, campings et hôtels.`
+
+const steps = [
+  { n: '01', t: 'Trouvez le distributeur', d: `Repérez le casier connecté le plus proche à ${name} via l'application SportLocker.` },
+  { n: '02', t: 'Choisissez votre durée', d: 'De 30 min à la journée — le prix s\'affiche avant. Scannez le QR code, le casier s\'ouvre, vous prenez le matériel. Aucun dépôt physique.' },
+  { n: '03', t: 'Rendez sur place', d: 'À la fin du créneau, vous redéposez le matériel dans le casier. C\'est tout.' },
+]
+
+const audiences = [
+  { icon: '🏛️', t: 'Mairies & collectivités', d: `Équipez parcs, bases nautiques et écoles de ${name} sans CAPEX.`, href: '/mairies' },
+  { icon: '🏕️', t: 'Campings & plages', d: 'Animation 24/7 sans charge équipe pour vos vacanciers.', href: '/campings' },
+  { icon: '🏨', t: 'Hôtels', d: 'Service sportif premium en libre-service pour vos clients.', href: '/hotels' },
+]
+
+const faqItems = [
+  {
+    q: `Où trouver du matériel sportif en libre-service à ${name} ?`,
+    a: `SportLocker installe des distributeurs connectés sur les terrains et espaces publics de ${name} (${department}, ${postalCode}). Repérez le distributeur le plus proche dans l'application et empruntez en 30 secondes.`,
+  },
+  {
+    q: `Comment emprunter du matériel sportif à ${name} ?`,
+    a: 'Scannez le QR code du casier avec votre smartphone : le casier s\'ouvre, vous prenez le matériel, et vous le redéposez au retour. Aucune inscription au guichet, aucun dépôt physique.',
+  },
+  {
+    q: `Le service SportLocker est-il payant à ${name} ?`,
+    a: 'C\'est la commune ou l\'établissement qui fixe le tarif : de la gratuité à quelques euros par créneau (30 min à la journée). Le prix s\'affiche toujours avant l\'emprunt.',
+  },
+  {
+    q: `${name} n'a pas encore de distributeur — comment en installer un ?`,
+    a: `Les distributeurs sont déployés par les mairies, campings et hôtels. Si vous représentez une collectivité ou un établissement à ${name}, demandez un devis : installation pilote sous 4 à 6 semaines.`,
+  },
+]
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://sportlocker.fr/' },
+    { '@type': 'ListItem', position: 2, name: 'Couverture', item: 'https://sportlocker.fr/couverture' },
+    { '@type': 'ListItem', position: 3, name, item: `https://sportlocker.fr/communes/${commune.slug}` },
+  ],
+}
+---
+
+<Base title={title} description={description} extraJsonLd={[breadcrumb]}>
+  <!-- HERO -->
+  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-brand inline-block mb-6" data-reveal>{department} · {departmentCode}</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+          Matériel sportif en libre-service<br/>
+          <span class="text-brand-400">à {name}.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/70 leading-loose font-light" data-reveal data-reveal-delay="2">
+          {intro}
+        </p>
+        <p class="mt-4 text-white/60 font-light" data-reveal data-reveal-delay="3">{context}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENT ÇA MARCHE -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Mode d'emploi</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Comment ça marche à {name}</h2>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-4">
+        {steps.map((s, i) => (
+          <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="font-extrabold text-2xl text-brand-400 leading-none mb-3 tabular-nums">{s.n}</div>
+            <h3 class="font-bold text-white text-base mb-2">{s.t}</h3>
+            <p class="text-sm text-white/65 font-light leading-relaxed">{s.d}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- POUR QUI -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Pour qui</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Installer SportLocker à {name}</h2>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-4">
+        {audiences.map((a, i) => (
+          <a href={a.href} class="card-dark p-6 block hover:border-brand-500/40 transition-colors" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="text-3xl mb-3" aria-hidden="true">{a.icon}</div>
+            <h3 class="font-bold text-white text-base mb-2">{a.t}</h3>
+            <p class="text-sm text-white/65 font-light leading-relaxed">{a.d}</p>
+            <span class="mt-3 inline-block text-brand-400 text-sm font-medium">En savoir plus →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Questions fréquentes</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">SportLocker à {name} — FAQ</h2>
+      </div>
+      <Faq items={faqItems} />
+    </div>
+  </section>
+
+  <FinalCta
+    title={`Lancez SportLocker à ${name}.`}
+    sub={`Un appel de 15 min pour cadrer un pilote à ${name}, identifier les emplacements et estimer les subventions mobilisables.`}
+    primary={{ href: '/contact#formulaire', label: `Demander un devis pour ${name}` }}
+    secondary={{ href: '/couverture', label: 'Voir la couverture' }}
+    fine="Réponse sous 24h ouvrées · Devis sans engagement"
+  />
+</Base>

@@ -116,3 +116,25 @@ def test_garbage_token_raises_bad_signature(device_secret: str, device_id: str) 
     with pytest.raises(InvalidTokenError) as exc:
         verify("not-a-jwt", device_secret=device_secret, expected_device_id=device_id)
     assert exc.value.reason is TokenErrorReason.BAD_SIGNATURE
+
+
+def test_slot_start_at_claim_is_parsed(device_secret: str, device_id: str) -> None:
+    """Claim optionnel ``slotStartAt`` (epoch seconds) extrait correctement
+    pour les résas du modèle slots — utilisé par le firmware pour bloquer
+    l'ouverture avant le début du créneau (cf. locker_ctrl)."""
+    slot_start = int(time.time()) + 3600
+    token = _make_token(
+        device_secret,
+        distributor_id=device_id,
+        extra={"slotStartAt": slot_start},
+    )
+    claims = verify(token, device_secret=device_secret, expected_device_id=device_id)
+    assert claims.slot_start_at == slot_start
+
+
+def test_slot_start_at_absent_defaults_to_none(device_secret: str, device_id: str) -> None:
+    """Pour les résas legacy (POST /v1/reservations sans slot), le claim
+    n'est pas embarqué → DeviceClaims.slot_start_at vaut None."""
+    token = _make_token(device_secret, distributor_id=device_id)
+    claims = verify(token, device_secret=device_secret, expected_device_id=device_id)
+    assert claims.slot_start_at is None

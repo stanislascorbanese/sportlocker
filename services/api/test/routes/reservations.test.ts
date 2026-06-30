@@ -5,8 +5,9 @@
  *   - Postgres 16 vanilla (postgres:16-alpine) via testcontainers — DB isolée
  *     par run, indépendante de la DB de dev.
  *   - Redis 7 via testcontainers.
- *   - schema.sql + migration 0001 (fn_locker_is_available) appliqués au boot.
- *     Les migrations 0002/0003 sont déjà reflétées dans schema.sql.
+ *   - schema.sql + migrations 0001 (fonction PL/pgSQL) et 0005 (index partiel
+ *     unique sur user_id pour les statuts pending/active) appliqués au boot.
+ *     Les migrations 0002-0004 sont déjà reflétées dans schema.sql.
  *   - TRUNCATE entre tests, flushdb Redis entre tests.
  *
  * `app.inject(...)` (pas de port bindé) pour gagner en vitesse.
@@ -17,7 +18,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testconta
 import { GenericContainer, type StartedTestContainer } from 'testcontainers'
 import postgres from 'postgres'
 import IORedis from 'ioredis'
-import { SignJWT } from 'jose'
+import { jwtVerify, SignJWT } from 'jose'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -28,7 +29,13 @@ import type { FastifyInstance } from 'fastify'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(HERE, '..', '..', '..', '..')
 const SCHEMA_PATH = join(REPO_ROOT, 'database', 'schema.sql')
-const MIGRATION_PATH = join(REPO_ROOT, 'database', 'migrations', '0001_fn_locker_is_available.sql')
+// schema.sql ne contient PAS la fonction PL/pgSQL (migration 0001) ni l'index
+// partiel unique d'unicité de la réservation vivante (migration 0005). Les
+// autres migrations (0002-0004) sont déjà reflétées dans schema.sql.
+const MIGRATION_PATHS = [
+  join(REPO_ROOT, 'database', 'migrations', '0001_fn_locker_is_available.sql'),
+  join(REPO_ROOT, 'database', 'migrations', '0018_reservations_unique_active.sql'),
+]
 
 let pgContainer: StartedPostgreSqlContainer
 let redisContainer: StartedTestContainer
@@ -123,7 +130,9 @@ beforeAll(async () => {
 
   pgSql = postgres(process.env.DATABASE_URL!, { onnotice: () => {} })
   await pgSql.unsafe(readFileSync(SCHEMA_PATH, 'utf-8'))
-  await pgSql.unsafe(readFileSync(MIGRATION_PATH, 'utf-8'))
+  for (const p of MIGRATION_PATHS) {
+    await pgSql.unsafe(readFileSync(p, 'utf-8'))
+  }
 
   redisClient = new IORedis(process.env.REDIS_URL!)
 
@@ -142,6 +151,7 @@ afterAll(async () => {
       queues.expireReservations.close(),
       queues.detectOverdue.close(),
       queues.heartbeatWatchdog.close(),
+      queues.rgpdAnonymize.close(),
     ])
   } catch {
     // module possiblement non chargé si buildApp a échoué
@@ -311,10 +321,155 @@ describe('POST /v1/reservations', () => {
     expect(res.statusCode).toBe(409)
     expect(res.json().error).toBe('locker_being_processed')
   })
+
+  it('renvoie un deviceToken JWT HS256 (jti=nonce, exp 15min, claims cohérents)', async () => {
+    const f = await seedAll()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    expect(typeof body.deviceToken).toBe('string')
+    expect(body.deviceToken.split('.')).toHaveLength(3) // header.payload.signature
+
+    // Le firmware utilise la même clé partagée JWT_DEVICE_SECRET pour vérifier offline.
+    const secret = new TextEncoder().encode(process.env.JWT_DEVICE_SECRET!)
+    const { payload, protectedHeader } = await jwtVerify(body.deviceToken, secret, {
+      issuer: 'sportlocker.app',
+      audience: 'sportlocker.device',
+    })
+    expect(protectedHeader.alg).toBe('HS256')
+    expect(payload.jti).toBe(body.nonce) // jti aligné sur le nonce stocké en DB
+    expect(payload.reservationId).toBe(body.id)
+    expect(payload.lockerId).toBe(f.lockerId)
+    expect(payload.distributorId).toBe(f.distributorId)
+    const nowSec = Math.floor(Date.now() / 1000)
+    expect(payload.exp).toBeGreaterThan(nowSec)
+    expect(payload.exp).toBeLessThanOrEqual(nowSec + 15 * 60 + 5) // marge horloge
+  })
+
+  it("renvoie 409 already_active si le user a déjà une réservation pending", async () => {
+    const f = await seedAll()
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(first.statusCode).toBe(201)
+
+    // 2e tentative sur un AUTRE locker (idle) → doit être bloquée pour cause de
+    // résa pending déjà en cours par le même user.
+    const otherItemId = randomUUID()
+    const otherLockerId = randomUUID()
+    await pgSql`INSERT INTO items (id, item_type_id, rfid_tag)
+      VALUES (${otherItemId}, ${f.itemTypeId}, ${'RFID-' + otherItemId.slice(0, 8)})`
+    await pgSql`INSERT INTO lockers (id, distributor_id, position, state, current_item_id)
+      VALUES (${otherLockerId}, ${f.distributorId}, 2, 'idle', ${otherItemId})`
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: otherLockerId, itemId: otherItemId, communeId: f.communeId },
+    })
+    expect(second.statusCode).toBe(409)
+    expect(second.json().error).toBe('already_active')
+
+    // L'autre casier reste idle (pas de pollution de state suite au refus).
+    const otherLockerState = await pgSql`SELECT state FROM lockers WHERE id = ${otherLockerId}`
+    expect(otherLockerState[0]!.state).toBe('idle')
+  })
+
+  it("autorise une nouvelle résa après cancel de la précédente (statut 'cancelled' sort de l'index)", async () => {
+    const f = await seedAll()
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(first.statusCode).toBe(201)
+    const firstId = first.json().id
+
+    const cancel = await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${firstId}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(cancel.statusCode).toBe(200)
+
+    // Le casier est repassé en idle → on peut re-réserver.
+    const second = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(second.statusCode).toBe(201)
+  })
+
+  it("Idempotency-Key : un retry avec la même clé renvoie la même réponse sans dupliquer en DB", async () => {
+    const f = await seedAll()
+    const key = randomUUID()
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId), 'idempotency-key': key },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(first.statusCode).toBe(201)
+    const firstBody = first.json()
+
+    // Replay : même body, même clé. Doit renvoyer la même réponse cachée.
+    const second = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId), 'idempotency-key': key },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(second.statusCode).toBe(201)
+    expect(second.json()).toEqual(firstBody)
+
+    // Une seule résa en DB (pas de doublon).
+    const rows = await pgSql`SELECT COUNT(*)::int AS c FROM reservations WHERE user_id = ${f.userId}`
+    expect(rows[0]!.c).toBe(1)
+  })
+
+  it("Idempotency-Key vide ou absent : aucune mise en cache (chaque requête est traitée)", async () => {
+    const f = await seedAll()
+
+    // 1ère requête sans header
+    const first = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(first.statusCode).toBe(201)
+
+    // 2e avec key vide : doit être traitée (et donc déclencher already_active)
+    const second = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId), 'idempotency-key': '   ' },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(second.statusCode).toBe(409)
+    expect(second.json().error).toBe('already_active')
+  })
 })
 
 describe('GET /v1/reservations/me', () => {
-  it("renvoie les réservations actives de l'utilisateur", async () => {
+  it("renvoie les réservations de l'utilisateur enrichies avec distributor + item", async () => {
     const f = await seedAll()
 
     // crée une réservation pending
@@ -332,9 +487,130 @@ describe('GET /v1/reservations/me', () => {
       headers: { authorization: authHeader(f.userId) },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json()
+    const body = res.json() as {
+      items: Array<{
+        status: string
+        distributor: { id: string; name: string }
+        item: { id: string; typeName: string }
+        createdAt: string
+        returnedAt: string | null
+      }>
+    }
     expect(body.items).toHaveLength(1)
-    expect(body.items[0].status).toBe('pending')
+    expect(body.items[0]!.status).toBe('pending')
+    expect(body.items[0]!.distributor.id).toBe(f.distributorId)
+    expect(body.items[0]!.distributor.name).toBe('Test Distributor')
+    expect(body.items[0]!.item.id).toBe(f.itemId)
+    expect(body.items[0]!.item.typeName).toBe('Ballon de foot')
+    expect(body.items[0]!.returnedAt).toBeNull()
+  })
+
+  it("trie createdAt DESC (la plus récente en premier)", async () => {
+    const f = await seedAll()
+
+    // 1ère résa (cancel pour libérer le live-quota, garder en historique)
+    const r1 = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    const r1Id = r1.json().id
+    await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${r1Id}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+
+    // 2e résa (la plus récente)
+    const r2 = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    const r2Id = r2.json().id
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reservations/me',
+      headers: { authorization: authHeader(f.userId) },
+    })
+    const body = res.json() as { items: Array<{ id: string; status: string }> }
+    expect(body.items[0]!.id).toBe(r2Id)
+    expect(body.items[1]!.id).toBe(r1Id)
+    expect(body.items[1]!.status).toBe('cancelled')
+  })
+})
+
+describe('GET /v1/reservations/active', () => {
+  it('renvoie la réservation pending courante du user, shape enrichi', async () => {
+    const f = await seedAll()
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/reservations',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { lockerId: f.lockerId, itemId: f.itemId, communeId: f.communeId },
+    })
+    expect(created.statusCode).toBe(201)
+    const createdId = created.json().id
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reservations/active',
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as {
+      id: string
+      status: string
+      qrToken: string
+      distributor: { id: string; name: string; addressLine: string | null }
+      item: { id: string; typeName: string }
+      slotStartAt: string | null
+      durationMinutes: number | null
+    }
+    expect(body.id).toBe(createdId)
+    expect(body.status).toBe('pending')
+    // Shape enrichi : qrToken JWT + nom distributeur + nom item type (joints
+    // côté API pour éviter un round-trip).
+    expect(body.qrToken).toMatch(/^eyJ/) // JWT commence par eyJ (base64 du header)
+    expect(body.distributor.id).toBe(f.distributorId)
+    expect(typeof body.distributor.name).toBe('string')
+    expect(body.distributor.name.length).toBeGreaterThan(0)
+    expect(body.item.id).toBe(f.itemId)
+    expect(typeof body.item.typeName).toBe('string')
+    // Résa legacy (POST /v1/reservations sans slot) → champs slot à null.
+    expect(body.slotStartAt).toBeNull()
+    expect(body.durationMinutes).toBeNull()
+  })
+
+  it("renvoie 404 no_active_reservation quand le user n'a aucune résa vivante", async () => {
+    const f = await seedAll()
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reservations/active',
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('no_active_reservation')
+  })
+
+  it("renvoie 404 si la seule résa du user est 'returned' (sortie de l'index actif)", async () => {
+    const f = await seedAll()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at, returned_at)
+      VALUES (${randomUUID()}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'returned', ${randomUUID()}, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '30 minutes')`
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reservations/active',
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
   })
 })
 
@@ -481,6 +757,38 @@ describe('POST /v1/reservations/:id/return', () => {
     expect(res.statusCode).toBe(404)
     expect(res.json().error).toBe('reservation_not_found')
   })
+
+  it("renvoie 404 quand le user essaie de rendre la résa d'un autre user (anti-énumération)", async () => {
+    // Sécurité : on renvoie 404 (pas 403) pour ne pas révéler l'existence
+    // de la réservation à un user non propriétaire.
+    const f = await seedAll()
+    const reservationId = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at, opened_at)
+      VALUES (${reservationId}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${randomUUID()}, NOW() + INTERVAL '15 minutes', NOW())`
+
+    const otherUserId = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email)
+      VALUES (${otherUserId}, ${'fb-' + otherUserId.slice(0, 8)}, ${'attacker@test.local'})`
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/reservations/${reservationId}/return`,
+      headers: { authorization: authHeader(otherUserId) },
+      payload: {
+        returnLockerId: f.returnLockerId,
+        returnDistributorId: f.distributorId,
+      },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('reservation_not_found')
+
+    // La résa originale n'a pas bougé : toujours active, propriétaire inchangé.
+    const rows = await pgSql`SELECT status, user_id FROM reservations WHERE id = ${reservationId}`
+    expect(rows[0]!.status).toBe('active')
+    expect(rows[0]!.user_id).toBe(f.userId)
+  })
 })
 
 describe('PATCH /v1/reservations/:id/extend', () => {
@@ -612,5 +920,347 @@ describe('PATCH /v1/reservations/:id/extend', () => {
     })
     expect(res.statusCode).toBe(409)
     expect(res.json().error).toBe('locker_conflict')
+  })
+})
+
+/**
+ * Crons BullMQ — on teste les runners directement (sans passer par BullMQ)
+ * pour valider la logique métier sans dépendre du scheduler.
+ *
+ * Le worker BullMQ se contente d'appeler le runner ; sa cadence (2min /
+ * 1min) est configurée dans queues/index.ts et ne fait pas partie du test
+ * unitaire de logique.
+ */
+describe('Cron expire-reservations', () => {
+  it("passe les pending dont expires_at < now() en 'expired' et libère le casier", async () => {
+    const f = await seedAll()
+    const reservationId = randomUUID()
+    // Pending depuis 1h, expires_at il y a 45min → doit être expiré.
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+      VALUES (${reservationId}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'pending', ${randomUUID()}, NOW() - INTERVAL '45 minutes')`
+    await pgSql`UPDATE lockers SET state = 'reserved' WHERE id = ${f.lockerId}`
+
+    const { runExpireReservations } = await import('../../src/queues/expire-reservations.js')
+    const count = await runExpireReservations(app.log)
+    expect(count).toBe(1)
+
+    const rows = await pgSql`SELECT status FROM reservations WHERE id = ${reservationId}`
+    expect(rows[0]!.status).toBe('expired')
+
+    const lockerRows = await pgSql`SELECT state FROM lockers WHERE id = ${f.lockerId}`
+    expect(lockerRows[0]!.state).toBe('idle')
+  })
+
+  it("ne touche pas les pending dont expires_at est dans le futur", async () => {
+    const f = await seedAll()
+    const reservationId = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+      VALUES (${reservationId}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'pending', ${randomUUID()}, NOW() + INTERVAL '15 minutes')`
+
+    const { runExpireReservations } = await import('../../src/queues/expire-reservations.js')
+    const count = await runExpireReservations(app.log)
+    expect(count).toBe(0)
+
+    const rows = await pgSql`SELECT status FROM reservations WHERE id = ${reservationId}`
+    expect(rows[0]!.status).toBe('pending')
+  })
+
+  it("idempotent : un 2e run ne retouche pas les déjà-expirées", async () => {
+    const f = await seedAll()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+      VALUES (${randomUUID()}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'pending', ${randomUUID()}, NOW() - INTERVAL '45 minutes')`
+
+    const { runExpireReservations } = await import('../../src/queues/expire-reservations.js')
+    expect(await runExpireReservations(app.log)).toBe(1)
+    expect(await runExpireReservations(app.log)).toBe(0)
+  })
+})
+
+describe('Cron detect-overdue', () => {
+  it("passe les active dont due_at est dépassé en 'overdue' (clé : due_at, pas opened_at)", async () => {
+    const f = await seedAll()
+    const reservationId = randomUUID()
+    // Active depuis 30min, due_at dépassé de 5min → overdue.
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, opened_at, due_at)
+      VALUES (${reservationId}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${randomUUID()},
+              NOW() + INTERVAL '15 minutes',
+              NOW() - INTERVAL '30 minutes',
+              NOW() - INTERVAL '5 minutes')`
+
+    const { runDetectOverdue } = await import('../../src/queues/detect-overdue.js')
+    const count = await runDetectOverdue(app.log)
+    expect(count).toBe(1)
+
+    const rows = await pgSql`SELECT status FROM reservations WHERE id = ${reservationId}`
+    expect(rows[0]!.status).toBe('overdue')
+  })
+
+  it("ne marque pas overdue tant que due_at est dans le futur (cas prolongation)", async () => {
+    // Cas critique : une PATCH /extend repousse due_at. Le cron ne doit pas
+    // re-marquer overdue à la cadence suivante (1 min) — c'est la garantie
+    // que les prolongations sont utiles.
+    const f = await seedAll()
+    const reservationId = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, opened_at, due_at)
+      VALUES (${reservationId}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${randomUUID()},
+              NOW() + INTERVAL '15 minutes',
+              NOW() - INTERVAL '5 hours',
+              NOW() + INTERVAL '2 hours')`
+
+    const { runDetectOverdue } = await import('../../src/queues/detect-overdue.js')
+    expect(await runDetectOverdue(app.log)).toBe(0)
+
+    const rows = await pgSql`SELECT status FROM reservations WHERE id = ${reservationId}`
+    expect(rows[0]!.status).toBe('active')
+  })
+
+  it("ignore les active dont due_at IS NULL (résa pas encore ouverte)", async () => {
+    const f = await seedAll()
+    const reservationId = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at, due_at)
+      VALUES (${reservationId}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${randomUUID()}, NOW() + INTERVAL '15 minutes', NULL)`
+
+    const { runDetectOverdue } = await import('../../src/queues/detect-overdue.js')
+    expect(await runDetectOverdue(app.log)).toBe(0)
+  })
+
+  it("idempotent : un 2e run ne retouche pas les déjà-overdue", async () => {
+    const f = await seedAll()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, opened_at, due_at)
+      VALUES (${randomUUID()}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${randomUUID()},
+              NOW() + INTERVAL '15 minutes',
+              NOW() - INTERVAL '30 minutes',
+              NOW() - INTERVAL '5 minutes')`
+
+    const { runDetectOverdue } = await import('../../src/queues/detect-overdue.js')
+    expect(await runDetectOverdue(app.log)).toBe(1)
+    expect(await runDetectOverdue(app.log)).toBe(0)
+  })
+})
+
+// ─── Helpers slots/paiement pour les tests d'erreurs ci-dessous ───
+const SLOT_DURATION = 60
+const SLOT_PRICE_CENTS = 500
+
+async function addPricingRule(f: Fixtures, duration = SLOT_DURATION): Promise<void> {
+  await pgSql`INSERT INTO pricing_rules (id, commune_id, item_type_id, duration_minutes, price_cents)
+    VALUES (${randomUUID()}, ${f.communeId}, ${f.itemTypeId}, ${duration}, ${SLOT_PRICE_CENTS})`
+}
+async function linkItemToLocker(f: Fixtures): Promise<void> {
+  await pgSql`UPDATE items SET current_locker_id = ${f.lockerId} WHERE id = ${f.itemId}`
+}
+/** Créneau futur aligné :00 (demain 10:00 UTC), dans la fenêtre J+7. */
+function validSlotIso(): string {
+  const d = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  d.setUTCHours(10, 0, 0, 0)
+  return d.toISOString()
+}
+function slotPayload(f: Fixtures, slotStartAt: string): Record<string, unknown> {
+  return { distributorId: f.distributorId, itemTypeId: f.itemTypeId, slotStartAt, durationMinutes: SLOT_DURATION }
+}
+async function seedOtherUser(): Promise<string> {
+  const id = randomUUID()
+  await pgSql`INSERT INTO users (id, firebase_uid, email)
+    VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@test.local'})`
+  return id
+}
+
+describe('POST /v1/reservations/slots — erreurs', () => {
+  it('422 si le créneau demandé est dans le passé', async () => {
+    const f = await seedAll()
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    past.setUTCHours(10, 0, 0, 0)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, past.toISOString()),
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('404 distributor_not_found si le distributeur n\'existe pas', async () => {
+    const f = await seedAll()
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: { ...slotPayload(f, validSlotIso()), distributorId: randomUUID() },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('distributor_not_found')
+  })
+
+  it('422 no_pricing si aucun tarif n\'est configuré pour le triplet', async () => {
+    const f = await seedAll()  // pas de pricing_rule
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, validSlotIso()),
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('no_pricing')
+  })
+
+  it('409 slot_being_processed si le verrou redis du créneau est déjà pris', async () => {
+    const f = await seedAll()
+    await addPricingRule(f)
+    const slotIso = validSlotIso()
+    const lockKey = `lock:slot:${f.distributorId}:${f.itemTypeId}:${slotIso}:${SLOT_DURATION}`
+    await redisClient.set(lockKey, 'autre-user', 'EX', 30)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, slotIso),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('slot_being_processed')
+  })
+
+  it('409 slot_not_available si aucun item du type n\'est physiquement présent', async () => {
+    const f = await seedAll()
+    await addPricingRule(f)  // item PAS lié au casier (current_locker_id NULL) → 0 candidat
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, validSlotIso()),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('slot_not_available')
+  })
+
+  it('409 slot_not_available si le seul item est déjà réservé sur ce créneau (overlap)', async () => {
+    const f = await seedAll()
+    await addPricingRule(f)
+    await linkItemToLocker(f)
+    const slotIso = validSlotIso()
+    const start = new Date(slotIso)
+    const end = new Date(start.getTime() + SLOT_DURATION * 60 * 1000)
+    // Résa bloquante d'un autre user sur le même item et la même fenêtre.
+    const other = await seedOtherUser()
+    const rid = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, slot_start_at, slot_end_at, duration_minutes)
+      VALUES (${rid}, ${other}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'scheduled', ${'jti-' + rid.slice(0, 12)}, NOW(), ${start}, ${end}, ${SLOT_DURATION})`
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, slotIso),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('slot_not_available')
+  })
+})
+
+describe('POST /v1/reservations/:id/pay — erreurs', () => {
+  async function bookSlot(f: Fixtures): Promise<string> {
+    await addPricingRule(f)
+    await linkItemToLocker(f)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reservations/slots',
+      headers: { authorization: authHeader(f.userId) },
+      payload: slotPayload(f, validSlotIso()),
+    })
+    expect(res.statusCode).toBe(201)
+    return res.json().id as string
+  }
+
+  it('404 payment_not_found pour une résa sans paiement', async () => {
+    const f = await seedAll()
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${randomUUID()}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('payment_not_found')
+  })
+
+  it('403 forbidden si la résa appartient à un autre user', async () => {
+    const f = await seedAll()
+    const rid = await bookSlot(f)
+    const other = await seedOtherUser()
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay`,
+      headers: { authorization: authHeader(other) },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('409 already_paid si le paiement est déjà succeeded', async () => {
+    const f = await seedAll()
+    const rid = await bookSlot(f)
+    await app.inject({ method: 'POST', url: `/v1/reservations/${rid}/pay`, headers: { authorization: authHeader(f.userId) } })
+    await app.inject({ method: 'POST', url: `/v1/reservations/${rid}/pay/confirm-simulated`, headers: { authorization: authHeader(f.userId) } })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('already_paid')
+  })
+
+  it('409 reservation_not_payable si la résa n\'est plus en pending_payment', async () => {
+    const f = await seedAll()
+    const rid = await bookSlot(f)
+    // Annule la résa : statut → cancelled, paiement → cancelled (≠ succeeded).
+    await app.inject({ method: 'POST', url: `/v1/reservations/${rid}/cancel`, headers: { authorization: authHeader(f.userId) } })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/pay`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('reservation_not_payable')
+  })
+})
+
+describe('POST /v1/reservations/:id/cancel — erreurs métier', () => {
+  it('409 reservation_not_cancellable si le statut n\'est pas annulable', async () => {
+    const f = await seedAll()
+    const rid = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti, expires_at)
+      VALUES (${rid}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'active', ${'jti-' + rid.slice(0, 12)}, NOW())`
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('reservation_not_cancellable')
+  })
+
+  it('409 too_late_to_cancel pour un slot scheduled qui démarre dans < 30 min', async () => {
+    const f = await seedAll()
+    const rid = randomUUID()
+    const start = new Date(Date.now() + 10 * 60 * 1000)  // dans 10 min < cutoff 30
+    const end = new Date(start.getTime() + 60 * 60 * 1000)
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, slot_start_at, slot_end_at, duration_minutes)
+      VALUES (${rid}, ${f.userId}, ${f.lockerId}, ${f.itemId}, ${f.distributorId},
+              'scheduled', ${'jti-' + rid.slice(0, 12)}, NOW(), ${start}, ${end}, 60)`
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reservations/${rid}/cancel`,
+      headers: { authorization: authHeader(f.userId) },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('too_late_to_cancel')
   })
 })

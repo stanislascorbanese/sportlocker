@@ -1,0 +1,59 @@
+# SportLocker firmware — image dev/simulation x86.
+#
+# Deux usages :
+#   1. Dev local — `docker-compose.dev.yml` lance ce conteneur avec un
+#      Mosquitto local en clair (`mqtt://`). Le firmware détecte l'absence
+#      de RPi.GPIO et passe en pulse simulé.
+#   2. Distributeur fantôme Railway — même image, mais avec
+#      `MQTT_URL=mqtts://…emqxsl.com:8883` et `MQTT_USERNAME/PASSWORD`
+#      pointés sur EMQX Cloud. Sert à valider le code firmware en
+#      conditions prod sans Raspberry Pi physique, et à démontrer le
+#      produit à un prospect commune avant l'achat du hardware.
+#
+# Le Dockerfile prod (ARM64 Balena) reste dans Dockerfile.
+#
+# IMPORTANT — build context : ce Dockerfile attend la **racine du repo**
+# comme contexte de build (pas `services/firmware/`). Idem côté
+# docker-compose.dev.yml. Ça permet à Railway et à Compose d'utiliser le
+# même Dockerfile sans variation de paths.
+FROM python:3.14-slim-bookworm
+
+WORKDIR /app
+
+# Deps natives : pyzbar a besoin de libzbar0, opencv-python du runtime GL/glib.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libzbar0 \
+      libgl1 \
+      libglib2.0-0 \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY services/firmware/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+COPY services/firmware/pyproject.toml ./
+COPY services/firmware/src/sportlocker_firmware ./sportlocker_firmware
+
+# CA cert EMQX Cloud — bundlé pour valider le broker en TLS quand le
+# conteneur tourne en mode "distributeur fantôme" sur Railway. Inerte
+# (fichier juste posé) quand l'image est lancée sur Mosquitto local en
+# clair via docker-compose.
+COPY services/firmware/emqxsl-ca.crt /etc/sportlocker/emqxsl-ca.crt
+
+# Répertoire pour le SQLite anti-replay nonce (cf. nonce_store.py).
+# Pas de directive `VOLUME` — Railway l'interdit (`dockerfile invalid: docker
+# VOLUME is not supported, use Railway Volumes`). Pour le distributeur
+# fantôme, l'éphémère convient : un démarrage fresh repart d'une DB vide
+# (le pire qui peut arriver = un JWT légitime encore valide TTL 15min doit
+# être ré-émis — acceptable pour une démo). Sur Balena ARM/Pi physique, le
+# VOLUME reste dans le Dockerfile prod pour préserver le nonce_store entre
+# redémarrages.
+RUN mkdir -p /var/lib/sportlocker
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    MQTT_CA_CERT_PATH=/etc/sportlocker/emqxsl-ca.crt
+
+CMD ["python", "-m", "sportlocker_firmware"]

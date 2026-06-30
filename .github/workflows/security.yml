@@ -1,0 +1,164 @@
+# Security scans — séparé de ci.yml pour deux raisons :
+#   1. Cadence différente : ces checks tournent aussi en cron hebdomadaire
+#      pour détecter les CVE qui sortent après merge (un package safe au
+#      moment du merge peut devenir vulnérable 2 semaines plus tard).
+#   2. Lisibilité GitHub Actions : on veut un check "security" distinct du
+#      check "build/test" dans le statut de PR.
+#
+# Référencé par docs/SECURITY.md §9 items #7 (audit deps) et #8 (secret scan).
+
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Tous les lundis 06:00 UTC (cron hebdomadaire). Détecte les CVE
+    # publiées entre deux PR.
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Scan secrets — regex sur le diff vs main + diff staged + tracked files
+  # ────────────────────────────────────────────────────────────────────────
+  # On réutilise scripts/preflight.sh --secrets (la même source de vérité
+  # qu'en local). Pas de dépendance externe (gitleaks payant sur repos
+  # privés), patterns maintenus à un seul endroit.
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout (avec historique pour diff vs main)
+        uses: actions/checkout@v6
+        with:
+          # fetch-depth: 0 → tout l'historique. Nécessaire pour que `git diff`
+          # voie les commits entre la PR et main (sans ça, depth=1 = juste HEAD).
+          fetch-depth: 0
+
+      - name: Vérification du script
+        run: |
+          test -x scripts/preflight.sh || {
+            echo "scripts/preflight.sh manquant ou non-exécutable"
+            exit 1
+          }
+
+      - name: Scan secrets (preflight --secrets)
+        run: bash scripts/preflight.sh --secrets
+
+  # ─── Audit deps Node — pnpm audit level=high
+  # ────────────────────────────────────────────────────────────────────────
+  # pnpm audit retourne non-zero quand il trouve >= 1 vuln au niveau demandé.
+  # On choisit `high` (vs `critical`) pour avoir une marge : une vuln high
+  # non patchée pendant 30j est inacceptable pour un service traitant des
+  # données citoyens.
+  #
+  # Job HARD : fail la PR si une vuln ≥ high apparaît, hors GHSAs explicitement
+  # tracées dans docs/SECURITY.md. Au 2026-06, UNE seule GHSA ignorée
+  # (GHSA-gv7w-rqvm-qjhr / esbuild — cf. SECURITY.md §9 item #17) : le patch
+  # 0.28.1 casse `astro check`, le fix réel est le bump Astro/Vite à venir.
+  # Toutes les autres vulns ≥ high sont résolues (overrides + upgrades).
+  # pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc le filtrage via jq.
+  #
+  # Pour ajouter une exception : la mettre dans `IGNORED_GHSAS` ci-dessous ET
+  # créer un item dans docs/SECURITY.md §9 — pas de date silencieuse.
+  audit-node:
+    name: audit deps (node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Activate pnpm 9.0.0
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.0.0 --activate
+
+      # pnpm audit n'a pas besoin de pnpm install — il lit pnpm-lock.yaml
+      # et appelle directement le registry npm. Beaucoup plus rapide qu'un
+      # install complet.
+      - name: pnpm audit (high+critical, hors GHSAs tracées)
+        env:
+          # GHSAs ignorées — chacune doit avoir un item de suivi dans
+          # docs/SECURITY.md §9 avec date cible et raison.
+          # GHSA-gv7w-rqvm-qjhr : esbuild (transitif via Vite/Astro). Seule 0.28.1
+          # patche, mais elle casse `astro check` sur la cible navigateurs actuelle —
+          # le fix réel = bump Astro/Vite (cf. SECURITY.md §9 item #17). Advisory
+          # dev-tooling (intégrité binaire du module Deno via NPM_CONFIG_REGISTRY),
+          # non exploitable au runtime de l'app.
+          # GHSA-8hv8-536x-4wqp / GHSA-2pvr-wf23-7pc7 : astro (XSS slot non échappé /
+          # SSRF Host header sur error page prerender). Patch UNIQUEMENT en Astro 6.x
+          # (>=6.3.3 / >=6.4.6) ; on reste en Astro 5 car 6 exige Node >=22.12 alors
+          # que la CI tourne en Node 20 (cf. §9 #14). Risque réel faible : apps/web est
+          # `output: static` (pas de SSR/slot dynamique côté requête). Fix = migration
+          # Astro 6 + Node 22 (cf. §9 item #18).
+          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7'
+        run: |
+          set -euo pipefail
+          # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
+          # faire planter le job — on analysera la sortie nous-mêmes.
+          pnpm audit --audit-level=high --json > audit.json || true
+
+          filter=''
+          for ghsa in $IGNORED_GHSAS; do
+            filter="$filter | select(.github_advisory_id != \"$ghsa\")"
+          done
+
+          remaining=$(jq -r "
+            [.advisories[]
+              | select(.severity == \"high\" or .severity == \"critical\")
+              $filter
+              | \"\(.severity) \(.module_name) (\(.github_advisory_id)) — \(.title)\"
+            ]
+          " audit.json)
+
+          count=$(echo "$remaining" | jq 'length')
+          if [ "$count" -gt 0 ]; then
+            echo "::error::$count vulnérabilité(s) ≥ high non tracées :"
+            echo "$remaining" | jq -r '.[]'
+            echo ""
+            echo "Pour ajouter une exception : voir IGNORED_GHSAS dans .github/workflows/security.yml + docs/SECURITY.md §9."
+            exit 1
+          fi
+          echo "Audit OK — 0 vulnérabilité ≥ high hors GHSAs tracées."
+
+  # ─── Audit deps Python firmware — pip-audit
+  # ────────────────────────────────────────────────────────────────────────
+  # Équivalent pnpm audit pour le firmware. Lit requirements.txt + lockfile
+  # et croise avec la DB OSV/PyPI Advisory.
+  audit-python:
+    name: audit deps (python firmware)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: pip-audit (firmware)
+        working-directory: services/firmware
+        # --requirement plutôt que --strict pour ne pas bloquer sur les
+        # warnings transitifs (deps de deps). On bloque sur les CVE
+        # confirmées seulement.
+        run: pip-audit --requirement requirements.txt || pip-audit

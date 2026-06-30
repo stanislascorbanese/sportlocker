@@ -5,6 +5,8 @@ import { z } from 'zod'
 
 import { db } from '../db/client.js'
 import { communes, distributors } from '../db/schema.js'
+import { requireAdminScope, requireSuperAdmin } from '../lib/commune-scope.js'
+import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 
 const CommuneDTO = z.object({
   id: z.string().uuid(),
@@ -116,21 +118,31 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.get('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Liste des communes (tenants)',
+      description: 'Admin scopé : voit uniquement sa propre commune (filtré). Super_admin : tout le parc (max 500).',
+      security: [{ bearerAuth: [] }],
       response: {
         200: z.object({ items: z.array(CommuneDTO) }),
         401: ErrorDTO, 403: ErrorDTO,
       },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
 
-    const rows = await db
-      .select(baseSelect)
-      .from(communes)
-      .orderBy(asc(communes.name))
-      .limit(500)
+    // Admin scoped : ne voit que sa propre commune.
+    const rows = auth.scope
+      ? await db
+          .select(baseSelect)
+          .from(communes)
+          .where(eq(communes.id, auth.scope.communeId))
+          .limit(1)
+      : await db
+          .select(baseSelect)
+          .from(communes)
+          .orderBy(asc(communes.name))
+          .limit(500)
 
     return { items: rows.map(rowToDto) }
   })
@@ -141,12 +153,20 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.get('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Détail d\'une commune',
+      description: 'Admin scopé : 404 si ce n\'est pas sa commune (pas 403, pour ne pas divulguer l\'existence).',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       response: { 200: CommuneDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
+
+    // Admin scoped : 404 si pas sa commune.
+    if (auth.scope && req.params.id !== auth.scope.communeId) {
+      return reply.code(404).send({ error: 'commune_not_found' })
     }
 
     const [row] = await db
@@ -165,13 +185,17 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.post('/', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Crée une commune (super_admin only)',
+      description: 'Création d\'un tenant = action système réservée à super_admin. '
+        + '409 `insee_code_conflict` si code INSEE déjà pris.',
+      security: [{ bearerAuth: [] }],
       body: CreateBody,
       response: { 201: CommuneDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 409: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
-    }
+    // Création de tenant = action système, super_admin uniquement.
+    if (!requireSuperAdmin(req, reply)) return
 
     const body = req.body
     try {
@@ -205,8 +229,8 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
         distributorCount: 0,
       })
     } catch (err) {
-      const msg = (err as Error).message
-      if (/duplicate key|unique/i.test(msg) && /insee/i.test(msg)) {
+      // Codes SQLSTATE robustes vs Drizzle 0.30/0.45+ (cf. lib/pg-errors.ts)
+      if (isPgViolation(err, PG_ERRORS.UNIQUE_VIOLATION, 'insee')) {
         return reply.code(409).send({ error: 'insee_code_conflict' })
       }
       throw err
@@ -220,13 +244,21 @@ export async function adminCommuneRoutes(rawApp: FastifyInstance) {
   app.put('/:id', {
     onRequest: [app.authenticate],
     schema: {
+      tags: ['Admin — Communes'],
+      summary: 'Mise à jour partielle d\'une commune',
+      description: 'Admin scopé : ne peut modifier QUE sa propre commune. `inseeCode` non modifiable (identité administrative).',
+      security: [{ bearerAuth: [] }],
       params: z.object({ id: z.string().uuid() }),
       body: UpdateBody,
       response: { 200: CommuneDTO, 400: ErrorDTO, 401: ErrorDTO, 403: ErrorDTO, 404: ErrorDTO },
     },
   }, async (req, reply) => {
-    if (req.user.role !== 'admin') {
-      return reply.code(403).send({ error: 'forbidden_admin_required' })
+    const auth = requireAdminScope(req, reply)
+    if (!auth.ok) return
+
+    // Admin scoped : ne peut modifier QUE sa propre commune.
+    if (auth.scope && req.params.id !== auth.scope.communeId) {
+      return reply.code(404).send({ error: 'commune_not_found' })
     }
 
     const body = req.body

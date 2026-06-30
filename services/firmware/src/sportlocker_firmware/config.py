@@ -12,6 +12,7 @@ class Config:
     mqtt_url: str
     mqtt_username: str | None
     mqtt_password: str | None
+    mqtt_ca_cert_path: str | None  # CA pour TLS (EMQX Cloud), ignoré en mqtt:// clair
     device_secret: str  # JWT_DEVICE_SECRET partagé avec l'API
     locker_count: int
 
@@ -23,6 +24,7 @@ def load_config() -> Config:
         mqtt_url=os.environ.get("MQTT_URL", "mqtt://localhost:1883"),
         mqtt_username=os.environ.get("MQTT_USERNAME"),
         mqtt_password=os.environ.get("MQTT_PASSWORD"),
+        mqtt_ca_cert_path=os.environ.get("MQTT_CA_CERT_PATH"),
         device_secret=_required("JWT_DEVICE_SECRET"),
         locker_count=int(os.environ.get("LOCKER_COUNT", "8")),
     )

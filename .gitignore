@@ -48,5 +48,14 @@ android/app/build/
 coverage/
 .nyc_output/
 
+# Secrets / API keys (filename-shaped)
+pk_test_*
+pk_live_*
+sk_test_*
+sk_live_*
+rk_test_*
+rk_live_*
+whsec_*
+
 # Misc
 *.local

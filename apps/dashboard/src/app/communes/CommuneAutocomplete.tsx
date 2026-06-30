@@ -1,0 +1,209 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+
+import { cn } from '../../lib/cn'
+import type { Lang } from '../../lib/lang'
+import { communesStrings } from '../../lib/i18n/communes'
+
+/**
+ * Réponse de l'API publique gouv.fr — geo.api.gouv.fr/communes.
+ * Doc : https://geo.api.gouv.fr/decoupage-administratif/communes
+ */
+type GovCommune = {
+  nom: string
+  code: string
+  codesPostaux: string[]
+  departement: { code: string; nom: string }
+  region: { code: string; nom: string }
+  population?: number
+}
+
+export type CommuneAutofill = {
+  inseeCode: string
+  postalCode: string
+  name: string
+  department: string
+  region: string
+  population: string
+}
+
+/**
+ * Champ d'autocomplétion qui interroge geo.api.gouv.fr (gratuit, sans clé)
+ * pour pré-remplir tous les champs administratifs d'une commune française à
+ * partir de son nom ou de son code postal.
+ *
+ * Heuristique : si le query matche /^\d{2,5}$/ → recherche par code postal,
+ * sinon → recherche par nom (boosté par population pour faire remonter les
+ * grandes villes en premier).
+ */
+export function CommuneAutocomplete({
+  lang,
+  onSelect,
+}: {
+  lang: Lang
+  onSelect: (c: CommuneAutofill) => void
+}) {
+  const t = communesStrings(lang)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<GovCommune[]>([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [picked, setPicked] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const listRef = useRef<HTMLUListElement | null>(null)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const q = query.trim()
+    if (q.length < 2) {
+      setResults([])
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const isPostalCode = /^\d{2,5}$/.test(q)
+        const param = isPostalCode
+          ? `codePostal=${q}`
+          : `nom=${encodeURIComponent(q)}&boost=population`
+        const url = `https://geo.api.gouv.fr/communes?${param}&fields=nom,code,codesPostaux,departement,region,population&limit=10`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`api_${res.status}`)
+        const data = (await res.json()) as GovCommune[]
+        setResults(data)
+        setActiveIndex(0)
+      } catch {
+        setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 250)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [query])
+
+  // Scroll automatique pour garder l'élément actif visible dans la liste
+  // quand on navigue au clavier vers le haut/bas.
+  useEffect(() => {
+    if (!open || results.length === 0) return
+    const li = listRef.current?.querySelectorAll('li')[activeIndex]
+    li?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, open, results.length])
+
+  function pick(c: GovCommune) {
+    onSelect({
+      inseeCode: c.code,
+      postalCode: c.codesPostaux[0] ?? '',
+      name: c.nom,
+      department: c.departement.code,
+      region: c.region.nom,
+      population: c.population != null ? String(c.population) : '',
+    })
+    setQuery(c.nom)
+    setPicked(c.nom)
+    setOpen(false)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open || results.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.min(i + 1, results.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const c = results[activeIndex]
+      if (c) pick(c)
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div className="relative rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-400/30 dark:bg-emerald-500/5">
+      <label className="block">
+        <span className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-emerald-800 dark:text-emerald-300/90">
+          <span>{t.autocompleteLabel}</span>
+          {picked && (
+            <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200">
+              {t.autocompleteAutoFilled}
+            </span>
+          )}
+        </span>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+            if (picked && e.target.value !== picked) setPicked(null)
+          }}
+          onKeyDown={onKeyDown}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={t.autocompletePlaceholder}
+          className={cn(
+            'mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-navy-900 outline-none transition-colors duration-base',
+            'border-gray-300 placeholder:text-gray-400 focus:border-emerald-500',
+            'dark:border-white/15 dark:bg-navy-800 dark:text-white dark:placeholder:text-white/30 dark:focus:border-emerald-400/60',
+          )}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-activedescendant={open && results[activeIndex] ? `commune-opt-${results[activeIndex].code}` : undefined}
+          role="combobox"
+        />
+      </label>
+      {open && (results.length > 0 || loading) && (
+        <ul
+          ref={listRef}
+          role="listbox"
+          className="absolute left-4 right-4 z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-white shadow-elevated dark:border-white/15 dark:bg-navy-800 dark:shadow-xl"
+        >
+          {loading && (
+            <li className="px-3 py-2 text-xs text-gray-500 dark:text-white/40">{t.autocompleteLoading}</li>
+          )}
+          {results.map((c, i) => (
+            <li key={c.code} id={`commune-opt-${c.code}`} role="option" aria-selected={i === activeIndex}>
+              <button
+                type="button"
+                onMouseEnter={() => setActiveIndex(i)}
+                onMouseDown={(e) => {
+                  // onMouseDown plutôt que onClick : sinon onBlur du parent
+                  // ferme la liste avant que le clic ne soit enregistré.
+                  e.preventDefault()
+                  pick(c)
+                }}
+                className={cn(
+                  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-navy-900 transition-colors duration-base dark:text-white/90',
+                  i === activeIndex
+                    ? 'bg-emerald-100 dark:bg-emerald-500/15'
+                    : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
+                )}
+              >
+                <span>{c.nom}</span>
+                <span className="font-mono text-meta text-gray-500 dark:text-white/40">
+                  {c.code} · {c.codesPostaux[0] ?? '—'} · {c.departement.code}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 flex items-center justify-between text-meta text-gray-600 dark:text-white/40">
+        <span>
+          {t.autocompleteSource} <span className="font-mono">geo.api.gouv.fr</span>
+        </span>
+        <span className="hidden sm:inline">
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↑↓</kbd> {t.autocompleteKbdNavigate} ·{' '}
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">↵</kbd> {t.autocompleteKbdSelect} ·{' '}
+          <kbd className="rounded border border-gray-300 px-1 dark:border-white/20">Esc</kbd> {t.autocompleteKbdClose}
+        </span>
+      </p>
+    </div>
+  )
+}

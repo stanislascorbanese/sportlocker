@@ -75,15 +75,22 @@ async function seedLocker(
   return id
 }
 
-async function seedUser(role: 'citizen' | 'operator' | 'admin' = 'citizen'): Promise<string> {
+type Role = 'citizen' | 'operator' | 'admin' | 'super_admin'
+
+async function seedUser(role: Role = 'citizen', communeId?: string): Promise<string> {
   const id = randomUUID()
-  await pgSql`INSERT INTO users (id, firebase_uid, email, role)
-    VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@test.local'}, ${role})`
+  await pgSql`INSERT INTO users (id, firebase_uid, email, role, commune_id)
+    VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@test.local'},
+            ${role}, ${communeId ?? null})`
   return id
 }
 
-function authHeader(userId: string, role: 'citizen' | 'operator' | 'admin' = 'citizen'): string {
-  const token = app.jwt.sign({ sub: userId, role })
+function authHeader(userId: string, role: Role = 'citizen', communeId?: string): string {
+  const token = app.jwt.sign({
+    sub: userId,
+    role,
+    ...(communeId ? { communeId } : {}),
+  })
   return `Bearer ${token}`
 }
 
@@ -275,6 +282,34 @@ describe('GET /v1/distributors/:id', () => {
     expect(body.lockers).toEqual([])
     expect(body.idleLockers).toBe(0)
   })
+
+  it('expose le type d\'item présent dans chaque casier (LEFT JOIN items + item_types)', async () => {
+    const communeId = await seedCommune()
+    const distributorId = await seedDistributor({ communeId, lockerCount: 2 })
+    const lockerWithItem = await seedLocker(distributorId, 0, 'idle')
+    await seedLocker(distributorId, 1, 'idle') // vide → itemType=null
+
+    const itemTypeId = randomUUID()
+    await pgSql`INSERT INTO item_types (id, slug, name, category, image_url, caution_cents, max_duration_minutes)
+      VALUES (${itemTypeId}, 'ball-foot', 'Ballon foot', 'ball', 'https://cdn.test/ball.png', 0, 240)`
+    const itemId = randomUUID()
+    await pgSql`INSERT INTO items (id, item_type_id, rfid_tag, current_locker_id)
+      VALUES (${itemId}, ${itemTypeId}, ${'rfid-' + itemId.slice(0, 8)}, ${lockerWithItem})`
+    await pgSql`UPDATE lockers SET current_item_id = ${itemId} WHERE id = ${lockerWithItem}`
+
+    const res = await app.inject({ method: 'GET', url: `/v1/distributors/${distributorId}` })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.lockers).toHaveLength(2)
+    expect(body.lockers[0].itemType).toEqual({
+      id: itemTypeId,
+      slug: 'ball-foot',
+      name: 'Ballon foot',
+      category: 'ball',
+      imageUrl: 'https://cdn.test/ball.png',
+    })
+    expect(body.lockers[1].itemType).toBeNull()
+  })
 })
 
 describe('GET /v1/distributors/nearby', () => {
@@ -361,12 +396,12 @@ describe('GET /v1/distributors/nearby', () => {
 describe('POST /v1/distributors', () => {
   it('crée le distributeur ET ses N lockers idle (201, admin)', async () => {
     const communeId = await seedCommune()
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
 
     const res = await app.inject({
       method: 'POST',
       url: '/v1/distributors',
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: {
         serialNumber: 'SL-NEW-001',
         communeId,
@@ -416,7 +451,7 @@ describe('POST /v1/distributors', () => {
 
   it('renvoie 409 serial_number_conflict quand le serial existe déjà', async () => {
     const communeId = await seedCommune()
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
     await seedDistributor({ communeId, name: 'Existing' })
     // On force un serial en collision en réinsérant via le seed helper
     await pgSql`INSERT INTO distributors (serial_number, commune_id, name, locker_count)
@@ -425,7 +460,7 @@ describe('POST /v1/distributors', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/v1/distributors',
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: {
         serialNumber: 'DUPLICATE-001', communeId, name: 'Tentative', lockerCount: 4,
       },
@@ -435,13 +470,13 @@ describe('POST /v1/distributors', () => {
   })
 
   it("renvoie 404 commune_not_found quand commune_id ne référence rien", async () => {
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
     const ghostCommune = randomUUID()
 
     const res = await app.inject({
       method: 'POST',
       url: '/v1/distributors',
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: {
         serialNumber: 'SL-ORPHAN-001', communeId: ghostCommune, name: 'Orphan', lockerCount: 4,
       },
@@ -452,11 +487,11 @@ describe('POST /v1/distributors', () => {
 
   it('renvoie 400 quand le body Zod est invalide (lockerCount=0)', async () => {
     const communeId = await seedCommune()
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
     const res = await app.inject({
       method: 'POST',
       url: '/v1/distributors',
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: { serialNumber: 'SL-X-003', communeId, name: 'X', lockerCount: 0 },
     })
     expect(res.statusCode).toBe(400)
@@ -466,14 +501,14 @@ describe('POST /v1/distributors', () => {
 describe('PUT /v1/distributors/:id', () => {
   it('met à jour name + status + lat/lng et renvoie 200 (admin)', async () => {
     const communeId = await seedCommune()
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
     const distributorId = await seedDistributor({ communeId, name: 'Avant', status: 'offline' })
     await seedLocker(distributorId, 0, 'idle')
 
     const res = await app.inject({
       method: 'PUT',
       url: `/v1/distributors/${distributorId}`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: { name: 'Après', status: 'maintenance', latitude: 50, longitude: 3 },
     })
     expect(res.statusCode).toBe(200)
@@ -512,11 +547,11 @@ describe('PUT /v1/distributors/:id', () => {
   })
 
   it("renvoie 404 quand le distributeur n'existe pas", async () => {
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
     const res = await app.inject({
       method: 'PUT',
       url: `/v1/distributors/${randomUUID()}`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: { name: 'Ghost' },
     })
     expect(res.statusCode).toBe(404)
@@ -525,15 +560,279 @@ describe('PUT /v1/distributors/:id', () => {
 
   it("renvoie 400 quand le body est vide (refine at_least_one_field_required)", async () => {
     const communeId = await seedCommune()
-    const adminId = await seedUser('admin')
+    const adminId = await seedUser('super_admin')
     const distributorId = await seedDistributor({ communeId })
 
     const res = await app.inject({
       method: 'PUT',
       url: `/v1/distributors/${distributorId}`,
-      headers: { authorization: authHeader(adminId, 'admin') },
+      headers: { authorization: authHeader(adminId, 'super_admin') },
       payload: {},
     })
     expect(res.statusCode).toBe(400)
+  })
+})
+
+describe('Multi-tenant isolation (admin commune-scoped)', () => {
+  it('admin commune A peut créer un distributeur dans SA commune (201)', async () => {
+    const communeA = await seedCommune()
+    const adminA = await seedUser('admin', communeA)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/distributors',
+      headers: { authorization: authHeader(adminA, 'admin', communeA) },
+      payload: {
+        serialNumber: 'SL-MT-A1',
+        communeId: communeA,
+        name: 'Dist A1',
+        lockerCount: 4,
+      },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(res.json().communeId).toBe(communeA)
+  })
+
+  it('admin commune A reçoit 403 forbidden_cross_commune en créant dans la commune B', async () => {
+    const communeA = await seedCommune()
+    const communeB = await seedCommune()
+    const adminA = await seedUser('admin', communeA)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/distributors',
+      headers: { authorization: authHeader(adminA, 'admin', communeA) },
+      payload: {
+        serialNumber: 'SL-MT-B1',
+        communeId: communeB,
+        name: 'Tentative cross-commune',
+        lockerCount: 4,
+      },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toBe('forbidden_cross_commune')
+  })
+
+  it('admin sans communeId dans son JWT reçoit 403 forbidden_admin_missing_commune', async () => {
+    const communeA = await seedCommune()
+    const orphanAdmin = await seedUser('admin') // pas de commune_id
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/distributors',
+      headers: { authorization: authHeader(orphanAdmin, 'admin') }, // pas de communeId
+      payload: {
+        serialNumber: 'SL-MT-ORPHAN',
+        communeId: communeA,
+        name: 'Orphan',
+        lockerCount: 4,
+      },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toBe('forbidden_admin_missing_commune')
+  })
+
+  it('admin commune A peut PUT un distributeur de SA commune (200)', async () => {
+    const communeA = await seedCommune()
+    const adminA = await seedUser('admin', communeA)
+    const distA = await seedDistributor({ communeId: communeA, name: 'Avant' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/distributors/${distA}`,
+      headers: { authorization: authHeader(adminA, 'admin', communeA) },
+      payload: { name: 'Après' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().name).toBe('Après')
+  })
+
+  it('admin commune A reçoit 404 en PUT un distributeur de commune B (isolation)', async () => {
+    const communeA = await seedCommune()
+    const communeB = await seedCommune()
+    const adminA = await seedUser('admin', communeA)
+    const distB = await seedDistributor({ communeId: communeB, name: 'B-dist' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/distributors/${distB}`,
+      headers: { authorization: authHeader(adminA, 'admin', communeA) },
+      payload: { name: 'Tentative cross' },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('distributor_not_found')
+
+    // Vérifie qu'aucune modification n'a fuité côté commune B
+    const rows = await pgSql`SELECT name FROM distributors WHERE id = ${distB}`
+    expect(rows[0]!.name).toBe('B-dist')
+  })
+})
+
+describe('GET /v1/distributors/:id/availability', () => {
+  const DAY_PASS = 1440  // forfait journée → 1 slot/jour à 00:00 UTC (déterministe)
+  const PRICE_CENTS = 500
+
+  // Début de jour UTC à +offset jours (slots day-pass alignés sur 00:00 UTC).
+  function dayStartUtc(offset: number): Date {
+    const n = new Date()
+    return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + offset))
+  }
+  const dayKey = (d: Date): string => d.toISOString().slice(0, 10)
+
+  async function seedItemType(): Promise<string> {
+    const id = randomUUID()
+    await pgSql`INSERT INTO item_types (id, slug, name, category)
+      VALUES (${id}, ${'ballon-' + id.slice(0, 8)}, 'Ballon', 'sport')`
+    return id
+  }
+  async function seedItemOnLocker(itemTypeId: string, lockerId: string): Promise<string> {
+    const id = randomUUID()
+    await pgSql`INSERT INTO items (id, item_type_id, rfid_tag, current_locker_id)
+      VALUES (${id}, ${itemTypeId}, ${'RFID-' + id.slice(0, 8)}, ${lockerId})`
+    return id
+  }
+  async function seedPricingRule(communeId: string, itemTypeId: string): Promise<void> {
+    await pgSql`INSERT INTO pricing_rules (id, commune_id, item_type_id, duration_minutes, price_cents)
+      VALUES (${randomUUID()}, ${communeId}, ${itemTypeId}, ${DAY_PASS}, ${PRICE_CENTS})`
+  }
+  async function seedSlotReservation(opts: {
+    distributorId: string; lockerId: string; itemId: string
+    slotStart: Date; slotEnd: Date
+  }): Promise<void> {
+    const userId = await seedUser('citizen')
+    const id = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, slot_start_at, slot_end_at, duration_minutes)
+      VALUES (${id}, ${userId}, ${opts.lockerId}, ${opts.itemId}, ${opts.distributorId},
+              'scheduled', ${'jti-' + id.slice(0, 12)}, NOW(),
+              ${opts.slotStart}, ${opts.slotEnd}, ${DAY_PASS})`
+  }
+
+  async function base(): Promise<{
+    communeId: string; distributorId: string; lockerId: string; itemTypeId: string
+  }> {
+    const communeId = await seedCommune()
+    const distributorId = await seedDistributor({ communeId })
+    const lockerId = await seedLocker(distributorId, 0)
+    const itemTypeId = await seedItemType()
+    return { communeId, distributorId, lockerId, itemTypeId }
+  }
+
+  const availUrl = (distributorId: string, itemTypeId: string, extra = ''): string =>
+    `/v1/distributors/${distributorId}/availability?itemTypeId=${itemTypeId}&durationMinutes=${DAY_PASS}${extra}`
+
+  it('404 si le distributeur n\'existe pas', async () => {
+    const res = await app.inject({ method: 'GET', url: availUrl(randomUUID(), randomUUID()) })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('distributor_not_found')
+  })
+
+  it('400 si durationMinutes n\'est pas une valeur autorisée', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/distributors/${randomUUID()}/availability?itemTypeId=${randomUUID()}&durationMinutes=45`,
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('400 si itemTypeId est absent', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/distributors/${randomUUID()}/availability?durationMinutes=${DAY_PASS}`,
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('422 invalid_window quand to <= from', async () => {
+    const { distributorId, itemTypeId } = await base()
+    const from = dayStartUtc(3).toISOString()
+    const to = dayStartUtc(1).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('invalid_window')
+  })
+
+  it('happy path : 1 item + tarif configuré → slots disponibles avec prix', async () => {
+    const { communeId, distributorId, lockerId, itemTypeId } = await base()
+    await seedItemOnLocker(itemTypeId, lockerId)
+    await seedPricingRule(communeId, itemTypeId)
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(3).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.distributorId).toBe(distributorId)
+    expect(body.itemTypeId).toBe(itemTypeId)
+    expect(body.durationMinutes).toBe(DAY_PASS)
+
+    // Fenêtre [J+1, J+3] inclusif → 3 jours, 1 slot day-pass chacun.
+    const keys = Object.keys(body.days)
+    expect(keys).toHaveLength(3)
+    const slot = body.days[dayKey(dayStartUtc(1))][0]
+    expect(slot.available).toBe(true)
+    expect(slot.priceCents).toBe(PRICE_CENTS)
+    expect(slot.durationMinutes).toBe(DAY_PASS)
+  })
+
+  it('tarif manquant → priceCents null et slots non réservables', async () => {
+    const { distributorId, lockerId, itemTypeId } = await base()
+    await seedItemOnLocker(itemTypeId, lockerId)  // item présent mais pas de pricing_rule
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(2).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const slot = res.json().days[dayKey(dayStartUtc(1))][0]
+    expect(slot.priceCents).toBeNull()
+    expect(slot.available).toBe(false)
+  })
+
+  it('aucun item de ce type → slots non disponibles (même avec tarif)', async () => {
+    const { communeId, distributorId, itemTypeId } = await base()
+    await seedPricingRule(communeId, itemTypeId)  // tarif OK mais 0 item physique
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(2).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const slot = res.json().days[dayKey(dayStartUtc(1))][0]
+    expect(slot.available).toBe(false)
+  })
+
+  it('un slot occupé par une résa vivante ressort non disponible (overlap)', async () => {
+    const { communeId, distributorId, lockerId, itemTypeId } = await base()
+    const itemId = await seedItemOnLocker(itemTypeId, lockerId)
+    await seedPricingRule(communeId, itemTypeId)
+    // Résa qui couvre le slot day-pass de J+1.
+    await seedSlotReservation({
+      distributorId, lockerId, itemId,
+      slotStart: dayStartUtc(1), slotEnd: dayStartUtc(2),
+    })
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(3).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const days = res.json().days
+    // J+1 occupé (seul item pris) → indispo ; J+2 libre → dispo.
+    expect(days[dayKey(dayStartUtc(1))][0].available).toBe(false)
+    expect(days[dayKey(dayStartUtc(2))][0].available).toBe(true)
   })
 })
