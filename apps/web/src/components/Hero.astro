@@ -13,46 +13,100 @@ const {
   highlight,
   desc,
   primary = { href: '/contact#formulaire', label: 'Demander un devis' },
-  secondary = { href: '/comment-ca-marche#distributeur-3d', label: 'Voir comment ça marche' },
+  secondary = { href: '/comment-ca-marche', label: 'Voir comment ça marche' },
 } = Astro.props
+
+// Split into words for staggered animation
+const titleWords = title.trim().split(/\s+/)
+const highlightWords = (highlight ?? '').trim().split(/\s+/).filter(Boolean)
+const totalWords = titleWords.length + highlightWords.length
+const ctaDelay = (totalWords * 0.1 + 0.15).toFixed(2)
+const descDelay = (totalWords * 0.1 + 0.05).toFixed(2)
+const metricsDelay = (totalWords * 0.1 + 0.4).toFixed(2)
 ---
 
-<section class="min-h-screen flex items-center pt-28 pb-20 relative overflow-hidden">
-  <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+<section class="hero-section">
+  <!-- Animated background blobs -->
+  <div class="hero-blob hero-blob-1" aria-hidden="true"></div>
+  <div class="hero-blob hero-blob-2" aria-hidden="true"></div>
+  <div class="hero-blob hero-blob-3" aria-hidden="true"></div>
+
+  <!-- Floating sport particle shapes -->
+  <svg
+    class="hero-particle"
+    style="--dur:28s;--del:-3s;--tx:18px;--ty:-22px;--rot:15deg; top:12%; right:8%; width:180px; height:180px;"
+    viewBox="0 0 100 100"
+    fill="none"
+    aria-hidden="true"
+  >
+    <circle cx="50" cy="50" r="47" stroke="currentColor" stroke-width="2.5"/>
+    <path d="M50 3 Q66 26 66 50 Q66 74 50 97 Q34 74 34 50 Q34 26 50 3Z" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3 50 Q26 34 50 34 Q74 34 97 50 Q74 66 50 66 Q26 66 3 50Z" stroke="currentColor" stroke-width="1.5"/>
+  </svg>
+
+  <svg
+    class="hero-particle"
+    style="--dur:22s;--del:-9s;--tx:-14px;--ty:18px;--rot:-10deg; bottom:18%; right:15%; width:120px; height:120px;"
+    viewBox="0 0 100 100"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect x="8" y="8" width="84" height="84" rx="12" stroke="currentColor" stroke-width="3"/>
+    <line x1="50" y1="8" x2="50" y2="92" stroke="currentColor" stroke-width="2"/>
+    <path d="M8 50 Q29 36 50 50 Q71 64 92 50" stroke="currentColor" stroke-width="2"/>
+  </svg>
+
+  <svg
+    class="hero-particle"
+    style="--dur:18s;--del:-15s;--tx:8px;--ty:-12px;--rot:8deg; top:60%; left:4%; width:90px; height:90px;"
+    viewBox="0 0 100 100"
+    fill="none"
+    aria-hidden="true"
+  >
+    <polygon points="50,5 95,75 5,75" stroke="currentColor" stroke-width="3" fill="none"/>
+  </svg>
+
   <div class="container-x relative z-10">
-    <div class="max-w-3xl">
-      {
-        tag && (
-          <div data-reveal class="mb-6">
-            <span class="tag tag-brand">{tag}</span>
-          </div>
-        )
-      }
-      <h1
-        data-reveal
-        data-reveal-delay="1"
-        class="font-extrabold text-display-xl text-white mb-6"
-      >
-        {title}
-        {highlight && (
+    <div class="max-w-[44rem]">
+      {tag && (
+        <div class="hero-appear mb-7" style="animation-delay: 0s">
+          <span class="tag tag-brand">{tag}</span>
+        </div>
+      )}
+
+      <h1 class="hero-headline">
+        {titleWords.map((word, i) => (
+          <span class="hero-word" style={`animation-delay: ${(i * 0.1).toFixed(2)}s`}>
+            {word}&nbsp;
+          </span>
+        ))}
+        {highlightWords.length > 0 && (
           <>
             <br />
-            <span class="text-brand-400">{highlight}</span>
+            {highlightWords.map((word, i) => (
+              <span
+                class="hero-word hero-word-accent"
+                style={`animation-delay: ${((titleWords.length + i) * 0.1).toFixed(2)}s`}
+              >
+                {word}{i < highlightWords.length - 1 ? ' ' : ''}
+              </span>
+            ))}
           </>
         )}
       </h1>
-      <p
-        data-reveal
-        data-reveal-delay="2"
-        class="text-[1.15rem] text-white/65 leading-loose max-w-xl mb-10 font-light"
-      >
+
+      <p class="hero-desc hero-appear" style={`animation-delay: ${descDelay}s`}>
         {desc}
       </p>
-      <div data-reveal data-reveal-delay="3" class="flex items-center gap-3 flex-wrap">
+
+      <div class="hero-actions hero-appear" style={`animation-delay: ${ctaDelay}s`}>
         <a href={primary.href} class="btn btn-primary">{primary.label} →</a>
         <a href={secondary.href} class="btn btn-outline">{secondary.label}</a>
       </div>
-      <slot />
+
+      <div class="hero-appear" style={`animation-delay: ${metricsDelay}s`}>
+        <slot />
+      </div>
     </div>
   </div>
 </section>
