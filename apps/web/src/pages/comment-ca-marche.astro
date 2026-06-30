@@ -1,442 +1,259 @@
 ---
-// =============================================================================
-//  /comment-ca-marche — Narration scroll CONTINUE et UNIFIÉE (un seul flux).
-// =============================================================================
-//  PASSE STRUCTURE-CONTINUITÉ (cette passe) : on transforme les 5 actes
-//  « plein écran qui se cognent » en UNE narration qui se fond. AUCUN JS de
-//  motion ici — uniquement la charpente du flux, les hooks data-* et le CSS de
-//  repos/fallback (reduced-motion / sans-JS lisible). Le contenu, les messages
-//  et l'ordre des actes NE CHANGENT PAS (UX validée) : seul le FLUX visuel bouge.
-//
-//  ─────────────────────────────────────────────────────────────────────────
-//  STRATÉGIE DE CONTINUITÉ (ce qui change vs la passe « actes alternés ») :
-//
-//  1. FOND CONTINU UNIQUE — fini l'alternance dure navy-800/900 et le crossfade
-//     à 2 couches « screen ». UNE seule couche fixe `.ccm-bg-flow`
-//     ([data-bg-progress]) couvre tout le scroll : un dégradé navy profond
-//     (#0D1B2A) → nuances le long du parcours → navy de clôture. Les valeurs de
-//     teinte sont exposées en variables CSS (--bg-c0..--bg-c3, --bg-glow) avec
-//     un état de repos navy ; la PASSE 2 lerpera ces variables selon la
-//     progression globale (0→1) pour MORPHER la teinte en continu.
-//     → Les sections sont TRANSPARENTES (plus de bg-navy-800/900 opaques qui
-//       coupent) : le fond traverse toute la page. Le contraste local est tenu
-//       par les `card-dark` (déjà bg-white/[0.04]) et la bande récap translucide.
-//     → ANCRES qui gardent un fond à eux : le hero (hero-glow par-dessus le flux)
-//       et l'outro FinalCta (bg-cta-gradient, hors de ce fichier) — ils bornent
-//       le flux sans le rompre.
-//
-//  2. TRANSITIONS SANS RUPTURE — chaque acte est enveloppé d'un wrapper
-//     [data-act-fade] (état de repos = pleinement visible, lisible sans JS).
-//     La PASSE 2 liera opacity + translateY/scale légers à la position du
-//     wrapper dans le viewport : l'acte sortant se dissout pendant que le
-//     suivant entre (zones de recouvrement), sans bordure ni saut de fond.
-//     → Plus de `min-h-screen` qui se cognent : padding vertical généreux et
-//       régulier pour la respiration, pics 3D (héros, borne) laissés respirer.
-//
-//  3. FIL CONDUCTEUR — barre de progression conservée ([data-scroll-progress]).
-//     Ajout d'un fil vertical décoratif [data-thread] (accent vert, aria-hidden)
-//     qui relie les actes comme un seul parcours ; sa progression de remplissage
-//     suit la même valeur que la barre (PASSE 2).
-//  ─────────────────────────────────────────────────────────────────────────
-//
-//  ANGLE (passe 0) : bénéfice ÉTABLISSEMENT d'abord. Le geste citoyen est la
-//  PREUVE (héros 3D, puis bande récap condensée), pas le sujet. On marque
-//  visuellement la bascule « côté usager → côté vous » à l'ACTE 3.
-//
-//  Séquence narrative (5 actes pleins + 1 transition) :
-//    ACTE 0 · Hero plein écran  → <h1> UNIQUE orienté bénéfice + CTA devis.
-//    ACTE 1 · Héros 3D          → Immersive3DStory : le geste raconté UNE fois.
-//                                 (auto-sticky 300vh interne — NE PAS ré-épingler.)
-//    TRANSITION (pas plein écran) → bande récap usager condensée
-//                                 « Trouver → Réserver → Ouvrir → Rendre ».
-//    ACTE 2 · La borne          → LockerDistributor3D : interactivité + statuts
-//                                 temps réel + antivandal/IP54.
-//    ACTE 3 · Côté établissement → timeline onboarding 4 étapes + colonne
-//                                 épinglée desktop avec CTA « Demander un devis ».
-//    ACTE 4 · Tout est inclus   → grille 6 prestations, suivie de FinalCta.
-//
-//  DOUBLONS retirés (cohérence Apple — un seul récit du geste) :
-//    → GARDÉ   Immersive3DStory   (héros, 3D scrollytelling).
-//    → GARDÉ   LockerDistributor3D (autre intention : manipuler la borne).
-//    → NON MONTÉ  ImmersiveLocker / JourneySimulation (doublons du héros 3D ;
-//                 le récap usager survit en TEXTE dans la bande de transition).
-//
-//  ─────────────────────────────────────────────────────────────────────────
-//  TODO — HOOKS à câbler en PASSE 2 (motion-engineer), transform/opacity only
-//  (+ lerp de variables CSS de teinte pour le fond), rAF-throttle, listeners
-//  passifs, dispose au pagehide, TOUT neutralisé sous prefers-reduced-motion :
-//
-//   CONTINUITÉ (nouveaux / refondus) :
-//    [data-bg-progress]       → ★ MORPH DE FOND CONTINU. Couche fixe unique.
-//                               Lerper les variables CSS de teinte
-//                               (--bg-c0..--bg-c3, --bg-glow-x/y/a) selon la
-//                               progression GLOBALE de page (0→1) → la couleur
-//                               se déplace en continu, navy profond → nuances →
-//                               navy de clôture. JAMAIS d'anim background-color
-//                               brute : on anime les custom props consommées par
-//                               un gradient, ou l'opacité de halos. Pas de
-//                               crossfade par acte (l'ancienne logique [data-bg-act]
-//                               est SUPPRIMÉE).
-//    [data-act-fade]          → ★ DISSOLVE D'ACTES SCROLL-LINKED. Un wrapper par
-//                               acte. Mapper sa position dans le viewport →
-//                               opacity (~0.35→1→0.35 aux extrémités) + translateY
-//                               léger (±16px) et/ou scale (0.98→1). Zones de
-//                               recouvrement entre actes adjacents : l'un sort
-//                               pendant que l'autre entre. NE PAS toucher aux
-//                               composants 3D internes (Immersive3DStory /
-//                               LockerDistributor3D gèrent leur scroll propre) —
-//                               le fade joue sur l'enveloppe AUTOUR, sobre, et ne
-//                               doit pas masquer le contenu 3D à mi-acte.
-//    [data-thread]            → ★ FIL CONDUCTEUR vertical (accent vert, décoratif,
-//                               aria-hidden). Piloter le remplissage (scaleY ou
-//                               hauteur d'un span interne) avec la MÊME valeur que
-//                               la barre de progression. Caché sous reduced-motion.
-//
-//   CONSERVÉS (mécanique inchangée) :
-//    [data-scroll-progress]   → barre de progression globale (scaleX 0→1 via --p).
-//    [data-scene-act="0..4"]  → index narratif de chaque acte (repères IO).
-//    [data-parallax="±n"]     → couche décorative translatée (transform Y borné).
-//    [data-pin] / [data-pin-inner] → colonne épinglée (ACTE 3) ; sticky CSS posé.
-//    [data-progress]          → cadence des reveals d'étapes (ACTE 3).
-//    [data-floating-cta]      → CTA flottant : après le hero → avant FinalCta.
-//    [data-mobile-cta]        → barre d'action fixe bas mobile (même logique).
-//    [data-scroll-hint]       → invite « Défilez » : fondu dès le 1er scroll.
-//    [data-reveal]            → DÉJÀ géré par Base.astro (IO + CSS). Ne pas recâbler.
-//  ─────────────────────────────────────────────────────────────────────────
-//
-//  A11y : un seul <h1> (ACTE 0), un <h2> par acte, <ol> pour les étapes. Tout
-//  le contenu informatif des moments 3D existe AUSSI en texte (composants à
-//  fallback statique). Sous-titres ≥ text-white/75. Cibles ≥ 44px.
-
 import Base from '@/layouts/Base.astro'
-import FinalCta from '@/components/FinalCta.astro'
-import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
+import { SITE } from '@/data/site'
 
-
-// --- TRANSITION : récap usager condensé (4 puces, 1 ligne + micro-détail) ----
-// Sert aussi de fallback texte lisible du héros 3D (l'ACTE 1).
-const recap = [
-  { n: '01', label: 'Trouver', desc: 'Le casier libre le plus proche, stock en temps réel.', tech: 'GPS · stock live < 20 ms' },
-  { n: '02', label: 'Réserver', desc: 'Une durée (30 / 60 / 90 / 120 min), payée en deux taps.', tech: 'Apple Pay · Google Pay · caution préautorisée' },
-  { n: '03', label: 'Ouvrir', desc: 'Scan du QR à la borne, casier ouvert en moins d’une seconde.', tech: 'QR JWT HS256 · NFC · offline 24h' },
-  { n: '04', label: 'Rendre', desc: 'Retour dans n’importe quel casier libre du réseau.', tech: 'Rappel push · RFID · multi-points' },
+const userSteps = [
+  {
+    n: '01',
+    title: 'Je trouve',
+    desc: "J'ouvre l'app, je localise le distributeur le plus proche. Les casiers libres s'affichent en temps réel.",
+    tech: 'GPS · stock Redis < 20 ms',
+  },
+  {
+    n: '02',
+    title: 'Je réserve',
+    desc: "Je choisis une durée (30 / 60 / 90 / 120 min), je paie en deux taps. Une caution est préautorisée sur ma carte.",
+    tech: 'Apple Pay · Google Pay · caution Stripe',
+  },
+  {
+    n: '03',
+    title: "J'ouvre",
+    desc: "Je présente mon QR code au lecteur de la borne — même sans réseau. Le casier s'ouvre en moins d'une seconde.",
+    tech: 'JWT HS256 offline · NFC · valable 15 min',
+  },
+  {
+    n: '04',
+    title: 'Je rends',
+    desc: "Je remets le matériel dans n'importe quel casier libre du réseau. Un rappel push m'avertit avant la fin du créneau.",
+    tech: 'Rappel push · RFID · multi-points de retour',
+  },
 ]
 
-// --- ACTE 3 : onboarding établissement (contenu existant conservé) -----------
+const specs = [
+  { icon: '🔩', label: 'Coque acier inox 2 mm', detail: 'Antivandalisme, résistance aux chocs' },
+  { icon: '🌧️', label: 'IP54 certifié', detail: 'Fonctionne sous la pluie, entre -10°C et +60°C' },
+  { icon: '📡', label: 'Connecté 4G + cache 24h', detail: 'Carte SIM M2M incluse, fonctionnel hors-ligne' },
+  { icon: '☀️', label: 'Panneau solaire optionnel', detail: 'Autonomie renforcée sur sites isolés' },
+  { icon: '🔲', label: 'Lecteur QR + NFC', detail: 'Double validation, ouverture < 1 seconde' },
+  { icon: '📺', label: 'Écran tactile 7"', detail: 'Interface usager, statuts temps réel' },
+]
+
 const onboarding = [
   {
     n: '01',
     title: 'Devis & cadrage',
     duration: '1 semaine',
-    desc: "Vous nous envoyez votre demande via le formulaire. On vous rappelle sous 24h pour qualifier le besoin : nombre de distributeurs, sports, emplacements envisagés, budget.",
+    desc: "Vous nous envoyez votre demande. On vous rappelle sous 24h pour qualifier le besoin : nombre de distributeurs, sports, emplacements, budget.",
     deliverables: ['Devis détaillé sous 48h', 'Configuration recommandée', 'Plan de financement (subventions incluses si éligible)'],
   },
   {
     n: '02',
     title: 'Visite technique',
     duration: '1 à 2 semaines',
-    desc: "On vient sur place repérer les emplacements : alimentation électrique 230V, couverture 4G, ancrage au sol, signalétique. Validation des plans avec votre service technique.",
+    desc: "On vient sur place repérer les emplacements : alimentation 230V, couverture 4G, ancrage au sol, signalétique. Validation avec votre service technique.",
     deliverables: ["Plan d'implantation", 'Devis travaux annexes éventuels', 'Convention signée'],
   },
   {
     n: '03',
     title: 'Installation',
     duration: '2 à 3 semaines',
-    desc: "On fabrique, on livre, on pose. Le matériel sportif est chargé dans les casiers. Configuration du tenant dans le dashboard. Formation de la personne référente côté établissement.",
+    desc: "On fabrique, on livre, on pose. Le matériel sportif est chargé dans les casiers. Votre tenant est configuré dans le dashboard. Formation de la personne référente.",
     deliverables: ['Distributeurs en service', 'Formation admin (1h)', 'Documentation opérationnelle'],
   },
   {
     n: '04',
     title: 'Lancement & suivi',
     duration: 'Continu',
-    desc: "Communication usagers (affichage + push), suivi 30/60/90 jours, ajustement du matériel selon usage observé. Hotline N2 SportLocker disponible 7j/7.",
+    desc: "Communication usagers (affichage + push), suivi 30/60/90 jours, ajustement du matériel selon l'usage. Hotline N2 disponible 7j/7.",
     deliverables: ['Bilan trimestriel', 'Renouvellement matériel inclus', 'Support technique illimité'],
   },
 ]
 
-// --- ACTE 4 : ce qu'on fournit (contenu existant conservé) -------------------
 const inclus = [
-  { icon: '🔒', title: 'Distributeur antivandal', desc: 'Acier inox 2 mm, IP54, plage -10°C à +60°C, conçu pour 10 ans en extérieur.' },
-  { icon: '⚽', title: 'Matériel sportif chargé', desc: 'Ballons, raquettes, frisbees, cordes à sauter. Adapté à votre site, renouvelé inclus.' },
+  { icon: '🔒', title: 'Distributeur antivandal', desc: 'Acier inox 2 mm, IP54, -10°C à +60°C, conçu pour 10 ans en extérieur.' },
+  { icon: '⚽', title: 'Matériel sportif chargé', desc: 'Ballons, raquettes, frisbees, cordes. Adapté à votre site, renouvellement inclus.' },
   { icon: '📡', title: 'Connectivité 4G + cache', desc: 'Carte SIM M2M incluse. Fonctionnement garanti 24h hors-ligne.' },
-  { icon: '🛠️', title: 'Maintenance N1 + N2', desc: 'Vous gérez les petits incidents (recharge matériel). On gère le reste à distance ou en intervention.' },
+  { icon: '🛠️', title: 'Maintenance N1 + N2', desc: 'Vous gérez les petits incidents. On gère le reste à distance ou en intervention.' },
   { icon: '📊', title: 'Dashboard temps réel', desc: "Stats d'usage, alertes maintenance, force-cancel réservations abusives." },
   { icon: '🆙', title: 'Mises à jour OTA', desc: 'Firmware mis à jour à distance via Balena. Aucune intervention sur site.' },
 ]
 ---
 
 <Base
-  title="Comment ça marche — le sport en libre-service sur vos terrains"
-  description="Le sport en libre-service sur vos terrains, sans rien à gérer : matériel, maintenance et support inclus. L'usager emprunte en 30 secondes ; vous mettez en service en 4 à 6 semaines."
+  title="Comment ça marche — SportLocker en libre-service"
+  description="L'usager emprunte en 30 secondes. Vous mettez en service en 4 à 6 semaines. Matériel, maintenance et support : tout est inclus."
 >
-  <!-- ====================================================================== -->
-  <!-- Barre de progression globale (acte courant / total).                   -->
-  <!-- PASSE 2 : piloter --p (scaleX 0→1) selon la progression de page.        -->
-  <!-- ====================================================================== -->
-  <div id="ccm-progress" class="ccm-progress" data-scroll-progress aria-hidden="true">
-    <span class="ccm-progress-bar"></span>
-  </div>
 
-  <!-- ====================================================================== -->
-  <!-- FOND CONTINU UNIFIÉ — UNE couche fixe plein écran qui MORPHE le long du  -->
-  <!-- scroll (plus d'alternance navy-800/900, plus de crossfade par acte).    -->
-  <!-- Le dégradé consomme des variables CSS de teinte (état de repos = navy    -->
-  <!-- profond, lisible sans JS). PASSE 2 : lerper ces variables via            -->
-  <!-- [data-bg-progress] selon la progression GLOBALE → la couleur se déplace  -->
-  <!-- en continu. Décoratif, derrière le contenu, pointer-events:none.        -->
-  <!-- ====================================================================== -->
-  <div class="ccm-bg-flow" data-bg-progress aria-hidden="true"></div>
-
-  <!-- ====================================================================== -->
-  <!-- FIL CONDUCTEUR — ligne verticale décorative (accent vert) qui relie les  -->
-  <!-- actes comme un seul parcours. Décoratif (aria-hidden). PASSE 2 : son     -->
-  <!-- remplissage (.ccm-thread-fill) suit la MÊME valeur que la barre de       -->
-  <!-- progression. Masqué sous reduced-motion et sur petits écrans.           -->
-  <!-- ====================================================================== -->
-  <div class="ccm-thread" data-thread aria-hidden="true">
-    <span class="ccm-thread-track"></span>
-    <span class="ccm-thread-fill"></span>
-  </div>
-
-  <!-- ====================================================================== -->
-  <!-- ACTE 0 · HERO — plein écran, <h1> UNIQUE, bénéfice établissement.       -->
-  <!-- ====================================================================== -->
-  <section
-    class="ccm-act relative min-h-screen flex items-center overflow-hidden"
-    data-scene-act="0"
-  >
-    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
-    <!-- Couche décorative parallax (PASSE 2 : translateY léger au scroll). -->
-    <div class="ccm-orb" data-parallax="-2" aria-hidden="true"></div>
-
-    <!-- Enveloppe de dissolve scroll-linked (état de repos = visible). -->
-    <div class="ccm-act-fade container-x relative w-full pt-28 pb-28 sm:pt-32 text-center" data-act-fade>
-      <span class="eyebrow" data-reveal>Comment ça marche</span>
-      <h1
-        class="font-extrabold text-display-xl text-white mt-4 mb-6 mx-auto max-w-4xl"
-        data-reveal
-        data-reveal-delay="1"
-      >
-        Le sport en libre-service<br class="hidden sm:block" /> sur vos terrains.
-        <span class="text-brand-400">Vous ne gérez rien.</span>
-      </h1>
-      <p
-        class="text-[1.15rem] text-white/75 leading-loose max-w-2xl mx-auto font-light"
-        data-reveal
-        data-reveal-delay="2"
-      >
-        L'usager emprunte en 30 secondes. Vous mettez en service en 4 à 6 semaines.
-        Matériel, maintenance et support : tout est inclus.
-      </p>
-      <div class="mt-9 flex flex-wrap gap-3 justify-center items-center" data-reveal data-reveal-delay="3">
-        <a href="/contact#formulaire" class="btn btn-primary">Demander un devis</a>
-        <a href="/tarifs" class="btn btn-outline">Voir les tarifs</a>
+  <!-- HERO -->
+  <section class="segment-hero">
+    <div class="segment-hero-bg" aria-hidden="true"></div>
+    <div class="container-x relative z-10">
+      <div class="max-w-[48rem]">
+        <div class="hero-appear mb-6" style="animation-delay:0s">
+          <span class="tag tag-brand">Comment ça marche</span>
+        </div>
+        <h1 class="segment-hero-title hero-appear" style="animation-delay:0.1s">
+          Le sport en libre-service<br/>
+          <span class="text-brand-400">Vous ne gérez rien.</span>
+        </h1>
+        <p class="segment-hero-sub hero-appear" style="animation-delay:0.25s">
+          L'usager emprunte en 30 secondes depuis son téléphone.
+          Vous mettez en service en 4 à 6 semaines. Matériel, maintenance et support : tout est inclus.
+        </p>
+        <div class="flex gap-3 flex-wrap hero-appear" style="animation-delay:0.35s">
+          <a href="/contact#formulaire" class="btn btn-primary">Demander un devis →</a>
+          <a href="/tarifs" class="btn btn-outline">Voir les tarifs</a>
+        </div>
+        <div class="segment-metrics hero-appear" style="animation-delay:0.5s">
+          <div>
+            <div class="segment-metric-n">30<span class="text-brand-400">s</span></div>
+            <div class="segment-metric-l">pour emprunter<br/>du matériel</div>
+          </div>
+          <div>
+            <div class="segment-metric-n">4–6<span class="text-brand-400">sem</span></div>
+            <div class="segment-metric-l">de la commande<br/>à la mise en service</div>
+          </div>
+          <div>
+            <div class="segment-metric-n">24<span class="text-brand-400">h</span></div>
+            <div class="segment-metric-l">disponible même<br/>sans réseau</div>
+          </div>
+          <div>
+            <div class="segment-metric-n">0</div>
+            <div class="segment-metric-l">personnel<br/>à mobiliser</div>
+          </div>
+        </div>
       </div>
-    </div>
-
-    <!-- Invite de défilement (PASSE 2 : fondu dès le 1er scroll). -->
-    <div
-      class="ccm-scroll-hint absolute left-1/2 bottom-7 -translate-x-1/2 flex flex-col items-center gap-1 text-white/60 text-xs uppercase tracking-[0.14em]"
-      data-scroll-hint
-      aria-hidden="true"
-    >
-      <span>Défilez</span>
-      <span class="text-base leading-none">↓</span>
     </div>
   </section>
 
-  <!-- ====================================================================== -->
-  <!-- ACTE 1 · LE GESTE — 3 étapes illustrées en CSS (remplace la 3D).     -->
-  <!-- ====================================================================== -->
-  <section
-    id="geste"
-    class="ccm-act scroll-mt-20 py-24 sm:py-28"
-    data-scene-act="1"
-  >
+  <!-- CÔTÉ USAGER — 4 étapes -->
+  <section class="section-alt">
     <div class="container-x">
       <div class="text-center mb-14">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté usager</span>
-        <h2 class="section-title mx-auto" data-reveal data-reveal-delay="1">
+        <span class="eyebrow" data-reveal>Côté usager</span>
+        <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
           Du téléphone au casier ouvert.
         </h2>
         <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          30 secondes, 3 gestes — sans badge, sans agent, sans guichet.
+          4 gestes, 30 secondes — sans badge, sans agent, sans guichet.
         </p>
       </div>
-      <div class="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-        {[
-          {
-            n: '01',
-            icon: '📱',
-            title: 'Je choisis',
-            desc: "J’ouvre l’app, je trouve le distributeur le plus proche avec ses casiers libres en temps réel, je réserve un créneau et je paie en 2 taps.",
-            tech: 'GPS · stock Redis < 20 ms · Apple/Google Pay',
-          },
-          {
-            n: '02',
-            icon: '🔲',
-            title: 'Je scanne',
-            desc: "J'arrive devant la borne, j'affiche mon QR code — même sans réseau. Le distributeur lit le JWT, valide et ouvre le casier en moins d'une seconde.",
-            tech: 'JWT HS256 offline · NFC · 15 min de validité',
-          },
-          {
-            n: '03',
-            icon: '🏃',
-            title: 'Je profite & rends',
-            desc: "Je récupère mon matériel. À la fin, je le remets dans n'importe quel casier libre du réseau. Un rappel push avant la fin du créneau.",
-            tech: 'Rappel push · RFID · multi-points de retour',
-          },
-        ].map((step, i) => (
-          <div class="card-dark p-8 relative" data-reveal data-reveal-delay={String(i + 1)}>
-            <div class="flex items-center gap-3 mb-5">
-              <span class="font-mono text-3xl font-bold text-brand-500/25 leading-none">{step.n}</span>
-              <span class="text-3xl">{step.icon}</span>
-            </div>
-            <h3 class="font-bold text-lg mb-3" style="color:var(--text-0)">{step.title}</h3>
-            <p class="text-sm leading-relaxed font-light mb-4" style="color:var(--text-1)">{step.desc}</p>
-            <div class="text-xs font-mono text-brand-400/70 border-t pt-3" style="border-color:var(--border)">{step.tech}</div>
-            {i < 2 && (
-              <div class="hidden md:block absolute top-1/2 -right-3 -translate-y-1/2 text-brand-500/30 text-2xl z-10" aria-hidden="true">→</div>
-            )}
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {userSteps.map((s, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 4) + 1)}>
+            <div class="font-mono text-4xl font-bold text-brand-500/20 mb-4 leading-none">{s.n}</div>
+            <h3 class="font-bold text-lg mb-3" style="color:var(--text-0)">{s.title}</h3>
+            <p class="text-sm leading-relaxed font-light mb-5" style="color:var(--text-1)">{s.desc}</p>
+            <div class="text-[0.7rem] font-mono text-brand-400/70 border-t pt-3" style="border-color:var(--border)">{s.tech}</div>
           </div>
         ))}
       </div>
     </div>
   </section>
 
-  <!-- ====================================================================== -->
-  <!-- TRANSITION · RÉCAP USAGER CONDENSÉ — bande horizontale (PAS plein       -->
-  <!-- écran). 4 puces « Trouver → Réserver → Ouvrir → Rendre ». Sert aussi de  -->
-  <!-- fallback texte lisible du héros 3D ci-dessus.                           -->
-  <!-- ====================================================================== -->
-  <section
-    id="recap-usager"
-    class="ccm-recap scroll-mt-20 pb-20 sm:pb-24"
-    aria-labelledby="recap-title"
-  >
-    <div class="ccm-act-fade container-x" data-act-fade>
-      <p id="recap-title" class="text-sm text-white/75 font-light text-center mb-8 max-w-2xl mx-auto" data-reveal>
-        En clair, côté usager : <span class="text-white">trouver, réserver, ouvrir, rendre</span> — sans guichet ni dépôt de papiers.
-      </p>
-      <!-- Cartes translucides (card-dark) : le fond continu traverse, le voile
-           léger + bordure assure le contraste de lecture. -->
-      <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-xl overflow-hidden border border-white/10 backdrop-blur-sm">
-        {recap.map((s, i) => (
-          <li class="card-dark !rounded-none p-5 sm:p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
-            <div class="flex items-center gap-3 mb-2">
-              <span class="font-extrabold text-2xl text-brand-400 leading-none">{s.n}</span>
-              <span class="font-bold text-white text-base">{s.label}</span>
-              {i < recap.length - 1 && (
-                <span class="hidden lg:inline text-white/30 ml-auto text-lg leading-none" aria-hidden="true">→</span>
-              )}
-            </div>
-            <p class="text-sm text-white/75 font-light leading-relaxed">{s.desc}</p>
-            <p class="mt-3 text-[0.7rem] text-brand-400 uppercase tracking-wider">{s.tech}</p>
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
-
-  <!-- ====================================================================== -->
-  <!-- ACTE 2 · LA BORNE INSTALLÉE SUR VOS SITES — interactif (LockerDistributor3D).-->
-  <!-- Angle : interactivité + statuts temps réel + antivandal/IP54.           -->
-  <!-- (On NE re-décrit PAS les composants un par un : le héros l'a déjà fait.) -->
-  <!-- ====================================================================== -->
-  <section
-    id="distributeur-3d"
-    class="ccm-act scroll-mt-20 py-28 sm:py-36 flex flex-col justify-center"
-    data-scene-act="2"
-  >
+  <!-- LA BORNE — specs -->
+  <section class="section">
     <div class="container-x">
-      <div class="ccm-act-fade mb-10 max-w-3xl" data-act-fade>
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté terrain</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          La borne installée<br class="hidden sm:block" /> sur vos sites.
-        </h2>
-        <p class="section-sub !text-white/75 mt-4" data-reveal data-reveal-delay="2">
-          Manipulez-la : faites-la pivoter, ouvrez les portes, lisez les statuts en temps réel —
-          libre, réservé, emprunté, maintenance. Les boutons sous la scène pilotent tout au clavier
-          (rotation, ouverture des portes, étiquettes, réinitialisation). Coque acier antivandale
-          IP54, conçue pour rester dehors toute l'année.
-        </p>
-      </div>
-
-      <div data-reveal data-reveal-delay="3">
-        <LockerDistributor3D />
-      </div>
-    </div>
-  </section>
-
-  <!-- ====================================================================== -->
-  <!-- BASCULE · « côté usager → côté vous » — marqueur visuel de transition.  -->
-  <!-- ====================================================================== -->
-  <div aria-hidden="true">
-    <div class="container-x">
-      <div class="ccm-switch" data-reveal>
-        <span class="ccm-switch-from">Côté usager</span>
-        <span class="ccm-switch-arrow">→</span>
-        <span class="ccm-switch-to">Côté vous</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====================================================================== -->
-  <!-- ACTE 3 · CÔTÉ ÉTABLISSEMENT — colonne épinglée + timeline onboarding.    -->
-  <!-- CTA « Demander un devis » dans la colonne épinglée (desktop).           -->
-  <!-- ====================================================================== -->
-  <section
-    id="installation"
-    class="ccm-act scroll-mt-20 pb-24 sm:pb-28 pt-4"
-    data-scene-act="3"
-    data-progress
-  >
-    <div class="container-x">
-      <div class="grid lg:grid-cols-[0.9fr_1.1fr] gap-12 lg:gap-16 items-start">
-        <!-- Colonne épinglée (desktop). PASSE 2 : renforcer via data-pin-inner. -->
-        <div class="ccm-pin" data-pin>
-          <div class="ccm-pin-inner lg:sticky lg:top-28" data-pin-inner>
-            <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté établissement</span>
-            <h2 class="section-title" data-reveal data-reveal-delay="1">
-              De la demande à la mise<br class="hidden sm:block" /> en service en 4 à 6 semaines.
-            </h2>
-            <p class="section-sub !text-white/75 mt-5" data-reveal data-reveal-delay="2">
-              Un parcours clé en main. Vous n'avez à gérer ni l'achat de matériel, ni la
-              maintenance, ni le support N2.
-            </p>
-            <a
-              href="/contact#formulaire"
-              class="btn btn-primary mt-8"
-              data-reveal
-              data-reveal-delay="3"
-            >
-              Demander un devis
-            </a>
+      <div class="grid lg:grid-cols-2 gap-16 items-center">
+        <div>
+          <span class="eyebrow" data-reveal>Le distributeur</span>
+          <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+            Une borne conçue pour<br/>rester dehors 10 ans.
+          </h2>
+          <p class="section-sub mb-10" data-reveal data-reveal-delay="2">
+            Acier inox antivandalisme, IP54, connectée 4G avec cache offline 24h.
+            Fonctionne sous la pluie, la nuit, sans agent dédié.
+          </p>
+          <div class="grid sm:grid-cols-2 gap-4">
+            {specs.map((s, i) => (
+              <div class="flex gap-3 items-start" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-500/10 border border-brand-500/20 grid place-items-center text-base">
+                  {s.icon}
+                </div>
+                <div>
+                  <div class="font-semibold text-sm mb-0.5" style="color:var(--text-0)">{s.label}</div>
+                  <div class="text-xs font-light" style="color:var(--text-1)">{s.detail}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
+        <!-- Schéma distributeur SVG -->
+        <div class="hidden lg:flex justify-center" data-reveal data-reveal-delay="2" aria-hidden="true">
+          <div class="relative">
+            <div class="absolute inset-0 bg-brand-500/8 rounded-3xl blur-3xl scale-90"></div>
+            <svg viewBox="0 0 260 480" fill="none" xmlns="http://www.w3.org/2000/svg" class="relative w-[220px] h-[400px] drop-shadow-[0_20px_50px_rgba(29,158,117,0.2)]">
+              <rect x="20" y="20" width="220" height="440" rx="16" fill="#111C27" stroke="#1D9E75" stroke-width="1.5"/>
+              <rect x="20" y="20" width="220" height="56" rx="16" fill="#0F6E56"/>
+              <rect x="20" y="56" width="220" height="20" fill="#0F6E56"/>
+              <text x="130" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="18" fill="white" opacity="0.9">SportLocker</text>
+              <rect x="38" y="92" width="184" height="100" rx="8" fill="#0A1520"/>
+              <rect x="38" y="92" width="184" height="100" rx="8" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
+              <rect x="50" y="104" width="80" height="10" rx="3" fill="#1D9E75" opacity="0.7"/>
+              <rect x="50" y="122" width="120" height="8" rx="3" fill="white" opacity="0.15"/>
+              <rect x="50" y="138" width="100" height="8" rx="3" fill="white" opacity="0.1"/>
+              <rect x="152" y="100" width="60" height="60" rx="6" fill="#1D9E75" opacity="0.12" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
+              <rect x="158" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
+              <rect x="176" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
+              <rect x="158" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
+              <rect x="176" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
+              <rect x="158" y="142" width="32" height="4" rx="2" fill="#2BC295" opacity="0.4"/>
+              <rect x="38" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="81" cy="244" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="134" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1.5" stroke-opacity="0.9"/>
+              <rect x="134" y="210" width="86" height="68" rx="6" fill="#1D9E75" opacity="0.06"/>
+              <circle cx="177" cy="244" r="8" fill="#2BC295" opacity="0.9"/>
+              <path d="M173 244 l3 3 6-6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="38" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="81" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="134" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="177" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="38" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="81" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="134" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="177" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <circle cx="218" cy="42" r="5" fill="#2BC295"/>
+              <circle cx="218" cy="42" r="5" fill="#2BC295" opacity="0.4">
+                <animate attributeName="r" values="5;10;5" dur="2s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-        <!-- Timeline onboarding : 4 étapes révélées une à une au scroll.
-             data-act-fade UNIQUEMENT ici (pas sur la colonne épinglée : un
-             ancêtre transformé casserait position:sticky du data-pin-inner). -->
-        <ol class="ccm-act-fade ccm-steps flex flex-col gap-5" data-act-fade>
+  <!-- CÔTÉ VOUS — onboarding 4 étapes -->
+  <section class="section-alt" id="installation">
+    <div class="container-x">
+      <div class="grid lg:grid-cols-[1fr_1.6fr] gap-16 items-start">
+        <div class="lg:sticky lg:top-32">
+          <span class="eyebrow" data-reveal>Côté établissement</span>
+          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+            De la demande<br/>à la mise en service<br/>en 4 à 6 semaines.
+          </h2>
+          <p class="section-sub mb-8 font-light" data-reveal data-reveal-delay="2">
+            Un parcours clé en main. Vous ne gérez ni l'achat de matériel, ni la maintenance, ni le support N2.
+          </p>
+          <a href="/contact#formulaire" class="btn btn-primary" data-reveal data-reveal-delay="3">
+            Demander un devis →
+          </a>
+        </div>
+        <ol class="space-y-4">
           {onboarding.map((step, i) => (
-            <li
-              class="card-dark p-7 sm:p-8"
-              data-reveal
-              data-reveal-delay={String((i % 4) + 1)}
-              data-step={String(i)}
-            >
+            <li class="card-dark p-7 sm:p-8" data-reveal data-reveal-delay={String((i % 3) + 1)}>
               <div class="flex items-start justify-between mb-5">
-                <div class="font-extrabold text-5xl text-brand-400 leading-none">{step.n}</div>
+                <div class="font-mono font-bold text-4xl text-brand-500/25 leading-none">{step.n}</div>
                 <span class="tag tag-white text-[0.65rem]">{step.duration}</span>
               </div>
-              <h3 class="font-extrabold text-white text-xl mb-3">{step.title}</h3>
-              <p class="text-sm text-white/75 font-light leading-relaxed mb-5">{step.desc}</p>
-              <div class="text-[0.7rem] uppercase tracking-wider text-white/60 mb-3">Livrables</div>
+              <h3 class="font-bold text-lg mb-3" style="color:var(--text-0)">{step.title}</h3>
+              <p class="text-sm leading-relaxed font-light mb-5" style="color:var(--text-1)">{step.desc}</p>
+              <div class="text-[0.65rem] uppercase tracking-widest mb-3" style="color:var(--text-1)">Livrables</div>
               <ul class="space-y-2">
-                {step.deliverables.map((d) => (
-                  <li class="flex items-start gap-2.5 text-sm text-white/75">
-                    <span class="text-brand-400 mt-1 shrink-0">✓</span>
+                {step.deliverables.map(d => (
+                  <li class="flex items-start gap-2.5 text-sm" style="color:var(--text-1)">
+                    <span class="text-brand-400 mt-0.5 shrink-0">✓</span>
                     <span class="font-light">{d}</span>
                   </li>
                 ))}
@@ -448,658 +265,110 @@ const inclus = [
     </div>
   </section>
 
-  <!-- ====================================================================== -->
-  <!-- ACTE 4 · TOUT EST INCLUS — grille des prestations, suivie de FinalCta.   -->
-  <!-- ====================================================================== -->
-  <section
-    class="ccm-act py-24 sm:py-28"
-    data-scene-act="4"
-  >
-    <div class="ccm-act-fade container-x" data-act-fade>
-      <div class="text-center mb-14 max-w-2xl mx-auto">
+  <!-- TOUT EST INCLUS -->
+  <section class="section">
+    <div class="container-x">
+      <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Tout est inclus</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+        <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
           Aucun coût caché, aucune surprise.
         </h2>
-        <p class="section-sub !text-white/75 mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Pas de renouvellement matériel à anticiper. Pas de coût d'intervention.
-          Une mensualité, et c'est tout.
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Une mensualité. Matériel, maintenance, support N2 et OTA — tout.
         </p>
       </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {inclus.map((f, i) => (
-          <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 3) + 1)}>
-            <div class="w-11 h-11 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-xl mb-4" aria-hidden="true">
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="w-11 h-11 rounded-xl bg-brand-500/10 border border-brand-500/20 grid place-items-center text-xl mb-5">
               {f.icon}
             </div>
-            <h3 class="font-bold text-white text-base mb-2">{f.title}</h3>
-            <p class="text-sm text-white/75 font-light leading-relaxed">{f.desc}</p>
+            <h3 class="font-bold text-base mb-2" style="color:var(--text-0)">{f.title}</h3>
+            <p class="text-sm leading-relaxed font-light" style="color:var(--text-1)">{f.desc}</p>
           </div>
         ))}
       </div>
     </div>
   </section>
 
-  <!-- OUTRO · CTA final (cible la fin de page : masque le CTA flottant). -->
-  <div id="ccm-final-cta">
-    <FinalCta
-      title="Prêt à voir si SportLocker fonctionne pour vous ?"
-      sub="Un appel de 15 minutes suffit pour valider la faisabilité, le timing et le budget."
-      primary={{ href: '/contact#formulaire', label: 'Demander un devis' }}
-      secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
-    />
-  </div>
+  <!-- CTA FINALE VERTE -->
+  <section class="cta-finale">
+    <div class="cta-finale-blob" aria-hidden="true"></div>
+    <div class="container-x relative z-10 text-center">
+      <p class="eyebrow mb-4 text-white/60" data-reveal>Prêt à équiper vos terrains ?</p>
+      <h2 class="cta-finale-title" data-reveal data-reveal-delay="1">
+        15 minutes pour voir<br/>si SportLocker vous correspond.
+      </h2>
+      <p class="cta-finale-sub" data-reveal data-reveal-delay="2">
+        Un appel de découverte, un devis sous 48h. Aucun engagement.
+      </p>
+      <div class="flex items-center justify-center gap-4 flex-wrap" data-reveal data-reveal-delay="3">
+        <a href="/contact#formulaire" class="btn btn-white text-lg px-9 py-4">Demander un devis gratuit →</a>
+        <a href={`mailto:${SITE.email}`} class="cta-finale-link">ou {SITE.email}</a>
+      </div>
+    </div>
+  </section>
 
-  <!-- ====================================================================== -->
-  <!-- CTA FLOTTANT (desktop / tablette) — apparaît après le hero, disparaît   -->
-  <!-- quand FinalCta entre dans le viewport. PASSE 2 pilote l'apparition.     -->
-  <!-- État de repos = masqué (opacity:0, translateY) jusqu'au câblage motion. -->
-  <!-- ====================================================================== -->
-  <a
-    href="/contact#formulaire"
-    class="ccm-floating-cta btn btn-primary"
-    data-floating-cta
-  >
-    Demander un devis
-  </a>
-
-  <!-- ====================================================================== -->
-  <!-- BARRE D'ACTION FIXE BAS (mobile) — hauteur ≥ 56px, cible tactile ≥ 44px. -->
-  <!-- Même logique d'apparition/disparition que le CTA flottant (PASSE 2).    -->
-  <!-- ====================================================================== -->
-  <div class="ccm-mobile-cta" data-mobile-cta>
-    <a href="/tarifs" class="btn btn-outline flex-1">Tarifs</a>
-    <a href="/contact#formulaire" class="btn btn-primary flex-[1.4]">Demander un devis</a>
-  </div>
-
-  <!-- ====================================================================== -->
-  <!-- PASSE 2 — MÉCANIQUE SCROLL. transform/opacity only, rAF-throttle,       -->
-  <!-- listeners passifs, IO pour les actes, dispose au pagehide. Neutralisé   -->
-  <!-- sous prefers-reduced-motion (état lisible laissé en place avant return).-->
-  <!-- ====================================================================== -->
-  <script is:inline>
-    (function () {
-      var doc = document
-
-      // --- Hooks -------------------------------------------------------------
-      var progressBar = doc.querySelector('[data-scroll-progress]')
-      var parallaxEls = [].slice.call(doc.querySelectorAll('[data-parallax]'))
-      var floatingCta = doc.querySelector('[data-floating-cta]')
-      var mobileCta = doc.querySelector('[data-mobile-cta]')
-      var scrollHint = doc.querySelector('[data-scroll-hint]')
-      var heroAct = doc.querySelector('[data-scene-act="0"]')
-      var finalCta = doc.getElementById('ccm-final-cta')
-      // Continuité (PASSE 2) : fond morphant, dissolves d'actes, fil conducteur.
-      var bgFlow = doc.querySelector('[data-bg-progress]')
-      var threadFill = doc.querySelector('[data-thread] .ccm-thread-fill')
-      var actFades = [].slice.call(doc.querySelectorAll('[data-act-fade]'))
-
-      var reduced =
-        window.matchMedia &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-      // ---------------------------------------------------------------------
-      //  prefers-reduced-motion : on laisse un état LISIBLE et FONCTIONNEL puis
-      //  on sort. La barre est masquée par CSS, le parallax figé, le fond continu
-      //  reste sur sa teinte de repos (aucun morph), les actes restent pleinement
-      //  visibles (aucun dissolve), le fil conducteur est masqué, le hint visible,
-      //  et les CTA flottant/mobile rendus visibles d'emblée (sans glissement).
-      // ---------------------------------------------------------------------
-      if (reduced) {
-        if (progressBar) progressBar.style.display = 'none'
-        showCta(floatingCta, true)
-        showCta(mobileCta, true)
-        if (scrollHint) scrollHint.style.opacity = '1'
-        return
-      }
-
-      // --- Helpers -----------------------------------------------------------
-      var mqMobile = window.matchMedia('(max-width: 767px)')
-
-      function clamp(v, lo, hi) {
-        return v < lo ? lo : v > hi ? hi : v
-      }
-
-      function lerp(a, b, t) {
-        return a + (b - a) * t
-      }
-
-      // ---------------------------------------------------------------------
-      //  MORPH DE FOND — keyframes de TEINTE le long du scroll global (0→1).
-      //  On interpole en RVB (composantes décomposées une fois) puis on écrit
-      //  les custom props consommées par le gradient CSS. JAMAIS d'animation de
-      //  background-color brut : on ne touche QUE les variables --bg-*.
-      //  c0..c3 = arrêts du linear-gradient · glow = halo brand (x/y/alpha).
-      // ---------------------------------------------------------------------
-      // navy profond → nuances tièdes le long du parcours → navy de clôture.
-      var BG_KEYS = [
-        // p=0   ouverture : navy profond, halo brand haut-droite (repos)
-        { c0: [13, 27, 42], c1: [16, 33, 52], c2: [26, 46, 66], c3: [13, 27, 42], gx: 78, gy: 12, ga: 0.1 },
-        // p≈0.33 héros/borne : bleu un peu plus profond, halo qui descend à gauche
-        { c0: [11, 24, 40], c1: [16, 36, 58], c2: [22, 44, 70], c3: [14, 30, 48], gx: 28, gy: 42, ga: 0.14 },
-        // p≈0.66 bascule établissement : teinte plus chaude/sourde, halo bas-droite
-        { c0: [16, 30, 44], c1: [22, 38, 56], c2: [30, 48, 66], c3: [16, 28, 42], gx: 70, gy: 74, ga: 0.12 },
-        // p=1   clôture : retour navy profond, halo recentré bas
-        { c0: [13, 27, 42], c1: [15, 30, 47], c2: [20, 38, 56], c3: [12, 24, 38], gx: 50, gy: 92, ga: 0.08 },
-      ]
-
-      function rgb(t) {
-        return 'rgb(' + Math.round(t[0]) + ',' + Math.round(t[1]) + ',' + Math.round(t[2]) + ')'
-      }
-      function mixRgb(a, b, t) {
-        return rgb([lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)])
-      }
-
-      function applyBgMorph(p) {
-        if (!bgFlow) return
-        // segment courant entre deux keyframes
-        var span = BG_KEYS.length - 1
-        var seg = clamp(p * span, 0, span)
-        var i = Math.min(Math.floor(seg), span - 1)
-        var t = seg - i
-        var k0 = BG_KEYS[i]
-        var k1 = BG_KEYS[i + 1]
-        var s = bgFlow.style
-        s.setProperty('--bg-c0', mixRgb(k0.c0, k1.c0, t))
-        s.setProperty('--bg-c1', mixRgb(k0.c1, k1.c1, t))
-        s.setProperty('--bg-c2', mixRgb(k0.c2, k1.c2, t))
-        s.setProperty('--bg-c3', mixRgb(k0.c3, k1.c3, t))
-        s.setProperty('--bg-glow-x', lerp(k0.gx, k1.gx, t).toFixed(1) + '%')
-        s.setProperty('--bg-glow-y', lerp(k0.gy, k1.gy, t).toFixed(1) + '%')
-        s.setProperty('--bg-glow-a', lerp(k0.ga, k1.ga, t).toFixed(3))
-      }
-
-      // Affiche/masque un CTA. Sous mouvement réduit, applique directement
-      // l'état final sans transition (la transition CSS est déjà neutralisée).
-      function showCta(el, visible) {
-        if (!el) return
-        if (visible) {
-          el.style.opacity = '1'
-          el.style.transform = 'translateY(0)'
-          el.style.pointerEvents = 'auto'
-        } else {
-          el.style.opacity = '0'
-          el.style.pointerEvents = 'none'
-          // translateY de repos déjà porté par le CSS (16px / 100%)
-          el.style.transform = ''
-        }
-      }
-
-      // ====================================================================
-      //  1) Barre de progression + 2) parallax + 5) hint — lus dans un seul
-      //     passage rAF-throttlé (un read scroll, écritures transform/opacity).
-      // ====================================================================
-      var ticking = false
-      var lastScroll = 0
-      var winH = window.innerHeight
-
-      function applyScroll() {
-        ticking = false
-        var y = lastScroll
-        var maxScroll =
-          (doc.documentElement.scrollHeight || doc.body.scrollHeight) - winH
-        var p = maxScroll > 0 ? clamp(y / maxScroll, 0, 1) : 0
-
-        // 1) progression globale → scaleX via --p
-        if (progressBar) progressBar.style.setProperty('--p', String(p))
-
-        // 2) parallax (off mobile) : translate3d borné, transform only
-        if (!mqMobile.matches) {
-          for (var i = 0; i < parallaxEls.length; i++) {
-            var el = parallaxEls[i]
-            var factor = parseFloat(el.getAttribute('data-parallax')) || 0
-            // facteur "-2" → ~ -0.06 px/px, borné à ±80px pour rester sobre
-            var offset = clamp((y * factor) / 32, -80, 80)
-            el.style.transform = 'translate3d(0,' + offset + 'px,0)'
-          }
-        }
-
-        // 5) indice de scroll : fondu au-delà de ~12% de viewport
-        if (scrollHint) {
-          var hintOpacity = clamp(1 - y / (winH * 0.12), 0, 1)
-          scrollHint.style.opacity = String(hintOpacity)
-        }
-
-        // 3a) MORPH DE FOND CONTINU selon la progression globale.
-        applyBgMorph(p)
-
-        // 3b) FIL CONDUCTEUR : remplissage = progression globale (scaleY via --p).
-        if (threadFill) threadFill.style.setProperty('--p', String(p))
-
-        // 3c) DISSOLVE D'ACTES lié au scroll (desktop). Chaque wrapper se fond en
-        //     entrant par le bas et s'estompe légèrement en sortant par le haut —
-        //     plancher d'opacité 0.35 pour ne jamais disparaître en transition.
-        if (!mqMobile.matches) {
-          for (var a = 0; a < actFades.length; a++) {
-            var af = actFades[a]
-            var r = af.getBoundingClientRect()
-            var enter = clamp((winH * 0.96 - r.top) / (winH * 0.4), 0, 1)
-            var exit = clamp((r.bottom - winH * 0.04) / (winH * 0.4), 0, 1)
-            var vis = clamp(enter < exit ? enter : exit, 0, 1)
-            af.style.opacity = String((0.5 + 0.5 * vis).toFixed(3))
-            var ty = (1 - enter) * 22 - (1 - exit) * 10
-            af.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0)'
-          }
-        }
-      }
-
-      function onScroll() {
-        lastScroll = window.pageYOffset || doc.documentElement.scrollTop || 0
-        if (!ticking) {
-          ticking = true
-          requestAnimationFrame(applyScroll)
-        }
-      }
-
-      function onResize() {
-        winH = window.innerHeight
-        // mobile : parallax figé ET dissolve désactivé → on remet tout à plat
-        if (mqMobile.matches) {
-          for (var i = 0; i < parallaxEls.length; i++) {
-            parallaxEls[i].style.transform = ''
-          }
-          for (var a = 0; a < actFades.length; a++) {
-            actFades[a].style.opacity = ''
-            actFades[a].style.transform = ''
-          }
-        }
-        onScroll()
-      }
-
-      // ====================================================================
-      //  3) FOND CONTINU + DISSOLVE D'ACTES + FIL CONDUCTEUR — NON CÂBLÉS ICI.
-      //     PASSE 2 (motion-engineer) : voir le bloc TODO en tête de fichier.
-      //       · [data-bg-progress] → lerp des variables de teinte (fond continu).
-      //       · [data-act-fade]    → opacity/translateY/scale scroll-linked.
-      //       · [data-thread]      → remplissage du fil = valeur de progression.
-      //     Tous neutralisés sous prefers-reduced-motion (return ci-dessus).
-      // ====================================================================
-
-      // ====================================================================
-      //  4) CTA flottant + barre mobile — apparaissent une fois le hero passé,
-      //     disparaissent quand #ccm-final-cta entre dans le viewport.
-      // ====================================================================
-      var heroPassed = false
-      var finalInView = false
-
-      function syncCtas() {
-        var show = heroPassed && !finalInView
-        if (!mqMobile.matches) {
-          showCta(floatingCta, show)
-          showCta(mobileCta, false) // barre mobile cachée par CSS en desktop
-        } else {
-          showCta(mobileCta, show)
-          showCta(floatingCta, false)
-        }
-      }
-
-      var heroIo = null
-      if (heroAct) {
-        heroIo = new IntersectionObserver(
-          function (entries) {
-            // hero "passé" = plus du tout intersecté
-            heroPassed = !entries[0].isIntersecting
-            syncCtas()
-          },
-          { threshold: 0 },
-        )
-        heroIo.observe(heroAct)
-      }
-
-      var finalIo = null
-      if (finalCta) {
-        finalIo = new IntersectionObserver(
-          function (entries) {
-            finalInView = entries[0].isIntersecting
-            syncCtas()
-          },
-          { threshold: 0 },
-        )
-        finalIo.observe(finalCta)
-      }
-
-      // bascule desktop/mobile : resynchronise la cible visible
-      function onMqChange() {
-        syncCtas()
-        onResize()
-      }
-      if (mqMobile.addEventListener) {
-        mqMobile.addEventListener('change', onMqChange)
-      } else if (mqMobile.addListener) {
-        mqMobile.addListener(onMqChange)
-      }
-
-      // --- Démarrage ---------------------------------------------------------
-      window.addEventListener('scroll', onScroll, { passive: true })
-      window.addEventListener('resize', onResize, { passive: true })
-      onScroll() // état initial (barre/hint/parallax)
-      syncCtas()
-
-      // ====================================================================
-      //  Cleanup : retire les listeners, déconnecte les IO, annule le rAF en
-      //  vol et purge les will-change posés pour le scroll. Sur pagehide.
-      // ====================================================================
-      function dispose() {
-        window.removeEventListener('scroll', onScroll)
-        window.removeEventListener('resize', onResize)
-        if (mqMobile.removeEventListener) {
-          mqMobile.removeEventListener('change', onMqChange)
-        } else if (mqMobile.removeListener) {
-          mqMobile.removeListener(onMqChange)
-        }
-        if (heroIo) heroIo.disconnect()
-        if (finalIo) finalIo.disconnect()
-        // retire les will-change (plus d'animation après démontage)
-        var wc = parallaxEls.slice()
-        if (progressBar) {
-          var pb = progressBar.querySelector('.ccm-progress-bar')
-          if (pb) wc.push(pb)
-        }
-        for (var i = 0; i < wc.length; i++) wc[i].style.willChange = 'auto'
-      }
-      window.addEventListener('pagehide', dispose)
-    })()
-  </script>
-
-  <style>
-    /* =====================================================================
-       PASSE STRUCTURE-CONTINUITÉ — styles de CHARPENTE du FLUX + état de repos
-       des hooks. La PASSE 2 (motion-engineer) pilotera le morph de fond, les
-       dissolves d'actes et le fil conducteur (transform/opacity + custom props).
-       ===================================================================== */
-
-    /* Barre de progression globale, fixée en haut sous la nav.
-       PASSE 2 : piloter --p (0→1) → scaleX de la barre. */
-    .ccm-progress {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      z-index: 90;
-      pointer-events: none;
-      background: rgba(255, 255, 255, 0.06);
-    }
-    .ccm-progress-bar {
-      display: block;
-      height: 100%;
-      width: 100%;
-      transform: scaleX(var(--p, 0));
-      transform-origin: 0 50%;
-      background: #1d9e75;
-      will-change: transform;
-    }
-
-    /* =====================================================================
-       FOND CONTINU UNIFIÉ — une seule couche fixe plein écran qui MORPHE le
-       long du scroll (plus d'alternance navy-800/900, plus de crossfade).
-       Le dégradé consomme des variables CSS de teinte : la PASSE 2 lerpe ces
-       variables via [data-bg-progress] selon la progression globale (0→1) →
-       la couleur se déplace en continu, navy profond → nuances → navy de
-       clôture. État de repos = lisible sans JS (navy profond #0D1B2A → #1A2E42)
-       avec un halo brand sobre. Le body est déjà bg-navy-900 : aucun flash.
-       Custom props exposées pour le motion :
-         --bg-c0  arrêt du dégradé en haut  (défaut navy-900)
-         --bg-c1  arrêt intermédiaire haut  (défaut navy-900)
-         --bg-c2  arrêt intermédiaire bas   (défaut navy-800)
-         --bg-c3  arrêt du dégradé en bas   (défaut navy-900)
-         --bg-glow-x / --bg-glow-y / --bg-glow-a  position + alpha du halo brand
-       ===================================================================== */
-    .ccm-bg-flow {
-      position: fixed;
-      inset: 0;
-      /* z négatif : reste DERRIÈRE tout le contenu en flux (sections
-         transparentes, switch, FinalCta) tout en couvrant le body navy. */
-      z-index: -1;
-      pointer-events: none;
-      --bg-c0: #0d1b2a;
-      --bg-c1: #102134;
-      --bg-c2: #1a2e42;
-      --bg-c3: #0d1b2a;
-      --bg-glow-x: 78%;
-      --bg-glow-y: 12%;
-      --bg-glow-a: 0.1;
-      background:
-        radial-gradient(
-          120% 80% at var(--bg-glow-x) var(--bg-glow-y),
-          rgba(29, 158, 117, var(--bg-glow-a)),
-          rgba(29, 158, 117, 0) 55%
-        ),
-        linear-gradient(
-          180deg,
-          var(--bg-c0) 0%,
-          var(--bg-c1) 34%,
-          var(--bg-c2) 68%,
-          var(--bg-c3) 100%
-        );
-      /* PASSE 2 : animer les custom props ci-dessus (transition douce), jamais
-         le background-color brut. will-change posé seulement au câblage. */
-    }
-
-    /* Le contenu des actes reste au-dessus du fond continu. */
-    .ccm-act,
-    .ccm-recap {
-      position: relative;
-      z-index: 10;
-    }
-
-    /* =====================================================================
-       FIL CONDUCTEUR — ligne verticale décorative reliant les actes. Centré
-       en colonne étroite à gauche du contenu sur grand écran ; masqué quand
-       il n'y a pas la place (≤ 1280px) pour ne jamais chevaucher le texte.
-       PASSE 2 : .ccm-thread-fill suit la valeur de progression (scaleY 0→1).
-       ===================================================================== */
-    .ccm-thread {
-      position: fixed;
-      top: 0;
-      bottom: 0;
-      left: max(1.25rem, calc((100vw - 1160px) / 2 - 1.5rem));
-      width: 2px;
-      z-index: 6;
-      pointer-events: none;
-    }
-    .ccm-thread-track,
-    .ccm-thread-fill {
-      position: absolute;
-      inset: 0;
-      display: block;
-      border-radius: 9999px;
-    }
-    .ccm-thread-track {
-      background: rgba(255, 255, 255, 0.07);
-    }
-    .ccm-thread-fill {
-      background: linear-gradient(
-        180deg,
-        rgba(29, 158, 117, 0) 0%,
-        #1d9e75 12%,
-        #2bc295 100%
-      );
-      transform: scaleY(var(--p, 0));
-      transform-origin: 0 0;
-      will-change: transform;
-    }
-    /* Sous 1280px : pas assez de marge → on masque le fil pour éviter tout
-       chevauchement avec le contenu (le ruban de progression suffit). */
-    @media (max-width: 1279px) {
-      .ccm-thread {
-        display: none;
-      }
-    }
-
-    /* =====================================================================
-       DISSOLVE D'ACTES — état de REPOS de chaque enveloppe [data-act-fade] :
-       pleinement visible et lisible (aucune dépendance au JS / sans-JS OK).
-       PASSE 2 mappera opacity + translateY/scale légers sur la position du
-       wrapper dans le viewport (zones de recouvrement entre actes voisins).
-       ===================================================================== */
-    .ccm-act-fade {
-      opacity: 1;
-    }
-
-    /* Orbe décorative de l'ouverture (couche parallax). Bornée pour ne jamais
-       provoquer de scroll horizontal (la section est overflow-hidden). */
-    .ccm-orb {
-      position: absolute;
-      top: 18%;
-      right: -6rem;
-      width: 22rem;
-      height: 22rem;
-      max-width: 60vw;
-      border-radius: 9999px;
-      background: radial-gradient(
-        circle at 50% 50%,
-        rgba(29, 158, 117, 0.16),
-        rgba(29, 158, 117, 0) 70%
-      );
-      filter: blur(8px);
-      will-change: transform;
-    }
-
-    /* Invite de défilement : flottement doux (figé sous mouvement réduit). */
-    .ccm-scroll-hint {
-      animation: ccm-bob 2.4s ease-in-out infinite;
-    }
-    @keyframes ccm-bob {
-      0%,
-      100% {
-        transform: translate(-50%, 0);
-      }
-      50% {
-        transform: translate(-50%, 6px);
-      }
-    }
-
-    /* La colonne épinglée s'accroche pendant le défilement des étapes voisines.
-       Sur mobile, pas de sticky : la colonne reprend sa place dans le flux. */
-    .ccm-pin-inner {
-      will-change: transform;
-    }
-
-    /* Marqueur de bascule « côté usager → côté vous » : trait fin centré. */
-    .ccm-switch {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.85rem;
-      padding: 2.75rem 0;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-    }
-    .ccm-switch-from {
-      color: rgba(255, 255, 255, 0.4);
-    }
-    .ccm-switch-arrow {
-      color: #1d9e75;
-      font-size: 1rem;
-      line-height: 1;
-    }
-    .ccm-switch-to {
-      color: #fff;
-      font-weight: 600;
-    }
-
-    /* CTA flottant (desktop / tablette) : ancré bas-droite, masqué au repos.
-       PASSE 2 fera glisser opacity 0→1 + translateY après le hero, et le
-       masquera quand FinalCta entre en vue. Caché sous 768px (barre mobile). */
-    .ccm-floating-cta {
-      position: fixed;
-      right: 1.5rem;
-      bottom: 1.5rem;
-      z-index: 80;
-      box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.55);
-      opacity: 0;
-      transform: translateY(16px);
-      pointer-events: none;
-      transition:
-        opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-        transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @media (max-width: 767px) {
-      .ccm-floating-cta {
-        display: none;
-      }
-    }
-
-    /* Barre d'action fixe (mobile) : pleine largeur en bas, ≥ 56px de haut,
-       cibles tactiles ≥ 44px (les .btn font py-3.5 ≈ 48px). Masquée au repos. */
-    .ccm-mobile-cta {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 80;
-      display: flex;
-      gap: 0.5rem;
-      padding: 0.625rem 1rem calc(0.625rem + env(safe-area-inset-bottom, 0px));
-      min-height: 56px;
-      background: rgba(11, 22, 34, 0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      opacity: 0;
-      transform: translateY(100%);
-      pointer-events: none;
-      transition:
-        opacity 0.3s ease,
-        transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .ccm-mobile-cta .btn {
-      padding-top: 0.75rem;
-      padding-bottom: 0.75rem;
-    }
-    @media (min-width: 768px) {
-      .ccm-mobile-cta {
-        display: none;
-      }
-    }
-
-    /* =====================================================================
-       prefers-reduced-motion ET fallback sans-JS : la page reste 100%
-       lisible. Sticky neutralisé, orbe/flottements figés, barre masquée.
-       Les CTA flottant/mobile restent au repos (masqués) tant que la PASSE 2
-       n'a pas câblé leur logique d'apparition — la conversion passe par les
-       CTA en flux (hero, ACTE 3, FinalCta), tous toujours visibles.
-       ===================================================================== */
-    @media (prefers-reduced-motion: reduce) {
-      .ccm-pin-inner {
-        position: static !important;
-        top: auto !important;
-      }
-      .ccm-scroll-hint {
-        animation: none;
-      }
-      .ccm-orb {
-        transform: none !important;
-      }
-      .ccm-progress {
-        display: none;
-      }
-      /* Fond continu figé sur sa teinte de repos (aucun morph). */
-      .ccm-bg-flow {
-        transition: none !important;
-      }
-      /* Aucun dissolve : chaque acte reste pleinement visible et en place. */
-      .ccm-act-fade {
-        opacity: 1 !important;
-        transform: none !important;
-      }
-      /* Fil conducteur masqué (décoratif, sa progression est une animation). */
-      .ccm-thread {
-        display: none;
-      }
-      /* CTA flottant + barre mobile visibles d'emblée, sans glissement. */
-      .ccm-floating-cta,
-      .ccm-mobile-cta {
-        opacity: 1 !important;
-        transform: none !important;
-        pointer-events: auto !important;
-        transition: none !important;
-      }
-      .ccm-scroll-hint {
-        opacity: 1 !important;
-      }
-    }
-  </style>
 </Base>
+
+<style>
+  .segment-hero {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    padding-top: 8rem;
+    padding-bottom: 5rem;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-0);
+  }
+  .segment-hero-bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 60% at 70% 40%, rgba(29,158,117,0.11) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 50% at 10% 80%, rgba(43,194,149,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .segment-hero-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 800;
+    font-size: clamp(2.6rem, 5vw, 4.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--text-0);
+    margin-bottom: 1.25rem;
+  }
+  .segment-hero-sub {
+    font-size: 1.1rem;
+    color: var(--text-1);
+    line-height: 1.8;
+    max-width: 40rem;
+    margin-bottom: 2rem;
+    font-weight: 300;
+  }
+  .segment-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem 2rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    max-width: 36rem;
+  }
+  @media (min-width: 640px) {
+    .segment-metrics { grid-template-columns: repeat(4, 1fr); }
+  }
+  .segment-metric-n {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 800;
+    font-size: 1.8rem;
+    line-height: 1;
+    color: var(--text-0);
+  }
+  .segment-metric-l {
+    font-size: 0.72rem;
+    color: var(--text-1);
+    margin-top: 0.3rem;
+    line-height: 1.5;
+  }
+</style>
