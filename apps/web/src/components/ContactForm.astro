@@ -229,10 +229,15 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
       }
       const key = data.get('access_key') as string
       if (!key) {
-        setStatus(
-          'error',
-          'Le formulaire n\'est pas configuré (clé Web3Forms manquante). Envoyez-nous un email à contact@sportlocker.fr.',
+        // Fallback : ouvre le client mail avec les données pré-remplies
+        const org = data.get('organization') as string ?? ''
+        const locality = data.get('locality') as string ?? ''
+        const type = data.get('type') as string ?? ''
+        const msg = data.get('message') as string ?? ''
+        const body = encodeURIComponent(
+          `Organisation : ${org}\nLocalité : ${locality}\nType : ${type}\n\n${msg}`
         )
+        window.location.href = `mailto:stanislas.corbanese@gmail.com?subject=${encodeURIComponent('Demande de devis SportLocker')}&body=${body}`
         return
       }
       submitBtn.disabled = true
@@ -257,7 +262,7 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
       } catch (err) {
         setStatus(
           'error',
-          'Impossible d\'envoyer la demande. Envoyez-nous un email à contact@sportlocker.fr.',
+          'Impossible d\'envoyer la demande. Envoyez-nous un email à stanislas.corbanese@gmail.com.',
         )
       } finally {
         submitBtn.disabled = false
