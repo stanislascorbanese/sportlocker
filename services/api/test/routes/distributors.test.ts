@@ -667,3 +667,172 @@ describe('Multi-tenant isolation (admin commune-scoped)', () => {
     expect(rows[0]!.name).toBe('B-dist')
   })
 })
+
+describe('GET /v1/distributors/:id/availability', () => {
+  const DAY_PASS = 1440  // forfait journée → 1 slot/jour à 00:00 UTC (déterministe)
+  const PRICE_CENTS = 500
+
+  // Début de jour UTC à +offset jours (slots day-pass alignés sur 00:00 UTC).
+  function dayStartUtc(offset: number): Date {
+    const n = new Date()
+    return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + offset))
+  }
+  const dayKey = (d: Date): string => d.toISOString().slice(0, 10)
+
+  async function seedItemType(): Promise<string> {
+    const id = randomUUID()
+    await pgSql`INSERT INTO item_types (id, slug, name, category)
+      VALUES (${id}, ${'ballon-' + id.slice(0, 8)}, 'Ballon', 'sport')`
+    return id
+  }
+  async function seedItemOnLocker(itemTypeId: string, lockerId: string): Promise<string> {
+    const id = randomUUID()
+    await pgSql`INSERT INTO items (id, item_type_id, rfid_tag, current_locker_id)
+      VALUES (${id}, ${itemTypeId}, ${'RFID-' + id.slice(0, 8)}, ${lockerId})`
+    return id
+  }
+  async function seedPricingRule(communeId: string, itemTypeId: string): Promise<void> {
+    await pgSql`INSERT INTO pricing_rules (id, commune_id, item_type_id, duration_minutes, price_cents)
+      VALUES (${randomUUID()}, ${communeId}, ${itemTypeId}, ${DAY_PASS}, ${PRICE_CENTS})`
+  }
+  async function seedSlotReservation(opts: {
+    distributorId: string; lockerId: string; itemId: string
+    slotStart: Date; slotEnd: Date
+  }): Promise<void> {
+    const userId = await seedUser('citizen')
+    const id = randomUUID()
+    await pgSql`INSERT INTO reservations
+      (id, user_id, locker_id, item_id, distributor_id, status, qr_jti,
+       expires_at, slot_start_at, slot_end_at, duration_minutes)
+      VALUES (${id}, ${userId}, ${opts.lockerId}, ${opts.itemId}, ${opts.distributorId},
+              'scheduled', ${'jti-' + id.slice(0, 12)}, NOW(),
+              ${opts.slotStart}, ${opts.slotEnd}, ${DAY_PASS})`
+  }
+
+  async function base(): Promise<{
+    communeId: string; distributorId: string; lockerId: string; itemTypeId: string
+  }> {
+    const communeId = await seedCommune()
+    const distributorId = await seedDistributor({ communeId })
+    const lockerId = await seedLocker(distributorId, 0)
+    const itemTypeId = await seedItemType()
+    return { communeId, distributorId, lockerId, itemTypeId }
+  }
+
+  const availUrl = (distributorId: string, itemTypeId: string, extra = ''): string =>
+    `/v1/distributors/${distributorId}/availability?itemTypeId=${itemTypeId}&durationMinutes=${DAY_PASS}${extra}`
+
+  it('404 si le distributeur n\'existe pas', async () => {
+    const res = await app.inject({ method: 'GET', url: availUrl(randomUUID(), randomUUID()) })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('distributor_not_found')
+  })
+
+  it('400 si durationMinutes n\'est pas une valeur autorisée', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/distributors/${randomUUID()}/availability?itemTypeId=${randomUUID()}&durationMinutes=45`,
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('400 si itemTypeId est absent', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/distributors/${randomUUID()}/availability?durationMinutes=${DAY_PASS}`,
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('422 invalid_window quand to <= from', async () => {
+    const { distributorId, itemTypeId } = await base()
+    const from = dayStartUtc(3).toISOString()
+    const to = dayStartUtc(1).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error).toBe('invalid_window')
+  })
+
+  it('happy path : 1 item + tarif configuré → slots disponibles avec prix', async () => {
+    const { communeId, distributorId, lockerId, itemTypeId } = await base()
+    await seedItemOnLocker(itemTypeId, lockerId)
+    await seedPricingRule(communeId, itemTypeId)
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(3).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.distributorId).toBe(distributorId)
+    expect(body.itemTypeId).toBe(itemTypeId)
+    expect(body.durationMinutes).toBe(DAY_PASS)
+
+    // Fenêtre [J+1, J+3] inclusif → 3 jours, 1 slot day-pass chacun.
+    const keys = Object.keys(body.days)
+    expect(keys).toHaveLength(3)
+    const slot = body.days[dayKey(dayStartUtc(1))][0]
+    expect(slot.available).toBe(true)
+    expect(slot.priceCents).toBe(PRICE_CENTS)
+    expect(slot.durationMinutes).toBe(DAY_PASS)
+  })
+
+  it('tarif manquant → priceCents null et slots non réservables', async () => {
+    const { distributorId, lockerId, itemTypeId } = await base()
+    await seedItemOnLocker(itemTypeId, lockerId)  // item présent mais pas de pricing_rule
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(2).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const slot = res.json().days[dayKey(dayStartUtc(1))][0]
+    expect(slot.priceCents).toBeNull()
+    expect(slot.available).toBe(false)
+  })
+
+  it('aucun item de ce type → slots non disponibles (même avec tarif)', async () => {
+    const { communeId, distributorId, itemTypeId } = await base()
+    await seedPricingRule(communeId, itemTypeId)  // tarif OK mais 0 item physique
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(2).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const slot = res.json().days[dayKey(dayStartUtc(1))][0]
+    expect(slot.available).toBe(false)
+  })
+
+  it('un slot occupé par une résa vivante ressort non disponible (overlap)', async () => {
+    const { communeId, distributorId, lockerId, itemTypeId } = await base()
+    const itemId = await seedItemOnLocker(itemTypeId, lockerId)
+    await seedPricingRule(communeId, itemTypeId)
+    // Résa qui couvre le slot day-pass de J+1.
+    await seedSlotReservation({
+      distributorId, lockerId, itemId,
+      slotStart: dayStartUtc(1), slotEnd: dayStartUtc(2),
+    })
+
+    const from = dayStartUtc(1).toISOString()
+    const to = dayStartUtc(3).toISOString()
+    const res = await app.inject({
+      method: 'GET',
+      url: availUrl(distributorId, itemTypeId, `&from=${from}&to=${to}`),
+    })
+    expect(res.statusCode).toBe(200)
+    const days = res.json().days
+    // J+1 occupé (seul item pris) → indispo ; J+2 libre → dispo.
+    expect(days[dayKey(dayStartUtc(1))][0].available).toBe(false)
+    expect(days[dayKey(dayStartUtc(2))][0].available).toBe(true)
+  })
+})

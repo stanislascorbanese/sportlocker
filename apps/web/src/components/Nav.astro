@@ -2,7 +2,17 @@
 import { Image } from 'astro:assets'
 import logoMark from '@/assets/brand/logo-mark-outline.png'
 import { NAV } from '@/data/site'
+
 const path = Astro.url.pathname
+
+const SEGMENT_PATHS = ['/mairies', '/campings', '/hotels']
+const segments = [
+  { href: '/mairies', label: 'Mairies', icon: '🏛️', desc: 'Stades municipaux & parcs publics' },
+  { href: '/campings', label: 'Campings', icon: '🏖️', desc: 'Plages publiques & bord de mer' },
+  { href: '/hotels', label: 'Hôtels', icon: '✨', desc: 'Complexes 3★ / 4★ / 5★' },
+]
+const mainNav = NAV.filter((item) => !SEGMENT_PATHS.includes(item.href))
+const solutionsActive = SEGMENT_PATHS.includes(path)
 ---
 
 <nav id="nav">
@@ -11,30 +21,72 @@ const path = Astro.url.pathname
       <a href="/" class="flex items-center gap-2.5 no-underline" aria-label="SportLocker — accueil">
         <Image src={logoMark} alt="" class="w-11 h-11" width={88} height={88} densities={[1, 2]} loading="eager" />
         <span class="font-extrabold text-[1.15rem] text-white">
-          Sport<span class="text-brand-500">Locker</span>
+          Sport<span class="text-brand-400">Locker</span>
         </span>
       </a>
 
-      <ul class="hidden md:flex items-center gap-7 list-none">
+      <ul class="hidden md:flex items-center gap-1 list-none">
         {
-          NAV.map((item) => (
-            <li>
-              <a
-                href={item.href}
-                class:list={[
-                  'text-sm transition-colors',
-                  path === item.href ? 'text-white' : 'text-white/65 hover:text-white',
-                ]}
-              >
-                {item.label}
-              </a>
-            </li>
-          ))
+          mainNav.map((item, i) => {
+            const isActive = path === item.href
+            const insertSolutionsAfter = i === 0
+            return (
+              <>
+                <li>
+                  <a
+                    href={item.href}
+                    class:list={[
+                      'nav-link',
+                      isActive ? 'nav-link-active' : '',
+                    ]}
+                  >
+                    {item.label}
+                  </a>
+                </li>
+                {insertSolutionsAfter && (
+                  <li class="nav-dropdown">
+                    <button
+                      type="button"
+                      class:list={['nav-link nav-dropdown-btn', solutionsActive ? 'nav-link-active' : '']}
+                      aria-haspopup="true"
+                      aria-expanded="false"
+                    >
+                      Solutions
+                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" class="nav-chevron">
+                        <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" role="menu">
+                      <div class="text-[0.65rem] uppercase tracking-[0.14em] text-white/60 px-3 py-2">
+                        Par type de site
+                      </div>
+                      {segments.map((s) => (
+                        <a
+                          href={s.href}
+                          role="menuitem"
+                          class:list={[
+                            'nav-dropdown-item',
+                            path === s.href ? 'nav-dropdown-item-active' : '',
+                          ]}
+                        >
+                          <span class="text-2xl shrink-0">{s.icon}</span>
+                          <div>
+                            <div class="font-medium text-white text-sm">{s.label}</div>
+                            <div class="text-xs text-white/60 font-light mt-0.5">{s.desc}</div>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </li>
+                )}
+              </>
+            )
+          })
         }
       </ul>
 
       <div class="flex items-center gap-3">
-        <a href="/contact" class="hidden sm:inline-flex btn btn-primary btn-sm">
+        <a href="/contact#formulaire" class="hidden sm:inline-flex btn btn-primary btn-sm">
           Demander un devis
         </a>
         <button
@@ -55,14 +107,14 @@ const path = Astro.url.pathname
 
 <div
   id="mobile-menu"
-  class="hidden md:hidden fixed inset-x-0 top-[68px] bottom-0 bg-navy-900 z-[99] p-8 flex-col gap-6 border-t border-white/10"
+  class="hidden md:hidden fixed inset-x-0 top-[68px] bottom-0 bg-navy-900 z-[99] p-8 flex-col gap-6 border-t border-white/10 overflow-y-auto"
 >
   {NAV.map((item) => (
     <a href={item.href} class="text-lg text-white/85 border-b border-white/10 pb-3">
       {item.label}
     </a>
   ))}
-  <a href="/contact" class="btn btn-primary mt-2">Demander un devis →</a>
+  <a href="/contact#formulaire" class="btn btn-primary mt-2">Demander un devis →</a>
 </div>
 
 <script is:inline>
@@ -81,4 +133,36 @@ const path = Astro.url.pathname
       if (window.innerWidth > 768 && !menu.classList.contains('hidden')) toggle()
     })
   }
+
+  // Dropdown "Solutions" : ouverture click + fermeture click-outside / Escape.
+  // Le hover CSS gère l'ouverture passive ; le click rend le menu accessible
+  // au clavier et au touch.
+  document.querySelectorAll('.nav-dropdown').forEach((dd) => {
+    const trigger = dd.querySelector('.nav-dropdown-btn')
+    if (!trigger) return
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const open = dd.classList.toggle('is-open')
+      trigger.setAttribute('aria-expanded', String(open))
+    })
+  })
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.nav-dropdown.is-open').forEach((dd) => {
+      dd.classList.remove('is-open')
+      const t = dd.querySelector('.nav-dropdown-btn')
+      if (t) t.setAttribute('aria-expanded', 'false')
+    })
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.nav-dropdown.is-open').forEach((dd) => {
+        dd.classList.remove('is-open')
+        const t = dd.querySelector('.nav-dropdown-btn')
+        if (t) {
+          t.setAttribute('aria-expanded', 'false')
+          t.focus()
+        }
+      })
+    }
+  })
 </script>

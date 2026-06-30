@@ -10,45 +10,79 @@ import {
   type ReservationDetail,
   type ReservationStatus,
 } from '../../lib/api'
-import { DEMO_RESERVATIONS, demoReservationDetail } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { ClickableRow } from './ClickableRow'
 import { ExportCsvButton } from './ExportCsvButton'
 import { ReservationDrawer } from './ReservationDrawer'
 import { cn } from '../../lib/cn'
+import { getLang } from '../../lib/lang-server'
+import { commonStrings, fmtDateTime } from '../../lib/i18n/common'
+import { reservationsStrings, reservationStatusLabel } from '../../lib/i18n/reservations'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Réservations · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => reservationsStrings(lang).metaTitle)
 
 const PAGE_SIZE = 50
 
 const STATUS_STYLE: Record<ReservationStatus, { bg: string; border: string; text: string }> = {
-  pending:   { bg: 'bg-sky-500/10',     border: 'border-sky-500/30',     text: 'text-sky-300' },
-  active:    { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300' },
-  returned:  { bg: 'bg-zinc-500/10',    border: 'border-zinc-500/30',    text: 'text-zinc-300' },
-  overdue:   { bg: 'bg-rose-500/10',    border: 'border-rose-500/30',    text: 'text-rose-300' },
-  cancelled: { bg: 'bg-zinc-700/30',    border: 'border-zinc-700/50',    text: 'text-zinc-400' },
-  expired:   { bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   text: 'text-amber-300' },
+  scheduled: {
+    bg: 'bg-violet-100 dark:bg-violet-500/10',
+    border: 'border-violet-300 dark:border-violet-500/30',
+    text: 'text-violet-700 dark:text-violet-300',
+  },
+  pending: {
+    bg: 'bg-sky-100 dark:bg-sky-500/10',
+    border: 'border-sky-300 dark:border-sky-500/30',
+    text: 'text-sky-700 dark:text-sky-300',
+  },
+  active: {
+    bg: 'bg-emerald-100 dark:bg-emerald-500/10',
+    border: 'border-emerald-300 dark:border-emerald-500/30',
+    text: 'text-emerald-700 dark:text-emerald-300',
+  },
+  returned: {
+    bg: 'bg-zinc-100 dark:bg-zinc-500/10',
+    border: 'border-zinc-300 dark:border-zinc-500/30',
+    text: 'text-zinc-700 dark:text-zinc-300',
+  },
+  overdue: {
+    bg: 'bg-rose-100 dark:bg-rose-500/10',
+    border: 'border-rose-300 dark:border-rose-500/30',
+    text: 'text-rose-700 dark:text-rose-300',
+  },
+  cancelled: {
+    bg: 'bg-zinc-200 dark:bg-zinc-700/30',
+    border: 'border-zinc-300 dark:border-zinc-700/50',
+    text: 'text-zinc-600 dark:text-zinc-400',
+  },
+  expired: {
+    bg: 'bg-amber-100 dark:bg-amber-500/10',
+    border: 'border-amber-300 dark:border-amber-500/30',
+    text: 'text-amber-700 dark:text-amber-300',
+  },
 }
 
-function StatusBadge({ status }: { status: ReservationStatus }) {
+function StatusBadge({
+  status,
+  label,
+}: {
+  status: ReservationStatus
+  label: string
+}) {
   const s = STATUS_STYLE[status]
   return (
-    <span className={cn(
-      'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide',
-      s.bg, s.border, s.text,
-    )}>
-      {status}
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide',
+        s.bg,
+        s.border,
+        s.text,
+      )}
+    >
+      {label}
     </span>
   )
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', year: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
 }
 
 function fmtUser(r: Reservation): string {
@@ -90,6 +124,9 @@ export default async function ReservationsPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const lang = await getLang()
+  const t = reservationsStrings(lang)
+  const c = commonStrings(lang)
   const status = (RESERVATION_STATUSES as readonly string[]).includes(params.status ?? '')
     ? (params.status as ReservationStatus)
     : undefined
@@ -125,8 +162,13 @@ export default async function ReservationsPage({
   // Avec filtre, on respecte le vrai résultat même s'il est vide (sinon UX trompeuse).
   const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
 
-  const items = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => {
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  // On charge la lib une seule fois et réutilise pour le drawer detail.
+  const demo = useDemo
+    ? await import('../../lib/demo-data')
+    : null
+  const items = demo
+    ? demo.DEMO_RESERVATIONS.filter((r) => {
         if (status && r.status !== status) return false
         if (from && r.createdAt < `${from}T00:00:00`) return false
         if (to && r.createdAt > `${to}T23:59:59.999Z`) return false
@@ -139,20 +181,20 @@ export default async function ReservationsPage({
   let detail: ReservationDetail | null = null
   let detailError: string | undefined
   if (detailId) {
-    if (useDemo) {
-      const demoMatch = DEMO_RESERVATIONS.find((r) => r.id === detailId)
-      if (demoMatch) detail = demoReservationDetail(demoMatch)
-      else detailError = 'Réservation introuvable dans les données démo.'
+    if (demo) {
+      const demoMatch = demo.DEMO_RESERVATIONS.find((r) => r.id === detailId)
+      if (demoMatch) detail = demo.demoReservationDetail(demoMatch)
+      else detailError = t.distributorNotFoundDemo
     } else {
       try {
         detail = await fetchReservationDetail(detailId)
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          detailError = 'Réservation introuvable.'
+          detailError = t.reservationNotFound
         } else if (err instanceof Error) {
           detailError = err.message
         } else {
-          detailError = 'Erreur de chargement du détail.'
+          detailError = t.detailLoadError
         }
       }
     }
@@ -165,55 +207,69 @@ export default async function ReservationsPage({
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-2xl sm:text-3xl">Réservations</h2>
+            <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
+              {t.pageTitle}
+            </h2>
             {useDemo && (
-              <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                Démo
+              <span className="rounded-md border px-2 py-0.5 text-eyebrow font-semibold uppercase border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                {c.demo}
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-white/55">
-            {items.length} affichée{items.length > 1 ? 's' : ''}
-            {!useDemo && page?.nextCursor ? ' · pagination disponible' : ''}
-            {useDemo && ' · données fictives — branchez un token admin valide pour voir les vraies'}
+          <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
+            {items.length} {items.length > 1 ? t.displayedMany : t.displayed1}
+            {!useDemo && page?.nextCursor ? ` · ${t.paginationAvailable}` : ''}
+            {useDemo && ` · ${c.demoFootnote}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <ExportCsvButton filters={{
-            ...(status ? { status } : {}),
-            ...(distributorId ? { distributorId } : {}),
-            ...(from ? { from } : {}),
-            ...(to ? { to } : {}),
-          }} />
+          <ExportCsvButton
+            filters={{
+              ...(status ? { status } : {}),
+              ...(distributorId ? { distributorId } : {}),
+              ...(from ? { from } : {}),
+              ...(to ? { to } : {}),
+            }}
+          />
           <RefreshButton />
         </div>
       </header>
 
-      <form className="grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-navy-800 p-4 sm:flex sm:flex-wrap sm:items-end">
+      <form className="grid grid-cols-1 gap-3 rounded-card border p-4 sm:flex sm:flex-wrap sm:items-end border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="status" className="text-[11px] uppercase tracking-wide text-white/50">Statut</label>
+          <label
+            htmlFor="status"
+            className="text-eyebrow uppercase text-gray-500 dark:text-white/50"
+          >
+            {c.status}
+          </label>
           <select
             id="status"
             name="status"
             defaultValue={status ?? ''}
-            className="min-w-[140px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="min-w-[140px] rounded-lg border px-2 py-1.5 text-sm border-gray-300 bg-white text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Tous</option>
+            <option value="">{c.all}</option>
             {RESERVATION_STATUSES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{reservationStatusLabel(lang, s)}</option>
             ))}
           </select>
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="distributorId" className="text-[11px] uppercase tracking-wide text-white/50">Distributeur</label>
+          <label
+            htmlFor="distributorId"
+            className="text-eyebrow uppercase text-gray-500 dark:text-white/50"
+          >
+            {t.filterDistributor}
+          </label>
           <select
             id="distributorId"
             name="distributorId"
             defaultValue={distributorId ?? ''}
-            className="min-w-[200px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="min-w-[200px] rounded-lg border px-2 py-1.5 text-sm border-gray-300 bg-white text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Tous</option>
+            <option value="">{c.all}</option>
             {distributors.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -221,95 +277,155 @@ export default async function ReservationsPage({
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="from" className="text-[11px] uppercase tracking-wide text-white/50">Du</label>
+          <label htmlFor="from" className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
+            {c.from}
+          </label>
           <input
             id="from"
             name="from"
             type="date"
             defaultValue={from ?? ''}
-            className="rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="rounded-lg border px-2 py-1.5 text-sm border-gray-300 bg-white text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           />
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="to" className="text-[11px] uppercase tracking-wide text-white/50">Au</label>
+          <label htmlFor="to" className="text-eyebrow uppercase text-gray-500 dark:text-white/50">
+            {c.to}
+          </label>
           <input
             id="to"
             name="to"
             type="date"
             defaultValue={to ?? ''}
-            className="rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="rounded-lg border px-2 py-1.5 text-sm border-gray-300 bg-white text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           />
         </div>
 
         <button
           type="submit"
-          className="inline-flex items-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
+          className="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-base ease-out-soft bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
         >
-          Filtrer
+          {c.filter}
         </button>
 
         {(status || distributorId || from || to) && (
           <Link
             href="/reservations"
-            className="text-xs text-white/50 underline-offset-2 hover:text-white/80 hover:underline"
+            className="text-meta underline-offset-2 transition-colors duration-base text-gray-500 hover:text-navy-900 hover:underline dark:text-white/50 dark:hover:text-white/80"
           >
-            Réinitialiser
+            {c.reset}
           </Link>
         )}
       </form>
 
       {fetchError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
-          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
-          <p className="mt-1 font-mono text-[11px] text-amber-300/70">{fetchError}</p>
+        <div className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
+          <p className="font-medium">{c.apiErrorTitle}</p>
+          <p className="mt-1 font-mono text-meta text-amber-700/80 dark:text-amber-300/70">
+            {fetchError}
+          </p>
         </div>
       )}
 
       {!useDemo && items.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-8 text-center text-sm text-white/55">
-          Aucune réservation pour ces filtres.
+        <div className="rounded-card border p-8 text-center text-sm border-gray-200 bg-gray-50 text-gray-600 dark:border-white/10 dark:bg-navy-800 dark:text-white/55">
+          {t.emptyForFilters}
         </div>
       )}
 
       {items.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy-800">
+        <>
+        {/* Mobile : carte par réservation. La table dense (860px min) cachée
+            < md — scroll horizontal pénible en astreinte mobile. */}
+        <div className="space-y-3 md:hidden">
+          {items.map((r) => (
+            <Link
+              key={r.id}
+              href={buildHref(params, { detail: r.id })}
+              scroll={false}
+              className={cn(
+                'block rounded-card border bg-white p-4 shadow-card transition-colors',
+                r.id === detailId
+                  ? 'border-emerald-400 bg-emerald-50/40 dark:border-emerald-500/40 dark:bg-emerald-500/[0.06]'
+                  : 'border-gray-200 hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:shadow-none dark:hover:border-white/20',
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-navy-900 dark:text-white">{fmtUser(r)}</div>
+                  <div className="mt-0.5 truncate text-meta text-gray-500 dark:text-white/40">
+                    {r.distributor.name} · {r.item.typeName}
+                  </div>
+                </div>
+                <StatusBadge status={r.status} label={reservationStatusLabel(lang, r.status)} />
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 text-meta dark:border-white/10">
+                <span className="text-gray-500 dark:text-white/40">
+                  {t.colCreatedAt} · {fmtDateTime(lang, r.createdAt)}
+                </span>
+                <span className="text-gray-500 dark:text-white/40">
+                  {r.status === 'pending' ? t.drawerExpiresQr : t.colDueAt}
+                  {' · '}
+                  {r.status === 'pending' ? fmtDateTime(lang, r.expiresAt) : fmtDateTime(lang, r.dueAt)}
+                </span>
+                {r.extensionCount > 0 && (
+                  <span className="font-mono tabular-nums text-amber-700 dark:text-amber-300">
+                    {t.colExtensions} ×{r.extensionCount}
+                  </span>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Desktop : tableau dense classique */}
+        <div className="hidden overflow-x-auto rounded-card border border-gray-200 bg-white md:block dark:border-white/10 dark:bg-navy-800">
           <table className="w-full min-w-[860px] text-sm">
-            <thead className="bg-navy-700/50 text-left text-xs uppercase tracking-wide text-white/55">
+            <thead className="text-left text-eyebrow uppercase bg-gray-100 text-gray-600 dark:bg-navy-700/50 dark:text-white/55">
               <tr>
-                <th className="px-4 py-3 font-medium">Créée le</th>
-                <th className="px-4 py-3 font-medium">Utilisateur</th>
-                <th className="px-4 py-3 font-medium">Distributeur</th>
-                <th className="px-4 py-3 font-medium">Article</th>
-                <th className="px-4 py-3 font-medium">Statut</th>
-                <th className="px-4 py-3 font-medium">Échéance</th>
-                <th className="px-4 py-3 font-medium text-right">Prolong.</th>
+                <th className="px-4 py-3 font-medium">{t.colCreatedAt}</th>
+                <th className="px-4 py-3 font-medium">{t.colUser}</th>
+                <th className="px-4 py-3 font-medium">{t.colDistributor}</th>
+                <th className="px-4 py-3 font-medium">{t.colItem}</th>
+                <th className="px-4 py-3 font-medium">{t.colStatus}</th>
+                <th className="px-4 py-3 font-medium">{t.colDueAt}</th>
+                <th className="px-4 py-3 text-right font-medium">{t.colExtensions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-gray-200 dark:divide-white/5">
               {items.map((r) => (
                 <ClickableRow
                   key={r.id}
                   href={buildHref(params, { detail: r.id })}
                   selected={r.id === detailId}
                 >
-                  <td className="px-4 py-3 text-white/80 tabular-nums">{fmtDate(r.createdAt)}</td>
+                  <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-white/80">
+                    {fmtDateTime(lang, r.createdAt)}
+                  </td>
                   <td className="px-4 py-3">
-                    <div className="text-white">{fmtUser(r)}</div>
+                    <div className="text-navy-900 dark:text-white">{fmtUser(r)}</div>
                     {r.user.displayName && (
-                      <div className="mt-0.5 text-[11px] text-white/40">{r.user.email}</div>
+                      <div className="mt-0.5 text-meta text-gray-500 dark:text-white/40">
+                        {r.user.email}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-white">{r.distributor.name}</div>
-                    <div className="mt-0.5 font-mono text-[11px] text-white/40">{r.distributor.serialNumber}</div>
+                    <div className="text-navy-900 dark:text-white">{r.distributor.name}</div>
+                    <div className="mt-0.5 font-mono text-meta text-gray-500 dark:text-white/40">
+                      {r.distributor.serialNumber}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-white/80">{r.item.typeName}</td>
-                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-                  <td className="px-4 py-3 text-white/70 tabular-nums">
-                    {r.status === 'pending' ? fmtDate(r.expiresAt) : fmtDate(r.dueAt)}
+                  <td className="px-4 py-3 text-gray-700 dark:text-white/80">{r.item.typeName}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={r.status} label={reservationStatusLabel(lang, r.status)} />
                   </td>
-                  <td className="px-4 py-3 text-right text-white/70 tabular-nums">
+                  <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-white/70">
+                    {r.status === 'pending' ? fmtDateTime(lang, r.expiresAt) : fmtDateTime(lang, r.dueAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-white/70">
                     {r.extensionCount > 0 ? `×${r.extensionCount}` : '—'}
                   </td>
                 </ClickableRow>
@@ -317,15 +433,16 @@ export default async function ReservationsPage({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {!useDemo && page?.nextCursor && (
         <div className="flex justify-end">
           <Link
             href={buildHref(params, { cursor: page.nextCursor }, ['detail'])}
-            className="inline-flex items-center rounded-lg border border-white/15 bg-navy-800 px-3 py-1.5 text-sm text-white/80 transition hover:border-white/30 hover:text-white"
+            className="inline-flex items-center rounded-lg border px-3 py-1.5 text-sm transition-colors duration-base border-gray-200 bg-white text-navy-900 hover:border-gray-300 dark:border-white/15 dark:bg-navy-800 dark:text-white/80 dark:hover:border-white/30 dark:hover:text-white"
           >
-            Page suivante →
+            {c.nextPage} →
           </Link>
         </div>
       )}
@@ -336,6 +453,7 @@ export default async function ReservationsPage({
           closeHref={closeDrawerHref}
           demo={useDemo}
           error={detailError}
+          lang={lang}
         />
       )}
     </div>

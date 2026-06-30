@@ -270,6 +270,6 @@ export async function adminItemTypeRoutes(rawApp: FastifyInstance) {
       .returning({ id: itemTypes.id })
 
     if (!deleted) return reply.code(404).send({ error: 'item_type_not_found' })
-    return reply.code(204).send()
+    return reply.code(204).send(null)
   })
 }

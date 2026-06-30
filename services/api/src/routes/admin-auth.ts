@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
+import { getFirebaseAdmin } from '../lib/firebase-admin.js'
 
 const LoginBody = z.object({
   firebaseIdToken: z.string().min(20)
@@ -49,25 +50,36 @@ function decodeFirebaseTokenUnsafe(idToken: string): FirebaseClaims | null {
   }
 }
 
-let firebaseInitialized = false
-async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaims | null> {
-  if (!env.FIREBASE_SERVICE_ACCOUNT_KEY || !env.FIREBASE_PROJECT_ID) return null
+type AuthLogger = {
+  warn: (obj: unknown, msg: string) => void
+  error: (obj: unknown, msg: string) => void
+}
+
+async function verifyFirebaseTokenSecure(
+  idToken: string,
+  log: AuthLogger,
+): Promise<FirebaseClaims | null> {
+  const admin = await getFirebaseAdmin()
+  if (!admin) return null
   try {
-    const admin = (await import('firebase-admin')).default
-    if (!firebaseInitialized) {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-        projectId: env.FIREBASE_PROJECT_ID,
-      })
-      firebaseInitialized = true
-    }
     const decoded = await admin.auth().verifyIdToken(idToken)
     return {
       sub: decoded.uid,
       ...(decoded.email !== undefined && { email: decoded.email }),
       ...(decoded.name !== undefined && { name: decoded.name as string }),
     }
-  } catch {
+  } catch (err) {
+    // Surface la vraie cause : sinon `invalid_id_token` est opaque et masque
+    // aussi bien une clé de service account mal formée (PEM newlines cassés à
+    // l'init) qu'un token rejeté (audience/signature). Sans ce log, le bug est
+    // invisible en prod.
+    log.error(
+      {
+        err: err instanceof Error ? err.message : String(err),
+        projectId: env.FIREBASE_PROJECT_ID,
+      },
+      'admin-auth: vérification Firebase sécurisée échouée',
+    )
     return null
   }
 }
@@ -76,9 +88,9 @@ async function verifyFirebaseTokenSecure(idToken: string): Promise<FirebaseClaim
  *  partagé avec le flow accept-invite. */
 export async function verifyFirebaseToken(
   idToken: string,
-  log: { warn: (obj: unknown, msg: string) => void },
+  log: AuthLogger,
 ): Promise<FirebaseClaims | null> {
-  const secure = await verifyFirebaseTokenSecure(idToken)
+  const secure = await verifyFirebaseTokenSecure(idToken, log)
   if (secure) return secure
   if (env.NODE_ENV === 'production') return null
   const unsafe = decodeFirebaseTokenUnsafe(idToken)

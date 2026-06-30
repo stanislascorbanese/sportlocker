@@ -8,9 +8,9 @@ type Item = {
 }
 
 /** Barres horizontales triées. Largeur relative au max. */
-export function TopList({ items }: { items: Item[] }) {
+export function TopList({ items, emptyLabel = 'aucune donnée' }: { items: Item[]; emptyLabel?: string }) {
   if (items.length === 0) {
-    return <div className="text-xs text-white/40">aucune donnée</div>
+    return <div className="text-xs text-white/40">{emptyLabel}</div>
   }
   const max = Math.max(1, ...items.map((i) => i.count))
   return (

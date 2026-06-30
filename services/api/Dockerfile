@@ -52,7 +52,8 @@ FROM node:20-alpine AS runtime
 RUN apk add --no-cache wget
 
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    MQTT_CA_CERT_PATH=/app/emqxsl-ca.crt
 
 # Application déployée (dist + node_modules + package.json à plat)
 COPY --from=builder /out/dist          ./dist
@@ -63,6 +64,11 @@ COPY --from=builder /out/package.json  ./
 COPY --from=builder /repo/database                  ./database
 COPY --from=builder /repo/services/api/scripts      ./scripts
 COPY --from=builder /repo/services/api/entrypoint.sh ./entrypoint.sh
+
+# CA cert EMQX Cloud (publique, bundlé pour valider le broker en TLS).
+# Le chemin matche `MQTT_CA_CERT_PATH` exporté ci-dessus → la prod marche
+# sans config supplémentaire sur Railway.
+COPY services/api/emqxsl-ca.crt ./emqxsl-ca.crt
 
 RUN chmod +x ./entrypoint.sh ./scripts/migrate.mjs && \
     chown -R node:node /app

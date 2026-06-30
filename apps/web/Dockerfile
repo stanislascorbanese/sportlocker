@@ -47,5 +47,9 @@ COPY --from=builder /repo/apps/web/dist ./dist
 ENV PORT=4000
 EXPOSE 4000
 
+# Astro génère un site MULTI-PAGES (dist/contact/index.html, dist/tarifs/index.html…),
+# pas une SPA. PAS de flag -s : sinon serve sert dist/index.html (la home) pour
+# toute route non trouvée comme un .html littéral, écrasant les rewrites de
+# serve.json et cassant /contact, /comment-ca-marche, etc.
 # `sh -c` pour que $PORT soit interpolé au runtime, pas au build.
-CMD ["sh", "-c", "serve -s dist -l ${PORT}"]
+CMD ["sh", "-c", "serve dist -l ${PORT}"]

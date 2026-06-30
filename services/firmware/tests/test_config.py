@@ -16,12 +16,19 @@ def _set_required(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_load_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_required(monkeypatch)
-    for k in ("MQTT_URL", "MQTT_USERNAME", "MQTT_PASSWORD", "LOCKER_COUNT"):
+    for k in (
+        "MQTT_URL",
+        "MQTT_USERNAME",
+        "MQTT_PASSWORD",
+        "MQTT_CA_CERT_PATH",
+        "LOCKER_COUNT",
+    ):
         monkeypatch.delenv(k, raising=False)
     cfg = load_config()
     assert cfg.device_id == "dev-1"
     assert cfg.mqtt_url == "mqtt://localhost:1883"
     assert cfg.mqtt_username is None
+    assert cfg.mqtt_ca_cert_path is None
     assert cfg.locker_count == 8
 
 
@@ -30,11 +37,13 @@ def test_load_config_full(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MQTT_URL", "mqtts://broker.emqx:8883")
     monkeypatch.setenv("MQTT_USERNAME", "dev")
     monkeypatch.setenv("MQTT_PASSWORD", "pw")
+    monkeypatch.setenv("MQTT_CA_CERT_PATH", "/etc/sportlocker/emqxsl-ca.crt")
     monkeypatch.setenv("LOCKER_COUNT", "16")
     cfg = load_config()
     assert cfg.mqtt_url == "mqtts://broker.emqx:8883"
     assert cfg.mqtt_username == "dev"
     assert cfg.mqtt_password == "pw"
+    assert cfg.mqtt_ca_cert_path == "/etc/sportlocker/emqxsl-ca.crt"
     assert cfg.locker_count == 16
 
 

@@ -25,25 +25,28 @@ def _make_token(
     reservation_id: str,
     jti: str,
     exp_offset: int = 900,
+    slot_start_offset: int | None = None,
 ) -> str:
+    """Forge un JWT QR pour les tests. ``slot_start_offset`` permet de simuler
+    un créneau futur (positif) ou passé (négatif). None = résa legacy sans
+    claim ``slotStartAt``."""
     now = int(time.time())
-    return jose_jwt.encode(
-        {
-            "iss": JWT_ISSUER,
-            "aud": JWT_AUDIENCE,
-            "sub": "user-1",
-            "userId": "user-1",
-            "jti": jti,
-            "iat": now,
-            "nbf": now,
-            "exp": now + exp_offset,
-            "distributorId": device_id,
-            "lockerId": locker_id,
-            "reservationId": reservation_id,
-        },
-        secret,
-        algorithm=JWT_ALGORITHM,
-    )
+    claims: dict[str, object] = {
+        "iss": JWT_ISSUER,
+        "aud": JWT_AUDIENCE,
+        "sub": "user-1",
+        "userId": "user-1",
+        "jti": jti,
+        "iat": now,
+        "nbf": now,
+        "exp": now + exp_offset,
+        "distributorId": device_id,
+        "lockerId": locker_id,
+        "reservationId": reservation_id,
+    }
+    if slot_start_offset is not None:
+        claims["slotStartAt"] = now + slot_start_offset
+    return jose_jwt.encode(claims, secret, algorithm=JWT_ALGORITHM)
 
 
 @pytest.fixture
@@ -306,3 +309,215 @@ def test_internal_error_path_returns_internal_error(
     result = controller.handle_unlock("anything")
     assert result.outcome is UnlockOutcome.INTERNAL_ERROR
     assert "simulated_crash" in (result.detail or "")
+
+
+# ─── Modèle slots : check slot_start_at (PR 0010) ──────────────────────────
+
+
+def test_slot_scan_before_start_returns_slot_not_yet_open(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Un scan d'un QR slot AVANT son ``slot_start_at`` doit être refusé sans
+    consommer le nonce (le user pourra re-scanner à l'heure dite)."""
+    # Créneau dans 1h → bien au-delà de la tolérance d'horloge (60s).
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-too-early",
+        slot_start_offset=3600,
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SLOT_NOT_YET_OPEN
+    assert result.reservation_id == reservation_id
+    assert "wait_" in (result.detail or "")
+
+    # Le nonce n'a PAS été consommé : un retry à l'heure dite doit aboutir
+    # (on bypasse le check time avec un slot_start_offset = -10s = passé).
+    token2 = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-too-early",  # même jti
+        slot_start_offset=-10,
+    )
+    result2 = controller.handle_unlock(token2)
+    assert result2.outcome is UnlockOutcome.SUCCESS
+
+
+def test_slot_scan_within_tolerance_succeeds(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Tolérance d'horloge : un scan jusqu'à 60s avant ``slot_start_at`` est OK
+    (clock skew Pi/smartphone). Au-delà → refus."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-edge-tolerance",
+        slot_start_offset=30,  # 30s dans le futur < 60s tolérance
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SUCCESS
+
+
+def test_slot_scan_after_start_succeeds(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Scan à l'heure ou après : ouvre normalement."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-on-time",
+        slot_start_offset=-5,  # créneau a commencé il y a 5s
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SUCCESS
+
+
+def test_legacy_token_without_slot_claim_works_as_before(
+    controller: LockerController,
+    device_secret: str,
+    device_id: str,
+    locker_id: str,
+    reservation_id: str,
+) -> None:
+    """Régression : un JWT sans claim ``slotStartAt`` (résa legacy
+    immédiate) doit toujours s'ouvrir sans passer par le check slot."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-legacy",
+        slot_start_offset=None,  # pas de claim
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.SUCCESS
+
+
+# ─── Pulse GPIO : timeout + retry idempotent ────────────────────────────────
+
+
+def test_pulse_unmapped_locker_returns_false(controller: LockerController) -> None:
+    """Pulse sur un locker non mappé GPIO doit retourner False sans lever."""
+    assert controller._pulse_open("locker-not-mapped") is False
+
+
+def test_pulse_simulated_succeeds_on_first_attempt(
+    controller: LockerController, locker_id: str,
+) -> None:
+    """En mode dev (sans RPi.GPIO), le pulse réussit en simulé."""
+    assert controller._pulse_open(locker_id) is True
+
+
+def test_pulse_retries_on_failure_then_succeeds(
+    controller: LockerController, locker_id: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si le premier pulse lève, le 2e (retry idempotent) est tenté."""
+    attempts = {"n": 0}
+
+    def flaky(_self: LockerController, _pin: int, _timeout: float) -> None:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise OSError("gpio_busy")
+        # 2e tentative : OK
+
+    monkeypatch.setattr(
+        "sportlocker_firmware.locker_ctrl.LockerController._run_pulse_with_timeout",
+        flaky,
+    )
+    assert controller._pulse_open(locker_id) is True
+    assert attempts["n"] == 2
+
+
+def test_pulse_exhausts_retries_and_returns_false(
+    controller: LockerController, locker_id: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si toutes les tentatives échouent, retourne False (HARDWARE_FAULT en aval)."""
+    attempts = {"n": 0}
+
+    def always_fails(_self: LockerController, _pin: int, _timeout: float) -> None:
+        attempts["n"] += 1
+        raise OSError("driver_dead")
+
+    monkeypatch.setattr(
+        "sportlocker_firmware.locker_ctrl.LockerController._run_pulse_with_timeout",
+        always_fails,
+    )
+    assert controller._pulse_open(locker_id) is False
+    # 1 essai initial + 1 retry par défaut.
+    assert attempts["n"] == 2
+
+
+def test_pulse_timeout_raises_in_inner_helper(
+    controller: LockerController, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si le thread du pulse n'aboutit pas dans le timeout, on lève TimeoutError."""
+    import sportlocker_firmware.locker_ctrl as mod
+    monkeypatch.setattr(mod, "_GPIO_AVAILABLE", True)
+
+    stub = MagicMock()
+    stub.LOW = 0
+    stub.HIGH = 1
+    stub.output = MagicMock()  # rapide, mais sleep prend toute la place
+    monkeypatch.setattr(mod, "GPIO", stub)
+    monkeypatch.setattr(mod, "GPIO_PULSE_SECONDS", 5.0)  # plus long que timeout
+
+    with pytest.raises(TimeoutError):
+        controller._run_pulse_with_timeout(pin=17, timeout_s=0.05)
+
+
+def test_pulse_propagates_inner_exception(
+    controller: LockerController, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si GPIO.output lève dans le thread, l'exception est remontée."""
+    import sportlocker_firmware.locker_ctrl as mod
+    monkeypatch.setattr(mod, "_GPIO_AVAILABLE", True)
+
+    stub = MagicMock()
+    stub.LOW = 0
+    stub.HIGH = 1
+    stub.output = MagicMock(side_effect=OSError("ioctl_failed"))
+    monkeypatch.setattr(mod, "GPIO", stub)
+    monkeypatch.setattr(mod, "GPIO_PULSE_SECONDS", 0.001)
+
+    with pytest.raises(OSError, match="ioctl_failed"):
+        controller._run_pulse_with_timeout(pin=17, timeout_s=2.0)
+
+
+def test_hardware_fault_when_gpio_pulse_returns_false(
+    controller: LockerController, monkeypatch: pytest.MonkeyPatch,
+    device_secret: str, device_id: str, locker_id: str, reservation_id: str,
+) -> None:
+    """Quand _pulse_open retourne False, l'outcome doit être HARDWARE_FAULT."""
+    monkeypatch.setattr(
+        "sportlocker_firmware.locker_ctrl.LockerController._pulse_open",
+        lambda *_a, **_kw: False,
+    )
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-hw-fault",
+    )
+    result = controller.handle_unlock(token)
+    assert result.outcome is UnlockOutcome.HARDWARE_FAULT

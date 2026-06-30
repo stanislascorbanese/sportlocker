@@ -115,9 +115,12 @@ export default function CoverageMap(): JSX.Element {
 
       <div className="card-dark p-7 sm:p-8 flex flex-col">
         <span className="tag tag-brand inline-block self-start mb-5">Couverture</span>
-        <h3 className="font-extrabold text-2xl text-white mb-4 leading-tight">
+        {/* h2 (et non h3) : ce titre apparaît dans le flux après le <h1> de la
+            page mais avant le premier <h2> des sections suivantes — un h3 ici
+            casserait l'ordre séquentiel des titres (audit a11y heading-order). */}
+        <h2 className="font-extrabold text-2xl text-white mb-4 leading-tight">
           France métropolitaine<br />entièrement éligible.
-        </h3>
+        </h2>
         <p className="text-sm text-white/65 font-light leading-relaxed mb-6">
           Aucune zone exclue : nous déployons partout en métropole, du littoral atlantique
           aux communes alpines. Installation pilote sous 4-6 semaines à compter du devis signé.
@@ -137,7 +140,7 @@ export default function CoverageMap(): JSX.Element {
                 <div className="font-extrabold text-xl text-white">
                   {selection.commune ?? 'Emplacement personnalisé'}
                 </div>
-                <div className="text-[0.7rem] text-white/45 font-light mt-1 tabular-nums">
+                <div className="text-[0.7rem] text-white/60 font-light mt-1 tabular-nums">
                   {selection.lat.toFixed(3)}° N, {selection.lng.toFixed(3)}° E
                 </div>
               </>
@@ -152,9 +155,9 @@ export default function CoverageMap(): JSX.Element {
         )}
 
         <ul className="space-y-2.5 text-[0.78rem] text-white/55 mb-6 font-light leading-relaxed">
-          <li className="flex gap-2.5"><span className="text-brand-500 shrink-0">✓</span>Visite de site offerte en Île-de-France</li>
-          <li className="flex gap-2.5"><span className="text-brand-500 shrink-0">✓</span>Frais de transport inclus jusqu'à 200 km</li>
-          <li className="flex gap-2.5"><span className="text-brand-500 shrink-0">✓</span>Au-delà : devis sur mesure (rare en pratique)</li>
+          <li className="flex gap-2.5"><span className="text-brand-400 shrink-0">✓</span>Visite de site offerte en Île-de-France</li>
+          <li className="flex gap-2.5"><span className="text-brand-400 shrink-0">✓</span>Frais de transport inclus jusqu'à 200 km</li>
+          <li className="flex gap-2.5"><span className="text-brand-400 shrink-0">✓</span>Au-delà : devis sur mesure (rare en pratique)</li>
         </ul>
 
         <div className="flex-1" />

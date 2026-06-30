@@ -17,44 +17,64 @@ import { SITE } from '@/data/site'
         <div>
           <h2 class="text-white font-bold text-lg mb-2">Éditeur du site</h2>
           <p>
-            {SITE.legalName}, société en cours d'immatriculation au RCS.<br/>
-            Siège social : adresse en cours de domiciliation.<br/>
-            Contact : <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline">{SITE.email}</a>
+            <strong class="text-white/85">Raison sociale :</strong> {SITE.legalName}<br/>
+            <strong class="text-white/85">Forme juridique :</strong> Société par Actions Simplifiée (en cours d'immatriculation)<br/>
+            <strong class="text-white/85">Capital social :</strong> <span class="text-white/60">[à compléter à l'immatriculation]</span><br/>
+            <strong class="text-white/85">RCS / SIRET :</strong> <span class="text-white/60">[à compléter à l'immatriculation]</span><br/>
+            <strong class="text-white/85">N° TVA intracommunautaire :</strong> <span class="text-white/60">[à compléter à l'immatriculation]</span><br/>
+            <strong class="text-white/85">Siège social :</strong> <span class="text-white/60">[adresse en cours de domiciliation]</span><br/>
+            <strong class="text-white/85">Contact :</strong> <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a>
           </p>
         </div>
 
         <div>
           <h2 class="text-white font-bold text-lg mb-2">Directeur de publication</h2>
-          <p>Stanislas Corbanèse, fondateur.</p>
+          <p>Stanislas Corbanèse, fondateur et président.</p>
         </div>
 
         <div>
           <h2 class="text-white font-bold text-lg mb-2">Hébergement</h2>
           <p>
-            Railway Corp., 2261 Market Street #4382, San Francisco, CA 94114, USA.<br/>
-            <a href="https://railway.com" target="_blank" rel="noopener noreferrer" class="text-brand-500 hover:underline">railway.com</a>
+            <strong class="text-white/85">Site vitrine :</strong> Railway Corp., 2261 Market Street #4382, San Francisco, CA 94114, USA —
+            <a href="https://railway.com" target="_blank" rel="noopener noreferrer" class="text-brand-400 hover:underline">railway.com</a>.<br/>
+            <strong class="text-white/85">Application citoyenne et dashboard :</strong> Railway Corp. (mêmes coordonnées) +
+            Supabase Inc. (Postgres, région EU Central / Frankfurt).<br/>
+            <strong class="text-white/85">Broker MQTT :</strong> EMQX Cloud (région EU Central).
           </p>
         </div>
 
         <div>
           <h2 class="text-white font-bold text-lg mb-2">Propriété intellectuelle</h2>
           <p>
-            L'ensemble des contenus de ce site (textes, images, code source) est la
-            propriété exclusive de {SITE.legalName}, sauf mention contraire.
-            Toute reproduction non autorisée est interdite.
+            L'ensemble des contenus de ce site (textes, images, code source, charte graphique, marque
+            SportLocker) est la propriété exclusive de {SITE.legalName}, sauf mention contraire. Toute
+            reproduction, représentation, modification ou exploitation, totale ou partielle, par quelque
+            procédé que ce soit, sans autorisation écrite préalable, est strictement interdite et
+            constitue une contrefaçon au sens des articles L.335-2 et suivants du Code de la propriété
+            intellectuelle.
           </p>
         </div>
 
         <div>
           <h2 class="text-white font-bold text-lg mb-2">Cookies</h2>
           <p>
-            Ce site n'utilise aucun cookie de mesure d'audience ou de traçage publicitaire.
-            Seuls les cookies techniques strictement nécessaires au fonctionnement du formulaire
-            de contact peuvent être déposés.
+            Ce site vitrine n'utilise aucun cookie de mesure d'audience, de profilage ou de traçage
+            publicitaire. Seuls les cookies techniques strictement nécessaires au fonctionnement du
+            formulaire de contact peuvent être déposés. Le détail des traitements est exposé dans
+            notre <a href="/confidentialite" class="text-brand-400 hover:underline">Politique de confidentialité</a>.
           </p>
         </div>
 
-        <p class="text-xs text-white/40 pt-6">Document mis à jour pour la version v0.2 du site (mai 2026).</p>
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">Documents associés</h2>
+          <ul class="list-disc list-inside space-y-1.5 ml-2">
+            <li><a href="/confidentialite" class="text-brand-400 hover:underline">Politique de confidentialité (RGPD)</a></li>
+            <li><a href="/cgu" class="text-brand-400 hover:underline">Conditions Générales d'Utilisation (citoyen)</a></li>
+            <li><a href="/cgv" class="text-brand-400 hover:underline">Conditions Générales de Vente (opérateurs)</a></li>
+          </ul>
+        </div>
+
+        <p class="text-xs text-white/60 pt-6">Document mis à jour en mai 2026 — version 2.</p>
       </div>
     </div>
   </section>

@@ -14,25 +14,13 @@ import {
   type Reservation,
   type StatsDashboard,
 } from '../lib/api'
-import {
-  DEMO_COMMUNES,
-  DEMO_RESERVATIONS,
-  DEMO_MAINTENANCE_TICKETS,
-  demoReservationsDaily,
-  demoStatsDashboard,
-} from '../lib/demo-data'
 import { DistributorCard } from '../components/DistributorCard'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
 import { cn } from '../lib/cn'
-
-function fmtRelative(iso: string): string {
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return `il y a ${Math.round(diffSec / 86_400)}j`
-}
+import { getLang } from '../lib/lang-server'
+import { commonStrings, fmtRelative, fmtToday } from '../lib/i18n/common'
+import { homeStrings } from '../lib/i18n/home'
 
 type TenantSnapshot = {
   commune: Commune | null
@@ -90,6 +78,9 @@ async function loadTenant(communeId: string): Promise<TenantSnapshot> {
 }
 
 export async function TenantHome({ communeId }: { communeId: string }) {
+  const lang = await getLang()
+  const t = homeStrings(lang)
+  const c = commonStrings(lang)
   const data = await loadTenant(communeId)
 
   const everythingEmpty = data.distributors.length === 0
@@ -98,31 +89,34 @@ export async function TenantHome({ communeId }: { communeId: string }) {
     && data.openTickets.length === 0
   const useDemo = data.hadError || everythingEmpty
 
-  // En mode démo, on simule le scope tenant : prend la commune Paris 11e
-  // (1ère fixture) et filtre les data dessus.
-  const demoCommune = DEMO_COMMUNES[0]!
-  const commune = useDemo ? demoCommune : (data.commune ?? demoCommune)
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+  const needsDailyFallback = useDemo || data.dailySeries.length === 0
+  const needsTopFallback = useDemo || data.topDistributors.length === 0
+  let commune: Commune
+  let activeReservations: Reservation[] = data.activeReservations
+  let overdueReservations: Reservation[] = data.overdueReservations
+  let openTickets: MaintenanceTicket[] = data.openTickets
+  let dailySeries: DailyPoint[] = data.dailySeries
+  let topDistributors: StatsDashboard['topDistributors'] = data.topDistributors
+  if (useDemo || needsDailyFallback || needsTopFallback) {
+    const demo = await import('../lib/demo-data')
+    const demoCommune = demo.DEMO_COMMUNES[0]!
+    commune = useDemo ? demoCommune : (data.commune ?? demoCommune)
+    if (useDemo) {
+      activeReservations = demo.DEMO_RESERVATIONS.filter((r) => r.status === 'active')
+      overdueReservations = demo.DEMO_RESERVATIONS.filter((r) => r.status === 'overdue')
+      openTickets = demo.DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
+    }
+    if (needsDailyFallback) dailySeries = demo.demoReservationsDaily(7)
+    if (needsTopFallback) topDistributors = demo.demoStatsDashboard(7).topDistributors.slice(0, 3)
+  } else {
+    commune = data.commune!
+  }
 
   // En vrai mode (non démo), l'API renvoie déjà uniquement les distributeurs
-  // de la commune (scope serveur). En démo, on filtre côté client.
-  const distributors = useDemo
-    ? [] // pas de fixtures distributeurs scopées Paris 11e — on affiche 3 cartes synthétiques
-    : data.distributors
-  const activeReservations = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => r.status === 'active')
-    : data.activeReservations
-  const overdueReservations = useDemo
-    ? DEMO_RESERVATIONS.filter((r) => r.status === 'overdue')
-    : data.overdueReservations
-  const openTickets = useDemo
-    ? DEMO_MAINTENANCE_TICKETS.filter((t) => t.status === 'open')
-    : data.openTickets
-  const dailySeries = useDemo || data.dailySeries.length === 0
-    ? demoReservationsDaily(7)
-    : data.dailySeries
-  const topDistributors = useDemo || data.topDistributors.length === 0
-    ? demoStatsDashboard(7).topDistributors.slice(0, 3)
-    : data.topDistributors
+  // de la commune (scope serveur). En démo, on n'a pas de fixtures distributeurs
+  // scopées Paris 11e — on affiche 3 cartes synthétiques construites plus bas.
+  const distributors = useDemo ? [] : data.distributors
 
   // Pour les fixtures démo de distributeurs : on prend les 3 premières du topDistributors démo
   // et on reconstruit des Distributor synthétiques cohérents
@@ -165,25 +159,27 @@ export async function TenantHome({ communeId }: { communeId: string }) {
   return (
     <div className="space-y-6">
       {/* Header personnalisé tenant — gradient emerald = signature visuelle */}
-      <header className="overflow-hidden rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-navy-800 to-navy-800 p-4 sm:p-6">
+      <header className="overflow-hidden rounded-card border p-4 sm:p-6 border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-white dark:border-emerald-500/20 dark:from-emerald-500/[0.06] dark:via-navy-800 dark:to-navy-800">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-2xl">👋</span>
-              <h1 className="font-display text-2xl sm:text-3xl">
-                Bonjour, <span className="text-emerald-300">{commune.name}</span>
+              <h1 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
+                {t.tenantGreeting}{' '}
+                <span className="text-emerald-700 dark:text-emerald-300">{commune.name}</span>
               </h1>
               {useDemo && (
-                <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                  Démo
+                <span className="rounded-md border px-2 py-0.5 text-eyebrow font-semibold uppercase border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                  {c.demo}
                 </span>
               )}
             </div>
-            <p className="mt-2 text-sm text-white/65">
-              {displayDistributors.length} distributeur{displayDistributors.length > 1 ? 's' : ''} en service ·{' '}
-              <span className="text-emerald-300 tabular-nums">{totalIdle}</span>
-              <span className="text-white/40"> / {totalLockers}</span> casiers libres ·{' '}
-              taux d'occupation <span className="tabular-nums text-white">{fillRate}%</span>
+            <p className="mt-2 text-sm text-gray-700 dark:text-white/65">
+              {displayDistributors.length} {displayDistributors.length > 1 ? t.tenantDistributorsInServiceMany : t.tenantDistributorsInService1} ·{' '}
+              <span className="tabular-nums text-emerald-700 dark:text-emerald-300">{totalIdle}</span>
+              <span className="text-gray-500 dark:text-white/40"> / {totalLockers}</span> {t.tenantLockersFree} ·{' '}
+              {t.tenantFillRate}{' '}
+              <span className="tabular-nums text-navy-900 dark:text-white">{fillRate}%</span>
             </p>
           </div>
           <RefreshButton />
@@ -191,44 +187,48 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       </header>
 
       {data.hadError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
-          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
+        <div className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
+          <p className="font-medium">{c.apiErrorTitle}</p>
         </div>
       )}
 
       {/* Aujourd'hui / Cette semaine */}
       <section className="grid gap-4 lg:grid-cols-2">
         {/* Aujourd'hui */}
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
+        <div className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-              Aujourd'hui
+            <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
+              {t.tenantToday}
             </h2>
-            <span className="text-[11px] text-white/40">
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <span className="text-meta text-gray-500 dark:text-white/40">
+              {fmtToday(lang)}
             </span>
           </div>
           <div className="space-y-3">
             <KpiRow
               icon="🟢"
-              label="Réservations en cours"
+              label={t.tenantOngoingReservations}
               value={activeReservations.length}
               tone="good"
             />
             <KpiRow
               icon="🟠"
-              label="En retard"
+              label={t.tenantOverdue}
               value={overdueReservations.length}
               tone={overdueReservations.length > 0 ? 'bad' : 'neutral'}
               href="/reservations?status=overdue"
             />
             <KpiRow
               icon="🔧"
-              label="Tickets ouverts"
+              label={t.tenantOpenTickets}
               value={openTickets.length}
               tone={criticalTickets.length > 0 ? 'bad' : openTickets.length > 0 ? 'warn' : 'neutral'}
               {...(criticalTickets.length > 0
-                ? { hint: `dont ${criticalTickets.length} critique${criticalTickets.length > 1 ? 's' : ''}` }
+                ? {
+                    hint: criticalTickets.length === 1
+                      ? t.tenantCriticalOfOne
+                      : t.tenantCriticalOf.replace('%d', String(criticalTickets.length)),
+                  }
                 : {})}
               href="/maintenance"
             />
@@ -236,35 +236,38 @@ export async function TenantHome({ communeId }: { communeId: string }) {
         </div>
 
         {/* Cette semaine */}
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-5">
+        <div className="rounded-card border p-5 border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-              Cette semaine
+            <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
+              {t.tenantThisWeek}
             </h2>
-            <Link href="/stats?days=30" className="text-[11px] text-emerald-300 hover:text-emerald-200">
-              voir stats détaillées →
+            <Link
+              href="/stats?days=30"
+              className="text-meta text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+            >
+              {t.tenantViewDetailedStats}
             </Link>
           </div>
-          <Sparkline points={dailySeries} width={420} />
+          <Sparkline points={dailySeries} width={420} lang={lang} />
         </div>
       </section>
 
       {/* Distributeurs */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-          Vos distributeurs
+        <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
+          {t.tenantYourDistributors}
           {(offlineCount > 0) && (
-            <span className="ml-2 normal-case text-rose-300/80">
-              · {offlineCount} hors ligne
+            <span className="ml-2 normal-case text-rose-700/80 dark:text-rose-300/80">
+              · {offlineCount} {t.tenantOfflineSuffix}
             </span>
           )}
         </h2>
         {displayDistributors.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 bg-navy-800/50 p-8 text-center text-sm text-white/55">
-            Aucun distributeur installé sur votre commune pour l'instant.
+          <div className="rounded-card border border-dashed p-8 text-center text-sm border-gray-300 bg-gray-50 text-gray-600 dark:border-white/15 dark:bg-navy-800/50 dark:text-white/55">
+            {t.tenantNoDistributors}
             <br />
-            <span className="mt-2 inline-block text-[12px] text-white/40">
-              Contactez votre référent SportLocker pour planifier l'installation.
+            <span className="mt-2 inline-block text-meta text-gray-500 dark:text-white/40">
+              {t.tenantNoDistributorsHint}
             </span>
           </div>
         ) : (
@@ -275,6 +278,7 @@ export async function TenantHome({ communeId }: { communeId: string }) {
                 distributor={d}
                 weeklyReservations={weeklyByDistributor.get(d.id) ?? 0}
                 openTickets={ticketsByDistributor.get(d.id) ?? 0}
+                lang={lang}
               />
             ))}
           </div>
@@ -284,35 +288,37 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       {/* Alertes à traiter */}
       {(overdueReservations.length > 0 || criticalTickets.length > 0) && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-            Alertes à traiter
+          <h2 className="text-eyebrow font-semibold uppercase text-gray-500 dark:text-white/40">
+            {t.sectionAlerts}
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {overdueReservations.length > 0 && (
               <AlertList
-                title="Réservations en retard"
+                title={t.overdueReservations}
+                viewAllLabel={t.seeAll}
                 href="/reservations?status=overdue"
-                borderClass="border-rose-500/20"
-                accentClass="text-rose-300"
+                borderClass="border-rose-300 dark:border-rose-500/20"
+                accentClass="text-rose-700 dark:text-rose-300"
                 items={overdueReservations.slice(0, 4).map((r) => ({
                   key: r.id,
                   primary: r.user.displayName ?? r.user.email,
                   secondary: `${r.item.typeName} · ${r.distributor.name}`,
-                  right: r.dueAt ? `dû ${fmtRelative(r.dueAt)}` : '—',
+                  right: r.dueAt ? `${t.duePrefix} ${fmtRelative(lang, r.dueAt)}` : '—',
                 }))}
               />
             )}
             {criticalTickets.length > 0 && (
               <AlertList
-                title="Tickets critiques"
+                title={t.tenantCriticalTickets}
+                viewAllLabel={t.seeAll}
                 href="/maintenance"
-                borderClass="border-orange-500/20"
-                accentClass="text-orange-300"
-                items={criticalTickets.slice(0, 4).map((t) => ({
-                  key: t.id,
-                  primary: t.title,
-                  secondary: t.distributor.name,
-                  right: `S${t.severity}`,
+                borderClass="border-orange-300 dark:border-orange-500/20"
+                accentClass="text-orange-700 dark:text-orange-300"
+                items={criticalTickets.slice(0, 4).map((tk) => ({
+                  key: tk.id,
+                  primary: tk.title,
+                  secondary: tk.distributor.name,
+                  right: `S${tk.severity}`,
                 }))}
               />
             )}
@@ -321,13 +327,19 @@ export async function TenantHome({ communeId }: { communeId: string }) {
       )}
 
       {/* Footer onboarding-friendly */}
-      <footer className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center text-[12px] text-white/50">
-        Besoin d'aide ? Un casier bloqué, un distributeur hors ligne ?{' '}
-        <Link href="/maintenance" className="text-emerald-300 hover:text-emerald-200">
-          Ouvrez un ticket de maintenance
+      <footer className="rounded-card border p-4 text-center text-meta border-gray-200 bg-gray-50 text-gray-600 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/50">
+        {t.tenantFooterPart1}{' '}
+        <Link
+          href="/maintenance"
+          className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+        >
+          {t.tenantFooterOpenTicket}
         </Link>
-        {' '}ou contactez{' '}
-        <a href="mailto:support@sportlocker.fr" className="text-emerald-300 hover:text-emerald-200">
+        {' '}{t.tenantFooterOrContact}{' '}
+        <a
+          href="mailto:support@sportlocker.fr"
+          className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+        >
           support@sportlocker.fr
         </a>.
       </footer>
@@ -351,18 +363,18 @@ function KpiRow({
   href?: string
 }) {
   const valueColor =
-    tone === 'good' ? 'text-emerald-300'
-    : tone === 'warn' ? 'text-amber-300'
-    : tone === 'bad' ? 'text-rose-300'
-    : 'text-white/80'
+    tone === 'good' ? 'text-emerald-700 dark:text-emerald-300'
+    : tone === 'warn' ? 'text-amber-700 dark:text-amber-300'
+    : tone === 'bad' ? 'text-rose-700 dark:text-rose-300'
+    : 'text-navy-900 dark:text-white/80'
 
   const content = (
-    <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.03]">
+    <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition-colors duration-base hover:bg-white dark:hover:bg-white/[0.03]">
       <div className="flex items-center gap-3">
         <span className="text-xl">{icon}</span>
         <div>
-          <p className="text-sm text-white/85">{label}</p>
-          {hint && <p className="text-[11px] text-white/45">{hint}</p>}
+          <p className="text-sm text-navy-900 dark:text-white/85">{label}</p>
+          {hint && <p className="text-meta text-gray-500 dark:text-white/45">{hint}</p>}
         </div>
       </div>
       <span className={cn('font-display text-2xl tabular-nums', valueColor)}>{value}</span>
@@ -375,35 +387,37 @@ function KpiRow({
 
 function AlertList({
   title,
+  viewAllLabel,
   href,
   borderClass,
   accentClass,
   items,
 }: {
   title: string
+  viewAllLabel: string
   href: string
   borderClass: string
   accentClass: string
   items: { key: string; primary: string; secondary: string; right: string }[]
 }) {
   return (
-    <div className={cn('overflow-hidden rounded-xl border bg-navy-800', borderClass)}>
-      <header className="flex items-baseline justify-between border-b border-white/5 px-4 py-2.5">
-        <h3 className="text-sm font-medium text-white">{title}</h3>
-        <Link href={href} className={cn('text-xs hover:underline', accentClass)}>
-          voir tout →
+    <div className={cn('overflow-hidden rounded-card border bg-gray-50 dark:bg-navy-800', borderClass)}>
+      <header className="flex items-baseline justify-between border-b px-4 py-2.5 border-gray-200 dark:border-white/5">
+        <h3 className="text-sm font-medium text-navy-900 dark:text-white">{title}</h3>
+        <Link href={href} className={cn('text-meta hover:underline', accentClass)}>
+          {viewAllLabel}
         </Link>
       </header>
-      <ul className="divide-y divide-white/5">
+      <ul className="divide-y divide-gray-200 dark:divide-white/5">
         {items.map((it) => (
           <li key={it.key} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-white">{it.primary}</div>
-              <div className="truncate text-[11px] text-white/50">{it.secondary}</div>
+              <div className="truncate text-navy-900 dark:text-white">{it.primary}</div>
+              <div className="truncate text-meta text-gray-500 dark:text-white/50">
+                {it.secondary}
+              </div>
             </div>
-            <span className={cn('shrink-0 text-[11px] tabular-nums', accentClass)}>
-              {it.right}
-            </span>
+            <span className={cn('shrink-0 tabular-nums text-meta', accentClass)}>{it.right}</span>
           </li>
         ))}
       </ul>

@@ -2,35 +2,20 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
+import {
+  Distributor,
+  DistributorDetail,
+  DistributorLocker,
+  DistributorStatus,
+  LockerItemType,
+} from '@sportlocker/types'
+
 import { SESSION_COOKIE } from './session'
 
-export const Distributor = z.object({
-  id: z.string().uuid(),
-  serialNumber: z.string(),
-  name: z.string(),
-  status: z.enum(['online', 'offline', 'maintenance', 'decommissioned']),
-  communeId: z.string().uuid(),
-  lockerCount: z.number().int().nonnegative(),
-  idleLockers: z.number().int().nonnegative(),
-  latitude: z.number().nullable(),
-  longitude: z.number().nullable(),
-  addressLine: z.string().max(200).nullable(),
-  batteryPercent: z.number().int().min(0).max(100).nullable(),
-  lastSeenAt: z.string().datetime().nullable(),
-})
+export { Distributor, DistributorDetail, DistributorLocker, LockerItemType }
 
-export type Distributor = z.infer<typeof Distributor>
-
-export const DistributorDetail = Distributor.extend({
-  lockers: z.array(z.object({
-    id: z.string().uuid(),
-    position: z.number().int(),
-    state: z.enum(['idle', 'reserved', 'active', 'returning', 'fault']),
-    currentItemId: z.string().uuid().nullable(),
-  })),
-})
-
-export type DistributorDetail = z.infer<typeof DistributorDetail>
+export const LOCKER_STATES = ['idle', 'reserved', 'active', 'returning', 'fault'] as const
+export type LockerState = typeof LOCKER_STATES[number]
 
 export const ItemType = z.object({
   id: z.string().uuid(),
@@ -143,7 +128,7 @@ export type DistributorCreateInput = z.infer<typeof DistributorCreateInput>
 
 export const DistributorUpdateInput = z.object({
   name:        z.string().min(1).max(120).optional(),
-  status:      z.enum(['online', 'offline', 'maintenance', 'decommissioned']).optional(),
+  status:      DistributorStatus.optional(),
   latitude:    z.number().min(-90).max(90).nullable().optional(),
   longitude:   z.number().min(-180).max(180).nullable().optional(),
   addressLine: z.string().max(200).nullable().optional(),
@@ -151,7 +136,7 @@ export const DistributorUpdateInput = z.object({
 
 export type DistributorUpdateInput = z.infer<typeof DistributorUpdateInput>
 
-export const RESERVATION_STATUSES = ['pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
+export const RESERVATION_STATUSES = ['scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired'] as const
 export type ReservationStatus = typeof RESERVATION_STATUSES[number]
 
 export const Reservation = z.object({
@@ -290,7 +275,7 @@ export type CommuneUpdateInput = z.infer<typeof CommuneUpdateInput>
 
 const ListCommunes = z.object({ items: z.array(Commune) })
 
-export const USER_ROLES = ['citizen', 'operator', 'admin'] as const
+export const USER_ROLES = ['citizen', 'operator', 'admin', 'super_admin'] as const
 export type UserRole = typeof USER_ROLES[number]
 
 export const AdminUser = z.object({
@@ -728,6 +713,110 @@ export async function fetchAuditEvents(filters: AuditFilters = {}): Promise<Audi
   return AuditEventsPage.parse(await res.json())
 }
 
+export const DistributorHealth = z.object({
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    status: DistributorStatus,
+    firmwareVersion: z.string().nullable(),
+    lastSeenAt: z.string().datetime().nullable(),
+  }),
+  summary: z.object({
+    windowHours: z.number().int(),
+    heartbeatCount: z.number().int(),
+    availabilityPct: z.number().min(0).max(100).nullable(),
+    avgCpuTempC: z.number().nullable(),
+    maxCpuTempC: z.number().nullable(),
+    avgRssiDbm: z.number().nullable(),
+    minFreeMemMb: z.number().int().nullable(),
+  }),
+  latest: z.object({
+    receivedAt: z.string().datetime(),
+    rssiDbm: z.number().int().nullable(),
+    cpuTempC: z.number().nullable(),
+    uptimeSeconds: z.number().int().nullable(),
+    freeMemMb: z.number().int().nullable(),
+  }).nullable(),
+  series: z.array(z.object({
+    bucket: z.string().datetime(),
+    avgCpuTempC: z.number().nullable(),
+    avgRssiDbm: z.number().nullable(),
+    avgFreeMemMb: z.number().nullable(),
+    count: z.number().int(),
+  })),
+})
+
+export type DistributorHealth = z.infer<typeof DistributorHealth>
+
+export async function fetchDistributorHealth(id: string, hours = 24): Promise<DistributorHealth> {
+  const res = await fetch(`${API_URL}/v1/admin/distributors/${id}/health?hours=${hours}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['distributors', `distributor:${id}`, `distributor-health:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'distributor_not_found')
+  if (!res.ok) await throwApiError(res)
+  return DistributorHealth.parse(await res.json())
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Fleet health — vue agrégée multi-distributeurs (/health page)
+// ──────────────────────────────────────────────────────────────────────────
+
+export const FLEET_ALERTS = [
+  'offline',
+  'no_heartbeat_24h',
+  'high_cpu_temp',
+  'weak_signal',
+  'low_memory',
+  'open_critical',
+] as const
+export type FleetAlert = typeof FLEET_ALERTS[number]
+
+export const FleetHealthRow = z.object({
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+    status: DistributorStatus,
+    communeName: z.string().nullable(),
+    firmwareVersion: z.string().nullable(),
+    lastSeenAt: z.string().datetime().nullable(),
+  }),
+  latest: z.object({
+    receivedAt: z.string().datetime().nullable(),
+    cpuTempC: z.number().nullable(),
+    rssiDbm: z.number().int().nullable(),
+    freeMemMb: z.number().int().nullable(),
+    uptimeSeconds: z.number().int().nullable(),
+  }),
+  openTickets: z.number().int(),
+  criticalTickets: z.number().int(),
+  alerts: z.array(z.enum(FLEET_ALERTS)),
+})
+
+export type FleetHealthRow = z.infer<typeof FleetHealthRow>
+
+export const FleetHealthDashboard = z.object({
+  generatedAt: z.string().datetime(),
+  total: z.number().int(),
+  withAlerts: z.number().int(),
+  rows: z.array(FleetHealthRow),
+})
+
+export type FleetHealthDashboard = z.infer<typeof FleetHealthDashboard>
+
+export async function fetchFleetHealth(): Promise<FleetHealthDashboard> {
+  const res = await fetch(`${API_URL}/v1/admin/distributors/fleet-health`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['distributors', 'fleet-health'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return FleetHealthDashboard.parse(await res.json())
+}
+
 export const Invite = z.object({
   token: z.string().min(20),
   inviteUrl: z.string().url(),
@@ -869,6 +958,233 @@ export async function updateItem(id: string, input: ItemUpdateInput): Promise<It
   })
   if (!res.ok) await throwApiError(res)
   return Item.parse(await res.json())
+}
+
+// ─── Tarification : pricing_rules (modèle slots PR 0008, day pass PR 0009) ─
+
+export const DAY_PASS_MINUTES = 1440 as const
+
+export const SLOT_DURATIONS = [30, 60, 90, 120, 1440] as const
+export type SlotDurationMinutes = typeof SLOT_DURATIONS[number]
+
+export function isDayPassDuration(d: number): boolean {
+  return d === DAY_PASS_MINUTES
+}
+
+/** Libellé court d'une durée pour l'affichage UI. */
+export function formatDurationLabel(min: number): string {
+  if (min === DAY_PASS_MINUTES) return 'Journée'
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const r = min % 60
+  return r === 0 ? `${h} h` : `${h} h ${r}`
+}
+
+export const PricingRule = z.object({
+  id: z.string().uuid(),
+  communeId: z.string().uuid(),
+  itemTypeId: z.string().uuid(),
+  itemTypeSlug: z.string(),
+  itemTypeName: z.string(),
+  durationMinutes: z.number().int(),
+  priceCents: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+export type PricingRule = z.infer<typeof PricingRule>
+
+const ListPricingRules = z.object({ items: z.array(PricingRule) })
+
+export async function fetchPricingRules(communeId?: string): Promise<PricingRule[]> {
+  const qs = communeId ? `?communeId=${encodeURIComponent(communeId)}` : ''
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules${qs}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['pricing-rules'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return ListPricingRules.parse(await res.json()).items
+}
+
+export async function upsertPricingRule(input: {
+  itemTypeId: string
+  durationMinutes: SlotDurationMinutes
+  priceCents: number
+  communeId?: string
+}): Promise<PricingRule> {
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return PricingRule.parse(await res.json())
+}
+
+export async function bulkUpsertPricingRules(input: {
+  rules: Array<{ itemTypeId: string; durationMinutes: SlotDurationMinutes; priceCents: number }>
+  communeId?: string
+}): Promise<{ applied: number }> {
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules/bulk`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return z.object({ applied: z.number().int().nonnegative() }).parse(await res.json())
+}
+
+export async function deletePricingRule(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/admin/pricing-rules/${id}`, {
+    method: 'DELETE',
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+}
+
+// ─── Stripe Connect (PR G1) ──────────────────────────────────────────────
+
+export const StripeConnectStatus = z.object({
+  connected: z.boolean(),
+  accountId: z.string().nullable(),
+  chargesEnabled: z.boolean(),
+  payoutsEnabled: z.boolean(),
+  onboardedAt: z.string().datetime().nullable(),
+})
+
+export type StripeConnectStatus = z.infer<typeof StripeConnectStatus>
+
+export const StripeConnectOnboardResponse = z.object({
+  url: z.string().url(),
+  accountId: z.string(),
+  expiresAt: z.number().int(),
+})
+
+export type StripeConnectOnboardResponse = z.infer<typeof StripeConnectOnboardResponse>
+
+/**
+ * Récupère l'état Stripe Connect de la commune scopée (admin) ou explicite
+ * (super_admin → `communeId` requis).
+ *
+ * Renvoie 503 silencieux si l'API n'a pas STRIPE_SECRET_KEY configuré côté
+ * serveur — le caller doit gérer (UI "Stripe non configuré côté serveur").
+ */
+export async function fetchStripeConnectStatus(
+  communeId?: string,
+): Promise<StripeConnectStatus | { notConfigured: true }> {
+  const qs = communeId ? `?communeId=${encodeURIComponent(communeId)}` : ''
+  const res = await fetch(`${API_URL}/v1/admin/stripe-connect/status${qs}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (res.status === 503) return { notConfigured: true }
+  if (!res.ok) await throwApiError(res)
+  return StripeConnectStatus.parse(await res.json())
+}
+
+/**
+ * Démarre l'onboarding Stripe Connect : crée l'Account Express si manquant
+ * et retourne un AccountLink hosted (URL Stripe vers laquelle le caller
+ * redirige immédiatement le user).
+ */
+export async function startStripeConnectOnboarding(
+  communeId?: string,
+): Promise<StripeConnectOnboardResponse> {
+  const res = await fetch(`${API_URL}/v1/admin/stripe-connect/onboard`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(communeId ? { communeId } : {}),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return StripeConnectOnboardResponse.parse(await res.json())
+}
+
+/**
+ * Pull le status Stripe depuis l'API Stripe et met à jour les flags en DB.
+ * À appeler quand le user revient du flow Stripe-hosted (return URL) ou via
+ * un bouton "Rafraîchir le statut" dans l'UI.
+ */
+export async function refreshStripeConnectStatus(
+  communeId?: string,
+): Promise<StripeConnectStatus> {
+  const res = await fetch(`${API_URL}/v1/admin/stripe-connect/refresh`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(communeId ? { communeId } : {}),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return StripeConnectStatus.parse(await res.json())
+}
+
+// ─── Paiements de location (transactions) ────────────────────────────────
+
+export const PAYMENT_STATUS = ['pending', 'succeeded', 'failed', 'cancelled', 'refunded'] as const
+export type PaymentStatus = typeof PAYMENT_STATUS[number]
+
+export const AdminPayment = z.object({
+  id: z.string().uuid(),
+  status: z.enum(PAYMENT_STATUS),
+  amountCents: z.number().int().nonnegative(),
+  currency: z.string(),
+  provider: z.string(),
+  createdAt: z.string().datetime(),
+  paidAt: z.string().datetime().nullable(),
+  reservation: z.object({
+    id: z.string().uuid(),
+    status: z.string(),
+  }),
+  user: z.object({
+    id: z.string().uuid(),
+    email: z.string(),
+    displayName: z.string().nullable(),
+  }),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+  }),
+  item: z.object({
+    typeName: z.string(),
+  }),
+})
+
+export type AdminPayment = z.infer<typeof AdminPayment>
+
+export const AdminPaymentsPage = z.object({
+  items: z.array(AdminPayment),
+  nextCursor: z.string().nullable(),
+})
+
+export type AdminPaymentsPage = z.infer<typeof AdminPaymentsPage>
+
+export type PaymentFilters = {
+  status?: PaymentStatus
+  cursor?: string
+  limit?: number
+}
+
+/**
+ * Liste paginée des paiements de location (transactions citoyennes).
+ * Scope multi-tenant côté API : admin = sa commune, super_admin = tout.
+ */
+export async function fetchAdminPayments(filters: PaymentFilters = {}): Promise<AdminPaymentsPage> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.cursor) params.set('cursor', filters.cursor)
+  if (filters.limit) params.set('limit', String(filters.limit))
+
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/admin/payments${qs ? `?${qs}` : ''}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['payments'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return AdminPaymentsPage.parse(await res.json())
 }
 
 export class ApiError extends Error {

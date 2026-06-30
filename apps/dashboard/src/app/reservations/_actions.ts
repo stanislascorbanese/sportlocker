@@ -10,7 +10,6 @@ import {
   type ReservationExportFilters,
   type ReservationStatus,
 } from '../../lib/api'
-import { DEMO_RESERVATIONS } from '../../lib/demo-data'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -65,7 +64,7 @@ export async function exportReservationsCsvAction(
     if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
       // Fallback démo — on génère un CSV à partir des fixtures pour que
       // l'utilisateur puisse au moins voir le format même sans token valide.
-      const csv = demoCsv(filters)
+      const csv = await demoCsv(filters)
       return { ok: true, csv, filename, source: 'demo' }
     }
     return { ok: false, error: err instanceof Error ? err.message : 'Erreur inconnue.' }
@@ -81,7 +80,9 @@ function csvCell(v: string | number | null | undefined): string {
   return s
 }
 
-function demoCsv(filters: ReservationExportFilters): string {
+async function demoCsv(filters: ReservationExportFilters): Promise<string> {
+  // Lazy-load demo-data uniquement dans ce chemin de fallback (code-splitting serveur).
+  const { DEMO_RESERVATIONS } = await import('../../lib/demo-data')
   const filtered = DEMO_RESERVATIONS.filter((r) => {
     if (filters.status && r.status !== filters.status) return false
     if (filters.distributorId && r.distributor.id !== filters.distributorId) return false

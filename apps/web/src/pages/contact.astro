@@ -18,7 +18,7 @@ import { SITE } from '@/data/site'
           <span class="tag tag-brand inline-block mb-6" data-reveal>Contact</span>
           <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
             Parlons<br/>
-            <span class="text-brand-500">de votre projet.</span>
+            <span class="text-brand-400">de votre projet.</span>
           </h1>
           <p class="text-white/65 leading-relaxed font-light mb-9" data-reveal data-reveal-delay="2">
             Décrivez-nous votre site, vos objectifs et votre timing. On revient sous 24h ouvrées
@@ -27,37 +27,39 @@ import { SITE } from '@/data/site'
 
           <div class="space-y-5 text-sm" data-reveal data-reveal-delay="3">
             <div class="flex gap-3 items-start">
-              <span class="text-brand-500 mt-0.5 text-base">⏱</span>
+              <span class="text-brand-400 mt-0.5 text-base">⏱</span>
               <div>
                 <div class="font-medium text-white mb-0.5">Réponse sous 24h ouvrées</div>
-                <div class="text-white/50 font-light">Par email + appel court si pertinent.</div>
+                <div class="text-white/60 font-light">Par email + appel court si pertinent.</div>
               </div>
             </div>
             <div class="flex gap-3 items-start">
-              <span class="text-brand-500 mt-0.5 text-base">📋</span>
+              <span class="text-brand-400 mt-0.5 text-base">📋</span>
               <div>
                 <div class="font-medium text-white mb-0.5">Devis sans engagement</div>
-                <div class="text-white/50 font-light">Aucune obligation, aucune relance pénible.</div>
+                <div class="text-white/60 font-light">Aucune obligation, aucune relance pénible.</div>
               </div>
             </div>
             <div class="flex gap-3 items-start">
-              <span class="text-brand-500 mt-0.5 text-base">📍</span>
+              <span class="text-brand-400 mt-0.5 text-base">📍</span>
               <div>
                 <div class="font-medium text-white mb-0.5">Visite de site offerte</div>
-                <div class="text-white/50 font-light">Île-de-France et région proche. Ailleurs : visioconférence en attendant le pilote.</div>
+                <div class="text-white/60 font-light">Île-de-France et région proche. Ailleurs : visioconférence en attendant le pilote.</div>
               </div>
             </div>
             <div class="flex gap-3 items-start">
-              <span class="text-brand-500 mt-0.5 text-base">✉</span>
+              <span class="text-brand-400 mt-0.5 text-base">✉</span>
               <div>
                 <div class="font-medium text-white mb-0.5">Préférez l'email direct ?</div>
-                <a href={`mailto:${SITE.email}`} class="text-brand-500 hover:underline font-medium">{SITE.email}</a>
+                <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline font-medium">{SITE.email}</a>
               </div>
             </div>
           </div>
         </div>
 
-        <ContactForm />
+        <div id="formulaire" class="scroll-mt-28">
+          <ContactForm />
+        </div>
       </div>
     </div>
   </section>

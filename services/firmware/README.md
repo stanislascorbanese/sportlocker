@@ -37,12 +37,22 @@ src/sportlocker_firmware/
 | `DEVICE_ID`          | oui    | UUID du distributeur (matché côté API)     |
 | `DEVICE_API_KEY`     | oui    | clé d'authent device → API REST            |
 | `JWT_DEVICE_SECRET`  | oui    | secret HS256 partagé avec app + API        |
-| `MQTT_URL`           | non    | par défaut `mqtt://localhost:1883`         |
+| `MQTT_URL`           | non    | `mqtt://host:1883` (clair) ou `mqtts://host:8883` (TLS, prod EMQX) |
 | `MQTT_USERNAME`      | non    |                                            |
 | `MQTT_PASSWORD`      | non    |                                            |
+| `MQTT_CA_CERT_PATH`  | oui si `mqtts://` | chemin du CA cert pour valider le broker — bundlé par le Dockerfile à `/etc/sportlocker/emqxsl-ca.crt` |
 | `LOCKER_COUNT`       | non    | par défaut 8                               |
 | `CALIBRATION_PATH`   | non    | `/etc/sportlocker/calibration.json`        |
 | `FIRMWARE_DB_PATH`   | non    | `/var/lib/sportlocker/agent.db`            |
+
+### TLS broker (prod EMQX Cloud)
+
+En prod, le distributeur parle au broker EMQX serverless en TLS sur 8883.
+Le CA cert public (`services/firmware/emqxsl-ca.crt`) est bundlé dans l'image
+Balena et lu par paho via `tls_set(ca_certs=...)`. Sans ce check, un attaquant
+sur le réseau du Pi pourrait usurper le broker et déclencher `cmd/open` sur
+n'importe quel locker — d'où l'échec explicite de `MQTTClient.connect` si on
+demande `mqtts://` sans CA.
 
 `calibration.json` mappe `lockerId → pin BCM` :
 
@@ -74,6 +84,78 @@ DEVICE_ID=dev-local DEVICE_API_KEY=k JWT_DEVICE_SECRET=s \
   python -m sportlocker_firmware
 ```
 
+## Démo / dev sans Raspberry Pi physique
+
+Quand on ne dispose pas d'un Pi (démos commerciales, dev local, CI E2E), la
+stack `docker-compose.dev.yml` lance Mosquitto + un container `firmware-sim`
+qui exécute exactement le même agent Python mais sans GPIO ni caméra
+(fail-soft transparent).
+
+```bash
+# 1. Boot la stack (postgres + redis + mosquitto + firmware-sim)
+docker compose -f infra/docker/docker-compose.dev.yml up -d
+
+# 2. Optionnel : observer tout le trafic MQTT en parallèle
+docker run --rm --network host eclipse-mosquitto:2 \
+  mosquitto_sub -h localhost -p 1883 -v -t 'sportlocker/#'
+
+# 3. Simuler un scan QR — mint un JWT device et publie sur cmd/open.
+#    Le firmware-sim reçoit, vérifie la signature, "ouvre" le casier
+#    (pulse GPIO simulé), et publie l'event signé en retour.
+python -m sportlocker_firmware.tools.demo_unlock \
+  --broker mqtt://localhost:1883 \
+  --secret dev-jwt-device-secret-change-me \
+  --device 00000000-0000-0000-0000-000000000000 \
+  --locker 11111111-1111-1111-1111-111111111111
+```
+
+Les UUIDs `00000000-…` (device) et `11111111-…` à `44444444-…` (lockers) sont
+ceux pré-câblés dans `infra/docker/firmware-sim/calibration.json` — adapte-les
+pour matcher les vrais UUIDs de ta base si tu joues le scénario E2E avec
+l'API en sus.
+
+Pour obtenir juste le JWT (sans publier sur le broker, ex. pour le coller
+dans Postman ou debug API) :
+
+```bash
+python -m sportlocker_firmware.tools.demo_unlock \
+  --secret dev-jwt-device-secret-change-me \
+  --device 00000000-0000-0000-0000-000000000000 \
+  --locker 11111111-1111-1111-1111-111111111111 \
+  --print-only
+```
+
+⚠️ **N'utilise jamais cette CLI avec le vrai secret prod en argument bash** :
+il finit dans l'historique shell. En prod, le JWT device est minté par
+l'app citoyenne (et par l'API pour les forces-unlock opérateur), jamais par
+ce tool.
+
+### E2E complet API + DB (regression test)
+
+`demo_unlock` (ci-dessus) teste juste le couple firmware ↔ broker. Pour
+valider la chaîne **citoyen → API → MQTT → firmware → MQTT → API → DB**
+en une commande :
+
+```bash
+# One-shot : docker up, seed, scan, extend, return, vérifie, cleanup.
+./scripts/e2e-firmware-sim.sh
+
+# Variante : garde les containers up à la fin pour debug interactif.
+./scripts/e2e-firmware-sim.sh --keep-running
+```
+
+Le script orchestre :
+1. Docker compose (postgres + mosquitto + firmware-sim x86)
+2. Schema + migrations + truncate
+3. `pnpm --filter @sportlocker/api db:seed-fw-sim` (distributeur fixe
+   `00000000-…` + 4 casiers `11111111-…`, `22222222-…`, etc.)
+4. API en arrière-plan avec `MQTT_SUBSCRIBER_ENABLED=true` et le même
+   `JWT_DEVICE_SECRET` que le firmware-sim
+5. `POST /v1/dev/simulate-scan` → vérifie résa → `active`
+6. `PATCH /v1/reservations/:id/extend` → vérifie `due_at +1h`
+7. `POST /v1/reservations/:id/return` → vérifie résa → `returned`
+8. Audit `locker_events` = `[opened, extended, returned]`
+
 ## Déploiement Balena
 
 ```bash
@@ -94,11 +176,19 @@ volume `/var/lib/sportlocker` persiste le SQLite entre redémarrages.
 
 ## Topics MQTT
 
-| Topic                                  | Sens  | QoS | Description                          |
-|----------------------------------------|-------|-----|--------------------------------------|
-| `sportlocker/{deviceId}/heartbeat`     | pub   | 0   | toutes les 60s (uptime, CPU, mem)    |
-| `sportlocker/{deviceId}/event`         | pub   | 1   | unlock, return, fault — signé HMAC   |
-| `sportlocker/{deviceId}/cmd`           | sub   | 1   | reservation_push, force_unlock, ...  |
+| Topic                                  | Sens  | QoS | Retain | Description                                              |
+|----------------------------------------|-------|-----|--------|----------------------------------------------------------|
+| `sportlocker/{deviceId}/heartbeat`     | pub   | 0   | non    | toutes les 30s (uptime, CPU, mem)                        |
+| `sportlocker/{deviceId}/status`        | pub   | 1   | oui    | `{"online": bool}` — LWT armé pour les coupures brutales |
+| `sportlocker/{deviceId}/event`         | pub   | 1   | non    | unlock, return, fault — signé HMAC                       |
+| `sportlocker/{deviceId}/cmd/+`         | sub   | 1   | non    | sous-topics : `open` (force-unlock), …                   |
+
+### Commande `cmd/open`
+
+Payload attendu : `{"token": "<jwt>"}`. Le firmware applique le même chemin
+de sécurité que pour un QR scanné en local (HS256 + anti-replay + cohérence
+locker + cache réservation). Permet au backend de déclencher une ouverture
+distante (réservation poussée, force-unlock par opérateur).
 
 Format d'un event signé :
 

@@ -17,6 +17,7 @@ import structlog
 from pyzbar import pyzbar
 
 from .locker_ctrl import LockerController
+from .mqtt_client import MQTTClient
 
 log = structlog.get_logger(__name__)
 
@@ -24,15 +25,31 @@ DEDUP_WINDOW_SECONDS = 1.0
 
 
 class QRReader:
-    def __init__(self, *, mqtt, controller: LockerController, device_secret: str) -> None:
-        # device_secret est conservé pour compatibilité de signature, mais le
-        # controller s'occupe désormais de la vérification JWT.
+    def __init__(
+        self,
+        *,
+        mqtt: MQTTClient | None,
+        controller: LockerController,
+        device_secret: str,
+    ) -> None:
+        # mqtt et device_secret sont conservés pour compatibilité de signature
+        # (cf. agent.py et tests historiques), mais le controller s'occupe
+        # désormais de la vérification JWT et de la publication MQTT signée.
         del mqtt, device_secret
         self._controller = controller
         self._recent_decoded: dict[str, float] = {}
 
     async def run(self) -> None:
-        cap = cv2.VideoCapture(0)
+        cap = self._open_camera()
+        if cap is None:
+            # Pas de caméra (dev local, container sans /dev/video0, CI…).
+            # On dort indéfiniment au lieu de boucler à vide : les autres
+            # tâches asyncio (mqtt, heartbeat, cmd/open) continuent normalement
+            # et l'injection de QR peut se faire via MQTT cmd/open.
+            log.warning("qr_camera_unavailable_idle_mode")
+            await asyncio.Event().wait()
+            return
+
         try:
             while True:
                 ok, frame = cap.read()
@@ -44,6 +61,22 @@ class QRReader:
                 await asyncio.sleep(0.05)
         finally:
             cap.release()
+
+    @staticmethod
+    def _open_camera() -> object | None:
+        try:
+            cap = cv2.VideoCapture(0)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("qr_camera_open_failed", err=str(exc))
+            return None
+        try:
+            if not cap.isOpened():
+                cap.release()
+                return None
+        except Exception as exc:  # noqa: BLE001
+            log.warning("qr_camera_isopened_failed", err=str(exc))
+            return None
+        return cap
 
     def _on_qr_seen(self, qr_data: str) -> None:
         now = time.monotonic()

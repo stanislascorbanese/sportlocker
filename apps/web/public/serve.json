@@ -3,6 +3,16 @@
   "trailingSlash": false,
   "headers": [
     {
+      "source": "**",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), browsing-topics=()" }
+      ]
+    },
+    {
       "source": "**/*.@(html)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
@@ -15,9 +25,15 @@
       ]
     },
     {
-      "source": "**/*.@(svg|woff2|woff|png|jpg|jpeg|webp)",
+      "source": "**/*.@(woff2|woff)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" }
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "**/*.@(svg|png|jpg|jpeg|webp)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=86400" }
       ]
     }
   ],

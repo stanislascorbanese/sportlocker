@@ -18,5 +18,40 @@ services:
     ports:
       - '6379:6379'
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: sportlocker-mosquitto
+    ports:
+      - '1883:1883'
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  firmware-sim:
+    build:
+      # Contexte = racine repo (idem Railway) — voir commentaire en tête
+      # de Dockerfile.sim. Permet le même Dockerfile pour Compose + Railway.
+      context: ../..
+      dockerfile: services/firmware/Dockerfile.sim
+    container_name: sportlocker-firmware-sim
+    depends_on:
+      - mosquitto
+    environment:
+      DEVICE_ID: '00000000-0000-0000-0000-000000000000'
+      DEVICE_API_KEY: dev-key
+      # 32+ chars (le schéma Zod côté API exige min 32). Le même secret doit
+      # être utilisé côté API quand on lance l'E2E (cf. README firmware).
+      JWT_DEVICE_SECRET: dev-jwt-device-secret-change-me-32+
+      MQTT_URL: mqtt://mosquitto:1883
+      CALIBRATION_PATH: /etc/sportlocker/calibration.json
+      FIRMWARE_DB_PATH: /var/lib/sportlocker/agent.db
+    volumes:
+      - ./firmware-sim/calibration.json:/etc/sportlocker/calibration.json:ro
+      - firmware_sim_data:/var/lib/sportlocker
+
 volumes:
   pg_data:
+  mosquitto_data:
+  mosquitto_log:
+  firmware_sim_data:

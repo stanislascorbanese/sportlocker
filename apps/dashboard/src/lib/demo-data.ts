@@ -1,7 +1,7 @@
 import type {
-  AdminUser, AuditEvent, Commune, DailyPoint, Item, ItemTypeAdmin,
-  MaintenanceTicket, Reservation, ReservationDetail, ReservationEvent,
-  StatsDashboard,
+  AdminUser, AuditEvent, Commune, DailyPoint, DistributorDetail,
+  Item, ItemTypeAdmin, MaintenanceTicket, Reservation, ReservationDetail,
+  ReservationEvent, StatsDashboard,
 } from './api'
 
 /**
@@ -879,4 +879,95 @@ export function demoAuditEvents(): AuditEvent[] {
     event(280,  'returned',    'firmware', 0, 0, { onTime: false, lateMinutes: 12 },             'thomas.lefebvre@example.fr'),
     event(360,  'reserved',    'api',      2, 2, { itemTypeId: 'bbb...frisbee' },                'leila.benali@example.fr'),
   ]
+}
+
+// ─── Distributor detail (page /distributors/[id]) ───────────────────────────
+
+/**
+ * Détail fictif d'un distributeur — utilisé quand l'API admin est indispo
+ * sur la page /distributors/[id]. Couvre la majorité des états de casier
+ * pour pouvoir vérifier le rendu de la grille.
+ *
+ * L'id passé doit matcher un id présent dans DEMO_DISTRIBUTORS sinon on
+ * fabrique un détail générique 6 casiers.
+ */
+export function demoDistributorDetail(id: string): DistributorDetail {
+  const known = DEMO_DISTRIBUTORS.find((d) => d.id === id)
+  const name         = known?.name         ?? 'Distributeur démo'
+  const serialNumber = known?.serialNumber ?? 'SL-DEMO-000'
+
+  const ballonBasket = DEMO_ITEM_TYPES[0]!
+  const raquette     = DEMO_ITEM_TYPES[1]!
+  const ballonFoot   = DEMO_ITEM_TYPES[3]!
+
+  return {
+    id,
+    serialNumber,
+    name,
+    status: 'online',
+    communeId: DEMO_COMMUNE_ID,
+    lockerCount: 6,
+    idleLockers: 3,
+    latitude: 48.8566,
+    longitude: 2.3522,
+    addressLine: '12 rue de la République, 75011 Paris',
+    batteryPercent: null,
+    lastSeenAt: isoMinutesAgo(2),
+    lockers: [
+      {
+        id: 'a1111111-1111-1111-1111-111111111110',
+        position: 0,
+        state: 'idle',
+        currentItemId: 'c0bbbbbb-1111-1111-1111-aaaaaaaaaaa1',
+        itemType: {
+          id: ballonBasket.id, slug: ballonBasket.slug, name: ballonBasket.name,
+          category: ballonBasket.category, imageUrl: ballonBasket.imageUrl,
+        },
+      },
+      {
+        id: 'a1111111-1111-1111-1111-111111111111',
+        position: 1,
+        state: 'idle',
+        currentItemId: 'c0bbbbbb-4444-4444-4444-aaaaaaaaaaa1',
+        itemType: {
+          id: ballonFoot.id, slug: ballonFoot.slug, name: ballonFoot.name,
+          category: ballonFoot.category, imageUrl: ballonFoot.imageUrl,
+        },
+      },
+      {
+        id: 'a1111111-1111-1111-1111-111111111112',
+        position: 2,
+        state: 'active',
+        currentItemId: 'c0bbbbbb-2222-2222-2222-aaaaaaaaaaa1',
+        itemType: {
+          id: raquette.id, slug: raquette.slug, name: raquette.name,
+          category: raquette.category, imageUrl: raquette.imageUrl,
+        },
+      },
+      {
+        id: 'a1111111-1111-1111-1111-111111111113',
+        position: 3,
+        state: 'reserved',
+        currentItemId: 'c0bbbbbb-1111-1111-1111-aaaaaaaaaaa2',
+        itemType: {
+          id: ballonBasket.id, slug: ballonBasket.slug, name: ballonBasket.name,
+          category: ballonBasket.category, imageUrl: ballonBasket.imageUrl,
+        },
+      },
+      {
+        id: 'a1111111-1111-1111-1111-111111111114',
+        position: 4,
+        state: 'idle',
+        currentItemId: null,
+        itemType: null,
+      },
+      {
+        id: 'a1111111-1111-1111-1111-111111111115',
+        position: 5,
+        state: 'fault',
+        currentItemId: null,
+        itemType: null,
+      },
+    ],
+  }
 }

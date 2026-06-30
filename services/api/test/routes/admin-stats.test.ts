@@ -7,7 +7,7 @@
  * TRUNCATE entre tests). On valide :
  *   - le bon comportement de `generate_series` (jours sans data à 0)
  *   - le scoping multi-tenant (admin commune A ne voit que ses distributeurs)
- *   - l'agrégat byStatus toujours complet (les 6 statuts)
+ *   - l'agrégat byStatus toujours complet (les 8 statuts)
  *   - le tri topDistributors (count DESC, name ASC)
  *   - la validation Zod (days hors range → 400)
  *   - l'auth (sans token → 401)
@@ -357,8 +357,8 @@ describe('GET /v1/admin/stats/dashboard', () => {
     expect(Array.isArray(body.hourly)).toBe(true)
   })
 
-  it('byStatus contient TOUS les 6 statuts même si count=0', async () => {
-    // Pas de résa du tout — on doit quand même avoir les 6 entrées
+  it('byStatus contient TOUS les 8 statuts même si count=0', async () => {
+    // Pas de résa du tout — on doit quand même avoir les 8 entrées
     await seedReservationFixtures(pgSql)
     const su = await seedAdminUser('super_admin')
 
@@ -371,7 +371,16 @@ describe('GET /v1/admin/stats/dashboard', () => {
     const body = res.json() as DashboardResponse
     const statuses = body.byStatus.map((s) => s.status).sort()
     expect(statuses).toEqual(
-      ['active', 'cancelled', 'expired', 'overdue', 'pending', 'returned'].sort(),
+      [
+        'active',
+        'cancelled',
+        'expired',
+        'overdue',
+        'pending',
+        'pending_payment',
+        'returned',
+        'scheduled',
+      ].sort(),
     )
     expect(body.byStatus.every((s) => s.count === 0)).toBe(true)
   })
@@ -599,7 +608,7 @@ describe('GET /v1/admin/stats/dashboard', () => {
     const body = res.json() as DashboardResponse
     expect(body.daily).toHaveLength(14)
     expect(body.daily.every((p) => p.count === 0)).toBe(true)
-    expect(body.byStatus).toHaveLength(6)
+    expect(body.byStatus).toHaveLength(8)
     expect(body.byStatus.every((s) => s.count === 0)).toBe(true)
     // topDistributors renvoie les distributeurs même sans résa (LEFT JOIN), count=0
     expect(body.topDistributors.every((d) => d.count === 0)).toBe(true)

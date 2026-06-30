@@ -1,0 +1,79 @@
+{
+  "_comment": "Template d'onboarding tenant — mairie. Voir docs/ONBOARDING-TENANT.md. Tous les champs commentés _* sont ignorés par le script (clés JSON commençant par _).",
+
+  "commune": {
+    "_commune_doc": "Pour une vraie mairie, utiliser le code INSEE officiel à 5 chiffres (https://www.insee.fr/fr/information/2560452).",
+    "insee_code": "33063",
+    "name": "Bordeaux",
+    "postal_code": "33000",
+    "department": "33",
+    "region": "Nouvelle-Aquitaine",
+    "population": 260000,
+    "contact_email": "sports@bordeaux.fr",
+    "contact_phone": "+33 5 56 00 00 00",
+    "contract_start": "2026-06-01",
+    "contract_end": "2029-05-31",
+    "monthly_fee_cents": 42500
+  },
+
+  "_distributors_doc": "Un objet par distributeur physique à déployer. locker_layout = ordre des slugs item_type position par position. La longueur du tableau définit locker_count.",
+  "distributors": [
+    {
+      "serial_number": "SL-BDX-PARC-001",
+      "name": "Parc Bordelais — entrée Tivoli",
+      "latitude": 44.8456,
+      "longitude": -0.5970,
+      "address_line": "Avenue d'Eysines, 33000 Bordeaux",
+      "locker_layout": [
+        "ballon-foot",
+        "ballon-foot",
+        "ballon-basket",
+        "ballon-basket",
+        "raquette-tennis",
+        "raquette-tennis",
+        "frisbee",
+        "frisbee"
+      ]
+    },
+    {
+      "serial_number": "SL-BDX-LACS-001",
+      "name": "Plaine des Sports du Lac",
+      "latitude": 44.8869,
+      "longitude": -0.5781,
+      "address_line": "Bd Jacques Chaban-Delmas, 33300 Bordeaux",
+      "locker_layout": [
+        "ballon-foot",
+        "ballon-foot",
+        "ballon-basket",
+        "frisbee"
+      ]
+    }
+  ],
+
+  "_pricing_doc": "Grille tarifaire commune × item_type × duration. Inspirée du template 'Communal léger' (apps/web/src/data/site.ts). Une ligne absente = ce slot n'est PAS proposé pour cet item dans cette commune. price_cents = 0 autorisé (slot offert).",
+  "pricing_rules": [
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 30,   "price_cents": 50 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 60,   "price_cents": 100 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 90,   "price_cents": 150 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 120,  "price_cents": 200 },
+    { "item_type_slug": "ballon-foot",     "duration_minutes": 1440, "price_cents": 300 },
+
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 30,   "price_cents": 50 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 60,   "price_cents": 100 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 90,   "price_cents": 150 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 120,  "price_cents": 200 },
+    { "item_type_slug": "ballon-basket",   "duration_minutes": 1440, "price_cents": 300 },
+
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 30,   "price_cents": 100 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 60,   "price_cents": 200 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 90,   "price_cents": 300 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 120,  "price_cents": 400 },
+    { "item_type_slug": "raquette-tennis", "duration_minutes": 1440, "price_cents": 600 },
+
+    { "item_type_slug": "frisbee",         "duration_minutes": 30,   "price_cents": 0 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 60,   "price_cents": 50 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 90,   "price_cents": 50 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 120,  "price_cents": 100 },
+    { "item_type_slug": "frisbee",         "duration_minutes": 1440, "price_cents": 150 }
+  ]
+}

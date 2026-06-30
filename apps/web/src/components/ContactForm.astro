@@ -11,8 +11,8 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
 
     <div class="grid sm:grid-cols-2 gap-4">
       <div>
-        <label for="organization" class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-2">
-          Nom de votre organisation <span class="text-brand-500">*</span>
+        <label for="organization" class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-2">
+          Nom de votre organisation <span class="text-brand-400">*</span>
         </label>
         <input
           required
@@ -20,13 +20,13 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
           name="organization"
           type="text"
           autocomplete="organization"
-          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
+          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/60 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
           placeholder="Mairie de Saint-Exemple, Camping Les Pins…"
         />
       </div>
       <div>
-        <label for="locality" class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-2">
-          Localité + département <span class="text-brand-500">*</span>
+        <label for="locality" class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-2">
+          Localité + département <span class="text-brand-400">*</span>
         </label>
         <input
           required
@@ -34,15 +34,15 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
           name="locality"
           type="text"
           autocomplete="address-level2"
-          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
+          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/60 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
           placeholder="Saint-Exemple (77)"
         />
       </div>
     </div>
 
     <fieldset>
-      <legend class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-3">
-        Type d'établissement <span class="text-brand-500">*</span>
+      <legend class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-3">
+        Type d'établissement <span class="text-brand-400">*</span>
       </legend>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" data-segment-group>
         {(
@@ -71,7 +71,7 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
     </fieldset>
 
     <div>
-      <label for="distributors" class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-2">
+      <label for="distributors" class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-2">
         Nombre estimé de distributeurs
       </label>
       <select
@@ -90,8 +90,8 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
 
     <div class="grid sm:grid-cols-2 gap-4">
       <div>
-        <label for="email" class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-2">
-          Email décideur <span class="text-brand-500">*</span>
+        <label for="email" class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-2">
+          Email décideur <span class="text-brand-400">*</span>
         </label>
         <input
           required
@@ -99,13 +99,13 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
           name="email"
           type="email"
           autocomplete="email"
-          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
+          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/60 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
           placeholder="contact@saint-exemple.fr"
         />
       </div>
       <div>
-        <label for="phone" class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-2">
-          Téléphone <span class="text-brand-500">*</span>
+        <label for="phone" class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-2">
+          Téléphone <span class="text-brand-400">*</span>
         </label>
         <input
           required
@@ -113,21 +113,21 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
           name="phone"
           type="tel"
           autocomplete="tel"
-          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
+          class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/60 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors"
           placeholder="06 12 34 56 78"
         />
       </div>
     </div>
 
     <div>
-      <label for="message" class="block text-xs uppercase tracking-[0.1em] text-white/50 mb-2">
+      <label for="message" class="block text-xs uppercase tracking-[0.1em] text-white/60 mb-2">
         Message
       </label>
       <textarea
         id="message"
         name="message"
         rows="5"
-        class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors resize-none"
+        class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/60 focus:border-brand-500 focus:outline-none focus:bg-black/40 transition-colors resize-none"
         placeholder="Décrivez votre site, vos sports cibles, votre timing idéal…"
       ></textarea>
     </div>
@@ -206,11 +206,11 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
   if (form && status && submitBtn) {
     const setStatus = (kind: FormStatus, text: string) => {
       status.classList.remove('hidden')
-      status.classList.remove('bg-brand-500/10', 'border', 'border-brand-500/30', 'text-brand-500')
+      status.classList.remove('bg-brand-500/10', 'border', 'border-brand-500/30', 'text-brand-400')
       status.classList.remove('bg-red-500/10', 'border-red-500/30', 'text-red-300')
       status.classList.remove('bg-white/5', 'border-white/10', 'text-white/70')
       if (kind === 'success') {
-        status.classList.add('bg-brand-500/10', 'border', 'border-brand-500/30', 'text-brand-500')
+        status.classList.add('bg-brand-500/10', 'border', 'border-brand-500/30', 'text-brand-400')
       } else if (kind === 'error') {
         status.classList.add('bg-red-500/10', 'border', 'border-red-500/30', 'text-red-300')
       } else {

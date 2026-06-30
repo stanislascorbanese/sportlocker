@@ -28,7 +28,10 @@ export const itemCondition = pgEnum('item_condition', [
   'new', 'good', 'worn', 'damaged', 'lost',
 ])
 export const reservationStatus = pgEnum('reservation_status', [
-  'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
+  'pending_payment', 'scheduled', 'pending', 'active', 'returned', 'overdue', 'cancelled', 'expired',
+])
+export const paymentStatus = pgEnum('payment_status', [
+  'pending', 'succeeded', 'failed', 'cancelled', 'refunded',
 ])
 export const lockerEventType = pgEnum('locker_event_type', [
   'reserved', 'opened', 'closed', 'returned',
@@ -54,6 +57,11 @@ export const communes = pgTable('communes', {
   monthlyFeeCents: integer('monthly_fee_cents').notNull().default(0),
   contactEmail: varchar('contact_email', { length: 180 }),
   contactPhone: varchar('contact_phone', { length: 20 }),
+  // Stripe Connect Express (migration 0013) — onboarding tenant + reversement 75/25.
+  stripeConnectAccountId: varchar('stripe_connect_account_id', { length: 255 }),
+  stripeConnectChargesEnabled: boolean('stripe_connect_charges_enabled').notNull().default(false),
+  stripeConnectPayoutsEnabled: boolean('stripe_connect_payouts_enabled').notNull().default(false),
+  stripeConnectOnboardedAt: timestamp('stripe_connect_onboarded_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -68,6 +76,8 @@ export const users = pgTable('users', {
   communeId: uuid('commune_id').references(() => communes.id, { onDelete: 'set null' }),
   trustScore: smallint('trust_score').notNull().default(100),
   totalReservations: integer('total_reservations').notNull().default(0),
+  // Préférence push (migration 0011) : délai du rappel slot-reminder en min.
+  reminderMinutesBefore: integer('reminder_minutes_before').notNull().default(15),
   isBanned: boolean('is_banned').notNull().default(false),
   bannedReason: text('banned_reason'),
   lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
@@ -167,7 +177,7 @@ export const reservations = pgTable('reservations', {
   lockerId: uuid('locker_id').notNull().references(() => lockers.id, { onDelete: 'restrict' }),
   itemId: uuid('item_id').notNull().references(() => items.id, { onDelete: 'restrict' }),
   distributorId: uuid('distributor_id').notNull().references(() => distributors.id, { onDelete: 'restrict' }),
-  status: reservationStatus('status').notNull().default('pending'),
+  status: reservationStatus('status').notNull().default('scheduled'),
   qrJti: varchar('qr_jti', { length: 64 }).notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   openedAt: timestamp('opened_at', { withTimezone: true }),
@@ -177,6 +187,11 @@ export const reservations = pgTable('reservations', {
   cancellationReason: text('cancellation_reason'),
   dueAt: timestamp('due_at', { withTimezone: true }),
   extensionCount: smallint('extension_count').notNull().default(0),
+  // Modèle slots (migration 0008) — nullable pour les résas legacy.
+  slotStartAt: timestamp('slot_start_at', { withTimezone: true }),
+  slotEndAt: timestamp('slot_end_at', { withTimezone: true }),
+  durationMinutes: integer('duration_minutes'),
+  priceCents: integer('price_cents'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -194,6 +209,13 @@ export const reservations = pgTable('reservations', {
   byStatusCreated: index('idx_reservations_status_created').on(t.status, t.createdAt),
   // Stats dashboard agrégats par distributeur sur fenêtre temporelle.
   byDistributorCreated: index('idx_reservations_distributor_created').on(t.distributorId, t.createdAt),
+  // Check overlap de slot par item pour dispo (migration 0008, index PARTIAL
+  // côté SQL — WHERE status IN ('scheduled','pending','active')). Drizzle 0.30
+  // n'exprime pas le partial, on déclare ici pour le tracking.
+  byItemSlot: index('idx_reservations_item_slot').on(t.itemId, t.slotStartAt, t.slotEndAt),
+  // NB : index UNIQUE PARTIAL idx_reservations_one_live_per_user (migration 0008,
+  // remplace 0005) non déclaré ici — même convention que l'ancien
+  // idx_reservations_one_active_per_user, partial unique non supporté par Drizzle 0.30.
 }))
 
 export const reviews = pgTable('reviews', {
@@ -255,11 +277,77 @@ export const maintenanceTickets = pgTable('maintenance_tickets', {
 export const pushTokens = pgTable('push_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  expoToken: varchar('expo_token', { length: 200 }).notNull().unique(),
+  // Web Push (migration 0010) — endpoint = URL du push service (FCM, Mozilla, Apple).
+  endpoint: varchar('endpoint', { length: 500 }),
+  p256dhKey: varchar('p256dh_key', { length: 200 }),
+  authKey: varchar('auth_key', { length: 50 }),
+  // Vestige Expo Push, nullable depuis 0010. À droper plus tard.
+  expoToken: varchar('expo_token', { length: 200 }),
   deviceInfo: jsonb('device_info').notNull().default(sql`'{}'::jsonb`),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => ({
+  // Unicité partielle gérée côté SQL (WHERE endpoint IS NOT NULL).
+  // Drizzle ne supporte pas la clause WHERE → on déclare juste l'index pour
+  // que drizzle-kit ne propose pas un drop intempestif.
+  byEndpoint: uniqueIndex('idx_push_tokens_endpoint').on(t.endpoint),
+  byUser: index('idx_push_tokens_user').on(t.userId),
+}))
+
+export const pricingRules = pgTable('pricing_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  communeId: uuid('commune_id').notNull().references(() => communes.id, { onDelete: 'cascade' }),
+  itemTypeId: uuid('item_type_id').notNull().references(() => itemTypes.id, { onDelete: 'cascade' }),
+  durationMinutes: integer('duration_minutes').notNull(),
+  priceCents: integer('price_cents').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCommune: index('idx_pricing_rules_commune').on(t.communeId),
+  byItemType: index('idx_pricing_rules_item_type').on(t.itemTypeId),
+  unqTriplet: uniqueIndex('pricing_rules_commune_item_type_duration_uq')
+    .on(t.communeId, t.itemTypeId, t.durationMinutes),
+}))
+
+export const payments = pgTable('payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reservationId: uuid('reservation_id').notNull().unique().references(() => reservations.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  amountCents: integer('amount_cents').notNull(),
+  currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+  status: paymentStatus('status').notNull().default('pending'),
+  // 'stripe' (réel) | 'simulate' (dev offline). Figé à la création selon
+  // PAYMENTS_PROVIDER : un paiement simulé reste confirmable en simulate même
+  // si l'env passe à stripe entre-temps.
+  provider: varchar('provider', { length: 20 }).notNull().default('stripe'),
+  stripePaymentIntentId: varchar('stripe_payment_intent_id', { length: 255 }).unique(),
+  errorMessage: text('error_message'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byStatusCreated: index('idx_payments_status_created').on(t.status, t.createdAt),
+  byUser: index('idx_payments_user').on(t.userId),
+}))
+
+// Recharges du porte-monnaie prépayé (carnet/pass, migration 0017).
+// Solde user = Σ(wallet_topups succeeded) − Σ(payments provider='wallet' succeeded).
+export const walletTopups = pgTable('wallet_topups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),
+  currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+  status: paymentStatus('status').notNull().default('pending'),
+  provider: varchar('provider', { length: 20 }).notNull().default('stripe'),
+  stripePaymentIntentId: varchar('stripe_payment_intent_id', { length: 255 }).unique(),
+  errorMessage: text('error_message'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byUser: index('idx_wallet_topups_user').on(t.userId),
+  byStatusCreated: index('idx_wallet_topups_status').on(t.status, t.createdAt),
+}))
 
 export const notificationLogs = pgTable('notification_logs', {
   id: uuid('id').primaryKey().defaultRandom(),

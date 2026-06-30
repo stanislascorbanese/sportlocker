@@ -79,6 +79,7 @@ def test_run_loop_decodes_frames_from_camera(
 
     # Mock cv2.VideoCapture pour renvoyer une frame une fois puis lever StopAsyncIteration.
     cap = MagicMock()
+    cap.isOpened.return_value = True
     frames = [(True, "frame-1"), (True, "frame-1"), (False, None)]
     cap.read.side_effect = frames + [(False, None)] * 10
     cv2_mod = sys.modules["cv2"]
@@ -106,3 +107,63 @@ def test_run_loop_decodes_frames_from_camera(
 
     controller.handle_unlock.assert_any_call("JWT-X")
     cap.release.assert_called()
+
+
+def test_run_fail_soft_when_camera_unavailable(
+    device_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sans caméra (container sans /dev/video0, dev local…), run doit
+    rester dormant sans crash et sans busy-loop — l'injection se fera
+    via MQTT cmd/open côté agent."""
+    controller = MagicMock()
+
+    cap = MagicMock()
+    cap.isOpened.return_value = False  # caméra absente
+    cv2_mod = sys.modules["cv2"]
+    monkeypatch.setattr(cv2_mod, "VideoCapture", MagicMock(return_value=cap))
+
+    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+
+    async def runner() -> None:
+        task = asyncio.create_task(reader.run())
+        await asyncio.sleep(0.1)
+        # La task doit encore tourner (idle) — pas crashée ni terminée.
+        assert not task.done()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(runner())
+
+    # Le controller ne doit jamais être appelé sans frame.
+    controller.handle_unlock.assert_not_called()
+
+
+def test_run_fail_soft_when_videocapture_raises(
+    device_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Si cv2.VideoCapture lève (libs manquantes, perms…), même comportement
+    fail-soft : on log et on dort, on ne crash pas l'agent."""
+    controller = MagicMock()
+
+    cv2_mod = sys.modules["cv2"]
+    monkeypatch.setattr(
+        cv2_mod, "VideoCapture", MagicMock(side_effect=RuntimeError("no v4l2"))
+    )
+
+    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+
+    async def runner() -> None:
+        task = asyncio.create_task(reader.run())
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(runner())
+    controller.handle_unlock.assert_not_called()

@@ -33,6 +33,13 @@ import { reviews, users } from '../db/schema.js'
  * Champs touchés sur la table `reviews` (du user concerné) :
  *   - comment           → NULL (texte libre = potentiellement PII)
  *
+ * Table `push_tokens` (du user concerné) :
+ *   - lignes SUPPRIMÉES — `endpoint` + clés `p256dh`/`auth` identifient un
+ *     device de la personne (données personnelles). On ne supprimant pas la
+ *     ligne `users`, le CASCADE ne s'applique pas → suppression explicite ici,
+ *     sinon les abonnements survivent et les crons push cibleraient un user
+ *     « supprimé ».
+ *
  * Le job tourne 1 fois par jour. Idempotent : un user déjà anonymisé
  * (`gdpr_deleted_at IS NOT NULL`) est ignoré.
  *
@@ -67,36 +74,58 @@ export async function runRgpdAnonymize(log: FastifyBaseLogger): Promise<void> {
 
   let anonymized = 0
   let reviewsCleared = 0
+  let pushTokensDeleted = 0
 
   for (const { id } of candidates) {
-    // 1. Pseudonymise le user. On utilise NOW() côté SQL plutôt que de passer
-    //    un objet Date en paramètre — le driver postgres.js ne sait pas le
-    //    sérialiser dans un sql template raw, et NOW() garantit un timestamp
-    //    cohérent entre les deux colonnes sans drift d'horloge appli/DB.
-    await db.execute(sql`
-      UPDATE users
-         SET email           = 'deleted-' || ${id} || '@anonymized.local',
-             firebase_uid    = 'deleted-' || ${id},
-             display_name    = NULL,
-             phone           = NULL,
-             banned_reason   = NULL,
-             last_active_at  = NULL,
-             gdpr_deleted_at = NOW(),
-             updated_at      = NOW()
-       WHERE id = ${id}::uuid
-    `)
-    anonymized++
+    // Les 3 statements sont atomiques par candidat : `gdpr_deleted_at` n'est
+    // committé QUE si la purge des reviews ET des push_tokens réussit aussi. En
+    // cas d'échec, le rollback laisse `gdpr_delete_requested_at` intact → le
+    // candidat sera ré-essayé au prochain run, jamais de PII orphelines sous un
+    // user déjà marqué « supprimé ».
+    const { cleared, tokens } = await db.transaction(async (tx) => {
+      // 1. Pseudonymise le user. On utilise NOW() côté SQL plutôt que de passer
+      //    un objet Date en paramètre — le driver postgres.js ne sait pas le
+      //    sérialiser dans un sql template raw, et NOW() garantit un timestamp
+      //    cohérent entre les deux colonnes sans drift d'horloge appli/DB.
+      await tx.execute(sql`
+        UPDATE users
+           SET email           = 'deleted-' || ${id} || '@anonymized.local',
+               firebase_uid    = 'deleted-' || ${id},
+               display_name    = NULL,
+               phone           = NULL,
+               banned_reason   = NULL,
+               last_active_at  = NULL,
+               gdpr_deleted_at = NOW(),
+               updated_at      = NOW()
+         WHERE id = ${id}::uuid
+      `)
 
-    // 2. Efface les commentaires de reviews liés (texte libre = PII potentiel).
-    const cleared = await db.execute<{ id: string }>(sql`
-      UPDATE reviews
-         SET comment = NULL
-       WHERE user_id = ${id}::uuid
-         AND comment IS NOT NULL
-      RETURNING id
-    `)
-    reviewsCleared += cleared.length
+      // 2. Efface les commentaires de reviews liés (texte libre = PII potentiel).
+      const clearedRows = await tx.execute<{ id: string }>(sql`
+        UPDATE reviews
+           SET comment = NULL
+         WHERE user_id = ${id}::uuid
+           AND comment IS NOT NULL
+        RETURNING id
+      `)
+
+      // 3. Supprime les abonnements push (endpoint + clés = données personnelles
+      //    d'un device identifiable). Pas de CASCADE car la ligne users survit →
+      //    suppression explicite, sinon les crons push continueraient à cibler un
+      //    user anonymisé.
+      const tokenRows = await tx.execute<{ id: string }>(sql`
+        DELETE FROM push_tokens
+         WHERE user_id = ${id}::uuid
+        RETURNING id
+      `)
+
+      return { cleared: clearedRows.length, tokens: tokenRows.length }
+    })
+
+    anonymized++
+    reviewsCleared += cleared
+    pushTokensDeleted += tokens
   }
 
-  log.info({ anonymized, reviewsCleared, window }, 'rgpd anonymization done')
+  log.info({ anonymized, reviewsCleared, pushTokensDeleted, window }, 'rgpd anonymization done')
 }

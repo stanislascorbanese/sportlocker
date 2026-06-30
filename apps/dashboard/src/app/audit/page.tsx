@@ -7,51 +7,57 @@ import {
   type AuditEvent,
   type LockerEventType,
 } from '../../lib/api'
-import { demoAuditEvents } from '../../lib/demo-data'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
+import { getLang } from '../../lib/lang-server'
+import type { Lang } from '../../lib/lang'
+import { commonStrings, fmtRelative } from '../../lib/i18n/common'
+import { auditStrings, lockerEventLabel } from '../../lib/i18n/audit'
+import { makeMetadata } from '../../lib/i18n/metadata'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Audit · SportLocker ops' }
+export const generateMetadata = makeMetadata((lang) => auditStrings(lang).metaTitle)
 
 const PAGE_SIZE = 100
 
-const EVENT_STYLE: Record<LockerEventType, { dot: string; label: string }> = {
-  reserved:    { dot: 'bg-sky-400',     label: 'Réservé' },
-  opened:      { dot: 'bg-emerald-400', label: 'Ouverture casier' },
-  closed:      { dot: 'bg-emerald-500', label: 'Fermeture casier' },
-  extended:    { dot: 'bg-amber-400',   label: 'Prolongation' },
-  returned:    { dot: 'bg-zinc-400',    label: 'Retour confirmé' },
-  cancelled:   { dot: 'bg-rose-400',    label: 'Annulé' },
-  expired:     { dot: 'bg-amber-500',   label: 'Expiré' },
-  fault:       { dot: 'bg-orange-500',  label: 'Incident' },
-  maintenance: { dot: 'bg-purple-400',  label: 'Maintenance' },
+// Couleurs des "dots" timeline : volontairement identiques light/dark pour
+// préserver le code visuel (sky = reserved, emerald = open/close, etc.).
+// On joue uniquement sur les surfaces (border/bg) pour adapter le mode.
+const EVENT_DOT: Record<LockerEventType, string> = {
+  reserved:    'bg-sky-400',
+  opened:      'bg-emerald-400',
+  closed:      'bg-emerald-500',
+  extended:    'bg-amber-400',
+  returned:    'bg-zinc-400',
+  cancelled:   'bg-rose-400',
+  expired:     'bg-amber-500',
+  fault:       'bg-orange-500',
+  maintenance: 'bg-purple-400',
 }
 
 const SOURCE_STYLE: Record<string, string> = {
-  admin:    'bg-rose-500/10 border-rose-500/30 text-rose-300',
-  api:      'bg-sky-500/10 border-sky-500/30 text-sky-300',
-  firmware: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
-  system:   'bg-zinc-500/10 border-zinc-500/30 text-zinc-300',
+  admin:
+    'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/30 dark:text-rose-300',
+  api:
+    'bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-500/10 dark:border-sky-500/30 dark:text-sky-300',
+  firmware:
+    'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300',
+  system:
+    'bg-zinc-50 border-zinc-200 text-zinc-700 dark:bg-zinc-500/10 dark:border-zinc-500/30 dark:text-zinc-300',
 }
 
 function sourceClass(src: string): string {
-  return SOURCE_STYLE[src] ?? 'bg-white/5 border-white/10 text-white/70'
+  return (
+    SOURCE_STYLE[src] ??
+    'bg-gray-50 border-gray-200 text-gray-700 dark:bg-white/5 dark:border-white/10 dark:text-white/70'
+  )
 }
 
-function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
+function fmtDateTimeFull(lang: Lang, iso: string): string {
+  return new Date(iso).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-GB', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
-}
-
-function fmtRelative(iso: string): string {
-  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diffSec < 60) return `il y a ${diffSec}s`
-  if (diffSec < 3600) return `il y a ${Math.round(diffSec / 60)}min`
-  if (diffSec < 86_400) return `il y a ${Math.round(diffSec / 3600)}h`
-  return `il y a ${Math.round(diffSec / 86_400)}j`
 }
 
 type SearchParams = {
@@ -94,6 +100,9 @@ export default async function AuditPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const lang = await getLang()
+  const t = auditStrings(lang)
+  const c = commonStrings(lang)
   const eventType = (LOCKER_EVENT_TYPES as readonly string[]).includes(params.eventType ?? '')
     ? (params.eventType as LockerEventType)
     : undefined
@@ -133,8 +142,9 @@ export default async function AuditPage({
   // Avec filtre, on respecte le vrai résultat (vide = "aucun event pour ces filtres").
   const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
 
+  // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const items: AuditEvent[] = useDemo
-    ? demoAuditEvents().filter((e) => {
+    ? (await import('../../lib/demo-data')).demoAuditEvents().filter((e) => {
         if (eventType && e.eventType !== eventType) return false
         if (source && e.source !== source) return false
         if (distributorId && e.distributor.id !== distributorId) return false
@@ -149,47 +159,49 @@ export default async function AuditPage({
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-2xl sm:text-3xl">Audit / Activité</h2>
+            <h2 className="font-display text-2xl text-navy-900 sm:text-3xl dark:text-white">
+              {t.pageTitle}
+            </h2>
             {useDemo && (
-              <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                Démo
+              <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-eyebrow text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                {c.demo}
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-white/55">
-            {items.length} événement{items.length > 1 ? 's' : ''} affiché{items.length > 1 ? 's' : ''}
-            {!useDemo && page?.nextCursor ? ' · pagination disponible' : ''}
-            {useDemo && ' · données fictives — branchez un token admin valide pour voir les vraies'}
+          <p className="mt-1 text-sm text-gray-600 dark:text-white/55">
+            {items.length} {items.length > 1 ? t.eventMany : t.event1} {items.length > 1 ? t.displayedMany : t.displayed1}
+            {!useDemo && page?.nextCursor ? ` · ${t.pagination}` : ''}
+            {useDemo && ` · ${c.demoFootnote}`}
           </p>
         </div>
         <RefreshButton />
       </header>
 
-      <form className="grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-navy-800 p-4 sm:flex sm:flex-wrap sm:items-end">
+      <form className="grid grid-cols-1 gap-3 rounded-card border bg-white p-4 shadow-card sm:flex sm:flex-wrap sm:items-end dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="eventType" className="text-[11px] uppercase tracking-wide text-white/50">Type</label>
+          <label htmlFor="eventType" className="text-eyebrow text-gray-500 dark:text-white/50">{t.type}</label>
           <select
             id="eventType"
             name="eventType"
             defaultValue={eventType ?? ''}
-            className="min-w-[140px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="min-w-[140px] rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Tous</option>
-            {LOCKER_EVENT_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+            <option value="">{c.all}</option>
+            {LOCKER_EVENT_TYPES.map((evt) => (
+              <option key={evt} value={evt}>{lockerEventLabel(lang, evt)}</option>
             ))}
           </select>
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="source" className="text-[11px] uppercase tracking-wide text-white/50">Source</label>
+          <label htmlFor="source" className="text-eyebrow text-gray-500 dark:text-white/50">{t.source}</label>
           <select
             id="source"
             name="source"
             defaultValue={source ?? ''}
-            className="min-w-[140px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="min-w-[140px] rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Toutes</option>
+            <option value="">{t.sourceAll}</option>
             {KNOWN_SOURCES.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
@@ -197,14 +209,14 @@ export default async function AuditPage({
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="distributorId" className="text-[11px] uppercase tracking-wide text-white/50">Distributeur</label>
+          <label htmlFor="distributorId" className="text-eyebrow text-gray-500 dark:text-white/50">{t.distributor}</label>
           <select
             id="distributorId"
             name="distributorId"
             defaultValue={distributorId ?? ''}
-            className="min-w-[200px] rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="min-w-[200px] rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           >
-            <option value="">Tous</option>
+            <option value="">{c.all}</option>
             {distributors.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -212,126 +224,125 @@ export default async function AuditPage({
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="from" className="text-[11px] uppercase tracking-wide text-white/50">Du</label>
+          <label htmlFor="from" className="text-eyebrow text-gray-500 dark:text-white/50">{c.from}</label>
           <input
             id="from"
             name="from"
             type="date"
             defaultValue={from ?? ''}
-            className="rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           />
         </div>
 
         <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <label htmlFor="to" className="text-[11px] uppercase tracking-wide text-white/50">Au</label>
+          <label htmlFor="to" className="text-eyebrow text-gray-500 dark:text-white/50">{c.to}</label>
           <input
             id="to"
             name="to"
             type="date"
             defaultValue={to ?? ''}
-            className="rounded-lg border border-white/10 bg-navy-700 px-2 py-1.5 text-sm text-white"
+            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-navy-900 dark:border-white/10 dark:bg-navy-700 dark:text-white"
           />
         </div>
 
         <button
           type="submit"
-          className="inline-flex items-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:bg-emerald-400"
+          className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-base ease-out-soft hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
         >
-          Filtrer
+          {c.filter}
         </button>
 
         {(eventType || source || distributorId || from || to) && (
           <Link
             href="/audit"
-            className="text-xs text-white/50 underline-offset-2 hover:text-white/80 hover:underline"
+            className="text-xs text-gray-500 underline-offset-2 transition-colors duration-base hover:text-navy-900 hover:underline dark:text-white/50 dark:hover:text-white/80"
           >
-            Réinitialiser
+            {c.reset}
           </Link>
         )}
       </form>
 
       {fetchError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/80">
-          <p className="font-medium">API admin indisponible — affichage en mode démo</p>
-          <p className="mt-1 font-mono text-[11px] text-amber-300/70">{fetchError}</p>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200/80">
+          <p className="font-medium">{c.apiErrorTitle}</p>
+          <p className="mt-1 font-mono text-meta text-amber-700 dark:text-amber-300/70">{fetchError}</p>
         </div>
       )}
 
       {!useDemo && items.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-8 text-center text-sm text-white/55">
-          Aucun événement pour ces filtres.
+        <div className="rounded-card border bg-white p-8 text-center text-sm text-gray-600 shadow-card dark:border-white/10 dark:bg-navy-800 dark:text-white/55 dark:shadow-none">
+          {t.emptyForFilters}
         </div>
       )}
 
       {items.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-navy-800 p-4 sm:p-6">
-          <ol className="space-y-4 border-l-2 border-white/10 pl-5">
+        <div className="rounded-card border bg-white p-4 shadow-card sm:p-6 dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
+          <ol className="space-y-4 border-l-2 border-gray-200 pl-5 dark:border-white/10">
             {items.map((e) => {
-              const style = EVENT_STYLE[e.eventType]
               const hasMeta = Object.keys(e.metadata).length > 0
               return (
                 <li key={e.id} className="relative">
                   <span
                     className={cn(
-                      'absolute -left-[1.7rem] top-1.5 h-3 w-3 rounded-full ring-4 ring-navy-800',
-                      style.dot,
+                      'absolute -left-[1.7rem] top-1.5 h-3 w-3 rounded-full ring-4 ring-white dark:ring-navy-800',
+                      EVENT_DOT[e.eventType],
                     )}
                   />
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="text-sm font-medium text-white">{style.label}</span>
+                    <span className="text-sm font-medium text-navy-900 dark:text-white">{lockerEventLabel(lang, e.eventType)}</span>
                     <span
                       className={cn(
-                        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                        'inline-flex items-center rounded-full border px-2 py-0.5 text-meta font-medium uppercase tracking-wide',
                         sourceClass(e.source),
                       )}
                     >
                       {e.source}
                     </span>
-                    <span className="text-[11px] text-white/40 tabular-nums">{fmtRelative(e.createdAt)}</span>
-                    <span className="text-[11px] text-white/30 tabular-nums">· {fmtDateTime(e.createdAt)}</span>
+                    <span className="text-meta tabular-nums text-gray-500 dark:text-white/40">{fmtRelative(lang, e.createdAt)}</span>
+                    <span className="text-meta tabular-nums text-gray-400 dark:text-white/30">· {fmtDateTimeFull(lang, e.createdAt)}</span>
                   </div>
 
-                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-white/70">
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-gray-700 dark:text-white/70">
                     <span>
-                      <span className="text-white/40">Distributeur </span>
+                      <span className="text-gray-500 dark:text-white/40">{t.rowDistributor} </span>
                       <Link
                         href={`/distributors/${e.distributor.id}/edit`}
-                        className="text-emerald-300 hover:text-emerald-200"
+                        className="text-emerald-700 transition-colors duration-base hover:text-emerald-600 dark:text-emerald-300 dark:hover:text-emerald-200"
                       >
                         {e.distributor.name}
                       </Link>{' '}
-                      <span className="font-mono text-[11px] text-white/40">({e.distributor.serialNumber})</span>
+                      <span className="font-mono text-meta text-gray-500 dark:text-white/40">({e.distributor.serialNumber})</span>
                     </span>
-                    <span className="text-white/40">·</span>
+                    <span className="text-gray-400 dark:text-white/40">·</span>
                     <span>
-                      <span className="text-white/40">Casier </span>
-                      <span className="tabular-nums text-white/80">#{e.locker.position}</span>
+                      <span className="text-gray-500 dark:text-white/40">{t.rowLocker} </span>
+                      <span className="tabular-nums text-navy-900 dark:text-white/80">#{e.locker.position}</span>
                     </span>
                     {e.reservation && (
                       <>
-                        <span className="text-white/40">·</span>
+                        <span className="text-gray-400 dark:text-white/40">·</span>
                         <span>
-                          <span className="text-white/40">Utilisateur </span>
+                          <span className="text-gray-500 dark:text-white/40">{t.rowUser} </span>
                           <Link
                             href={`/users?q=${encodeURIComponent(e.reservation.userEmail)}`}
-                            className="text-emerald-300 hover:text-emerald-200"
+                            className="text-emerald-700 transition-colors duration-base hover:text-emerald-600 dark:text-emerald-300 dark:hover:text-emerald-200"
                           >
                             {e.reservation.userEmail}
                           </Link>
                         </span>
-                        <span className="text-white/40">·</span>
+                        <span className="text-gray-400 dark:text-white/40">·</span>
                         <Link
                           href={`/reservations?detail=${e.reservation.id}`}
-                          className="text-[11px] text-white/60 underline-offset-2 hover:text-white hover:underline"
+                          className="text-meta text-gray-600 underline-offset-2 transition-colors duration-base hover:text-navy-900 hover:underline dark:text-white/60 dark:hover:text-white"
                         >
-                          voir réservation →
+                          {t.rowSeeReservation}
                         </Link>
                       </>
                     )}
                   </div>
 
                   {hasMeta && (
-                    <pre className="mt-2 overflow-x-auto rounded border border-white/5 bg-navy-900/50 p-2 font-mono text-[10px] text-white/55">
+                    <pre className="mt-2 overflow-x-auto rounded border bg-gray-50 p-2 font-mono text-[10px] text-gray-700 dark:border-white/5 dark:bg-navy-900/50 dark:text-white/55">
                       {JSON.stringify(e.metadata, null, 2)}
                     </pre>
                   )}
@@ -346,9 +357,9 @@ export default async function AuditPage({
         <div className="flex justify-end">
           <Link
             href={buildHref(params, { cursor: page.nextCursor })}
-            className="inline-flex items-center rounded-lg border border-white/15 bg-navy-800 px-3 py-1.5 text-sm text-white/80 transition hover:border-white/30 hover:text-white"
+            className="inline-flex items-center rounded-lg border bg-white px-3 py-1.5 text-sm text-navy-900 transition-colors duration-base ease-out-soft hover:bg-gray-50 dark:border-white/15 dark:bg-navy-800 dark:text-white/80 dark:hover:border-white/30 dark:hover:text-white"
           >
-            Page suivante →
+            {c.nextPage} →
           </Link>
         </div>
       )}

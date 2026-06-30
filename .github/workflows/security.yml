@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout (avec historique pour diff vs main)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # fetch-depth: 0 → tout l'historique. Nécessaire pour que `git diff`
           # voie les commits entre la PR et main (sans ça, depth=1 = juste HEAD).
@@ -60,9 +60,11 @@ jobs:
   # données citoyens.
   #
   # Job HARD : fail la PR si une vuln ≥ high apparaît, hors GHSAs explicitement
-  # tracées dans docs/SECURITY.md (items #14, #15 — chantiers de migration
-  # majors séparés). pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc
-  # le filtrage se fait ici via jq.
+  # tracées dans docs/SECURITY.md. Au 2026-06, UNE seule GHSA ignorée
+  # (GHSA-gv7w-rqvm-qjhr / esbuild — cf. SECURITY.md §9 item #17) : le patch
+  # 0.28.1 casse `astro check`, le fix réel est le bump Astro/Vite à venir.
+  # Toutes les autres vulns ≥ high sont résolues (overrides + upgrades).
+  # pnpm 9 n'applique pas `pnpm.auditConfig.ignoreCves` donc le filtrage via jq.
   #
   # Pour ajouter une exception : la mettre dans `IGNORED_GHSAS` ci-dessous ET
   # créer un item dans docs/SECURITY.md §9 — pas de date silencieuse.
@@ -73,7 +75,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node 20
         uses: actions/setup-node@v6
@@ -92,7 +94,18 @@ jobs:
         env:
           # GHSAs ignorées — chacune doit avoir un item de suivi dans
           # docs/SECURITY.md §9 avec date cible et raison.
-          IGNORED_GHSAS: 'GHSA-wrwg-2hg8-v723 GHSA-jx2c-rxcm-jvmq'
+          # GHSA-gv7w-rqvm-qjhr : esbuild (transitif via Vite/Astro). Seule 0.28.1
+          # patche, mais elle casse `astro check` sur la cible navigateurs actuelle —
+          # le fix réel = bump Astro/Vite (cf. SECURITY.md §9 item #17). Advisory
+          # dev-tooling (intégrité binaire du module Deno via NPM_CONFIG_REGISTRY),
+          # non exploitable au runtime de l'app.
+          # GHSA-8hv8-536x-4wqp / GHSA-2pvr-wf23-7pc7 : astro (XSS slot non échappé /
+          # SSRF Host header sur error page prerender). Patch UNIQUEMENT en Astro 6.x
+          # (>=6.3.3 / >=6.4.6) ; on reste en Astro 5 car 6 exige Node >=22.12 alors
+          # que la CI tourne en Node 20 (cf. §9 #14). Risque réel faible : apps/web est
+          # `output: static` (pas de SSR/slot dynamique côté requête). Fix = migration
+          # Astro 6 + Node 22 (cf. §9 item #18).
+          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
@@ -133,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v6

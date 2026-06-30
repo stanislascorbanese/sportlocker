@@ -114,8 +114,9 @@ variables. La CI échouerait sur un push contenant un secret (cf. §7.4).
 - HSTS : géré par Railway en bordure (`max-age=31536000; includeSubDomains`).
 
 ### 4.2 CORS
-- `@fastify/cors` configuré avec `origin: true` + `credentials: true`.
-- **À durcir en prod** : whitelist explicite des origines (dashboard, app mobile via custom scheme).
+- `@fastify/cors` avec whitelist explicite (variable `CORS_ALLOWED_ORIGINS`, CSV des Origin acceptés, match exact) + `credentials: true`.
+- Les requêtes sans header `Origin` (mobile native, curl, serveur-à-serveur) sont autorisées — CORS ne protège que les navigateurs.
+- Garde-fou au boot : en `NODE_ENV=production`, la liste ne peut pas être vide ni constituée uniquement de loopback (sinon crash bruyant au démarrage de l'API).
 
 ### 4.3 Validation des entrées
 - **Zod** sur 100% des endpoints API (body, query, params).
@@ -264,7 +265,7 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 1 | Rate-limit `/auth/*` (anti-bruteforce) | T2 2026 | 1 j |
 | 2 | CSP stricte côté dashboard (réactiver helmet) | T2 2026 | 2 j |
 | 3 | 2FA TOTP obligatoire pour super-admins | T3 2026 | 3 j |
-| 4 | CORS whitelist explicite (vs `origin: true`) | T2 2026 | 0.5 j |
+| 4 | ~~CORS whitelist explicite (vs `origin: true`)~~ | ✅ **done** — variable d'env `CORS_ALLOWED_ORIGINS` (CSV, match exact), garde-fou prod sur whitelist vide / loopback-only. Voir §4.2. | — |
 | 5 | Postgres Row-Level Security (défense en profondeur multi-tenant) | T3 2026 | 5 j |
 | 6 | Backups manuels hebdo hors Supabase (S3 chiffré) | T2 2026 | 1 j |
 | 7 | ~~`pnpm audit` bloquant en CI + Dependabot~~ | ✅ **done** (PR #67) — cf. §7.4 | — |
@@ -273,9 +274,12 @@ Ce qui n'est **pas encore** en place, par ordre de priorité :
 | 10 | Politique mot de passe Firebase durcie (10 car. min, complexité) | T2 2026 | 0.5 j |
 | 11 | Anonymisation des `audit_logs` après 24 mois | T3 2026 | 1 j |
 | 12 | SOC 2 Type I (si demande mairies > 50k habitants) | 2027 | budget ~40 k€ |
-| 13 | ~~`pnpm.overrides` pour patcher fast-jwt (3 critical), fast-uri (high), @xmldom/xmldom (high) → passer `audit-node` en hard~~ | ✅ **done** — voir `package.json#pnpm.overrides`. Passe de 58 vulns (3 critical, 22 high) à 25 vulns (0 critical, 2 high). 2 GHSAs restantes ignorées en CI via filtre `jq` (items #14, #15). `audit-node` retiré du mode soft. | — |
-| 14 | **Migration `astro` 4 → 5+ pour résoudre `GHSA-wrwg-2hg8-v723` (XSS reflected via server islands, high)** — major bump qui touche `apps/web` (pages, layouts, integrations). Géré en chantier dédié. | T3 2026 | 3 j |
-| 15 | **Migration `fastify` 4 → 5+ pour résoudre `GHSA-jx2c-rxcm-jvmq` (Content-Type bypass, high)** — major bump qui implique de migrer aussi `@fastify/jwt`, `@fastify/cors`, `fastify-type-provider-zod` côté `services/api`. Géré en chantier dédié. | T3 2026 | 5 j |
+| 13 | ~~`pnpm.overrides` pour patcher fast-jwt (3 critical), fast-uri (high), @xmldom/xmldom (high) → passer `audit-node` en hard~~ | ✅ **done** — voir `package.json#pnpm.overrides`. Passe de 58 vulns (3 critical, 22 high) à 25 vulns (0 critical, 2 high). Toutes les GHSAs ≥ high sont désormais résolues (overrides + upgrades `tmp`/`vitest`/`astro`/`fastify`) — `audit-node` retiré du mode soft. _(Maj 2026-06-15 : `IGNORED_GHSAS` n'est plus vide — une exception tracée, cf. item #17.)_ | — |
+| 14 | ~~**Migration `astro` 4 → 5+ pour résoudre `GHSA-wrwg-2hg8-v723` (XSS reflected via server islands, high)**~~ | ✅ **done** — `astro` 4.16 → 5.18.2 (+ `@astrojs/react` 4, `@astrojs/tailwind` 6, `@astrojs/check` 0.9.9) sur `apps/web`. Cible Astro **5** (et non 6, qui exige Node ≥ 22.12 alors que la CI tourne en Node 20) : 5.15.8+ corrige déjà le XSS. GHSA retirée d'`IGNORED_GHSAS`. `astro check` + build vitrine OK. | — |
+| 15 | ~~**Migration `fastify` 4 → 5+ pour résoudre `GHSA-jx2c-rxcm-jvmq` (Content-Type bypass, high)**~~ | ✅ **done** — `fastify` 4.26 → 5.8.5 + plugins majeurs (`@fastify/cors` 11, `helmet` 13, `jwt` 10, `sensible` 6, `swagger` 9, `swagger-ui` 5, `websocket` 11, `fastify-plugin` 5) + `fastify-type-provider-zod` 4 (compatible Fastify 5 **sans** bump zod 4). Breaking changes corrigés : `setErrorHandler` (err typé `FastifyError`), `reply.send(null)` sur 204, codes de réponse déclarés dans le schéma. Tests api **524/524**, typecheck OK. | — |
+| 16 | ~~**Migration `vitest` 1.6 → 4.1+ pour résoudre `GHSA-5xrq-8626-4rwp` (lecture/exécution de fichier arbitraire via le serveur Vitest UI, critical)**~~ | ✅ **done** (PR #239) — `vitest` + `@vitest/coverage-v8` bumpés en `4.1.8`, `vite ^7` ajouté (peer requis), `poolOptions.forks.singleFork` → `maxWorkers` (pool rework v4). GHSA retirée d'`IGNORED_GHSAS` : la vuln est réellement corrigée, plus seulement ignorée. Tests verts : api 485, dashboard 135, citizen 54. | — |
+| 17 | **Bump `esbuild` ≥ 0.28.1 (via Astro/Vite) pour résoudre `GHSA-gv7w-rqvm-qjhr`** (high — intégrité binaire manquante du module Deno, RCE via `NPM_CONFIG_REGISTRY`). **Tracée dans `IGNORED_GHSAS` depuis le 2026-06-15.** `esbuild` est transitif (Vite/Astro, `apps/web`) ; la seule version patchée (0.28.1) casse `astro check`/build sur la cible navigateurs actuelle (« Transforming destructuring … not supported »), donc un override `pnpm` standalone n'est pas viable — le correctif réel passe par une montée Astro/Vite compatibles esbuild 0.28.x (à coordonner avec le triage Dependabot). Risque réel faible : advisory **dev-tooling**, non exploitable au runtime de l'app. À retirer d'`IGNORED_GHSAS` une fois le bump fait. | T3 2026 | 1-2 j |
+| 18 | **Migration `astro` 5 → 6 (+ CI Node ≥ 22.12) pour résoudre `GHSA-8hv8-536x-4wqp` (XSS reflected via slot non échappé) et `GHSA-2pvr-wf23-7pc7` (SSRF Host header sur error page prerender), high.** **Tracées dans `IGNORED_GHSAS` depuis le 2026-06-16.** Patch disponible UNIQUEMENT en Astro 6.x (≥6.3.3 / ≥6.4.6) ; on est resté en Astro 5 (cf. #14) car Astro 6 exige Node ≥ 22.12 alors que la CI tourne en Node 20 — bumper Node en CI est un prérequis. Risque réel faible : `apps/web` est `output: static` (HTML prérendu, pas de SSR ni de slot dynamique piloté par la requête), donc XSS reflected et SSRF runtime non exploitables en prod. À retirer d'`IGNORED_GHSAS` une fois la migration Astro 6 + Node 22 faite. **Blocage identifié 2026-06-22 (tentative reportée) :** le vrai prérequis n'est pas seulement Node 22 — `@astrojs/react` n'a PAS de release stable pour Astro 6 (uniquement `6.0.0-alpha/beta` ; stable = 5.0.7, peer Astro ≤5), or toute la vitrine repose sur des îlots React → migrer mettrait une intégration React **beta en production**. De plus `@astrojs/tailwind` (peer `astro ^3‖^4‖^5`, Tailwind 3 only) ne supporte pas Astro 6 → il faudra recâbler **Tailwind 3 via PostCSS** (éviter une cascade Tailwind 3→4). **Reprendre quand `@astrojs/react` v6 stable est publié**, pas avant : l'écosystème n'est pas mûr et le risque de casser la vitrine dépasse celui des 2 advisories (faible, site statique). L'item #17 (esbuild) sera résolu par la même montée Astro/Vite. | T4 2026 | 2-3 j |
 
 **Politique de transparence** : tout item listé ici sera marqué `done` dans ce document
 au moment du merge de la PR correspondante, avec lien vers le commit. Aucun item ne sera

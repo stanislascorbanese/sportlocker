@@ -2,6 +2,7 @@
 import { Image } from 'astro:assets'
 import logoMark from '@/assets/brand/logo-mark-outline.png'
 import { SITE } from '@/data/site'
+import { COMMUNES } from '@/data/communes'
 const year = new Date().getFullYear()
 ---
 
@@ -12,13 +13,25 @@ const year = new Date().getFullYear()
         <a href="/" class="flex items-center gap-2.5 mb-5" aria-label="SportLocker — accueil">
           <Image src={logoMark} alt="" class="w-10 h-10" width={80} height={80} densities={[1, 2]} loading="lazy" />
           <span class="font-extrabold text-[1.05rem] text-white">
-            Sport<span class="text-brand-500">Locker</span>
+            Sport<span class="text-brand-400">Locker</span>
           </span>
         </a>
-        <p class="text-sm text-white/40 leading-relaxed max-w-[280px] font-light">
+        <p class="text-sm text-white/60 leading-relaxed max-w-[280px] font-light">
           Distributeurs IoT de matériel sportif en libre-service.
           Une infrastructure clé en main pour vos sites.
         </p>
+        <div class="mt-5">
+          <div class="text-xs font-bold uppercase tracking-[0.06em] text-white/80 mb-2.5">
+            Villes desservies
+          </div>
+          <ul class="flex flex-wrap gap-x-3 gap-y-1.5 list-none">
+            {COMMUNES.map((c) => (
+              <li>
+                <a href={`/communes/${c.slug}`} class="link-quiet text-sm">{c.name}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div>
@@ -39,6 +52,7 @@ const year = new Date().getFullYear()
           Société
         </div>
         <ul class="flex flex-col gap-2.5 list-none">
+          <li><a href="/a-propos" class="link-quiet text-sm">À propos</a></li>
           <li><a href="/contact" class="link-quiet text-sm">Contact</a></li>
           <li>
             <a href={`mailto:${SITE.email}`} class="link-quiet text-sm">{SITE.email}</a>
@@ -53,13 +67,15 @@ const year = new Date().getFullYear()
         <ul class="flex flex-col gap-2.5 list-none">
           <li><a href="/mentions-legales" class="link-quiet text-sm">Mentions légales</a></li>
           <li><a href="/confidentialite" class="link-quiet text-sm">Confidentialité</a></li>
+          <li><a href="/cgu" class="link-quiet text-sm">CGU citoyen</a></li>
+          <li><a href="/cgv" class="link-quiet text-sm">CGV opérateurs</a></li>
         </ul>
       </div>
     </div>
 
     <div class="flex flex-wrap justify-between items-center gap-3 pt-8 border-t border-white/10">
-      <div class="text-xs text-white/30">© {year} {SITE.legalName} — Tous droits réservés</div>
-      <div class="text-xs text-white/30">Fait en France</div>
+      <div class="text-xs text-white/60">© {year} {SITE.legalName} — Tous droits réservés</div>
+      <div class="text-xs text-white/60">Fait en France</div>
     </div>
   </div>
 </footer>

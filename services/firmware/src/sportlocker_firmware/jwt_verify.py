@@ -63,6 +63,11 @@ class DeviceClaims:
     user_id: str | None
     exp: int | None
     iat: int | None
+    # Pour les résas du modèle slots (PR 0008), epoch seconds du début du
+    # créneau réservé. Absent (None) pour les résas legacy "immédiat".
+    # Le firmware refuse l'ouverture si ``now < slot_start_at`` à tolérance
+    # d'horloge près (cf. ``locker_ctrl.handle_unlock`` PR 0010).
+    slot_start_at: int | None
 
 
 def verify(token: str, *, device_secret: str, expected_device_id: str) -> DeviceClaims:
@@ -101,6 +106,7 @@ def verify(token: str, *, device_secret: str, expected_device_id: str) -> Device
             f"token_for={claims['distributorId']} this={expected_device_id}",
         )
 
+    raw_slot = claims.get("slotStartAt")
     return DeviceClaims(
         jti=claims["jti"],
         reservation_id=claims["reservationId"],
@@ -109,4 +115,5 @@ def verify(token: str, *, device_secret: str, expected_device_id: str) -> Device
         user_id=claims.get("userId") or claims.get("sub"),
         exp=int(claims["exp"]) if claims.get("exp") is not None else None,
         iat=int(claims["iat"]) if claims.get("iat") is not None else None,
+        slot_start_at=int(raw_slot) if isinstance(raw_slot, (int, float)) else None,
     )

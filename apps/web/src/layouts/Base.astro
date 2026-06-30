@@ -28,14 +28,50 @@ const pageTitle = title.includes(SITE.name) ? title : `${title} — ${SITE.name}
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.url).toString()
 const ogImageUrl = new URL(ogImage, SITE.url).toString()
 
+// Organization enrichi pour les Knowledge Panels Google (logo, contactPoint,
+// areaServed). `sameAs` reste vide tant qu'on n'a pas de profils sociaux
+// officiels — Google préfère un tableau absent à un tableau avec des liens
+// 404. La logo URL doit pointer sur un PNG carré ≥ 112px (recommandation
+// schema.org).
 const orgJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: SITE.legalName,
+  alternateName: SITE.name,
   url: SITE.url,
   email: SITE.email,
   description: SITE.description,
-  sameAs: [],
+  logo: new URL('/favicon-v4.png', SITE.url).toString(),
+  image: new URL(SITE.defaultOgImage, SITE.url).toString(),
+  areaServed: {
+    '@type': 'Country',
+    name: 'France',
+  },
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer service',
+    email: SITE.email,
+    availableLanguage: ['French'],
+  },
+}
+
+// Schema WebSite : aide Google à identifier l'entité « site » (nom, langue,
+// éditeur). Pas de SearchAction (sitelinks searchbox) car la vitrine n'a pas
+// de moteur de recherche interne — déclarer un potentialAction non fonctionnel
+// serait trompeur.
+const webSiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE.name,
+  alternateName: SITE.legalName,
+  url: SITE.url,
+  description: SITE.description,
+  inLanguage: 'fr-FR',
+  publisher: {
+    '@type': 'Organization',
+    name: SITE.legalName,
+    url: SITE.url,
+  },
 }
 
 const pageJsonLd = extraJsonLd.map((schema) => ({
@@ -61,19 +97,45 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={pageTitle} />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:image:alt" content={pageTitle} />
 
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!--
+      Cache-bust favicon : on change le BASENAME du fichier (favicon → favicon-v3),
+      pas un query string `?v=`. Safari indexe les favicons par l'URL de la PAGE,
+      pas par celle de l'icône, donc un `?v=2` ne suffit pas à le forcer à re-fetch
+      (cf. apps/citizen/src/app/layout.tsx, même technique éprouvée sur app/ops).
+      Le `?v=2` historique du 22/05 (recolorisation bleu→vert) laissait Safari sur
+      l'ancien logo bleu. v3 (08/06) = tailles propres + basename neuf.
+      v4 (09/06) : v3 n'affichait que la porte verte (le "S" et le ballon étaient
+      un tracé blanc fantôme, invisible sur fond blanc → tuile écran d'accueil et
+      ligne de résultat Google amputées de la moitié du logo). v4 part des assets
+      de marque pleins : favicons = `logo-mark.png` (marque SL complète, fond
+      transparent, lisible en petit + s'adapte clair/sombre), apple-touch =
+      `logo-icon-filled.png` (tuile vert foncé pleine, idéale écran d'accueil iOS).
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32-v4.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192-v4.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-v4.png" />
+    <link rel="shortcut icon" type="image/png" href="/favicon-32-v4.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v4.png" />
     <meta name="theme-color" content="#0D1B2A" />
 
     <script
       type="application/ld+json"
       set:html={JSON.stringify(orgJsonLd)}
+    />
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(webSiteJsonLd)}
     />
     {pageJsonLd.map((schema) => (
       <script
@@ -103,14 +165,6 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
         { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
       )
       document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el))
-
-      // Sticky nav background on scroll
-      const nav = document.getElementById('nav')
-      const onScroll = () => {
-        if (nav) nav.classList.toggle('nav-scrolled', window.scrollY > 40)
-      }
-      window.addEventListener('scroll', onScroll, { passive: true })
-      onScroll()
     </script>
 
     <style is:global>
@@ -144,14 +198,98 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
         left: 0;
         right: 0;
         z-index: 100;
-        padding: 1.1rem 0;
-        transition: background 0.3s, backdrop-filter 0.3s, border-color 0.3s;
-        border-bottom: 1px solid transparent;
+        padding: 0.9rem 0;
+        background: rgba(13, 27, 42, 0.85);
+        backdrop-filter: blur(16px) saturate(140%);
+        -webkit-backdrop-filter: blur(16px) saturate(140%);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 24px rgba(0, 0, 0, 0.25);
       }
-      #nav.nav-scrolled {
-        background: rgba(13, 27, 42, 0.92);
-        backdrop-filter: blur(16px);
-        border-color: rgba(255, 255, 255, 0.1);
+
+      .nav-link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 8px 12px;
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.65);
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+        transition: color 0.18s ease;
+      }
+      .nav-link:hover {
+        color: #fff;
+      }
+      .nav-link-active {
+        color: #fff;
+      }
+      .nav-link-active::after {
+        content: '';
+        position: absolute;
+        bottom: -4px;
+        left: 12px;
+        right: 12px;
+        height: 2px;
+        border-radius: 2px;
+        background: #1d9e75;
+      }
+
+      .nav-dropdown {
+        position: relative;
+      }
+      .nav-chevron {
+        opacity: 0.7;
+        transition: transform 0.2s ease;
+      }
+      .nav-dropdown:hover .nav-chevron,
+      .nav-dropdown.is-open .nav-chevron {
+        transform: rotate(180deg);
+      }
+      .nav-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        min-width: 280px;
+        background: rgba(13, 27, 42, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 6px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-6px);
+        transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+      }
+      .nav-dropdown:hover .nav-dropdown-menu,
+      .nav-dropdown:focus-within .nav-dropdown-menu,
+      .nav-dropdown.is-open .nav-dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      .nav-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+      }
+      .nav-dropdown-item:hover,
+      .nav-dropdown-item:focus-visible {
+        background: rgba(255, 255, 255, 0.06);
+        outline: none;
+      }
+      .nav-dropdown-item-active {
+        background: rgba(29, 158, 117, 0.1);
+      }
+      .nav-dropdown-item-active:hover {
+        background: rgba(29, 158, 117, 0.16);
       }
     </style>
   </body>
