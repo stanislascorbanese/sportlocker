@@ -1,5 +1,6 @@
 ---
 import Base from '@/layouts/Base.astro'
+import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
 import { SITE } from '@/data/site'
 
 const userSteps = [
@@ -139,6 +140,25 @@ const inclus = [
             <div class="text-[0.7rem] font-mono text-brand-400/70 border-t pt-3" style="border-color:var(--border)">{s.tech}</div>
           </div>
         ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- LA BORNE 3D -->
+  <section class="section">
+    <div class="container-x">
+      <div class="mb-10 max-w-3xl">
+        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté terrain</span>
+        <h2 class="section-title" data-reveal data-reveal-delay="1">
+          La borne installée<br class="hidden sm:block" /> sur vos sites.
+        </h2>
+        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
+          Manipulez-la : faites-la pivoter, ouvrez les portes, lisez les statuts en temps réel —
+          libre, réservé, emprunté, maintenance. Coque acier antivandale IP54, conçue pour rester dehors toute l'année.
+        </p>
+      </div>
+      <div data-reveal data-reveal-delay="3">
+        <LockerDistributor3D />
       </div>
     </div>
   </section>
