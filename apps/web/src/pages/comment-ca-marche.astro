@@ -29,14 +29,6 @@ const userSteps = [
   },
 ]
 
-const specs = [
-  { icon: '🔩', label: 'Coque acier inox 2 mm', detail: 'Antivandalisme, résistance aux chocs' },
-  { icon: '🌧️', label: 'IP54 certifié', detail: 'Fonctionne sous la pluie, entre -10°C et +60°C' },
-  { icon: '📡', label: 'Connecté 4G + cache 24h', detail: 'Carte SIM M2M incluse, fonctionnel hors-ligne' },
-  { icon: '☀️', label: 'Panneau solaire optionnel', detail: 'Autonomie renforcée sur sites isolés' },
-  { icon: '🔲', label: 'Lecteur QR + NFC', detail: 'Double validation, ouverture < 1 seconde' },
-  { icon: '📺', label: 'Écran tactile 7"', detail: 'Interface usager, statuts temps réel' },
-]
 
 const onboarding = [
   {
@@ -147,79 +139,6 @@ const inclus = [
             <div class="text-[0.7rem] font-mono text-brand-400/70 border-t pt-3" style="border-color:var(--border)">{s.tech}</div>
           </div>
         ))}
-      </div>
-    </div>
-  </section>
-
-  <!-- LA BORNE — specs -->
-  <section class="section">
-    <div class="container-x">
-      <div class="grid lg:grid-cols-2 gap-16 items-center">
-        <div>
-          <span class="eyebrow" data-reveal>Le distributeur</span>
-          <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
-            Une borne conçue pour<br/>rester dehors 10 ans.
-          </h2>
-          <p class="section-sub mb-10" data-reveal data-reveal-delay="2">
-            Acier inox antivandalisme, IP54, connectée 4G avec cache offline 24h.
-            Fonctionne sous la pluie, la nuit, sans agent dédié.
-          </p>
-          <div class="grid sm:grid-cols-2 gap-4">
-            {specs.map((s, i) => (
-              <div class="flex gap-3 items-start" data-reveal data-reveal-delay={String((i % 3) + 1)}>
-                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-500/10 border border-brand-500/20 grid place-items-center text-base">
-                  {s.icon}
-                </div>
-                <div>
-                  <div class="font-semibold text-sm mb-0.5" style="color:var(--text-0)">{s.label}</div>
-                  <div class="text-xs font-light" style="color:var(--text-1)">{s.detail}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <!-- Schéma distributeur SVG -->
-        <div class="hidden lg:flex justify-center" data-reveal data-reveal-delay="2" aria-hidden="true">
-          <div class="relative">
-            <div class="absolute inset-0 bg-brand-500/8 rounded-3xl blur-3xl scale-90"></div>
-            <svg viewBox="0 0 260 480" fill="none" xmlns="http://www.w3.org/2000/svg" class="relative w-[220px] h-[400px] drop-shadow-[0_20px_50px_rgba(29,158,117,0.2)]">
-              <rect x="20" y="20" width="220" height="440" rx="16" fill="#111C27" stroke="#1D9E75" stroke-width="1.5"/>
-              <rect x="20" y="20" width="220" height="56" rx="16" fill="#0F6E56"/>
-              <rect x="20" y="56" width="220" height="20" fill="#0F6E56"/>
-              <text x="130" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="18" fill="white" opacity="0.9">SportLocker</text>
-              <rect x="38" y="92" width="184" height="100" rx="8" fill="#0A1520"/>
-              <rect x="38" y="92" width="184" height="100" rx="8" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
-              <rect x="50" y="104" width="80" height="10" rx="3" fill="#1D9E75" opacity="0.7"/>
-              <rect x="50" y="122" width="120" height="8" rx="3" fill="white" opacity="0.15"/>
-              <rect x="50" y="138" width="100" height="8" rx="3" fill="white" opacity="0.1"/>
-              <rect x="152" y="100" width="60" height="60" rx="6" fill="#1D9E75" opacity="0.12" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
-              <rect x="158" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
-              <rect x="176" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
-              <rect x="158" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
-              <rect x="176" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
-              <rect x="158" y="142" width="32" height="4" rx="2" fill="#2BC295" opacity="0.4"/>
-              <rect x="38" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="81" cy="244" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <rect x="134" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1.5" stroke-opacity="0.9"/>
-              <rect x="134" y="210" width="86" height="68" rx="6" fill="#1D9E75" opacity="0.06"/>
-              <circle cx="177" cy="244" r="8" fill="#2BC295" opacity="0.9"/>
-              <path d="M173 244 l3 3 6-6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <rect x="38" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="81" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <rect x="134" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="177" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <rect x="38" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="81" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <rect x="134" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="177" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <circle cx="218" cy="42" r="5" fill="#2BC295"/>
-              <circle cx="218" cy="42" r="5" fill="#2BC295" opacity="0.4">
-                <animate attributeName="r" values="5;10;5" dur="2s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
-              </circle>
-            </svg>
-          </div>
-        </div>
       </div>
     </div>
   </section>
