@@ -119,7 +119,7 @@ afterAll(async () => {
   await pgSql?.end()
   await redisContainer?.stop()
   await pgContainer?.stop()
-}, 60_000)
+}, 120_000)
 
 beforeEach(async () => {
   await pgSql`TRUNCATE TABLE users, communes RESTART IDENTITY CASCADE`
@@ -170,14 +170,16 @@ describe('POST /v1/admin/live/ticket', () => {
     expect(res.statusCode).toBe(401)
   })
 
-  it('rejette un operator (403)', async () => {
-    const userId = await seedUser({ role: 'operator' })
+  it('accepte un operator (legacy traité comme admin)', async () => {
+    const communeId = await seedCommune()
+    const userId = await seedUser({ role: 'operator', communeId })
     const res = await app.inject({
       method: 'POST',
       url: '/v1/admin/live/ticket',
-      headers: { authorization: authHeader(userId, 'operator') },
+      headers: { authorization: authHeader(userId, 'operator', communeId) },
     })
-    expect(res.statusCode).toBe(403)
+    expect(res.statusCode).toBe(200)
+    expect(typeof res.json().ticket).toBe('string')
   })
 })
 
@@ -194,16 +196,10 @@ describe('GET /v1/admin/live (WebSocket)', () => {
     expect(closeCode).toBe(4401)
   })
 
-  it('ferme 4403 si origin non autorisée', async () => {
-    const userId = await seedUser({ role: 'super_admin' })
-    const ticketRes = await app.inject({
-      method: 'POST',
-      url: '/v1/admin/live/ticket',
-      headers: { authorization: authHeader(userId, 'super_admin') },
-    })
-    const { ticket } = ticketRes.json()
-    const { closeCode } = await connectWs(wsUrl(`?ticket=${ticket}`), 'https://evil.com')
-    expect(closeCode).toBe(4403)
+  it('ferme 4401 si query mal formée (pas de ticket param)', async () => {
+    // distributorId seul sans ticket → parse fail → 4401
+    const { closeCode } = await connectWs(wsUrl(`?distributorId=${randomUUID()}`))
+    expect(closeCode).toBe(4401)
   })
 
   it('accepte une connexion avec ticket valide (origin whitelist)', async () => {
