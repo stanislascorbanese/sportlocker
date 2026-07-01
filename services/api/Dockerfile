@@ -39,6 +39,9 @@ COPY packages/types packages/types
 # par le stage runtime (cf. COPY --from=builder /repo/database plus bas).
 COPY database       database
 
+# Compile @sportlocker/types → JS d'abord (runtime dep du dist API)
+RUN pnpm --filter @sportlocker/types build
+
 # Compile TS → JS dans services/api/dist
 RUN pnpm --filter @sportlocker/api build
 
