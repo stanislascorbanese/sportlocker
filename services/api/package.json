@@ -51,7 +51,7 @@
   "devDependencies": {
     "@sportlocker/types": "workspace:*",
     "@testcontainers/postgresql": "^10.9.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.1.0",
     "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^4.1.9",
     "drizzle-kit": "^0.31.10",
