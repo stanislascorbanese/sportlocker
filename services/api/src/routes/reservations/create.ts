@@ -22,6 +22,7 @@ import {
   distributors, itemTypes, items, lockerEvents, lockers, payments, pricingRules, reservations, tokenNonces,
 } from '../../db/schema.js'
 import { signDeviceToken } from '../../lib/jwt-device.js'
+import { emitLockerChange } from '../../lib/live-emit.js'
 import { isPgViolation, PG_ERRORS } from '../../lib/pg-errors.js'
 import {
   computeSlotEnd, NO_SHOW_GRACE_MINUTES, validateSlotRequest,
@@ -217,6 +218,9 @@ export async function reservationCreateRoutes(rawApp: FastifyInstance) {
       if (result.kind === 'commune_mismatch') {
         return reply.code(409).send({ error: 'commune_mismatch' })
       }
+
+      // Casier passé en `reserved` → diffusion temps réel dashboard (post-commit).
+      await emitLockerChange({ db, log: req.log }, lockerId, 'reserved')
 
       const deviceToken = await signDeviceToken({
         reservationId: result.reservation.id,

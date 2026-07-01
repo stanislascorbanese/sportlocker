@@ -29,6 +29,7 @@ import {
   reservations,
 } from '../db/schema.js'
 import { parseSignedEnvelope, verifySignature } from './mqtt-hmac.js'
+import { emitDistributorChange, emitLockerChange } from './live-emit.js'
 
 export interface MqttEventDeps {
   db: DB
@@ -208,6 +209,12 @@ export async function handleDoorUnlocked(
       'mqtt_door_unlocked_applied',
     )
   })
+
+  // Diffusion temps réel post-commit (best-effort, ne throw jamais). On émet
+  // aussi sur un rejeu idempotent : la cellule est simplement remplacée par un
+  // état identique côté dashboard — inoffensif et sans branche conditionnelle
+  // fragile à maintenir en synchro avec les early-returns de la transaction.
+  await emitLockerChange(deps, event.lockerId, 'opened')
 }
 
 // ─── /heartbeat ────────────────────────────────────────────────────────────
@@ -250,6 +257,11 @@ export async function handleHeartbeat(
     return false
   }
 
+  // Un heartbeat arrive périodiquement (télémétrie) : on ne diffuse un event
+  // "distributeur" QUE si le statut change réellement (offline → online). Sinon
+  // on inonderait le bus/dashboard à chaque battement.
+  let cameOnline = false
+
   await deps.db.transaction(async (tx) => {
     const [dist] = await tx
       .select({ id: distributors.id, status: distributors.status })
@@ -260,6 +272,7 @@ export async function handleHeartbeat(
       deps.log.warn({ deviceId: hb.deviceId }, 'mqtt_heartbeat_unknown_device')
       return
     }
+    cameOnline = dist.status !== 'online' && dist.status !== 'maintenance'
 
     await tx.insert(distributorHeartbeats).values({
       distributorId: hb.deviceId,
@@ -280,6 +293,8 @@ export async function handleHeartbeat(
       })
       .where(eq(distributors.id, hb.deviceId))
   })
+
+  if (cameOnline) await emitDistributorChange(deps, hb.deviceId)
   return true
 }
 
@@ -334,6 +349,8 @@ export async function handleStatus(
     { deviceId: st.deviceId, online: st.online, reason: st.reason },
     'mqtt_status_applied',
   )
+  // Transition online/offline explicite (connexion / LWT) → toujours diffusée.
+  await emitDistributorChange(deps, st.deviceId)
   return true
 }
 
