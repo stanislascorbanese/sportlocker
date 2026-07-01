@@ -4,6 +4,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import { env } from '../config/env.js'
 import { db } from '../db/client.js'
 import { lockers, payments, reservations } from '../db/schema.js'
+import { emitLockerChange } from '../lib/live-emit.js'
 import { NO_SHOW_GRACE_MINUTES } from '../lib/slots.js'
 
 /**
@@ -90,14 +91,24 @@ export async function runExpireReservations(log: FastifyBaseLogger): Promise<num
   // s'exécuter sur tous (sans WHERE state) : un casier déjà idle reste idle,
   // un casier reserved (legacy) devient idle. Inoffensif sur active/fault
   // car on filtre côté query :
+  let freedLockerIds: string[] = []
   if (expired.length > 0) {
-    await db
+    const freed = await db
       .update(lockers)
       .set({ state: 'idle', lastStateAt: now, updatedAt: now })
       .where(and(
         inArray(lockers.id, expired.map((r) => r.lockerId)),
         eq(lockers.state, 'reserved'),
       ))
+      .returning({ id: lockers.id })
+    freedLockerIds = freed.map((l) => l.id)
+  }
+
+  // Diffusion temps réel des casiers effectivement libérés (best-effort, ne
+  // throw jamais — voir [[live-emit]]). Hors transaction : l'UPDATE est déjà
+  // committé, on reflète l'état réel.
+  for (const lockerId of freedLockerIds) {
+    await emitLockerChange({ db, log }, lockerId, 'expired')
   }
 
   if (expired.length > 0) log.info({ count: expired.length }, 'expired reservations released')

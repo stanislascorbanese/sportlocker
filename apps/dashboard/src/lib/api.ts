@@ -1187,6 +1187,32 @@ export async function fetchAdminPayments(filters: PaymentFilters = {}): Promise<
   return AdminPaymentsPage.parse(await res.json())
 }
 
+// ─── Temps réel (WebSocket) — mint de ticket ─────────────────────────────
+
+export const LiveTicket = z.object({
+  ticket: z.string(),
+  ttlSeconds: z.number().int().positive(),
+})
+
+export type LiveTicket = z.infer<typeof LiveTicket>
+
+/**
+ * Échange le cookie de session (httpOnly, illisible côté browser) contre un
+ * ticket court permettant d'ouvrir le flux WebSocket `/v1/admin/live`.
+ * Appelée server-side uniquement (via la route Next `/api/live-ticket`), car
+ * elle a besoin du Bearer. Le client la déclenche à chaque (re)connexion —
+ * un ticket est mono-usage et expire vite.
+ */
+export async function fetchLiveTicket(): Promise<LiveTicket> {
+  const res = await fetch(`${API_URL}/v1/admin/live/ticket`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return LiveTicket.parse(await res.json())
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
     super(`API ${status}: ${detail}`)

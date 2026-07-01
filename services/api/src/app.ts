@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import sensible from '@fastify/sensible'
+import websocket from '@fastify/websocket'
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod'
 
 import { env } from './config/env.js'
@@ -36,6 +37,7 @@ import { adminStripeConnectRoutes } from './routes/admin-stripe-connect.js'
 import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 import { stripeWebhookRoutes } from './routes/stripe-webhook.js'
 import { webhooksStripeRoutes } from './routes/webhooks-stripe.js'
+import { adminLiveRoutes } from './routes/admin-live.js'
 import { devRoutes } from './routes/dev.js'
 
 export async function buildApp() {
@@ -94,6 +96,11 @@ export async function buildApp() {
   await app.register(swaggerPlugin)
   await app.register(authPlugin)
   await app.register(mqttSubscriberPlugin)
+  // WebSocket temps réel dashboard — doit être enregistré avant les routes qui
+  // utilisent `{ websocket: true }` (cf. adminLiveRoutes). maxPayload borne les
+  // frames entrants : ce flux est unidirectionnel (serveur → client), aucun
+  // message client volumineux légitime.
+  await app.register(websocket, { options: { maxPayload: 16 * 1024 } })
 
   // Hook Sentry sur Fastify : capture les erreurs non gérées + les requêtes
   // pour le tracing perf. No-op si SENTRY_DSN absent (cf. sentry.ts).
@@ -148,6 +155,7 @@ export async function buildApp() {
   await app.register(adminPricingRuleRoutes,  { prefix: '/v1/admin/pricing-rules' })
   await app.register(adminPaymentRoutes,      { prefix: '/v1/admin/payments' })
   await app.register(adminStripeConnectRoutes, { prefix: '/v1/admin/stripe-connect' })
+  await app.register(adminLiveRoutes,         { prefix: '/v1/admin/live' })
   await app.register(webhooksStripeRoutes,    { prefix: '/v1/webhooks' })
 
   // Routes de dev/simulation — register UNIQUEMENT hors production.

@@ -10,6 +10,7 @@ import {
   distributors, itemTypes, items, lockerEvents, lockers, reservations, users,
 } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
+import { emitLockerChange } from '../lib/live-emit.js'
 
 const ReservationAdminDTO = z.object({
   id: z.string().uuid(),
@@ -513,7 +514,7 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
         metadata: { reason },
       })
 
-      return { kind: 'ok' as const }
+      return { kind: 'ok' as const, freedLockerId: existing.lockerId }
     })
 
     if (result.kind === 'not_found') {
@@ -522,6 +523,9 @@ export async function adminReservationRoutes(rawApp: FastifyInstance) {
     if (result.kind === 'already_terminal') {
       return reply.code(409).send({ error: 'reservation_already_terminal' })
     }
+
+    // Casier libéré (force-cancel opérateur) → diffusion temps réel post-commit.
+    await emitLockerChange({ db, log: req.log }, result.freedLockerId, 'cancelled')
 
     // Re-fetch via la route detail pour renvoyer le DTO complet (avec events updated)
     const [r] = await db
