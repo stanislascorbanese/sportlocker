@@ -27,7 +27,7 @@
     "@sportlocker/types": "workspace:*",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.1.0",
     "@types/pdfkit": "^0.17.6",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
