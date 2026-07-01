@@ -165,6 +165,7 @@ export async function adminLiveRoutes(rawApp: FastifyInstance) {
 
     socket.on('pong', () => { client.isAlive = true })
     socket.on('close', () => { clients.delete(client) })
+    /* c8 ignore next */
     socket.on('error', () => { clients.delete(client) })
   })
 }

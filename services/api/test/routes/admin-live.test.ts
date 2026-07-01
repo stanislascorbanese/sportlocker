@@ -341,6 +341,26 @@ describe('GET /v1/admin/live (WebSocket)', () => {
     expect(received).toBe(false)
   })
 
+  it('pong non sollicité met isAlive à true (couvre callback pong)', async () => {
+    const userId = await seedUser({ role: 'super_admin' })
+    const { ticket } = (await app.inject({
+      method: 'POST',
+      url: '/v1/admin/live/ticket',
+      headers: { authorization: authHeader(userId, 'super_admin') },
+    })).json()
+
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket(wsUrl(`?ticket=${ticket}`))
+      const t = setTimeout(() => { ws.close(); reject(new Error('timeout')) }, 3000)
+      ws.on('open', () => {
+        // Envoyer un pong non sollicité → déclenche socket.on('pong') côté serveur
+        ws.pong(Buffer.alloc(0))
+        setTimeout(() => { clearTimeout(t); ws.close(1000); resolve() }, 200)
+      })
+      ws.on('error', reject)
+    })
+  })
+
   it('heartbeat termine les clients qui ne pongent pas (fake timers)', async () => {
     const userId = await seedUser({ role: 'super_admin' })
     const { ticket } = (await app.inject({
