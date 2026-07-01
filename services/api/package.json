@@ -53,6 +53,8 @@
     "@testcontainers/postgresql": "^10.9.0",
     "@types/node": "^26.1.0",
     "@types/web-push": "^3.6.4",
+    "@types/ws": "^8.5.14",
+    "ws": "^8.18.2",
     "@vitest/coverage-v8": "^4.1.9",
     "drizzle-kit": "^0.31.10",
     "pino-pretty": "^11.0.0",
