@@ -74,8 +74,8 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@sportlocker/types':
         specifier: workspace:*
@@ -159,8 +159,8 @@ importers:
         specifier: ^2.4.2
         version: 2.4.2(react@18.3.1)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@sportlocker/types':
         specifier: workspace:*
@@ -268,8 +268,8 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
 
   services/api:
     dependencies:
@@ -317,7 +317,7 @@ importers:
         version: 5.1.0
       fastify-type-provider-zod:
         specifier: ^4.0.2
-        version: 4.0.2(fastify@5.9.0)(zod@3.25.76)
+        version: 4.0.2(fastify@5.9.0)(zod@4.4.3)
       firebase-admin:
         specifier: ^12.1.0
         version: 12.7.0
@@ -343,8 +343,8 @@ importers:
         specifier: ^3.6.7
         version: 3.6.7
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@sportlocker/types':
         specifier: workspace:*
@@ -11980,8 +11980,8 @@ snapshots:
       '@babel/parser': 7.29.7
       eslint: 8.57.1
       hermes-parser: 0.25.1
-      zod: 3.25.76
-      zod-validation-error: 4.0.2(zod@3.25.76)
+      zod: 4.4.3
+      zod-validation-error: 4.0.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -12203,12 +12203,12 @@ snapshots:
 
   fastify-plugin@6.0.0: {}
 
-  fastify-type-provider-zod@4.0.2(fastify@5.9.0)(zod@3.25.76):
+  fastify-type-provider-zod@4.0.2(fastify@5.9.0)(zod@4.4.3):
     dependencies:
       '@fastify/error': 4.2.0
       fastify: 5.9.0
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.2(zod@4.4.3)
 
   fastify@5.9.0:
     dependencies:
@@ -16145,6 +16145,10 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  zod-to-json-schema@3.25.2(zod@4.4.3):
+    dependencies:
+      zod: 4.4.3
+
   zod-to-ts@1.2.0(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       typescript: 5.9.3
@@ -16155,9 +16159,9 @@ snapshots:
       zod: 3.25.76
     optional: true
 
-  zod-validation-error@4.0.2(zod@3.25.76):
+  zod-validation-error@4.0.2(zod@4.4.3):
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
   zod@3.25.76: {}
 
