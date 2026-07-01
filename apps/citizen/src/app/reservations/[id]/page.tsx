@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, Clock, MapPin, Package, Plus, X } from 'lucide-react'
+import { CalendarClock, Clock, MapPin, Package, Plus, WifiOff, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
@@ -161,6 +161,15 @@ function ReservationContent({
         <PaymentStep reservation={r} />
       ) : (
         <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+          {r.offline && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full bg-navy-900/5 px-3 py-1 text-meta font-medium text-navy-900/70"
+              role="status"
+            >
+              <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('reservation.page.offline_badge')}
+            </span>
+          )}
           <QRCodeSVG
             value={r.qrToken ?? ''}
             size={256}
@@ -171,6 +180,11 @@ function ReservationContent({
           <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
             {(r.qrToken ?? '').slice(0, 32)}…
           </p>
+          {r.offline && (
+            <p className="max-w-[256px] text-center text-meta text-navy-900/50">
+              {t('reservation.page.offline_hint')}
+            </p>
+          )}
         </section>
       )}
 
