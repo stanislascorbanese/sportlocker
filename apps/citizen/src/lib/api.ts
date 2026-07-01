@@ -15,6 +15,11 @@ import {
 } from '@sportlocker/types'
 
 import { getFirebaseAuth } from './firebase'
+import {
+  clearOfflineReservation,
+  persistOrClearOfflineReservation,
+  readOfflineReservation,
+} from './offline-reservation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
 
@@ -45,6 +50,10 @@ export const ReservationActive = z.object({
   slotEndAt: z.string().datetime().nullable().optional(),
   durationMinutes: z.number().int().nullable().optional(),
   priceCents: z.number().int().nullable().optional(),
+  // Marqueur transient (jamais envoyé par l'API) : `true` quand cette résa est
+  // servie depuis le cache local hors-ligne (cf. offline-reservation.ts). Sert
+  // à afficher le badge « hors-ligne » sur la page QR.
+  offline: z.boolean().optional(),
 })
 export type ReservationActive = z.infer<typeof ReservationActive>
 
@@ -429,9 +438,27 @@ export async function fetchMyReservations(): Promise<ReservationHistoryItem[]> {
 
 export async function fetchActiveReservation(): Promise<ReservationActive | null> {
   try {
-    return await apiFetch(`/v1/reservations/active`, ReservationActive)
+    const res = await apiFetch(`/v1/reservations/active`, ReservationActive)
+    // Met à jour (ou purge) le cache offline du QR à chaque fetch réussi.
+    persistOrClearOfflineReservation(res)
+    return res
   } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null
+    if (err instanceof ApiError && err.status === 404) {
+      clearOfflineReservation()
+      return null
+    }
+    // Échec réseau (`fetch` lève un TypeError) ou navigateur hors-ligne : on
+    // sert le dernier QR mis en cache s'il est encore valide, pour que le
+    // citoyen en zone blanche puisse ouvrir son casier déjà réservé/payé. Une
+    // vraie erreur applicative (ApiError non-404, ZodError en ligne) continue
+    // de remonter pour ne pas masquer un bug.
+    const offline =
+      err instanceof TypeError
+      || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    if (offline) {
+      const cached = readOfflineReservation()
+      if (cached) return { ...cached, offline: true }
+    }
     throw err
   }
 }
