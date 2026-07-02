@@ -20,6 +20,7 @@ import { db } from '../../db/client.js'
 import {
   itemTypes, items, lockerEvents, lockers, payments, reservations,
 } from '../../db/schema.js'
+import { emitLockerChange } from '../../lib/live-emit.js'
 
 import {
   CANCEL_CUTOFF_MIN, MAX_EXTENSIONS, toDto, type DbTx,
@@ -68,7 +69,7 @@ export async function reservationLifecycleRoutes(rawApp: FastifyInstance) {
     // (ou un test relisant la résa sur une autre connexion) pouvait alors voir
     // l'ancien statut `pending` juste après avoir reçu `{ ok: true }`.
     type CancelResult =
-      | { code: 200; body: { ok: true } }
+      | { code: 200; body: { ok: true }; freedLockerId?: string | undefined }
       | { code: 404 | 409; body: { error: string } }
 
     const result = await db.transaction(async (tx: DbTx): Promise<CancelResult> => {
@@ -113,14 +114,20 @@ export async function reservationLifecycleRoutes(rawApp: FastifyInstance) {
       // Le casier physique n'est lock que pour les résas `pending`
       // (POST /v1/reservations). Les `scheduled`/`pending_payment` ne réservent
       // que l'item (snapshot) — le casier reste idle.
-      if (existing.status === 'pending') {
+      const freedLockerId = existing.status === 'pending' ? existing.lockerId : undefined
+      if (freedLockerId) {
         await tx.update(lockers)
           .set({ state: 'idle', lastStateAt: new Date(), updatedAt: new Date() })
-          .where(eq(lockers.id, existing.lockerId))
+          .where(eq(lockers.id, freedLockerId))
       }
 
-      return { code: 200, body: { ok: true as const } }
+      return { code: 200, body: { ok: true as const }, freedLockerId }
     })
+
+    // Casier libéré (résa `pending` annulée) → diffusion temps réel post-commit.
+    if (result.code === 200 && result.freedLockerId) {
+      await emitLockerChange({ db, log: req.log }, result.freedLockerId, 'cancelled')
+    }
 
     return reply.code(result.code).send(result.body)
   })
@@ -192,7 +199,7 @@ export async function reservationLifecycleRoutes(rawApp: FastifyInstance) {
         source: 'api',
       })
 
-      return { kind: 'ok' as const, reservation: updated!, wasOverdue }
+      return { kind: 'ok' as const, reservation: updated!, wasOverdue, freedLockerId: existing.lockerId }
     })
 
     if (result.kind === 'not_found') {
@@ -201,6 +208,9 @@ export async function reservationLifecycleRoutes(rawApp: FastifyInstance) {
     if (result.kind === 'not_returnable') {
       return reply.code(409).send({ error: 'reservation_not_returnable' })
     }
+
+    // Casier d'emprunt repassé `idle` → diffusion temps réel post-commit.
+    await emitLockerChange({ db, log: req.log }, result.freedLockerId, 'returned')
 
     return reply.code(200).send({ ...toDto(result.reservation), wasOverdue: result.wasOverdue })
   })
