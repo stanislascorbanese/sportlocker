@@ -1,0 +1,216 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+
+// Page FAQ agrégée : rassemble les questions dispersées sur l'accueil, /tarifs
+// et les pages segment (mairies / campings / hôtels) en un point unique,
+// organisé par thème. Un seul schema FAQPage est émis pour toute la page (via
+// extraJsonLd) — on n'utilise donc PAS le composant Faq.astro ici, car il
+// émettrait un FAQPage par section, ce que Google déconseille (une seule
+// entité FAQPage par URL).
+
+interface FaqEntry {
+  q: string
+  a: string
+}
+interface FaqTheme {
+  id: string
+  label: string
+  eyebrow: string
+  title: string
+  items: FaqEntry[]
+}
+
+const themes: FaqTheme[] = [
+  {
+    id: 'citoyens',
+    label: 'Citoyens & usagers',
+    eyebrow: 'Pour les usagers',
+    title: 'Emprunter du matériel',
+    items: [
+      {
+        q: 'Le service est-il payant pour les usagers ?',
+        a: "Oui — c'est un modèle marketplace. L'inscription à l'app et la consultation des distributeurs sont gratuites. Chaque location est facturée selon la grille fixée par le site (30 min, 1 h, 1 h 30, 2 h ou la journée). Les prix et les durées activées varient d'un site à l'autre.",
+      },
+      {
+        q: 'Comment accéder à un distributeur ?',
+        a: "Via l'app SportLocker (iOS, Android, ou PWA sans installation). Vous choisissez un créneau, payez par carte, Apple Pay ou Google Pay, puis scannez le QR code devant le casier. L'ouverture prend moins d'une seconde.",
+      },
+      {
+        q: 'À quoi sert la caution ?',
+        a: "Une caution est préautorisée sur votre carte bancaire au moment de l'emprunt (30 à 150 € selon le matériel). Ce n'est qu'un hold Stripe — comme une caution de location de voiture — jamais débité si le matériel revient en bon état.",
+      },
+      {
+        q: 'Où puis-je rendre le matériel ?',
+        a: "Dans n'importe quel casier libre du réseau, au plus tard à la fin du créneau réservé. Vous n'êtes pas obligé de revenir au distributeur d'origine.",
+      },
+      {
+        q: "Et si un casier ne s'ouvre pas après paiement ?",
+        a: "C'est un cas de bug technique : SportLocker rembourse intégralement le forfait et libère la caution, dossier résolu sous 24 h. Vous ne portez aucun risque.",
+      },
+    ],
+  },
+  {
+    id: 'communes',
+    label: 'Communes & mairies',
+    eyebrow: 'Pour les élus',
+    title: 'Équiper une commune',
+    items: [
+      {
+        q: 'Quel budget prévoir pour ma commune ?',
+        a: "L'abonnement démarre à 350 € HT/mois/distributeur, tout inclus (matériel, maintenance, support, OTA). Pour une commune de moins de 10 000 habitants avec 1 distributeur, la charge annuelle est de 4 200 € HT — souvent compensée dès le 1er semestre par les recettes de locations.",
+      },
+      {
+        q: 'Quelle est la taille minimale de commune ?',
+        a: "Il n'y a pas de seuil démographique. Ce qui compte : un terrain sportif avec une fréquentation régulière (parc, stade, city-stade, bord de lac). Un terrain avec 20 utilisateurs/jour suffit à rentabiliser le service.",
+      },
+      {
+        q: 'Peut-on obtenir une subvention DSIL ou DETR ?',
+        a: "Oui, le projet est éligible à la DSIL, à la DETR (zones rurales) et aux dotations ANS pour les équipements sportifs innovants. SportLocker fournit un dossier-type prêt à déposer en préfecture.",
+      },
+      {
+        q: 'La procédure de marché public est-elle complexe ?',
+        a: "Non. En dessous de 40 000 € HT, c'est une procédure adaptée. Nous fournissons le dossier-type (CCAP, CCTP, devis) prêt à signer.",
+      },
+      {
+        q: 'Le service est-il gratuit pour les habitants ?',
+        a: "Non — c'est un modèle marketplace. L'inscription et la consultation sont gratuites ; chaque location est facturée selon la grille que vous fixez. Vous gardez 75 % du chiffre d'affaires généré, SportLocker prend 25 %.",
+      },
+    ],
+  },
+  {
+    id: 'campings-hotels',
+    label: 'Campings & hôtels',
+    eyebrow: 'Pour les opérateurs',
+    title: 'Générer des revenus',
+    items: [
+      {
+        q: 'Combien puis-je gagner par saison ?',
+        a: "Avec 200 campeurs/jour en haute saison, 20 % d'utilisation à 3 € la session en moyenne : environ 3 000 € de recettes brutes sur 3 mois, dont 2 250 € reversés au site. Le simulateur de la page tarifs donne une projection personnalisée.",
+      },
+      {
+        q: 'Qui paie le matériel sportif initial ?',
+        a: "Le matériel est fourni et renouvelé par SportLocker dans le cadre de l'abonnement. Vous ne payez rien en dehors de l'abonnement mensuel. Une caution Stripe préautorisée couvre les dégradations côté usager.",
+      },
+      {
+        q: 'Le service fonctionne-t-il toute l\'année ?',
+        a: "Oui, mais le modèle est optimisé pour la saison estivale. Pour les sites à fermeture hivernale, l'abonnement peut être suspendu hors saison (condition à convenir lors du devis).",
+      },
+      {
+        q: 'Quel positionnement pour un hôtel 4★ / 5★ ?',
+        a: "Le matériel haut de gamme est inclus dans l'abonnement (raquettes Wilson, équipement de marque). Le template « Standing 4★ / 5★ » propose une grille cohérente avec un positionnement premium. Engagement standard 24 mois.",
+      },
+      {
+        q: 'Peut-on offrir le service à des clients VIP ?',
+        a: "Oui — une option « code promo » dans le dashboard permet de générer un code débloquant une ou plusieurs locations gratuites pour un client (vous absorbez alors la commission SportLocker).",
+      },
+    ],
+  },
+  {
+    id: 'technique',
+    label: 'Technique & exploitation',
+    eyebrow: 'Exploitation',
+    title: 'Maintenance & contrat',
+    items: [
+      {
+        q: 'Qui intervient en cas de panne ?',
+        a: "SportLocker assure la télésurveillance 24/7. 80 % des incidents se règlent à distance. Pour les pannes physiques, un technicien intervient sous 48 à 72 h ouvrées. Aucune action requise de votre part.",
+      },
+      {
+        q: 'Comment je récupère ma part des locations ?',
+        a: "Reversement automatique en J+2 sur votre compte bancaire via Stripe Connect Express. Suivi en temps réel depuis votre dashboard SportLocker, sans comptabilité manuelle.",
+      },
+      {
+        q: 'Quel est le délai de mise en service ?',
+        a: "De la signature à la mise en service : 4 à 6 semaines en moyenne. Cela inclut la fabrication, la livraison, l'installation et la formation de votre responsable.",
+      },
+      {
+        q: 'Pourquoi un engagement de 24 / 36 mois ?',
+        a: "Le distributeur coûte 6 à 9 k€ à fabriquer. Pour proposer un prix mensuel raisonnable sans gros CAPEX initial, le coût est amorti sur la durée du contrat.",
+      },
+      {
+        q: 'Le matériel est-il à nous à la fin de l\'engagement ?',
+        a: "Non. SportLocker reste propriétaire du distributeur (pour pouvoir intervenir, remplacer, monitorer). À la fin du contrat : retrait, renouvellement ou option de rachat sur devis.",
+      },
+      {
+        q: 'Y a-t-il une remise pour les déploiements multi-sites ?',
+        a: "Au-delà de 5 distributeurs simultanés, une dégressivité tarifaire est négociable. À partir de 10, on inclut un module de stats avancées et un account manager dédié.",
+      },
+    ],
+  },
+]
+
+// Un seul FAQPage pour toute la page — concatène toutes les questions.
+const faqPageJsonLd = {
+  '@type': 'FAQPage',
+  mainEntity: themes.flatMap((theme) =>
+    theme.items.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  ),
+}
+---
+
+<Base
+  title="FAQ — Questions fréquentes sur SportLocker"
+  description="Toutes les réponses sur SportLocker : fonctionnement pour les usagers, budget et subventions pour les communes, revenus pour les campings et hôtels, maintenance et contrat."
+  extraJsonLd={[faqPageJsonLd]}
+>
+  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-brand inline-block mb-6" data-reveal>FAQ</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
+          Vos questions,<br/>
+          <span class="text-brand-400">nos réponses.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light" data-reveal data-reveal-delay="2">
+          Tout ce qu'on nous demande, regroupé par profil. Une question qui reste ?
+          <a href="/contact#formulaire" class="text-brand-400 hover:underline">Écrivez-nous</a> —
+          réponse sous 24h ouvrées.
+        </p>
+
+        <!-- Ancres de navigation par thème -->
+        <nav class="mt-8 flex flex-wrap gap-2.5" aria-label="Thèmes de la FAQ" data-reveal data-reveal-delay="3">
+          {themes.map((theme) => (
+            <a href={`#${theme.id}`} class="tag tag-white hover:text-white hover:border-white/40 transition-colors">
+              {theme.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </div>
+  </section>
+
+  {themes.map((theme, ti) => (
+    <section id={theme.id} class={`section scroll-mt-28 ${ti % 2 === 0 ? 'bg-navy-800' : 'bg-navy-900'}`}>
+      <div class="container-x">
+        <div class="text-center mb-12">
+          <span class="eyebrow" data-reveal>{theme.eyebrow}</span>
+          <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">{theme.title}</h2>
+        </div>
+        <div class="flex flex-col gap-3 max-w-3xl mx-auto">
+          {theme.items.map((item) => (
+            <details data-reveal class="group card-dark px-6 py-5 open:bg-white/[0.06] transition-colors">
+              <summary class="flex justify-between items-center cursor-pointer list-none font-medium text-white text-[0.95rem]">
+                <span>{item.q}</span>
+                <span class="text-brand-400 text-xl transition-transform group-open:rotate-45 select-none" aria-hidden="true">+</span>
+              </summary>
+              <p class="mt-3 text-sm text-white/65 leading-relaxed font-light">{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  ))}
+
+  <FinalCta
+    title="Une question sans réponse ?"
+    sub="15 minutes pour cadrer votre projet, sans engagement. On revient vers vous sous 24h ouvrées."
+    primary={{ href: '/contact#formulaire', label: 'Poser ma question' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+  />
+</Base>

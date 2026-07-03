@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import Faq from '@/components/Faq.astro'
 import ContactForm from '@/components/ContactForm.astro'
+import StickyCta from '@/components/StickyCta.astro'
 import { SITE, buildSegmentSchemas } from '@/data/site'
 
 const benefits = [
@@ -92,6 +93,7 @@ const schemas = buildSegmentSchemas('mairie')
 <Base
   title="SportLocker pour les mairies — Distributeurs sportifs en libre-service"
   description="Équipez vos terrains sportifs communaux avec des distributeurs IoT 24/7. Zéro personnel, zéro CAPEX, éligible DSIL/DETR. Mise en service en 4 semaines."
+  ogImage="/og/mairies.png"
   extraJsonLd={schemas}
 >
   <!-- HERO MAIRIES -->
@@ -314,10 +316,12 @@ const schemas = buildSegmentSchemas('mairie')
             </div>
           </div>
         </div>
-        <ContactForm />
+        <ContactForm segment="mairie" />
       </div>
     </div>
   </section>
+
+  <StickyCta href="/contact?type=mairie#formulaire" />
 </Base>
 
 <style>
