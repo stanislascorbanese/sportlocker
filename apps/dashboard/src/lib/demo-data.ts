@@ -710,6 +710,8 @@ export const DEMO_ITEMS: Item[] = [
 export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd01',
+    isAuto: false,
+    openedBy: { id: '88888888-8888-8888-8888-888888888888', email: 'ops@sportlocker.fr', displayName: 'Ops Console' },
     status: 'open',
     severity: 5,
     title: 'Casier #3 bloqué — verrou ne s\'ouvre plus',
@@ -723,6 +725,8 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   },
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd02',
+    isAuto: true,
+    openedBy: null,
     status: 'open',
     severity: 3,
     title: 'Lecteur QR encrassé',
@@ -736,6 +740,8 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   },
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd03',
+    isAuto: false,
+    openedBy: { id: '88888888-8888-8888-8888-888888888888', email: 'ops@sportlocker.fr', displayName: 'Ops Console' },
     status: 'open',
     severity: 2,
     title: 'Étiquette d\'identification décollée',
@@ -749,6 +755,8 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   },
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd04',
+    isAuto: true,
+    openedBy: null,
     status: 'in_progress',
     severity: 4,
     title: 'Heartbeat manquant depuis 12h',
@@ -762,6 +770,8 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   },
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd05',
+    isAuto: false,
+    openedBy: { id: '88888888-8888-8888-8888-888888888888', email: 'ops@sportlocker.fr', displayName: 'Ops Console' },
     status: 'in_progress',
     severity: 3,
     title: 'Calibration RFID dérive',
@@ -775,6 +785,8 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   },
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd06',
+    isAuto: true,
+    openedBy: null,
     status: 'resolved',
     severity: 4,
     title: 'Panneau solaire encrassé — batterie à 22%',
@@ -788,6 +800,8 @@ export const DEMO_MAINTENANCE_TICKETS: MaintenanceTicket[] = [
   },
   {
     id: 'dddddddd-dddd-dddd-dddd-dddddddddd07',
+    isAuto: false,
+    openedBy: { id: '88888888-8888-8888-8888-888888888888', email: 'ops@sportlocker.fr', displayName: 'Ops Console' },
     status: 'wontfix',
     severity: 1,
     title: 'Bruit léger ventilation Raspberry Pi',
