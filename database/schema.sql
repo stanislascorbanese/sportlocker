@@ -372,6 +372,10 @@ CREATE TABLE maintenance_tickets (
   description     TEXT,
   resolution_note TEXT,
   resolved_at     TIMESTAMPTZ,
+  -- Fil de commentaires internes + journal des transitions de statut.
+  -- JSONB append-only, toujours lus avec le ticket (cf. migration 0020).
+  comments        JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status_history  JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

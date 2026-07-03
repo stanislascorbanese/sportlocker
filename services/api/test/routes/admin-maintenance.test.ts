@@ -481,3 +481,278 @@ describe('PATCH /v1/admin/maintenance-tickets/:id', () => {
     expect(res.statusCode).toBe(400)
   })
 })
+
+// ─── Helpers additionnels (détail : casier/article/ouvreur) ─────────────────
+
+async function seedLockerFor(distributorId: string): Promise<string> {
+  const id = randomUUID()
+  await pgSql`INSERT INTO lockers (id, distributor_id, position, state)
+    VALUES (${id}, ${distributorId}, ${Math.floor(Math.random() * 60)}, 'idle')`
+  return id
+}
+
+async function seedItemRow(): Promise<string> {
+  const typeId = randomUUID()
+  const itemId = randomUUID()
+  await pgSql`INSERT INTO item_types (id, slug, name, category)
+    VALUES (${typeId}, ${'type-' + typeId.slice(0, 8)}, ${'Type ' + typeId.slice(0, 4)}, 'ball')`
+  await pgSql`INSERT INTO items (id, item_type_id, rfid_tag)
+    VALUES (${itemId}, ${typeId}, ${'RFID-' + itemId.slice(0, 8)})`
+  return itemId
+}
+
+async function seedTicketFull(opts: {
+  distributorId: string
+  lockerId?: string | null
+  itemId?: string | null
+  openedBy?: string | null
+  status?: MaintStatus
+  severity?: number
+  title?: string
+}): Promise<string> {
+  const id = randomUUID()
+  await pgSql`INSERT INTO maintenance_tickets
+    (id, distributor_id, locker_id, item_id, opened_by, status, severity, title)
+    VALUES (${id}, ${opts.distributorId}, ${opts.lockerId ?? null}, ${opts.itemId ?? null},
+            ${opts.openedBy ?? null}, ${opts.status ?? 'open'}, ${opts.severity ?? 3},
+            ${opts.title ?? 'Ticket ' + id.slice(0, 4)})`
+  return id
+}
+
+// ─── GET / — flag isAuto & openedBy ─────────────────────────────────────────
+
+describe('GET /v1/admin/maintenance-tickets — isAuto & openedBy', () => {
+  it('opened_by NULL → isAuto=true, openedBy=null ; renseigné → isAuto=false', async () => {
+    const c = await seedCommune('AutoFlag')
+    const opener = await seedUser({ role: 'admin', communeId: c.id, email: 'opener@test.local' })
+    await seedTicketFull({ distributorId: c.distributorId, openedBy: null, severity: 5, title: 'Auto' })
+    await seedTicketFull({ distributorId: c.distributorId, openedBy: opener.id, severity: 4, title: 'Humain' })
+    const su = await seedUser({ role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/maintenance-tickets/',
+      headers: { authorization: authHeader(su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    const items = (res.json() as {
+      items: { title: string; isAuto: boolean; openedBy: { email: string } | null }[]
+    }).items
+    const auto = items.find((i) => i.title === 'Auto')!
+    const human = items.find((i) => i.title === 'Humain')!
+    expect(auto.isAuto).toBe(true)
+    expect(auto.openedBy).toBeNull()
+    expect(human.isAuto).toBe(false)
+    expect(human.openedBy?.email).toBe('opener@test.local')
+  })
+})
+
+// ─── GET /:id — détail ──────────────────────────────────────────────────────
+
+describe('GET /v1/admin/maintenance-tickets/:id', () => {
+  it('renvoie casier + article liés, fils vides au départ', async () => {
+    const c = await seedCommune('Detail')
+    const lockerId = await seedLockerFor(c.distributorId)
+    const itemId = await seedItemRow()
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId, lockerId, itemId })
+    const su = await seedUser({ role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: authHeader(su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as {
+      locker: { id: string } | null
+      item: { id: string; rfidTag: string } | null
+      comments: unknown[]
+      statusHistory: unknown[]
+    }
+    expect(body.locker?.id).toBe(lockerId)
+    expect(body.item?.id).toBe(itemId)
+    expect(body.comments).toEqual([])
+    expect(body.statusHistory).toEqual([])
+  })
+
+  it('locker/item null si non rattachés', async () => {
+    const c = await seedCommune('DetailBare')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId })
+    const su = await seedUser({ role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: authHeader(su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().locker).toBeNull()
+    expect(res.json().item).toBeNull()
+  })
+
+  it('admin d\'une autre commune → 404', async () => {
+    const a = await seedCommune('A')
+    const b = await seedCommune('B')
+    const adminB = await seedUser({ role: 'admin', communeId: b.id })
+    const ticketId = await seedTicketFull({ distributorId: a.distributorId })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: authHeader(adminB.id, 'admin', b.id) },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('id inexistant → 404', async () => {
+    const su = await seedUser({ role: 'super_admin' })
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/maintenance-tickets/${randomUUID()}`,
+      headers: { authorization: authHeader(su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+})
+
+// ─── Commentaires internes ──────────────────────────────────────────────────
+
+describe('Commentaires — POST/GET /:id/comments', () => {
+  it('POST ajoute un commentaire (auteur dénormalisé), GET le relit', async () => {
+    const c = await seedCommune('Comments')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId })
+    const admin = await seedUser({
+      role: 'admin', communeId: c.id, email: 'bob@test.local', displayName: 'Bob',
+    })
+    const auth = authHeader(admin.id, 'admin', c.id)
+
+    const post = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/maintenance-tickets/${ticketId}/comments`,
+      headers: { authorization: auth },
+      payload: { body: 'Pièce commandée.' },
+    })
+    expect(post.statusCode).toBe(201)
+    const comment = post.json() as { id: string; authorEmail: string; authorName: string | null; body: string }
+    expect(comment.authorEmail).toBe('bob@test.local')
+    expect(comment.authorName).toBe('Bob')
+    expect(comment.body).toBe('Pièce commandée.')
+
+    const get = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/maintenance-tickets/${ticketId}/comments`,
+      headers: { authorization: auth },
+    })
+    expect(get.statusCode).toBe(200)
+    const items = (get.json() as { items: { id: string }[] }).items
+    expect(items).toHaveLength(1)
+    expect(items[0]!.id).toBe(comment.id)
+  })
+
+  it('plusieurs commentaires conservés dans l\'ordre', async () => {
+    const c = await seedCommune('CommentsOrder')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId })
+    const admin = await seedUser({ role: 'admin', communeId: c.id })
+    const auth = authHeader(admin.id, 'admin', c.id)
+
+    for (const body of ['un', 'deux', 'trois']) {
+      const r = await app.inject({
+        method: 'POST',
+        url: `/v1/admin/maintenance-tickets/${ticketId}/comments`,
+        headers: { authorization: auth },
+        payload: { body },
+      })
+      expect(r.statusCode).toBe(201)
+    }
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: auth },
+    })
+    const comments = (detail.json() as { comments: { body: string }[] }).comments
+    expect(comments.map((x) => x.body)).toEqual(['un', 'deux', 'trois'])
+  })
+
+  it('body vide/whitespace → 400', async () => {
+    const c = await seedCommune('CommentsEmpty')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId })
+    const admin = await seedUser({ role: 'admin', communeId: c.id })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/maintenance-tickets/${ticketId}/comments`,
+      headers: { authorization: authHeader(admin.id, 'admin', c.id) },
+      payload: { body: '   ' },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('POST sur un ticket hors commune → 404', async () => {
+    const a = await seedCommune('A')
+    const b = await seedCommune('B')
+    const adminB = await seedUser({ role: 'admin', communeId: b.id })
+    const ticketId = await seedTicketFull({ distributorId: a.distributorId })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/maintenance-tickets/${ticketId}/comments`,
+      headers: { authorization: authHeader(adminB.id, 'admin', b.id) },
+      payload: { body: 'intrusion' },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+})
+
+// ─── Historique des transitions de statut ───────────────────────────────────
+
+describe('PATCH /:id — status_history', () => {
+  it('chaque transition est journalisée (from/to/byEmail)', async () => {
+    const c = await seedCommune('History')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId, status: 'open' })
+    const admin = await seedUser({ role: 'admin', communeId: c.id, email: 'carol@test.local' })
+    const auth = authHeader(admin.id, 'admin', c.id)
+
+    await app.inject({
+      method: 'PATCH', url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: auth }, payload: { status: 'in_progress' },
+    })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: auth }, payload: { status: 'resolved' },
+    })
+    expect(res.statusCode).toBe(200)
+    const history = (res.json() as {
+      statusHistory: { from: string | null; to: string; byEmail: string | null }[]
+    }).statusHistory
+    expect(history).toHaveLength(2)
+    expect(history[0]).toMatchObject({ from: 'open', to: 'in_progress', byEmail: 'carol@test.local' })
+    expect(history[1]).toMatchObject({ from: 'in_progress', to: 'resolved' })
+  })
+
+  it('re-poser le même statut → pas d\'entrée', async () => {
+    const c = await seedCommune('HistorySame')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId, status: 'open' })
+    const admin = await seedUser({ role: 'admin', communeId: c.id })
+
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: authHeader(admin.id, 'admin', c.id) }, payload: { status: 'open' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().statusHistory).toEqual([])
+  })
+
+  it('changer une autre propriété (severity) ne journalise rien', async () => {
+    const c = await seedCommune('HistoryNoStatus')
+    const ticketId = await seedTicketFull({ distributorId: c.distributorId, status: 'open', severity: 3 })
+    const admin = await seedUser({ role: 'admin', communeId: c.id })
+
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/admin/maintenance-tickets/${ticketId}`,
+      headers: { authorization: authHeader(admin.id, 'admin', c.id) }, payload: { severity: 5 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().statusHistory).toEqual([])
+  })
+})
