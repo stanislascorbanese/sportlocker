@@ -1,0 +1,118 @@
+---
+// Barre CTA sticky mobile (<768px uniquement) — apparaît après 400px de scroll,
+// discrète et dismissable. Objectif conversion : garder « Demander un devis »
+// toujours à portée de pouce sur les pages à forte intention (/tarifs, segments).
+// Sur desktop, elle n'est jamais rendue visible (md:hidden) — les CTA in-page
+// suffisent. Le lien pointe par défaut vers le formulaire /contact#formulaire ;
+// les pages segment passent ?type=… pour pré-cocher le bon radio.
+interface Props {
+  href?: string
+  label?: string
+}
+const { href = '/contact#formulaire', label = 'Demander un devis' } = Astro.props
+---
+
+<div id="sticky-cta" class="sticky-cta md:hidden" data-hidden aria-hidden="true">
+  <a href={href} class="sticky-cta-btn">{label} →</a>
+  <button
+    type="button"
+    class="sticky-cta-dismiss"
+    data-sticky-dismiss
+    aria-label="Masquer la barre de contact"
+  >
+    ✕
+  </button>
+</div>
+
+<style>
+  .sticky-cta {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 90; /* sous la nav (100) mais au-dessus du contenu */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.55rem 0.55rem 0.75rem;
+    border-radius: 0.9rem;
+    background: rgba(13, 27, 42, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    transform: translateY(calc(100% + 1rem));
+    opacity: 0;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
+    pointer-events: none;
+  }
+  .sticky-cta[data-visible] {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .sticky-cta-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.7rem 1rem;
+    border-radius: 0.65rem;
+    background: #1d9e75;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .sticky-cta-btn:active {
+    background: #15785a;
+  }
+  .sticky-cta-dismiss {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: grid;
+    place-items: center;
+    border-radius: 0.55rem;
+    background: transparent;
+    border: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  .sticky-cta-dismiss:hover {
+    color: #fff;
+  }
+</style>
+
+<script>
+  const bar = document.getElementById('sticky-cta')
+  if (bar) {
+    const KEY = 'sl-sticky-cta-dismissed'
+    let dismissed = sessionStorage.getItem(KEY) === '1'
+
+    const update = () => {
+      if (dismissed) return
+      if (window.scrollY > 400) {
+        bar.setAttribute('data-visible', '')
+        bar.setAttribute('aria-hidden', 'false')
+      } else {
+        bar.removeAttribute('data-visible')
+        bar.setAttribute('aria-hidden', 'true')
+      }
+    }
+
+    const dismissBtn = bar.querySelector('[data-sticky-dismiss]')
+    dismissBtn?.addEventListener('click', () => {
+      dismissed = true
+      sessionStorage.setItem(KEY, '1')
+      bar.removeAttribute('data-visible')
+      bar.setAttribute('aria-hidden', 'true')
+    })
+
+    window.addEventListener('scroll', update, { passive: true })
+    update()
+  }
+</script>

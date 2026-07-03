@@ -143,6 +143,8 @@ export const fr = {
   'payment.title': 'Régler pour confirmer',
   'payment.processing': 'Paiement en cours…',
   'payment.finalizing': 'Paiement reçu, finalisation…',
+  'payment.success_title': 'Paiement confirmé',
+  'payment.success_body': 'On prépare ton QR…',
   'payment.init_error': 'Impossible d\'initialiser le paiement. Réessaie.',
   'payment.error': 'Le paiement a échoué. Réessaie.',
   'payment.retry': 'Réessayer',
@@ -258,6 +260,14 @@ export const fr = {
   'profile.push.reason.unknown': 'Erreur inattendue.',
   'profile.push.reason.update_failed': 'Impossible de mettre à jour la préférence. Réessaie.',
 
+  // Bannière discrète d'opt-in push (home, affichée une seule fois)
+  'push.banner.title': 'Active les rappels de retour',
+  'push.banner.body': 'Reçois une notif de rappel avant chacun de tes créneaux réservés.',
+  'push.banner.enable': 'Activer',
+  'push.banner.enabling': 'Activation…',
+  'push.banner.dismiss': 'Fermer',
+  'push.banner.enabled': 'Rappels activés',
+
   // ─── Onboarding (3-step tour à la première visite home) ───────────────
   'onboarding.welcome': 'Bienvenue',
   'onboarding.skip': 'Passer',
@@ -270,6 +280,24 @@ export const fr = {
   'onboarding.step2.description': 'Choisis ton sport, ta durée et ton créneau. Jusqu\'à 7 jours à l\'avance, gratuit pendant le MVP.',
   'onboarding.step3.title': 'Scanne ton QR',
   'onboarding.step3.description': 'À l\'heure du créneau, présente ton QR au scanner du distributeur. Le casier s\'ouvre tout seul.',
+
+  // ─── Avis (boucle de feedback) ─────────────────────────────────────────
+  'reservation.returned.title': 'Emprunt terminé',
+  'review.title': 'Comment c\'était ?',
+  'review.subtitle': 'Ton avis aide les autres sportifs.',
+  'review.dismiss': 'Ignorer',
+  'review.stars_aria': 'Mettre {count} étoiles sur 5',
+  'review.comment_placeholder': 'Un mot sur ton expérience (optionnel)',
+  'review.sending': 'Envoi…',
+  'review.submit': 'Envoyer mon avis',
+  'review.thanks_title': 'Merci pour ton avis !',
+  'review.thanks_body': 'C\'est noté, à bientôt sur SportLocker.',
+  'review.error.already': 'Tu as déjà laissé un avis pour cet emprunt.',
+  'review.error.generic': 'Impossible d\'envoyer ton avis. Réessaie.',
+  'reviews.count_one': '1 avis',
+  'reviews.count_many': '{count} avis',
+  'reviews.section_title': 'Derniers avis',
+  'reviews.anonymous': 'Anonyme',
 
   // ─── Generic UI ────────────────────────────────────────────────────────
   'ui.error.generic_title': 'Une erreur est survenue',
@@ -402,6 +430,8 @@ export const en: Record<MessageKey, string> = {
   'payment.title': 'Pay to confirm',
   'payment.processing': 'Processing payment…',
   'payment.finalizing': 'Payment received, finalizing…',
+  'payment.success_title': 'Payment confirmed',
+  'payment.success_body': 'Preparing your QR…',
   'payment.init_error': 'Could not start the payment. Try again.',
   'payment.error': 'Payment failed. Try again.',
   'payment.retry': 'Try again',
@@ -517,6 +547,14 @@ export const en: Record<MessageKey, string> = {
   'profile.push.reason.unknown': 'Unexpected error.',
   'profile.push.reason.update_failed': 'Couldn\'t update the preference. Try again.',
 
+  // Discreet push opt-in banner (home, shown once)
+  'push.banner.title': 'Turn on return reminders',
+  'push.banner.body': 'Get a reminder notification before each of your booked slots.',
+  'push.banner.enable': 'Turn on',
+  'push.banner.enabling': 'Turning on…',
+  'push.banner.dismiss': 'Dismiss',
+  'push.banner.enabled': 'Reminders on',
+
   // Onboarding (3-step tour on first home visit)
   'onboarding.welcome': 'Welcome',
   'onboarding.skip': 'Skip',
@@ -529,6 +567,24 @@ export const en: Record<MessageKey, string> = {
   'onboarding.step2.description': 'Pick your sport, duration and time slot. Up to 7 days in advance, free during MVP.',
   'onboarding.step3.title': 'Scan your QR',
   'onboarding.step3.description': 'At slot time, show your QR to the distributor scanner. The locker opens automatically.',
+
+  // Avis (feedback loop)
+  'reservation.returned.title': 'Borrow complete',
+  'review.title': 'How was it?',
+  'review.subtitle': 'Your feedback helps other borrowers.',
+  'review.dismiss': 'Dismiss',
+  'review.stars_aria': 'Rate {count} out of 5 stars',
+  'review.comment_placeholder': 'A word about your experience (optional)',
+  'review.sending': 'Sending…',
+  'review.submit': 'Send my review',
+  'review.thanks_title': 'Thanks for your review!',
+  'review.thanks_body': 'Noted — see you soon on SportLocker.',
+  'review.error.already': 'You already reviewed this borrow.',
+  'review.error.generic': 'Couldn\'t send your review. Try again.',
+  'reviews.count_one': '1 review',
+  'reviews.count_many': '{count} reviews',
+  'reviews.section_title': 'Latest reviews',
+  'reviews.anonymous': 'Anonymous',
 
   // Generic UI
   'ui.error.generic_title': 'Something went wrong',

@@ -161,8 +161,9 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     ))}
   </head>
   <body>
+    <a href="#main" class="skip-link">Aller au contenu</a>
     <Nav />
-    <main>
+    <main id="main">
       <slot />
     </main>
     <Footer />
@@ -229,6 +230,30 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     </script>
 
     <style is:global>
+      /* Skip link : masqué hors focus clavier, révélé au Tab en haut à gauche,
+         au-dessus de la nav fixe (z-index > #nav). */
+      .skip-link {
+        position: fixed;
+        top: 0.75rem;
+        left: 0.75rem;
+        z-index: 200;
+        padding: 0.6rem 1rem;
+        border-radius: 0.5rem;
+        background: #1d9e75;
+        color: #fff;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        transform: translateY(calc(-100% - 1rem));
+        transition: transform 0.18s ease;
+      }
+      .skip-link:focus {
+        transform: translateY(0);
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
+
       [data-reveal] {
         opacity: 0;
         transform: translateY(28px);

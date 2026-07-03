@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import Faq from '@/components/Faq.astro'
 import ContactForm from '@/components/ContactForm.astro'
+import StickyCta from '@/components/StickyCta.astro'
 import { SITE, buildSegmentSchemas } from '@/data/site'
 
 const benefits = [
@@ -83,6 +84,7 @@ const schemas = buildSegmentSchemas('camping')
 <Base
   title="SportLocker pour les campings — Distributeurs de matériel balnéaire 24/7"
   description="Proposez à vos campeurs la location de matériel de plage et sport en libre-service 24h/24. Revenue share 75 %. Zéro personnel. Installation en 4 semaines."
+  ogImage="/og/campings.png"
   extraJsonLd={schemas}
 >
   <!-- HERO CAMPINGS -->
@@ -290,10 +292,12 @@ const schemas = buildSegmentSchemas('camping')
             </div>
           </div>
         </div>
-        <ContactForm />
+        <ContactForm segment="camping" />
       </div>
     </div>
   </section>
+
+  <StickyCta href="/contact?type=camping#formulaire" />
 </Base>
 
 <style>

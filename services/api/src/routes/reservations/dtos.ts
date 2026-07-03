@@ -27,6 +27,19 @@ export const ReturnReservationBody = z.object({
   returnDistributorId: z.string().uuid().describe('Distributeur correspondant au returnLockerId'),
 })
 
+/**
+ * Body de `POST /v1/reservations/:id/review`.
+ *
+ * `rating` obligatoire (1..5 étoiles), `comment` optionnel plafonné à 280
+ * caractères (aligné sur la contrainte produit "micro-avis", pas un pavé).
+ * Le trim + la conversion "chaîne vide → null" sont faits côté handler.
+ */
+export const CreateReviewBody = z.object({
+  rating: z.number().int().min(1).max(5).describe('Note de 1 à 5 étoiles'),
+  comment: z.string().trim().max(280).optional()
+    .describe('Commentaire libre optionnel (280 caractères max)'),
+})
+
 export const CreateSlotReservationBody = z.object({
   distributorId: z.string().uuid().describe('Borne ciblée'),
   itemTypeId: z.string().uuid().describe('Sport / type de matériel souhaité (depuis /v1/item-types)'),
@@ -175,6 +188,18 @@ export const ReservationHistoryDTO = z.object({
     id: z.string().uuid(),
     typeName: z.string(),
   }),
+})
+
+/**
+ * DTO renvoyé (201) par `POST /v1/reservations/:id/review`. Écho de l'avis
+ * créé — le client s'en sert surtout pour confirmer l'enregistrement.
+ */
+export const ReviewCreatedDTO = z.object({
+  id: z.string().uuid(),
+  reservationId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string().datetime(),
 })
 
 export const ErrorDTO = z.object({ error: z.string() })
