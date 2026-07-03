@@ -13,6 +13,7 @@ import {
 } from '../components/DistributorListItem'
 import { HeaderActions } from '../components/HeaderActions'
 import { OnboardingSheet } from '../components/OnboardingSheet'
+import { PushOptInBanner } from '../components/PushOptInBanner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ErrorState } from '../components/ui/ErrorState'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -126,7 +127,7 @@ export default function HomePage() {
   const count = sorted.length
 
   return (
-    <main className="flex min-h-screen flex-col bg-white pb-[calc(var(--safe-bottom)+1rem)] dark:bg-navy-900">
+    <main className="flex min-h-screen animate-fade-in flex-col bg-white pb-[calc(var(--safe-bottom)+1rem)] dark:bg-navy-900">
       <PageHeader
         eyebrow={t('home.greeting', { name: firstName })}
         title={t('home.title')}
@@ -139,6 +140,10 @@ export default function HomePage() {
           onClick={() => router.push(`/reservations/${activeReservationQuery.data!.id}`)}
         />
       )}
+
+      {/* Opt-in push discret — self-rendering (gère support/permission/dismiss
+          en interne, ne rend rien si non pertinent). */}
+      <PushOptInBanner />
 
       <div className="h-[42vh] max-h-[400px] min-h-[260px] overflow-hidden">
         {coords ? (
