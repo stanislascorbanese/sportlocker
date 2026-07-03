@@ -249,6 +249,25 @@ export const distributorHeartbeats = pgTable('distributor_heartbeats', {
   metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
 })
 
+/** Commentaire interne d'un ticket de maintenance (JSONB append-only, migration 0020). */
+export type MaintenanceComment = {
+  id: string
+  authorId: string
+  authorEmail: string
+  authorName: string | null
+  body: string
+  createdAt: string
+}
+
+/** Transition de statut journalisée d'un ticket (JSONB append-only, migration 0020). */
+export type MaintenanceStatusChange = {
+  from: 'open' | 'in_progress' | 'resolved' | 'wontfix' | null
+  to: 'open' | 'in_progress' | 'resolved' | 'wontfix'
+  at: string
+  byId: string | null
+  byEmail: string | null
+}
+
 export const maintenanceTickets = pgTable('maintenance_tickets', {
   id: uuid('id').primaryKey().defaultRandom(),
   distributorId: uuid('distributor_id').notNull().references(() => distributors.id, { onDelete: 'cascade' }),
@@ -262,6 +281,10 @@ export const maintenanceTickets = pgTable('maintenance_tickets', {
   description: text('description'),
   resolutionNote: text('resolution_note'),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  // Fil de commentaires internes (migration 0020) — JSONB append-only.
+  comments: jsonb('comments').notNull().default(sql`'[]'::jsonb`).$type<MaintenanceComment[]>(),
+  // Journal des transitions de statut (migration 0020) — JSONB append-only.
+  statusHistory: jsonb('status_history').notNull().default(sql`'[]'::jsonb`).$type<MaintenanceStatusChange[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

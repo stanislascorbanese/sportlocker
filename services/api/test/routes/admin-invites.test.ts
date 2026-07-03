@@ -132,7 +132,7 @@ beforeEach(async () => {
   ;(admin.auth().verifyIdToken as ReturnType<typeof vi.fn>).mockReset()
 })
 
-describe('POST /v1/admin/invites — super_admin only', () => {
+describe('POST /v1/admin/invites — création scopée', () => {
   it('super_admin crée invite → 201 + token + inviteUrl + email lowercased + expiresAt cohérent', async () => {
     const communeId = await seedCommune(pgSql, 'Marseille Invite')
     const su = await seedUser(pgSql, { role: 'super_admin' })
@@ -183,7 +183,7 @@ describe('POST /v1/admin/invites — super_admin only', () => {
     expect(Math.abs(expiresAt - expected)).toBeLessThan(60_000)
   })
 
-  it('admin scoped → 403 forbidden_super_admin_required (un admin tenant ne peut pas inviter)', async () => {
+  it('admin scoped → 201 : peut inviter dans SA commune', async () => {
     const communeId = await seedCommune(pgSql)
     const admin = await seedUser(pgSql, { role: 'admin', communeId })
 
@@ -193,8 +193,49 @@ describe('POST /v1/admin/invites — super_admin only', () => {
       headers: { authorization: signSession(app, admin.id, 'admin', communeId) },
       payload: { email: 'other@test.local', communeId },
     })
+    expect(res.statusCode).toBe(201)
+    expect(res.json().communeId).toBe(communeId)
+  })
+
+  it('admin scoped sans communeId dans le body → 201 : forcé à sa commune', async () => {
+    const communeId = await seedCommune(pgSql)
+    const admin = await seedUser(pgSql, { role: 'admin', communeId })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/',
+      headers: { authorization: signSession(app, admin.id, 'admin', communeId) },
+      payload: { email: 'scoped@test.local' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(res.json().communeId).toBe(communeId)
+  })
+
+  it('admin qui vise une AUTRE commune → 403 forbidden_cross_commune', async () => {
+    const own = await seedCommune(pgSql, 'Own')
+    const other = await seedCommune(pgSql, 'Other')
+    const admin = await seedUser(pgSql, { role: 'admin', communeId: own })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/',
+      headers: { authorization: signSession(app, admin.id, 'admin', own) },
+      payload: { email: 'cross@test.local', communeId: other },
+    })
     expect(res.statusCode).toBe(403)
-    expect(res.json().error).toBe('forbidden_super_admin_required')
+    expect(res.json().error).toBe('forbidden_cross_commune')
+  })
+
+  it('super_admin sans communeId → 400 commune_id_required', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { email: 'nocommune@test.local' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('commune_id_required')
   })
 
   it('citizen → 403', async () => {
@@ -469,5 +510,200 @@ describe('POST /v1/admin/invites/accept — validation Zod', () => {
       payload: {},
     })
     expect(res.statusCode).toBe(400)
+  })
+})
+
+describe('GET /v1/admin/invites — liste + statut dérivé', () => {
+  it('super_admin voit toutes les invites avec statut pending/accepted/expired', async () => {
+    const commune = await seedCommune(pgSql, 'ListCommune')
+    await insertInvite({ communeId: commune, email: 'pending@test.local' })
+    await insertInvite({ communeId: commune, email: 'accepted@test.local', acceptedAt: new Date() })
+    await insertInvite({ communeId: commune, email: 'expired@test.local', expiresInHours: -1 })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/invites/',
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    const items = res.json().items as { email: string; status: string; communeName: string }[]
+    expect(items).toHaveLength(3)
+    const byEmail = Object.fromEntries(items.map((i) => [i.email, i.status]))
+    expect(byEmail['pending@test.local']).toBe('pending')
+    expect(byEmail['accepted@test.local']).toBe('accepted')
+    expect(byEmail['expired@test.local']).toBe('expired')
+    expect(items[0]!.communeName).toBe('ListCommune')
+  })
+
+  it('admin scoped → uniquement les invites de sa commune', async () => {
+    const a = await seedCommune(pgSql, 'A')
+    const b = await seedCommune(pgSql, 'B')
+    await insertInvite({ communeId: a, email: 'a@test.local' })
+    await insertInvite({ communeId: b, email: 'b@test.local' })
+    const adminA = await seedUser(pgSql, { role: 'admin', communeId: a })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/invites/',
+      headers: { authorization: signSession(app, adminA.id, 'admin', a) },
+    })
+    expect(res.statusCode).toBe(200)
+    const items = res.json().items as { email: string }[]
+    expect(items).toHaveLength(1)
+    expect(items[0]!.email).toBe('a@test.local')
+  })
+
+  it('super_admin filtre par communeId', async () => {
+    const a = await seedCommune(pgSql, 'A')
+    const b = await seedCommune(pgSql, 'B')
+    await insertInvite({ communeId: a })
+    await insertInvite({ communeId: b })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/invites/?communeId=${a}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(200)
+    const items = res.json().items as { communeId: string }[]
+    expect(items).toHaveLength(1)
+    expect(items[0]!.communeId).toBe(a)
+  })
+
+  it('citizen → 403, sans token → 401', async () => {
+    const citizen = await seedUser(pgSql, { role: 'citizen' })
+    const r403 = await app.inject({
+      method: 'GET', url: '/v1/admin/invites/',
+      headers: { authorization: signSession(app, citizen.id, 'citizen') },
+    })
+    expect(r403.statusCode).toBe(403)
+    const r401 = await app.inject({ method: 'GET', url: '/v1/admin/invites/' })
+    expect(r401.statusCode).toBe(401)
+  })
+})
+
+describe('POST /v1/admin/invites/:token/resend — régénération', () => {
+  it('régénère le token + repousse l\'expiration, l\'ancien token disparaît', async () => {
+    const commune = await seedCommune(pgSql)
+    const oldToken = await insertInvite({ communeId: commune, email: 'resend@test.local' })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/invites/${oldToken}/resend`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: { expiresInHours: 48 },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.token).not.toBe(oldToken)
+    expect(body.email).toBe('resend@test.local')
+    expect(body.inviteUrl).toContain(encodeURIComponent(body.token))
+
+    // L'ancien token n'existe plus, le nouveau oui
+    const oldRows = await pgSql`SELECT token FROM admin_invites WHERE token = ${oldToken}`
+    expect(oldRows).toHaveLength(0)
+    const newRows = await pgSql`SELECT token FROM admin_invites WHERE token = ${body.token}`
+    expect(newRows).toHaveLength(1)
+  })
+
+  it('invite déjà acceptée → 409', async () => {
+    const commune = await seedCommune(pgSql)
+    const token = await insertInvite({ communeId: commune, acceptedAt: new Date() })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/invites/${token}/resend`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('invite_already_accepted')
+  })
+
+  it('token inconnu → 404', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/invites/${'zz-' + randomUUID().replaceAll('-', '')}/resend`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('admin d\'une autre commune → 404 (scope)', async () => {
+    const a = await seedCommune(pgSql, 'A')
+    const b = await seedCommune(pgSql, 'B')
+    const token = await insertInvite({ communeId: a })
+    const adminB = await seedUser(pgSql, { role: 'admin', communeId: b })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/invites/${token}/resend`,
+      headers: { authorization: signSession(app, adminB.id, 'admin', b) },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(404)
+  })
+})
+
+describe('DELETE /v1/admin/invites/:token — révocation', () => {
+  it('supprime l\'invite → 204, disparaît de la liste', async () => {
+    const commune = await seedCommune(pgSql)
+    const token = await insertInvite({ communeId: commune })
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+
+    const del = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/invites/${token}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+    })
+    expect(del.statusCode).toBe(204)
+
+    const rows = await pgSql`SELECT token FROM admin_invites WHERE token = ${token}`
+    expect(rows).toHaveLength(0)
+  })
+
+  it('token inconnu → 404', async () => {
+    const su = await seedUser(pgSql, { role: 'super_admin' })
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/invites/${'zz-' + randomUUID().replaceAll('-', '')}`,
+      headers: { authorization: signSession(app, su.id, 'super_admin') },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('admin d\'une autre commune → 404 (scope) et l\'invite reste', async () => {
+    const a = await seedCommune(pgSql, 'A')
+    const b = await seedCommune(pgSql, 'B')
+    const token = await insertInvite({ communeId: a })
+    const adminB = await seedUser(pgSql, { role: 'admin', communeId: b })
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/invites/${token}`,
+      headers: { authorization: signSession(app, adminB.id, 'admin', b) },
+    })
+    expect(res.statusCode).toBe(404)
+    const rows = await pgSql`SELECT token FROM admin_invites WHERE token = ${token}`
+    expect(rows).toHaveLength(1)
+  })
+
+  it('citizen → 403', async () => {
+    const commune = await seedCommune(pgSql)
+    const token = await insertInvite({ communeId: commune })
+    const citizen = await seedUser(pgSql, { role: 'citizen' })
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/invites/${token}`,
+      headers: { authorization: signSession(app, citizen.id, 'citizen') },
+    })
+    expect(res.statusCode).toBe(403)
   })
 })

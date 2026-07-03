@@ -18,6 +18,7 @@ import { authStrings } from './auth'
 import { commonStrings } from './common'
 import { communesStrings } from './communes'
 import { homeStrings } from './home'
+import { invitesStrings } from './invites'
 import { itemsStrings } from './items'
 import { maintenanceStrings } from './maintenance'
 import { meStrings } from './me'
@@ -35,6 +36,7 @@ const DICOS = {
   common:       commonStrings,
   communes:     communesStrings,
   home:         homeStrings,
+  invites:      invitesStrings,
   items:        itemsStrings,
   maintenance:  maintenanceStrings,
   me:           meStrings,

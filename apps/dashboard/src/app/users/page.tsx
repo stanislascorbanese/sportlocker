@@ -5,6 +5,7 @@ import { RefreshButton } from '../../components/RefreshButton'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { usersStrings, userRoleLabel } from '../../lib/i18n/users'
+import { invitesStrings } from '../../lib/i18n/invites'
 import { makeMetadata } from '../../lib/i18n/metadata'
 import { UserCard } from './UserCard'
 import { UserRow } from './UserRow'
@@ -27,6 +28,7 @@ export default async function UsersPage({
   const lang = await getLang()
   const t = usersStrings(lang)
   const c = commonStrings(lang)
+  const inv = invitesStrings(lang)
 
   const role = (USER_ROLES as readonly string[]).includes(params.role ?? '')
     ? (params.role as UserRole)
@@ -103,7 +105,15 @@ export default async function UsersPage({
             {useDemo && ` · ${c.demoFootnote}`}
           </p>
         </div>
-        <RefreshButton />
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/users/invites"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-base ease-out-soft hover:bg-emerald-500 dark:bg-emerald-500 dark:text-navy-900 dark:hover:bg-emerald-400"
+          >
+            {inv.linkLabel}
+          </Link>
+          <RefreshButton />
+        </div>
       </header>
 
       <form className="grid grid-cols-1 gap-3 rounded-card border bg-white p-4 shadow-card sm:flex sm:flex-wrap sm:items-end dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
