@@ -436,6 +436,45 @@ export async function fetchMyReservations(): Promise<ReservationHistoryItem[]> {
   return data.items
 }
 
+// ─── Compte citoyen (profil + suppression RGPD) ────────────────────────────
+
+/**
+ * Profil du user courant renvoyé par `GET /v1/users/me`. Porte le `trustScore`
+ * (affiché en badge sur /profile) et l'éventuelle demande de suppression RGPD
+ * en cours (`gdprDeleteRequestedAt` non-null → compte programmé pour effacement).
+ */
+export const UserMe = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  displayName: z.string().nullable(),
+  role: UserRole,
+  trustScore: z.number().int(),
+  communeId: z.string().uuid().nullable(),
+  gdprDeleteRequestedAt: z.string().datetime().nullable(),
+})
+export type UserMe = z.infer<typeof UserMe>
+
+/** Récupère le profil (dont trustScore + état RGPD) du citoyen authentifié. */
+export async function fetchMe(): Promise<UserMe> {
+  return apiFetch(`/v1/users/me`, UserMe)
+}
+
+const DeleteAccountResult = z.object({
+  ok: z.literal(true),
+  gdprDeleteRequestedAt: z.string().datetime(),
+})
+export type DeleteAccountResult = z.infer<typeof DeleteAccountResult>
+
+/**
+ * Demande la suppression RGPD du compte courant (`DELETE /v1/users/me`).
+ * Soft-delete : le backend pose `gdpr_delete_requested_at` et le cron RGPD
+ * anonymise à J+30. Lève `ApiError(409, 'active_reservation')` si une
+ * réservation est encore vivante. Idempotent côté serveur.
+ */
+export async function deleteMyAccount(): Promise<DeleteAccountResult> {
+  return apiFetch(`/v1/users/me`, DeleteAccountResult, { method: 'DELETE', body: '{}' })
+}
+
 export async function fetchActiveReservation(): Promise<ReservationActive | null> {
   try {
     const res = await apiFetch(`/v1/reservations/active`, ReservationActive)
