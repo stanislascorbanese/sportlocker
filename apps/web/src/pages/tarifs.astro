@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
+import StickyCta from '@/components/StickyCta.astro'
 import PriceCalculator from '@/components/PriceCalculator.tsx'
 import { DEPOSITS, MARKETPLACE, PRICING_TEMPLATES, SLOT_DURATIONS } from '@/data/site'
 
@@ -380,4 +381,6 @@ const faqTarifs = [
     primary={{ href: '/contact#formulaire', label: 'Demander un devis détaillé' }}
     secondary={{ href: '/comment-ca-marche#installation', label: 'Voir le parcours d\'installation' }}
   />
+
+  <StickyCta />
 </Base>

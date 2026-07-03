@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
+import StickyCta from '@/components/StickyCta.astro'
 import { buildSegmentSchemas } from '@/data/site'
 
 const arguments_ = [
@@ -258,4 +259,6 @@ const proofs = [
     secondary={{ href: '/tarifs', label: 'Voir le modèle commercial' }}
     fine="Réponse sous 24h ouvrées · Devis sans engagement · Pose avant ouverture haute saison garantie si signature avant mars"
   />
+
+  <StickyCta href="/contact?type=hotel#formulaire" />
 </Base>

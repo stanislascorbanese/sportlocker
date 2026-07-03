@@ -1,4 +1,12 @@
 ---
+interface Props {
+  // Pré-sélectionne le type d'établissement quand le formulaire est intégré
+  // directement dans une page segment (ex. /mairies, /campings), sans passer
+  // par un query param ?type=. Le query param reste prioritaire et surcharge
+  // cette valeur au chargement (cf. script plus bas).
+  segment?: 'mairie' | 'camping' | 'hotel' | 'autre'
+}
+const { segment } = Astro.props
 const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
 ---
 
@@ -56,6 +64,7 @@ const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
           <label class="relative cursor-pointer">
             <input
               required={i === 0}
+              checked={segment === opt.slug}
               type="radio"
               name="type"
               value={opt.label}
