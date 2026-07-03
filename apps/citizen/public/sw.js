@@ -11,12 +11,13 @@
  * À évoluer : Background Sync pour les réservations en zone blanche.
  */
 
-// v3 : bump du cache pour purger les anciens SW (avant que les action
-// buttons + vibration soient ajoutés). Le handler `activate` ci-dessous
-// supprime tous les caches dont le nom diffère de CACHE_NAME, donc bumper
-// le suffixe = wipe complet de l'ancien cache au prochain reload.
-const CACHE_NAME = 'sportlocker-v3'
-const PRECACHE = ['/', '/login', '/manifest.json']
+// v4 : ajout de /offline.html au précache + fallback navigation hors-ligne.
+// Le handler `activate` ci-dessous supprime tous les caches dont le nom diffère
+// de CACHE_NAME, donc bumper le suffixe = wipe complet de l'ancien cache au
+// prochain reload (indispensable pour que le nouveau PRECACHE prenne effet).
+const CACHE_NAME = 'sportlocker-v4'
+const OFFLINE_URL = '/offline.html'
+const PRECACHE = ['/', '/login', '/manifest.json', OFFLINE_URL]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -49,6 +50,16 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Network-first pour le reste, fallback cache.
+  //
+  // Pour une navigation (chargement d'une page) qui échoue hors-ligne sur une
+  // route non précachée, on servait `Response.error()` → page blanche / erreur
+  // navigateur. On sert désormais `/offline.html` en dernier recours : message
+  // clair + lien vers le QR de la résa active (caché en localStorage).
+  const isNavigation =
+    event.request.mode === 'navigate' ||
+    (event.request.method === 'GET' &&
+      (event.request.headers.get('accept') || '').includes('text/html'))
+
   event.respondWith(
     fetch(event.request)
       .then((res) => {
@@ -58,7 +69,15 @@ self.addEventListener('fetch', (event) => {
         }
         return res
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || Response.error())),
+      .catch(async () => {
+        const cached = await caches.match(event.request)
+        if (cached) return cached
+        if (isNavigation) {
+          const offline = await caches.match(OFFLINE_URL)
+          if (offline) return offline
+        }
+        return Response.error()
+      }),
   )
 })
 

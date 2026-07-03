@@ -268,6 +268,41 @@ export const fr = {
   'push.banner.dismiss': 'Fermer',
   'push.banner.enabled': 'Rappels activés',
 
+  // ─── Profile — score de confiance ──────────────────────────────────────
+  'profile.trust.label': 'Score de confiance',
+  'profile.trust.aria': 'Score de confiance : {score} sur 100',
+  'profile.trust.tooltip': 'Ton score évolue avec tes emprunts : les retours à l\'heure le font remonter, un retour en retard applique une pénalité.',
+  'profile.trust.level.high': 'Excellent',
+  'profile.trust.level.mid': 'Correct',
+  'profile.trust.level.low': 'Fragile',
+
+  // ─── Profile — zone de danger / suppression RGPD ───────────────────────
+  'profile.danger.title': 'Zone de danger',
+  'profile.danger.delete_label': 'Supprimer mon compte',
+  'profile.danger.delete_help': 'Supprime définitivement ton compte et tes données personnelles. Un délai légal de 30 jours s\'applique avant l\'effacement complet.',
+  'profile.danger.delete_btn': 'Supprimer mon compte',
+  'profile.danger.confirm_title': 'Confirmer la suppression',
+  'profile.danger.confirm_help': 'Cette action est irréversible. Tape {word} ci-dessous pour confirmer.',
+  'profile.danger.confirm_word': 'SUPPRIMER',
+  'profile.danger.confirm_placeholder': 'Tape SUPPRIMER',
+  'profile.danger.confirm_btn': 'Supprimer définitivement',
+  'profile.danger.deleting': 'Suppression…',
+  'profile.danger.cancel': 'Annuler',
+  'profile.danger.error_active': 'Tu as une réservation en cours. Termine-la ou attends la fin du créneau avant de supprimer ton compte.',
+  'profile.danger.error_generic': 'La suppression a échoué. Réessaie dans un instant.',
+  'profile.danger.done_title': 'Suppression programmée',
+  'profile.danger.done_body': 'Ton compte et tes données personnelles seront définitivement supprimés le {date}, soit 30 jours après ta demande, conformément au RGPD.',
+  'profile.danger.done_logout': 'Se déconnecter',
+
+  // ─── Pages d'erreur (not-found / error boundary) ───────────────────────
+  'notfound.title': 'Page introuvable',
+  'notfound.description': 'Cette page n\'existe pas ou a été déplacée. Vérifie l\'adresse ou reviens à l\'accueil.',
+  'notfound.home': 'Retour à l\'accueil',
+  'error.title': 'Oups, une erreur est survenue',
+  'error.description': 'Quelque chose s\'est mal passé de notre côté. Tu peux réessayer — si ça persiste, reviens un peu plus tard.',
+  'error.retry': 'Réessayer',
+  'error.home': 'Retour à l\'accueil',
+
   // ─── Onboarding (3-step tour à la première visite home) ───────────────
   'onboarding.welcome': 'Bienvenue',
   'onboarding.skip': 'Passer',
@@ -554,6 +589,41 @@ export const en: Record<MessageKey, string> = {
   'push.banner.enabling': 'Turning on…',
   'push.banner.dismiss': 'Dismiss',
   'push.banner.enabled': 'Reminders on',
+
+  // Profile — trust score
+  'profile.trust.label': 'Trust score',
+  'profile.trust.aria': 'Trust score: {score} out of 100',
+  'profile.trust.tooltip': 'Your score changes with your loans: on-time returns raise it, a late return applies a penalty.',
+  'profile.trust.level.high': 'Excellent',
+  'profile.trust.level.mid': 'Fair',
+  'profile.trust.level.low': 'Fragile',
+
+  // Profile — danger zone / GDPR account deletion
+  'profile.danger.title': 'Danger zone',
+  'profile.danger.delete_label': 'Delete my account',
+  'profile.danger.delete_help': 'Permanently deletes your account and personal data. A legal 30-day delay applies before full erasure.',
+  'profile.danger.delete_btn': 'Delete my account',
+  'profile.danger.confirm_title': 'Confirm deletion',
+  'profile.danger.confirm_help': 'This action is irreversible. Type {word} below to confirm.',
+  'profile.danger.confirm_word': 'DELETE',
+  'profile.danger.confirm_placeholder': 'Type DELETE',
+  'profile.danger.confirm_btn': 'Delete permanently',
+  'profile.danger.deleting': 'Deleting…',
+  'profile.danger.cancel': 'Cancel',
+  'profile.danger.error_active': 'You have an active booking. Finish it or wait until the slot ends before deleting your account.',
+  'profile.danger.error_generic': 'Deletion failed. Try again in a moment.',
+  'profile.danger.done_title': 'Deletion scheduled',
+  'profile.danger.done_body': 'Your account and personal data will be permanently deleted on {date}, 30 days after your request, in line with GDPR.',
+  'profile.danger.done_logout': 'Sign out',
+
+  // Error pages (not-found / error boundary)
+  'notfound.title': 'Page not found',
+  'notfound.description': 'This page doesn\'t exist or has moved. Check the address or head back home.',
+  'notfound.home': 'Back to home',
+  'error.title': 'Oops, something went wrong',
+  'error.description': 'Something broke on our side. You can try again — if it keeps happening, come back a little later.',
+  'error.retry': 'Try again',
+  'error.home': 'Back to home',
 
   // Onboarding (3-step tour on first home visit)
   'onboarding.welcome': 'Welcome',

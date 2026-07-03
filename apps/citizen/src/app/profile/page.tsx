@@ -9,9 +9,11 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { useRequireAuth } from '../../lib/auth-context'
 import { getFirebaseAuth } from '../../lib/firebase'
 import { useT } from '../../lib/i18n/I18nProvider'
+import { DeleteAccountSection } from './DeleteAccountSection'
 import { InstallButton } from './InstallButton'
 import { PushSubscribeButton } from './PushSubscribeButton'
 import { ReservationsHistory } from './ReservationsHistory'
+import { TrustScoreBadge } from './TrustScoreBadge'
 
 export default function ProfilePage() {
   const user = useRequireAuth()
@@ -54,6 +56,8 @@ export default function ProfilePage() {
         <ChevronRight className="h-4 w-4 text-gray-400 dark:text-white/40" aria-hidden="true" />
       </Link>
 
+      <TrustScoreBadge />
+
       <PushSubscribeButton />
       <InstallButton />
       <ReservationsHistory />
@@ -66,6 +70,8 @@ export default function ProfilePage() {
         <LogOut className="h-4 w-4" />
         {t('profile.logout')}
       </button>
+
+      <DeleteAccountSection />
 
       {/* Liens légaux — pointent vers la vitrine. */}
       <footer className="pb-4 pt-2 text-center text-meta text-gray-500 dark:text-white/40">
