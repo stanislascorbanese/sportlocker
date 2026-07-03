@@ -17,6 +17,7 @@ import { shouldAllowList, shouldEnableRateLimit } from './plugins/rate-limit.js'
 import { healthRoutes } from './routes/health.js'
 import { distributorRoutes } from './routes/distributors.js'
 import { reservationRoutes } from './routes/reservations.js'
+import { userRoutes } from './routes/users.js'
 import { walletRoutes } from './routes/wallet.js'
 import { adminReservationRoutes } from './routes/admin-reservations.js'
 import { adminMaintenanceRoutes } from './routes/admin-maintenance.js'
@@ -138,6 +139,7 @@ export async function buildApp() {
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
+  await app.register(userRoutes,         { prefix: '/v1/users' })
   await app.register(walletRoutes,       { prefix: '/v1/wallet' })
   await app.register(stripeWebhookRoutes, { prefix: '/v1/stripe' })
   await app.register(pushSubscriptionRoutes, { prefix: '/v1/push-subscriptions' })
