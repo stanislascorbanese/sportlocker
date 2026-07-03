@@ -127,6 +127,7 @@
       "/Users/stanislascorbanese/Downloads/sportlocker-web-v2/apps/web/src/data",
       "/Users/stanislascorbanese/Downloads/sportlocker-web-v2/apps/web/src/components",
       "/Users/stanislascorbanese/Downloads/sportlocker-web-v2/apps/web/public"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }
