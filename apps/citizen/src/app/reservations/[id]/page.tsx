@@ -10,6 +10,7 @@ import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
 import { PaymentStep } from '../../../components/PaymentStep'
+import { ReviewPrompt } from '../../../components/ReviewPrompt'
 import { Skeleton } from '../../../components/ui/Skeleton'
 import { SuccessCheck } from '../../../components/ui/SuccessCheck'
 import {
@@ -17,7 +18,9 @@ import {
   cancelReservation,
   extendReservation,
   fetchActiveReservation,
+  fetchMyReservations,
   type ReservationActive,
+  type ReservationHistoryItem,
 } from '../../../lib/api'
 import { useRequireAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/cn'
@@ -69,27 +72,41 @@ export default function ReservationPage() {
     },
   })
 
-  if (!user) return null
-
   const reservation = query.data
   const isCurrent = reservation?.id === params.id
+
+  // La résa vivante (GET /active) ne renvoie PAS les statuts terminaux. Quand
+  // l'utilisateur atterrit ici après un retour (statut `returned`), on retombe
+  // sur l'historique pour retrouver la résa par son id et proposer l'avis.
+  const historyQuery = useQuery({
+    queryKey: ['my-reservations'],
+    queryFn: fetchMyReservations,
+    enabled: Boolean(user) && !query.isLoading && !isCurrent,
+  })
+
+  if (!user) return null
+
+  const historical = historyQuery.data?.find((h) => h.id === params.id) ?? null
+  const showReturned = !isCurrent && historical?.status === 'returned'
+  const historyPending = !isCurrent && historyQuery.isLoading
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
       <PageHeader
         eyebrow={t('reservation.page.eyebrow')}
-        title={t('reservation.page.title')}
+        title={showReturned ? t('reservation.returned.title') : t('reservation.page.title')}
         backHref="/"
         backLabel={t('nav.back')}
       />
 
-      {query.isLoading && (
+      {(query.isLoading || historyPending) && (
         <div className="space-y-5" aria-label={t('reservation.page.loading')}>
           <Skeleton height={300} rounded="card" />
           <Skeleton height={140} rounded="card" />
         </div>
       )}
-      {!query.isLoading && !isCurrent && (
+      {showReturned && historical && <ReturnedView r={historical} />}
+      {!query.isLoading && !isCurrent && !showReturned && !historyPending && (
         <p className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
           {t('reservation.page.not_found')}
         </p>
@@ -106,6 +123,34 @@ export default function ReservationPage() {
         />
       )}
     </main>
+  )
+}
+
+/**
+ * Vue d'une réservation rendue (`returned`) : récap emprunt + carte d'avis.
+ * Le `ReviewPrompt` se masque tout seul si l'avis a déjà été envoyé/ignoré
+ * (mémoire localStorage par id de résa).
+ */
+function ReturnedView({ r }: { r: ReservationHistoryItem }) {
+  const t = useT()
+  return (
+    <>
+      <Card>
+        <div className="space-y-3">
+          <Row
+            icon={<MapPin className="h-4 w-4" />}
+            label={t('reservation.page.distributor')}
+            value={r.distributor.name}
+          />
+          <Row
+            icon={<Package className="h-4 w-4" />}
+            label={t('reservation.page.item')}
+            value={r.item.typeName}
+          />
+        </div>
+      </Card>
+      <ReviewPrompt reservationId={r.id} />
+    </>
   )
 }
 

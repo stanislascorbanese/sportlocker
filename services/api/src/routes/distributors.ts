@@ -1,14 +1,15 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { DistributorStatus, LockerState } from '@sportlocker/types'
 
 import { db } from '../db/client.js'
 import {
-  distributors, items, itemTypes, lockers, pricingRules, reservations,
+  distributors, items, itemTypes, lockers, pricingRules, reservations, reviews, users,
 } from '../db/schema.js'
+import { anonymizeAuthorName } from '../lib/anonymize.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 import { PG_ERRORS, isPgViolation } from '../lib/pg-errors.js'
 import {
@@ -70,6 +71,27 @@ const UpdateDistributorBody = z.object({
 })
 
 const ErrorDTO = z.object({ error: z.string() })
+
+const ReviewsQuery = z.object({
+  limit:  z.coerce.number().int().min(1).max(50).default(10)
+    .describe('Nombre d\'avis par page (défaut 10, max 50)'),
+  offset: z.coerce.number().int().min(0).default(0)
+    .describe('Décalage de pagination (défaut 0)'),
+})
+
+const PublicReviewDTO = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  authorName: z.string().nullable()
+    .describe('Prénom anonymisé de l\'auteur (ex. "Marie L."), null si indisponible.'),
+})
+
+const DistributorReviewsDTO = z.object({
+  average: z.number().nullable().describe('Note moyenne (1 décimale), null si aucun avis'),
+  count: z.number().int().min(0).describe('Nombre total d\'avis pour ce distributeur'),
+  items: z.array(PublicReviewDTO).describe('Page d\'avis, triés du plus récent au plus ancien'),
+})
 
 export async function distributorRoutes(rawApp: FastifyInstance) {
   const app = rawApp.withTypeProvider<ZodTypeProvider>()
@@ -293,6 +315,77 @@ export async function distributorRoutes(rawApp: FastifyInstance) {
               imageUrl: l.itemTypeImageUrl,
             }
           : null,
+      })),
+    }
+  })
+
+  /**
+   * GET /v1/distributors/:id/reviews — avis publics + agrégats.
+   *
+   * Public (pas d'auth) : affiché sous le nom du distributeur dans la PWA
+   * citizen. Renvoie la note moyenne + le nombre total d'avis (agrégats sur
+   * TOUS les avis, pas seulement la page), et une page d'avis triés du plus
+   * récent au plus ancien.
+   *
+   * Le distributeur "noté" est celui de l'emprunt (`reservations.distributor_id`),
+   * pas le distributeur de retour — c'est la borne où l'expérience a eu lieu.
+   * Le nom de l'auteur est anonymisé (prénom + initiale) avant sortie.
+   */
+  app.get('/:id/reviews', {
+    schema: {
+      tags: ['Citoyens — Distributeurs'],
+      summary: 'Avis publics d\'un distributeur (paginés) + moyenne et total',
+      description: 'Public (pas d\'auth). `average`/`count` agrègent TOUS les avis ; '
+        + '`items` est la page demandée (limit/offset), triée du plus récent au plus ancien. '
+        + 'Le nom d\'auteur est anonymisé (prénom + initiale).',
+      params: z.object({ id: z.string().uuid() }),
+      querystring: ReviewsQuery,
+      response: { 200: DistributorReviewsDTO, 404: ErrorDTO },
+    },
+  }, async (req, reply) => {
+    const { id } = req.params
+    const { limit, offset } = req.query
+
+    const exists = await db
+      .select({ id: distributors.id })
+      .from(distributors)
+      .where(eq(distributors.id, id))
+      .limit(1)
+    if (exists.length === 0) return reply.code(404).send({ error: 'distributor_not_found' })
+
+    // Agrégats sur l'ensemble des avis de ce distributeur (jointure via la résa).
+    const [agg] = await db
+      .select({
+        count: sql<number>`count(*)::int`,
+        average: sql<number | null>`round(avg(${reviews.rating})::numeric, 1)::float8`,
+      })
+      .from(reviews)
+      .innerJoin(reservations, eq(reservations.id, reviews.reservationId))
+      .where(eq(reservations.distributorId, id))
+
+    const rows = await db
+      .select({
+        rating: reviews.rating,
+        comment: reviews.comment,
+        createdAt: reviews.createdAt,
+        displayName: users.displayName,
+      })
+      .from(reviews)
+      .innerJoin(reservations, eq(reservations.id, reviews.reservationId))
+      .innerJoin(users, eq(users.id, reviews.userId))
+      .where(eq(reservations.distributorId, id))
+      .orderBy(desc(reviews.createdAt))
+      .limit(limit)
+      .offset(offset)
+
+    return {
+      average: agg?.average ?? null,
+      count: agg?.count ?? 0,
+      items: rows.map((r) => ({
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.createdAt.toISOString(),
+        authorName: anonymizeAuthorName(r.displayName),
       })),
     }
   })

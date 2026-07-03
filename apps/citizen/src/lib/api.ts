@@ -662,3 +662,72 @@ export async function fetchReminderPreferences(): Promise<{ reminderMinutesBefor
     z.object({ reminderMinutesBefore: z.number().int() }),
   )
 }
+
+// ─── Avis (boucle de feedback citoyen) ────────────────────────────────────
+
+/** Longueur max d'un commentaire d'avis (aligné sur la contrainte API Zod). */
+export const REVIEW_COMMENT_MAX = 280
+
+export const ReviewCreated = z.object({
+  id: z.string().uuid(),
+  reservationId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string().datetime(),
+})
+export type ReviewCreated = z.infer<typeof ReviewCreated>
+
+/**
+ * Dépose un avis sur une réservation rendue (`status='returned'`).
+ * Erreurs métier remontées via ApiError.code :
+ *   - `reservation_not_reviewable` (résa pas encore rendue)
+ *   - `review_already_exists` (un avis existe déjà)
+ *   - `reservation_not_found` (résa inexistante ou d'un autre user)
+ */
+export async function submitReview(
+  reservationId: string,
+  input: { rating: number; comment?: string },
+): Promise<ReviewCreated> {
+  return apiFetch(`/v1/reservations/${reservationId}/review`, ReviewCreated, {
+    method: 'POST',
+    body: JSON.stringify({
+      rating: input.rating,
+      ...(input.comment && input.comment.trim() ? { comment: input.comment.trim() } : {}),
+    }),
+  })
+}
+
+export const PublicReview = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  authorName: z.string().nullable(),
+})
+export type PublicReview = z.infer<typeof PublicReview>
+
+export const DistributorReviews = z.object({
+  average: z.number().nullable(),
+  count: z.number().int().min(0),
+  items: z.array(PublicReview),
+})
+export type DistributorReviews = z.infer<typeof DistributorReviews>
+
+/**
+ * Avis publics d'un distributeur + agrégats (moyenne, total). Route publique
+ * (pas d'auth) → fetch direct pour éviter le retry session sur 401.
+ */
+export async function fetchDistributorReviews(
+  id: string,
+  opts: { limit?: number; offset?: number } = {},
+): Promise<DistributorReviews> {
+  const params = new URLSearchParams()
+  if (opts.limit != null) params.set('limit', String(opts.limit))
+  if (opts.offset != null) params.set('offset', String(opts.offset))
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/distributors/${id}/reviews${qs ? `?${qs}` : ''}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body?.error ?? `http_${res.status}`)
+  }
+  return DistributorReviews.parse(await res.json())
+}

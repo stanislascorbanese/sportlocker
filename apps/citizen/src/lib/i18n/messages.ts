@@ -281,6 +281,24 @@ export const fr = {
   'onboarding.step3.title': 'Scanne ton QR',
   'onboarding.step3.description': 'À l\'heure du créneau, présente ton QR au scanner du distributeur. Le casier s\'ouvre tout seul.',
 
+  // ─── Avis (boucle de feedback) ─────────────────────────────────────────
+  'reservation.returned.title': 'Emprunt terminé',
+  'review.title': 'Comment c\'était ?',
+  'review.subtitle': 'Ton avis aide les autres sportifs.',
+  'review.dismiss': 'Ignorer',
+  'review.stars_aria': 'Mettre {count} étoiles sur 5',
+  'review.comment_placeholder': 'Un mot sur ton expérience (optionnel)',
+  'review.sending': 'Envoi…',
+  'review.submit': 'Envoyer mon avis',
+  'review.thanks_title': 'Merci pour ton avis !',
+  'review.thanks_body': 'C\'est noté, à bientôt sur SportLocker.',
+  'review.error.already': 'Tu as déjà laissé un avis pour cet emprunt.',
+  'review.error.generic': 'Impossible d\'envoyer ton avis. Réessaie.',
+  'reviews.count_one': '1 avis',
+  'reviews.count_many': '{count} avis',
+  'reviews.section_title': 'Derniers avis',
+  'reviews.anonymous': 'Anonyme',
+
   // ─── Generic UI ────────────────────────────────────────────────────────
   'ui.error.generic_title': 'Une erreur est survenue',
   'ui.error.retry': 'Réessayer',
@@ -549,6 +567,24 @@ export const en: Record<MessageKey, string> = {
   'onboarding.step2.description': 'Pick your sport, duration and time slot. Up to 7 days in advance, free during MVP.',
   'onboarding.step3.title': 'Scan your QR',
   'onboarding.step3.description': 'At slot time, show your QR to the distributor scanner. The locker opens automatically.',
+
+  // Avis (feedback loop)
+  'reservation.returned.title': 'Borrow complete',
+  'review.title': 'How was it?',
+  'review.subtitle': 'Your feedback helps other borrowers.',
+  'review.dismiss': 'Dismiss',
+  'review.stars_aria': 'Rate {count} out of 5 stars',
+  'review.comment_placeholder': 'A word about your experience (optional)',
+  'review.sending': 'Sending…',
+  'review.submit': 'Send my review',
+  'review.thanks_title': 'Thanks for your review!',
+  'review.thanks_body': 'Noted — see you soon on SportLocker.',
+  'review.error.already': 'You already reviewed this borrow.',
+  'review.error.generic': 'Couldn\'t send your review. Try again.',
+  'reviews.count_one': '1 review',
+  'reviews.count_many': '{count} reviews',
+  'reviews.section_title': 'Latest reviews',
+  'reviews.anonymous': 'Anonymous',
 
   // Generic UI
   'ui.error.generic_title': 'Something went wrong',

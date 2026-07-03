@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Package } from 'lucide-react'
+import { ChevronDown, ChevronUp, MessageSquare, Package } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -12,15 +12,18 @@ import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
 import { Skeleton } from '../../../components/ui/Skeleton'
+import { StarRating } from '../../../components/ui/StarRating'
 import {
   createReservation,
   fetchDistributorDetail,
+  fetchDistributorReviews,
   type DistributorDetail,
+  type DistributorReviews,
   type LockerItemType,
 } from '../../../lib/api'
 import { useRequireAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/cn'
-import { useT } from '../../../lib/i18n/I18nProvider'
+import { useI18n, useT } from '../../../lib/i18n/I18nProvider'
 import type { MessageKey } from '../../../lib/i18n/messages'
 
 /**
@@ -39,6 +42,13 @@ export default function DistributorDetailPage() {
   const detailQuery = useQuery({
     queryKey: ['distributor-detail', params.id],
     queryFn: () => fetchDistributorDetail(params.id),
+    enabled: Boolean(user && params.id),
+  })
+
+  // Avis publics : moyenne + total sous le nom, et les 3 derniers commentaires.
+  const reviewsQuery = useQuery({
+    queryKey: ['distributor-reviews', params.id],
+    queryFn: () => fetchDistributorReviews(params.id, { limit: 3 }),
     enabled: Boolean(user && params.id),
   })
 
@@ -103,6 +113,10 @@ export default function DistributorDetailPage() {
         backLabel={t('nav.back')}
       />
 
+      {reviewsQuery.data && reviewsQuery.data.count > 0 && (
+        <RatingSummary reviews={reviewsQuery.data} />
+      )}
+
       {detailQuery.isLoading && (
         <div className="space-y-3" aria-label={t('distributor.loading')}>
           <Skeleton height={72} rounded="card" />
@@ -126,6 +140,10 @@ export default function DistributorDetailPage() {
           selectedTypeId={selectedTypeId}
           onSelect={setSelectedTypeId}
         />
+      )}
+
+      {reviewsQuery.data && reviewsQuery.data.count > 0 && (
+        <ReviewsSection reviews={reviewsQuery.data} />
       )}
 
       {detailQuery.data && (
@@ -325,5 +343,89 @@ function DetailContent({
         </section>
       )}
     </>
+  )
+}
+
+/**
+ * Résumé de notation affiché sous le nom : étoiles moyennes + nombre d'avis.
+ * Rendu uniquement quand `count > 0` (cf. appelant).
+ */
+function RatingSummary({ reviews }: { reviews: DistributorReviews }) {
+  const t = useT()
+  return (
+    <div className="flex items-center gap-2">
+      <StarRating value={reviews.average ?? 0} size="sm" />
+      <span className="text-sm font-semibold text-navy-900 dark:text-white">
+        {(reviews.average ?? 0).toFixed(1)}
+      </span>
+      <span className="text-meta text-gray-500 dark:text-white/50">
+        {reviews.count === 1
+          ? t('reviews.count_one')
+          : t('reviews.count_many', { count: reviews.count })}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Section repliable listant les 3 derniers commentaires. Les avis sans
+ * commentaire (note seule) sont filtrés — rien à lire. Si aucun commentaire
+ * textuel, la section ne s'affiche pas.
+ */
+function ReviewsSection({ reviews }: { reviews: DistributorReviews }) {
+  const t = useT()
+  const { locale } = useI18n()
+  const [open, setOpen] = useState(false)
+
+  const withComment = reviews.items.filter((r) => r.comment && r.comment.trim().length > 0)
+  if (withComment.length === 0) return null
+
+  const fmtDate = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  })
+
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 rounded-card border px-4 py-3 text-left transition-colors duration-base ease-out-soft border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/25"
+      >
+        <span className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-gray-500 dark:text-white/60" aria-hidden="true" />
+          <span className="text-sm font-medium text-navy-900 dark:text-white/85">
+            {t('reviews.section_title')}
+          </span>
+        </span>
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-gray-400 dark:text-white/40" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-gray-400 dark:text-white/40" aria-hidden="true" />
+        )}
+      </button>
+
+      {open && (
+        <ul className="mt-2 space-y-2">
+          {withComment.map((r, i) => (
+            <li
+              key={i}
+              className="rounded-card border p-3 border-gray-200 bg-white dark:border-white/10 dark:bg-white/5"
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <StarRating value={r.rating} size="sm" />
+                <span className="text-[11px] text-gray-400 dark:text-white/40">
+                  {fmtDate.format(new Date(r.createdAt))}
+                </span>
+              </div>
+              <p className="text-sm text-navy-900 dark:text-white/85">{r.comment}</p>
+              <p className="mt-1 text-meta text-gray-500 dark:text-white/50">
+                {r.authorName ?? t('reviews.anonymous')}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
