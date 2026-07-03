@@ -4,13 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, Clock, MapPin, Package, Plus, WifiOff, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
 import { PaymentStep } from '../../../components/PaymentStep'
 import { Skeleton } from '../../../components/ui/Skeleton'
+import { SuccessCheck } from '../../../components/ui/SuccessCheck'
 import {
   MAX_EXTENSIONS,
   cancelReservation,
@@ -130,6 +131,23 @@ function ReservationContent({
   const [remaining, setRemaining] = useState(() => msUntil(r.expiresAt))
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
+  // Célébration paiement : quand la résa passe de `pending_payment` à un statut
+  // confirmé (scheduled/pending après webhook Stripe ou paiement wallet/simulé),
+  // on affiche brièvement une coche animée avant de révéler le QR — qui slide-in
+  // depuis le bas. `wasPendingPayment` démarre à false si on arrive directement
+  // sur une résa déjà confirmée → pas de célébration intempestive.
+  const wasPendingPayment = useRef(r.status === 'pending_payment')
+  const [celebrating, setCelebrating] = useState(false)
+  useEffect(() => {
+    if (wasPendingPayment.current && r.status !== 'pending_payment') {
+      setCelebrating(true)
+      const id = setTimeout(() => setCelebrating(false), 1900)
+      wasPendingPayment.current = false
+      return () => clearTimeout(id)
+    }
+    wasPendingPayment.current = r.status === 'pending_payment'
+  }, [r.status])
+
   useEffect(() => {
     const id = setInterval(() => setRemaining(msUntil(r.expiresAt)), 1000)
     return () => clearInterval(id)
@@ -155,12 +173,32 @@ function ReservationContent({
     || r.status === 'pending'
     || (isScheduled && minutesUntilSlot > CANCEL_CUTOFF_MIN)
 
+  if (celebrating) {
+    return (
+      <div
+        className="flex animate-fade-in flex-col items-center justify-center gap-4 py-20 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <SuccessCheck className="h-20 w-20" label={t('payment.success_title')} />
+        <div className="space-y-1">
+          <p className="text-lg font-semibold text-navy-900 dark:text-white">
+            {t('payment.success_title')}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            {t('payment.success_body')}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       {isPendingPayment ? (
         <PaymentStep reservation={r} />
       ) : (
-        <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+        <section className="flex animate-slide-up flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
           {r.offline && (
             <span
               className="inline-flex items-center gap-1.5 rounded-full bg-navy-900/5 px-3 py-1 text-meta font-medium text-navy-900/70"

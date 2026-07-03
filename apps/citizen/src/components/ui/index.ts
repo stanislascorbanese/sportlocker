@@ -21,3 +21,6 @@ export type { ErrorStateProps } from './ErrorState'
 
 export { Sheet } from './Sheet'
 export type { SheetProps } from './Sheet'
+
+export { SuccessCheck } from './SuccessCheck'
+export type { SuccessCheckProps } from './SuccessCheck'

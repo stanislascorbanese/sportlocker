@@ -56,12 +56,20 @@ const config: Config = {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
+        // Tracé progressif d'un path SVG. Les paths portent `pathLength={1}` +
+        // `strokeDasharray: 1` → l'offset varie de 1 (invisible) à 0 (tracé
+        // complet), indépendamment de la longueur réelle du chemin.
+        draw: {
+          from: { strokeDashoffset: '1' },
+          to: { strokeDashoffset: '0' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'slide-up': 'slide-up 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'scale-in': 'scale-in 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
         shimmer: 'shimmer 1.6s ease-in-out infinite',
+        draw: 'draw 400ms cubic-bezier(0.65, 0, 0.45, 1) both',
       },
     },
   },
