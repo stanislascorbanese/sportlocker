@@ -1,0 +1,120 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import { COMMUNES, UPCOMING_COMMUNES } from '@/data/communes'
+import { SITE } from '@/data/site'
+
+const pageUrl = `${SITE.url}/communes`
+
+const title = 'Matériel sportif en libre-service par ville'
+const description =
+  'Trouvez le matériel sportif SportLocker près de chez vous : villes déjà équipées de '
+  + 'distributeurs en libre-service 24/7, et villes où le service arrive bientôt. Emprunt '
+  + 'par QR code, sans guichet.'
+
+// BreadcrumbList + ItemList (villes desservies) pour les données structurées.
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Accueil', item: `${SITE.url}/` },
+    { '@type': 'ListItem', position: 2, name: 'Communes', item: pageUrl },
+  ],
+}
+const itemList = {
+  '@type': 'ItemList',
+  name: 'Villes couvertes par SportLocker',
+  itemListElement: COMMUNES.map((c, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: c.name,
+    item: `${SITE.url}/communes/${c.slug}`,
+  })),
+}
+---
+
+<Base title={title} description={description} canonical={pageUrl} extraJsonLd={[breadcrumb, itemList]}>
+  <section class="pt-32 pb-12 sm:pt-40 sm:pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
+    <div class="container-x relative">
+      <div class="max-w-3xl">
+        <span class="tag tag-brand inline-block mb-6">Par ville</span>
+        <h1 class="font-extrabold text-display-xl text-white mb-6">
+          Le matériel sportif,<br/>
+          <span class="text-brand-400">près de chez vous.</span>
+        </h1>
+        <p class="text-[1.15rem] text-white/65 leading-loose font-light">
+          SportLocker installe des distributeurs de matériel sportif en libre-service 24/7 sur les
+          terrains et espaces publics. Voici les villes déjà équipées — et celles où le service
+          arrive bientôt.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VILLES COUVERTES -->
+  <section class="section bg-navy-800">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Déjà sur le terrain</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Villes couvertes</h2>
+        <p class="mt-3 text-white/60 font-light max-w-2xl mx-auto" data-reveal data-reveal-delay="2">
+          Le service est déployé dans ces communes. Cliquez pour l'emprunt local.
+        </p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+        {COMMUNES.map((c, i) => (
+          <a
+            href={`/communes/${c.slug}`}
+            class="card-dark p-5 block hover:border-brand-500/40 transition-colors"
+            data-reveal
+            data-reveal-delay={String((i % 3) + 1)}
+          >
+            <h3 class="font-bold text-white text-base">{c.name}</h3>
+            <p class="mt-1 text-sm text-white/55 font-light">{c.department} · {c.departmentCode}</p>
+            <span class="mt-3 inline-block text-brand-400 text-sm font-medium">
+              Matériel sportif à {c.name} →
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- BIENTÔT -->
+  <section class="section bg-navy-900">
+    <div class="container-x">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Prochainement</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Bientôt dans votre ville</h2>
+        <p class="mt-3 text-white/60 font-light max-w-2xl mx-auto" data-reveal data-reveal-delay="2">
+          Pas encore de distributeur dans ces villes. Une mairie, un camping ou un hôtel local ?
+          Lancez un pilote — installation sous 4 à 6 semaines.
+        </p>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-w-4xl mx-auto">
+        {UPCOMING_COMMUNES.map((c, i) => (
+          <a
+            href={`/communes/${c.slug}`}
+            class="card-dark p-4 block hover:border-brand-500/40 transition-colors"
+            data-reveal
+            data-reveal-delay={String((i % 4) + 1)}
+          >
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="font-bold text-white text-[0.95rem]">{c.name}</h3>
+              <span class="text-[0.55rem] font-medium uppercase tracking-[0.12em] text-brand-300/80">Bientôt</span>
+            </div>
+            <p class="mt-1 text-xs text-white/50 font-light">{c.department} · {c.departmentCode}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <FinalCta
+    title="Votre ville n'est pas encore couverte ?"
+    sub="15 min de call pour cadrer un pilote dans votre commune, camping ou hôtel — et estimer les subventions mobilisables (ANS / DETR / DSIL pour les communes)."
+    primary={{ href: '/contact#formulaire', label: 'Demander une étude de site' }}
+    secondary={{ href: '/couverture', label: 'Voir la carte de couverture' }}
+    fine="Réponse sous 24h ouvrées · Devis sans engagement"
+  />
+</Base>
