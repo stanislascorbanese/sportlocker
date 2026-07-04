@@ -74,7 +74,39 @@
       "Bash(pnpm typecheck)",
       "Bash(pnpm audit *)",
       "mcp__Claude_Preview__preview_screenshot",
-      "mcp__Claude_Preview__preview_console_logs"
+      "mcp__Claude_Preview__preview_console_logs",
+      "Bash(pnpm *)",
+      "Bash(git add *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(git rebase *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git stash *)",
+      "Bash(git restore *)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(python3 *)",
+      "Bash(make *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(mkdir *)",
+      "Bash(sed -n *)",
+      "Bash(awk *)",
+      "Bash(sort *)",
+      "Bash(jq *)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(vitest *)",
+      "Bash(tsc *)"
     ],
     "additionalDirectories": [
       "/Users/stanislascorbanese/Downloads/sportlocker-firmware/services/firmware",
@@ -95,6 +127,7 @@
       "/Users/stanislascorbanese/Downloads/sportlocker-web-v2/apps/web/src/data",
       "/Users/stanislascorbanese/Downloads/sportlocker-web-v2/apps/web/src/components",
       "/Users/stanislascorbanese/Downloads/sportlocker-web-v2/apps/web/public"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }
