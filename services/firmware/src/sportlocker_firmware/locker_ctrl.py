@@ -32,19 +32,12 @@ from typing import Any
 
 import structlog
 
+from .gpio_relay import DEFAULT_PULSE_MS, RelayController
 from .jwt_verify import InvalidTokenError, TokenErrorReason, verify
 from .mqtt_client import MQTTClient
 from .nonce_store import NonceStore
 
 log = structlog.get_logger(__name__)
-
-GPIO_PULSE_SECONDS = 0.5
-# Watchdog défensif sur l'opération GPIO. Le pulse réel prend ~0.5s ;
-# 5s laisse une marge confortable mais protège du driver qui resterait
-# bloqué (filesystem GPIO inaccessible, etc.) et évite que le thread
-# paho callback ne fige indéfiniment.
-GPIO_PULSE_TIMEOUT_S = 5.0
-GPIO_PULSE_MAX_RETRIES = 1
 
 # Tolérance d'horloge pour le check ``slot_start_at`` du JWT (cf. PR 0010).
 # L'horloge du Raspberry Pi peut dériver de ~60s entre 2 synchronisations
@@ -52,14 +45,6 @@ GPIO_PULSE_MAX_RETRIES = 1
 # user scanne jusqu'à 60s avant le début théorique de son créneau pour
 # éviter les refus à cause de skew.
 SLOT_START_CLOCK_TOLERANCE_S = 60
-
-try:
-    import RPi.GPIO as GPIO
-
-    _GPIO_AVAILABLE = True
-except (ImportError, RuntimeError):
-    GPIO = None
-    _GPIO_AVAILABLE = False
 
 
 class UnlockOutcome(StrEnum):
@@ -121,12 +106,15 @@ class LockerController:
         self._setup_db()
 
         self._nonces = nonce_store or NonceStore(db_path)
-        self._setup_gpio()
+        # Banc de relais GPIO (pulse LOW temporisé, watchdog, suivi d'état).
+        # Le controller garde la responsabilité sécurité (JWT + anti-replay) et
+        # délègue le pilotage matériel au ``RelayController``.
+        self._relay = RelayController(self._gpio_mapping)
 
         log.info(
             "locker_controller_ready",
             device_id=device_id,
-            gpio_available=_GPIO_AVAILABLE,
+            gpio_available=self._relay.gpio_available,
             mapped_lockers=len(self._gpio_mapping),
             db_path=db_path,
         )
@@ -154,109 +142,37 @@ class LockerController:
                 """
             )
 
-    # ─── GPIO ──────────────────────────────────────────────────────────────
-
-    def _setup_gpio(self) -> None:
-        if not _GPIO_AVAILABLE:
-            log.warning("gpio_unavailable_dev_mode")
-            return
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-        for pin in self._gpio_mapping.values():
-            GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
+    # ─── GPIO (délégué au RelayController) ─────────────────────────────────
 
     def _pulse_open(
-        self,
-        locker_id: str,
-        *,
-        retries: int = GPIO_PULSE_MAX_RETRIES,
-        timeout_s: float = GPIO_PULSE_TIMEOUT_S,
+        self, locker_id: str, duration_ms: int = DEFAULT_PULSE_MS,
     ) -> bool:
-        """Pulse LOW puis HIGH le GPIO du casier.
+        """Ouvre physiquement le casier — délègue au banc de relais.
 
-        - ``timeout_s`` : si le pulse n'aboutit pas dans ce délai (driver GPIO
-          bloqué, fs en lecture seule…), on abandonne et on force HIGH pour
-          rester fail-secure.
-        - ``retries`` : on retente une fois en cas d'échec — ouvrir un casier
-          déjà ouvert est idempotent (la serrure reste relâchée le temps du
-          pulse, le citoyen retire la porte).
+        Conservé comme point d'entrée interne (chemin sécurisé ``handle_unlock``)
+        au-dessus du ``RelayController`` qui gère pulse temporisé, watchdog,
+        retry idempotent et retour HIGH fail-secure.
         """
-        pin = self._gpio_mapping.get(locker_id)
-        if pin is None:
-            log.error("gpio_pin_not_mapped", locker_id=locker_id)
-            return False
+        return self._relay.open_locker(locker_id, duration_ms)
 
-        attempts = retries + 1
-        last_err: str | None = None
-        for attempt in range(1, attempts + 1):
-            try:
-                self._run_pulse_with_timeout(pin, timeout_s)
-                log.info(
-                    "gpio_pulse_ok",
-                    locker_id=locker_id, pin=pin, attempt=attempt,
-                    simulated=not _GPIO_AVAILABLE,
-                )
-                return True
-            except Exception as exc:  # noqa: BLE001
-                last_err = str(exc)
-                log.warning(
-                    "gpio_pulse_attempt_failed",
-                    locker_id=locker_id, pin=pin, attempt=attempt,
-                    err=last_err,
-                )
-                # Force le retour HIGH au cas où on serait coincé en LOW —
-                # idempotent et fail-secure.
-                self._force_high_safe(pin)
+    def open_locker(
+        self, locker_id: str | int, duration_ms: int = DEFAULT_PULSE_MS,
+    ) -> bool:
+        """Ouverture GPIO directe (hors chemin JWT) — diagnostic / bench test.
 
-        log.error(
-            "gpio_pulse_exhausted",
-            locker_id=locker_id, pin=pin, attempts=attempts, err=last_err,
-        )
-        return False
-
-    def _run_pulse_with_timeout(self, pin: int, timeout_s: float) -> None:
-        """Exécute le pulse dans un thread daemon avec watchdog.
-
-        Lève ``TimeoutError`` si le pulse dépasse ``timeout_s`` — le thread
-        daemon survit mais ne bloquera pas la coroutine.
+        ⚠️ Ne vérifie NI le JWT NI l'anti-replay : réservé aux tests matériel
+        (``make demo``, ``BENCH_TEST.md``). Le déverrouillage citoyen passe
+        toujours par ``handle_unlock``.
         """
-        if not _GPIO_AVAILABLE:
-            log.info("gpio_pulse_simulated", pin=pin)
-            time.sleep(min(GPIO_PULSE_SECONDS, timeout_s))
-            return
+        return self._relay.open_locker(locker_id, duration_ms)
 
-        done = threading.Event()
-        err_box: list[BaseException] = []
+    def get_locker_status(self, locker_id: str | int) -> dict[str, Any]:
+        """État GPIO d'un casier (gpio_state, last_open_at, pin, error)."""
+        return self._relay.get_locker_status(locker_id)
 
-        def _run() -> None:
-            try:
-                GPIO.output(pin, GPIO.LOW)
-                time.sleep(GPIO_PULSE_SECONDS)
-                GPIO.output(pin, GPIO.HIGH)
-            except BaseException as exc:  # noqa: BLE001
-                err_box.append(exc)
-            finally:
-                done.set()
-
-        worker = threading.Thread(
-            target=_run, daemon=True, name=f"gpio-pulse-{pin}",
-        )
-        worker.start()
-        if not done.wait(timeout=timeout_s):
-            raise TimeoutError(
-                f"gpio pulse exceeded {timeout_s}s on pin {pin}"
-            )
-        if err_box:
-            raise err_box[0]
-
-    def _force_high_safe(self, pin: int) -> None:
-        """Best-effort GPIO HIGH (fail-secure). Swallow toute erreur."""
-        if not _GPIO_AVAILABLE:
-            return
-        try:
-            GPIO.output(pin, GPIO.HIGH)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("gpio_force_high_failed", pin=pin, err=str(exc))
+    def get_gpio_states(self) -> dict[str, str]:
+        """Vue ``{locker_id: "HIGH"|"LOW"}`` — consommée par le heartbeat."""
+        return self._relay.get_gpio_states()
 
     # ─── Cache réservations ────────────────────────────────────────────────
 
@@ -487,9 +403,8 @@ class LockerController:
     # ─── Cleanup ──────────────────────────────────────────────────────────
 
     def close(self) -> None:
-        if _GPIO_AVAILABLE:
-            with self._mute():
-                GPIO.cleanup()
+        with self._mute():
+            self._relay.cleanup()
         with self._mute():
             self._nonces.close()
         with self._mute():

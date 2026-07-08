@@ -8,16 +8,18 @@ serrure, publie les événements sur MQTT (EMQX Cloud).
 
 ```
 src/sportlocker_firmware/
-  agent.py          orchestration asyncio (MQTT + QR + heartbeat + controller)
+  agent.py          orchestration asyncio (MQTT + QR + NFC + heartbeat + controller)
   __main__.py       entry point — `python -m sportlocker_firmware`
   config.py         load_config() depuis variables d'environnement
   mqtt_client.py    wrapper paho-mqtt async + reconnect exponentiel borné
-  qr_reader.py      capture caméra (cv2 + pyzbar), debounce, forward au controller
+  qr_reader.py      capture caméra Pi v3 (picamera2 + pyzbar), debounce, forward
+  nfc_reader.py     lecture NFC PN532 en I2C (adafruit), 0x24/0x25, callback
+  gpio_relay.py     banc de relais GPIO fail-secure (pulse LOW temporisé + état)
   locker_ctrl.py    orchestre JWT verify + anti-replay + GPIO + MQTT signé
   jwt_verify.py     HS256 offline + claims requis + check distributeur cible
   nonce_store.py    SQLite anti-replay (rétention 24 h, purge périodique)
   state_machine.py  miroir Python de l'enum SQL locker_state
-  heartbeat.py      télémétrie périodique (CPU temp, mem, uptime) → MQTT
+  heartbeat.py      télémétrie enrichie (GPIO + caméra + NFC + CPU temp) → MQTT
 ```
 
 ## Sécurité critique — ne PAS modifier sans review

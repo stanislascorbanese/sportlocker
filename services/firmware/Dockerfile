@@ -11,14 +11,17 @@ FROM balenalib/raspberrypi4-64-python:3.11-bookworm-build AS builder
 
 WORKDIR /build
 
-# Deps système nécessaires à la compilation cryptography + opencv + pyzbar.
+# Deps système nécessaires à la compilation cryptography + opencv + pyzbar +
+# RPi.GPIO / adafruit-blinka (GPIO + I2C matériel).
 RUN install_packages \
     build-essential \
     libssl-dev \
     libffi-dev \
     libzbar0 \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 \
+    libgpiod2 \
+    i2c-tools
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
@@ -30,10 +33,20 @@ FROM balenalib/raspberrypi4-64-python:3.11-bookworm-run
 WORKDIR /app
 
 # Runtime-only deps (pas de toolchain — image plus légère pour OTA Balena).
+#   - libzbar0 / libgl / libglib : décodage QR (pyzbar + opencv)
+#   - libgpiod2 : GPIO relais (RPi.GPIO / adafruit-blinka) + i2c-tools (NFC)
+#   - python3-picamera2 + python3-libcamera : caméra Pi v3 (IMX708). picamera2
+#     n'est PAS installable de façon fiable en pip (dépend de libcamera
+#     système) → on prend le paquet APT, qui s'installe dans dist-packages et
+#     coexiste avec les deps pip copiées depuis le builder.
 RUN install_packages \
     libzbar0 \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    libgpiod2 \
+    i2c-tools \
+    python3-libcamera \
+    python3-picamera2 \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local

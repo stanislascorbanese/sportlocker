@@ -26,6 +26,16 @@ dev = [
   "ruff>=0.4.0",
   "mypy>=1.10.0",
 ]
+# Deps matériel Raspberry Pi CM4 — installées SEULEMENT sur le Pi
+# (`pip install -e .[pi]`), jamais en dev/CI : RPi.GPIO ne compile pas hors ARM
+# et les libs adafruit exigent un vrai bus I2C. Elles sont mockées côté tests
+# (tests/conftest.py), comme cv2/pyzbar. picamera2 vient de l'APT système
+# (python3-picamera2 + libcamera), cf. Dockerfile — trop fragile en pip.
+pi = [
+  "RPi.GPIO>=0.7.1",
+  "adafruit-circuitpython-pn532>=1.5.0",
+  "adafruit-blinka>=8.0.0",
+]
 
 [project.scripts]
 sportlocker-firmware = "sportlocker_firmware.agent:run"

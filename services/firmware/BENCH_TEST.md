@@ -28,7 +28,7 @@ compartiments.
   laisser un solénoïde alimenté en continu (échauffement + fail-open).
 - **Polarité du relais — POINT CRITIQUE** : le firmware est fail-secure avec
   GPIO `HIGH` au repos et **pulse `LOW`** pour ouvrir
-  (`locker_ctrl._run_pulse_with_timeout`). Ça suppose une carte relais
+  (`gpio_relay.RelayController._run_pulse_with_timeout`). Ça suppose une carte relais
   **active-LOW** (relais fermé quand l'entrée est LOW).
   - Active-LOW + HIGH-au-repos → relais OFF → solénoïde hors tension →
     **verrouillé** ✅ (cohérent).

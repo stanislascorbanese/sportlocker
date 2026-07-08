@@ -13,7 +13,7 @@ DEMO_LOCKER ?= locker-demo-1
 ARGS        ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help install test lint typecheck check demo demo-replay demo-offline
+.PHONY: help install test lint typecheck check demo demo-scan demo-replay demo-offline
 
 help:  ## Affiche cette aide
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -34,12 +34,15 @@ typecheck:  ## Types mypy (strict)
 
 check: lint typecheck test  ## lint + types + tests
 
-demo:  ## Mock local QR->JWT->GPIO (sans Pi ni broker). ex: make demo ARGS="--offline"
+demo:  ## Démo bench : ouverture séquentielle casiers 1→4 + QR/NFC factices (mock si pas de Pi)
+	$(PY) -m sportlocker_firmware.tools.bench_demo $(ARGS)
+
+demo-scan:  ## Mock local QR->JWT->GPIO en process (chemin sécurité). ex: make demo-scan ARGS="--offline"
 	$(PY) -m sportlocker_firmware.tools.local_scan \
 	  --secret "$(DEMO_SECRET)" --device "$(DEMO_DEVICE)" --locker "$(DEMO_LOCKER)" $(ARGS)
 
 demo-replay:  ## Démo : rejoue le même QR -> anti-replay bloque le 2e scan
-	@$(MAKE) demo ARGS="--replay"
+	@$(MAKE) demo-scan ARGS="--replay"
 
 demo-offline:  ## Démo : broker down + pas de cache -> refus (cache_miss_offline)
-	@$(MAKE) demo ARGS="--offline --no-cache"
+	@$(MAKE) demo-scan ARGS="--offline --no-cache"

@@ -86,3 +86,78 @@ def test_heartbeat_loop_publishes_then_cancels(
     assert payload["cpuTempC"] == 42.0
     assert payload["freeMemMb"] == 256
     assert "uptimeSeconds" in payload
+
+
+# ─── Payload enrichi (firmware hardware v1) ─────────────────────────────────
+
+
+class _FakeSource:
+    def __init__(self, *, states: dict[str, str], cam: bool, nfc: bool) -> None:
+        self._states = states
+        self._cam = cam
+        self._nfc = nfc
+
+    def gpio_states(self) -> dict[str, str]:
+        return self._states
+
+    def camera_ok(self) -> bool:
+        return self._cam
+
+    def nfc_ok(self) -> bool:
+        return self._nfc
+
+
+def test_payload_without_source_has_degraded_hardware_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(heartbeat, "_read_cpu_temp", lambda: 40.0)
+    monkeypatch.setattr(heartbeat, "_read_free_mem_mb", lambda: 128)
+    payload = heartbeat._build_payload("d-1", None)
+    # Contrat backend préservé.
+    assert payload["cpuTempC"] == 40.0
+    assert payload["freeMemMb"] == 128
+    # Enrichi : dégradé proprement en l'absence de source.
+    assert payload["gpio_states"] == {}
+    assert payload["camera_ok"] is False
+    assert payload["nfc_ok"] is False
+    assert payload["temp_cpu"] == 40.0
+    assert isinstance(payload["uptime_s"], int)
+    assert payload["firmware_version"] == heartbeat.FIRMWARE_VERSION
+
+
+def test_payload_with_source_includes_hardware_telemetry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(heartbeat, "_read_cpu_temp", lambda: 55.0)
+    monkeypatch.setattr(heartbeat, "_read_free_mem_mb", lambda: 512)
+    source = _FakeSource(
+        states={"locker_1": "HIGH", "locker_2": "LOW"}, cam=True, nfc=False,
+    )
+    payload = heartbeat._build_payload("d-1", source)
+    assert payload["gpio_states"] == {"locker_1": "HIGH", "locker_2": "LOW"}
+    assert payload["camera_ok"] is True
+    assert payload["nfc_ok"] is False
+    assert payload["temp_cpu"] == 55.0
+
+
+def test_payload_source_failure_degrades_without_raising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(heartbeat, "_read_cpu_temp", lambda: None)
+    monkeypatch.setattr(heartbeat, "_read_free_mem_mb", lambda: None)
+
+    class _Boom:
+        def gpio_states(self) -> dict[str, str]:
+            raise RuntimeError("gpio read blew up")
+
+        def camera_ok(self) -> bool:
+            return True
+
+        def nfc_ok(self) -> bool:
+            return True
+
+    payload = heartbeat._build_payload("d-1", _Boom())
+    # La panne de la source ne doit pas casser le heartbeat.
+    assert payload["gpio_states"] == {}
+    assert payload["camera_ok"] is False
+    assert payload["nfc_ok"] is False

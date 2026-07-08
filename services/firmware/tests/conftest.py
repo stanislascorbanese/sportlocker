@@ -27,6 +27,20 @@ _pyzbar_pkg.pyzbar = _pyzbar_mod
 sys.modules.setdefault("pyzbar", _pyzbar_pkg)
 sys.modules.setdefault("pyzbar.pyzbar", _pyzbar_mod)
 
+# Stub picamera2 (caméra Pi v3) — libcamera n'existe pas sur macOS/CI.
+# ``qr_reader`` fait ``from picamera2 import Picamera2`` : on expose un
+# attribut Picamera2 mockable. Les tests le patchent au niveau de qr_reader.
+_picamera2_pkg = MagicMock(name="picamera2_stub")
+_picamera2_pkg.Picamera2 = MagicMock(name="Picamera2_stub")
+sys.modules.setdefault("picamera2", _picamera2_pkg)
+
+# Stub des libs matérielles NFC/GPIO (présentes seulement sur le Pi).
+sys.modules.setdefault("board", MagicMock(name="board_stub"))
+sys.modules.setdefault("busio", MagicMock(name="busio_stub"))
+_pn532_pkg = MagicMock(name="adafruit_pn532_pkg_stub")
+sys.modules.setdefault("adafruit_pn532", _pn532_pkg)
+sys.modules.setdefault("adafruit_pn532.i2c", MagicMock(name="adafruit_pn532_i2c_stub"))
+
 
 import pytest  # noqa: E402
 

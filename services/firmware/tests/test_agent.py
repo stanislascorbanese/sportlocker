@@ -91,10 +91,10 @@ def test_run_swallows_keyboard_interrupt() -> None:
 
 
 def test_main_async_orchestrates_subsystems(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Le main async câble MQTT + controller + QR + heartbeat puis attend signal."""
+    """Le main async câble MQTT + controller + QR + NFC + heartbeat puis attend signal."""
     import asyncio as real_asyncio
 
-    cfg = MagicMock(device_id="d-1", device_secret="s")
+    cfg = MagicMock(device_id="d-1", device_secret="s", locker_count=4)
     monkeypatch.setattr(agent, "load_config", lambda: cfg)
     monkeypatch.setattr(agent, "_load_gpio_mapping", lambda: {"l-1": 17})
 
@@ -110,6 +110,10 @@ def test_main_async_orchestrates_subsystems(monkeypatch: pytest.MonkeyPatch) -> 
     fake_qr = MagicMock()
     fake_qr.run = AsyncMock()
     monkeypatch.setattr(agent, "QRReader", lambda **_kw: fake_qr)
+
+    fake_nfc = MagicMock()
+    fake_nfc.run = AsyncMock()
+    monkeypatch.setattr(agent, "NFCReader", lambda **_kw: fake_nfc)
 
     async def _hb_noop(*_a: object, **_kw: object) -> None:
         return None
@@ -131,4 +135,21 @@ def test_main_async_orchestrates_subsystems(monkeypatch: pytest.MonkeyPatch) -> 
     real_asyncio.run(driver())
 
     fake_mqtt.connect.assert_called_once()
+    fake_nfc.run.assert_called_once()  # la tâche NFC est bien câblée
     fake_ctrl.close.assert_not_called()  # cancel précoce → cleanup partiel toléré
+
+
+def test_nfc_addresses_scales_with_locker_count() -> None:
+    assert agent._nfc_addresses(4) == (agent.PRIMARY_ADDRESS,)
+    assert agent._nfc_addresses(8) == (agent.PRIMARY_ADDRESS, agent.SECONDARY_ADDRESS)
+
+
+def test_agent_heartbeat_source_reads_hardware_state() -> None:
+    ctrl = MagicMock()
+    ctrl.get_gpio_states.return_value = {"l-1": "HIGH"}
+    qr = MagicMock(camera_ok=True)
+    nfc = MagicMock(nfc_ok=False)
+    src = agent._AgentHeartbeatSource(ctrl, qr, nfc)
+    assert src.gpio_states() == {"l-1": "HIGH"}
+    assert src.camera_ok() is True
+    assert src.nfc_ok() is False

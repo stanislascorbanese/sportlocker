@@ -1,4 +1,4 @@
-"""Tests QRReader — décodage + debounce, avec cv2/pyzbar mockés."""
+"""Tests QRReader — décodage picamera2 + debounce, avec picamera2/pyzbar mockés."""
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sportlocker_firmware.qr_reader import DEDUP_WINDOW_SECONDS, QRReader
+from sportlocker_firmware import qr_reader as qr_mod
+from sportlocker_firmware.qr_reader import DEDUP_WINDOW_SECONDS, CameraNotFoundError, QRReader
 
 
 def _fake_pyzbar_code(data: str) -> MagicMock:
@@ -16,10 +17,17 @@ def _fake_pyzbar_code(data: str) -> MagicMock:
     return code
 
 
+def _reader(controller: MagicMock, secret: str) -> QRReader:
+    return QRReader(mqtt=MagicMock(), controller=controller, device_secret=secret)
+
+
+# ─── Debounce / forwarding ──────────────────────────────────────────────────
+
+
 def test_qr_seen_forwards_to_controller(device_secret: str) -> None:
     controller = MagicMock()
     controller.handle_unlock.return_value = MagicMock(outcome=MagicMock(value="success"))
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     reader._on_qr_seen("jwt-token-A")
 
@@ -29,7 +37,7 @@ def test_qr_seen_forwards_to_controller(device_secret: str) -> None:
 def test_debounce_dedupes_same_qr_within_window(device_secret: str) -> None:
     controller = MagicMock()
     controller.handle_unlock.return_value = MagicMock(outcome=MagicMock(value="success"))
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     reader._on_qr_seen("jwt-token-A")
     reader._on_qr_seen("jwt-token-A")  # même QR immédiatement → ignoré
@@ -41,7 +49,7 @@ def test_debounce_dedupes_same_qr_within_window(device_secret: str) -> None:
 def test_debounce_allows_different_qrs(device_secret: str) -> None:
     controller = MagicMock()
     controller.handle_unlock.return_value = MagicMock(outcome=MagicMock(value="success"))
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     reader._on_qr_seen("jwt-A")
     reader._on_qr_seen("jwt-B")
@@ -56,7 +64,7 @@ def test_debounce_allows_same_qr_after_window(
     """Après la fenêtre de dedup, le même QR doit re-déclencher l'appel."""
     controller = MagicMock()
     controller.handle_unlock.return_value = MagicMock(outcome=MagicMock(value="success"))
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     fake_time = [1000.0]
     monkeypatch.setattr(
@@ -70,33 +78,51 @@ def test_debounce_allows_same_qr_after_window(
     assert controller.handle_unlock.call_count == 2
 
 
+# ─── Boucle run() sur picamera2 ─────────────────────────────────────────────
+
+
+def _fake_camera(frames: list[object]) -> MagicMock:
+    """Faux Picamera2 : capture_array renvoie une frame par appel puis répète."""
+    cam = MagicMock()
+    seq = list(frames)
+
+    def _capture() -> object:
+        return seq.pop(0) if seq else "empty-frame"
+
+    cam.capture_array.side_effect = _capture
+    return cam
+
+
 def test_run_loop_decodes_frames_from_camera(
     device_secret: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """La boucle async lit la caméra, transmet les decodes au controller, puis sort."""
+    """La boucle async lit la caméra, transmet les decodes au controller."""
     controller = MagicMock()
     controller.handle_unlock.return_value = MagicMock(outcome=MagicMock(value="success"))
 
-    # Mock cv2.VideoCapture pour renvoyer une frame une fois puis lever StopAsyncIteration.
-    cap = MagicMock()
-    cap.isOpened.return_value = True
-    frames = [(True, "frame-1"), (True, "frame-1"), (False, None)]
-    cap.read.side_effect = frames + [(False, None)] * 10
-    cv2_mod = sys.modules["cv2"]
-    monkeypatch.setattr(cv2_mod, "VideoCapture", MagicMock(return_value=cap))
+    cam = _fake_camera(["frame-1", "frame-2"])
+    fake_picam2_cls = MagicMock(return_value=cam)
+    monkeypatch.setattr(qr_mod, "Picamera2", fake_picam2_cls)
 
-    # pyzbar décode "JWT-X" sur la première frame, rien ensuite.
+    # pyzbar décode "JWT-X" sur la première frame vue, rien ensuite (boucle
+    # infinie côté run → le mock doit rester appelable indéfiniment).
+    decoded_once = {"done": False}
+
+    def fake_decode(_frame: object) -> list[MagicMock]:
+        if decoded_once["done"]:
+            return []
+        decoded_once["done"] = True
+        return [_fake_pyzbar_code("JWT-X")]
+
     pyzbar_mod = sys.modules["pyzbar.pyzbar"]
-    monkeypatch.setattr(
-        pyzbar_mod, "decode",
-        MagicMock(side_effect=[[_fake_pyzbar_code("JWT-X")], [], []]),
-    )
+    monkeypatch.setattr(pyzbar_mod, "decode", fake_decode)
 
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     async def runner() -> None:
         task = asyncio.create_task(reader.run())
         await asyncio.sleep(0.2)
+        assert reader.camera_ok is True
         task.cancel()
         try:
             await task
@@ -106,29 +132,27 @@ def test_run_loop_decodes_frames_from_camera(
     asyncio.run(runner())
 
     controller.handle_unlock.assert_any_call("JWT-X")
-    cap.release.assert_called()
+    cam.stop.assert_called()
+    cam.close.assert_called()
+    assert reader.camera_ok is False
 
 
-def test_run_fail_soft_when_camera_unavailable(
+def test_run_ignores_invalid_frame_without_qr(
     device_secret: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Sans caméra (container sans /dev/video0, dev local…), run doit
-    rester dormant sans crash et sans busy-loop — l'injection se fera
-    via MQTT cmd/open côté agent."""
+    """Une frame sans QR (pyzbar renvoie []) ne déclenche aucun unlock."""
     controller = MagicMock()
+    cam = _fake_camera(["blurry-frame"])
+    monkeypatch.setattr(qr_mod, "Picamera2", MagicMock(return_value=cam))
 
-    cap = MagicMock()
-    cap.isOpened.return_value = False  # caméra absente
-    cv2_mod = sys.modules["cv2"]
-    monkeypatch.setattr(cv2_mod, "VideoCapture", MagicMock(return_value=cap))
+    pyzbar_mod = sys.modules["pyzbar.pyzbar"]
+    monkeypatch.setattr(pyzbar_mod, "decode", MagicMock(return_value=[]))
 
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     async def runner() -> None:
         task = asyncio.create_task(reader.run())
         await asyncio.sleep(0.1)
-        # La task doit encore tourner (idle) — pas crashée ni terminée.
-        assert not task.done()
         task.cancel()
         try:
             await task
@@ -136,24 +160,45 @@ def test_run_fail_soft_when_camera_unavailable(
             pass
 
     asyncio.run(runner())
-
-    # Le controller ne doit jamais être appelé sans frame.
     controller.handle_unlock.assert_not_called()
 
 
-def test_run_fail_soft_when_videocapture_raises(
+def test_run_fail_soft_when_picamera2_absent(
     device_secret: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Si cv2.VideoCapture lève (libs manquantes, perms…), même comportement
+    """Sans picamera2 (dev macOS, container sans libcamera), run reste dormant
+    sans crash ni busy-loop — l'injection se fait via MQTT cmd/open."""
+    controller = MagicMock()
+    monkeypatch.setattr(qr_mod, "Picamera2", None)
+
+    reader = _reader(controller, device_secret)
+
+    async def runner() -> None:
+        task = asyncio.create_task(reader.run())
+        await asyncio.sleep(0.1)
+        assert not task.done()  # idle, pas crashée
+        assert reader.camera_ok is False
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(runner())
+    controller.handle_unlock.assert_not_called()
+
+
+def test_run_fail_soft_when_camera_init_raises(
+    device_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Si l'init picamera2 lève (CSI absent, perms…), même comportement
     fail-soft : on log et on dort, on ne crash pas l'agent."""
     controller = MagicMock()
-
-    cv2_mod = sys.modules["cv2"]
     monkeypatch.setattr(
-        cv2_mod, "VideoCapture", MagicMock(side_effect=RuntimeError("no v4l2"))
+        qr_mod, "Picamera2", MagicMock(side_effect=RuntimeError("no camera")),
     )
 
-    reader = QRReader(mqtt=MagicMock(), controller=controller, device_secret=device_secret)
+    reader = _reader(controller, device_secret)
 
     async def runner() -> None:
         task = asyncio.create_task(reader.run())
@@ -167,3 +212,11 @@ def test_run_fail_soft_when_videocapture_raises(
 
     asyncio.run(runner())
     controller.handle_unlock.assert_not_called()
+
+
+def test_open_camera_raises_camera_not_found_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(qr_mod, "Picamera2", None)
+    with pytest.raises(CameraNotFoundError):
+        QRReader._open_camera()

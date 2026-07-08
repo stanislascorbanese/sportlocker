@@ -15,3 +15,15 @@ python-jose[cryptography]==3.5.0
 pydantic==2.13.4
 structlog==25.5.0
 sentry-sdk==2.61.1
+
+# ─── Matériel Raspberry Pi CM4 (firmware hardware v1) ────────────────────────
+# Ces libs ne s'installent QUE sur le Pi (ARM + /dev/gpiomem + bus I2C). En
+# dev/CI (macOS) elles sont mockées via tests/conftest.py — même approche que
+# cv2/pyzbar. NE PAS les ajouter aux deps core de pyproject : RPi.GPIO ne
+# compile pas hors ARM et casserait `pip install -e .[dev]` en CI.
+RPi.GPIO==0.7.1                       # GPIO relais (BCM), fail-secure HIGH/LOW
+adafruit-circuitpython-pn532==1.5.0   # lecteur NFC PN532 en I2C (0x24 / 0x25)
+adafruit-blinka==8.65.0               # couche board/busio (I2C) pour adafruit
+# picamera2 (caméra Pi v3 / IMX708) s'installe via APT dans le Dockerfile
+# (python3-picamera2 + libcamera) — pas fiable en pip car dépend de libcamera
+# système. PAS la lib `picamera` legacy (incompatible IMX708).

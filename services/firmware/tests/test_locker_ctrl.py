@@ -428,81 +428,6 @@ def test_pulse_simulated_succeeds_on_first_attempt(
     assert controller._pulse_open(locker_id) is True
 
 
-def test_pulse_retries_on_failure_then_succeeds(
-    controller: LockerController, locker_id: str, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Si le premier pulse lève, le 2e (retry idempotent) est tenté."""
-    attempts = {"n": 0}
-
-    def flaky(_self: LockerController, _pin: int, _timeout: float) -> None:
-        attempts["n"] += 1
-        if attempts["n"] == 1:
-            raise OSError("gpio_busy")
-        # 2e tentative : OK
-
-    monkeypatch.setattr(
-        "sportlocker_firmware.locker_ctrl.LockerController._run_pulse_with_timeout",
-        flaky,
-    )
-    assert controller._pulse_open(locker_id) is True
-    assert attempts["n"] == 2
-
-
-def test_pulse_exhausts_retries_and_returns_false(
-    controller: LockerController, locker_id: str, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Si toutes les tentatives échouent, retourne False (HARDWARE_FAULT en aval)."""
-    attempts = {"n": 0}
-
-    def always_fails(_self: LockerController, _pin: int, _timeout: float) -> None:
-        attempts["n"] += 1
-        raise OSError("driver_dead")
-
-    monkeypatch.setattr(
-        "sportlocker_firmware.locker_ctrl.LockerController._run_pulse_with_timeout",
-        always_fails,
-    )
-    assert controller._pulse_open(locker_id) is False
-    # 1 essai initial + 1 retry par défaut.
-    assert attempts["n"] == 2
-
-
-def test_pulse_timeout_raises_in_inner_helper(
-    controller: LockerController, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Si le thread du pulse n'aboutit pas dans le timeout, on lève TimeoutError."""
-    import sportlocker_firmware.locker_ctrl as mod
-    monkeypatch.setattr(mod, "_GPIO_AVAILABLE", True)
-
-    stub = MagicMock()
-    stub.LOW = 0
-    stub.HIGH = 1
-    stub.output = MagicMock()  # rapide, mais sleep prend toute la place
-    monkeypatch.setattr(mod, "GPIO", stub)
-    monkeypatch.setattr(mod, "GPIO_PULSE_SECONDS", 5.0)  # plus long que timeout
-
-    with pytest.raises(TimeoutError):
-        controller._run_pulse_with_timeout(pin=17, timeout_s=0.05)
-
-
-def test_pulse_propagates_inner_exception(
-    controller: LockerController, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Si GPIO.output lève dans le thread, l'exception est remontée."""
-    import sportlocker_firmware.locker_ctrl as mod
-    monkeypatch.setattr(mod, "_GPIO_AVAILABLE", True)
-
-    stub = MagicMock()
-    stub.LOW = 0
-    stub.HIGH = 1
-    stub.output = MagicMock(side_effect=OSError("ioctl_failed"))
-    monkeypatch.setattr(mod, "GPIO", stub)
-    monkeypatch.setattr(mod, "GPIO_PULSE_SECONDS", 0.001)
-
-    with pytest.raises(OSError, match="ioctl_failed"):
-        controller._run_pulse_with_timeout(pin=17, timeout_s=2.0)
-
-
 def test_hardware_fault_when_gpio_pulse_returns_false(
     controller: LockerController, monkeypatch: pytest.MonkeyPatch,
     device_secret: str, device_id: str, locker_id: str, reservation_id: str,
@@ -521,3 +446,55 @@ def test_hardware_fault_when_gpio_pulse_returns_false(
     )
     result = controller.handle_unlock(token)
     assert result.outcome is UnlockOutcome.HARDWARE_FAULT
+
+
+# ─── Passthroughs GPIO (diagnostic / heartbeat / bench) ─────────────────────
+
+
+def test_open_locker_direct_bypasses_jwt(
+    controller: LockerController, locker_id: str,
+) -> None:
+    """open_locker ouvre directement (hors chemin JWT) — utilisé au bench."""
+    assert controller.open_locker(locker_id) is True
+
+
+def test_get_gpio_states_reflects_mapping(
+    controller: LockerController, locker_id: str,
+) -> None:
+    """Au repos toutes les broches mappées sont HIGH (verrouillé)."""
+    states = controller.get_gpio_states()
+    assert states == {locker_id: "HIGH"}
+
+
+def test_get_locker_status_tracks_last_open(
+    controller: LockerController, locker_id: str,
+) -> None:
+    """Après une ouverture, last_open_at est renseigné et l'état revient HIGH."""
+    before = controller.get_locker_status(locker_id)
+    assert before["last_open_at"] is None
+    assert before["gpio_state"] == "HIGH"
+
+    controller.open_locker(locker_id)
+
+    after = controller.get_locker_status(locker_id)
+    assert after["gpio_state"] == "HIGH"  # retour HIGH fail-secure
+    assert isinstance(after["last_open_at"], int)
+    assert after["error"] is None
+    assert after["pin"] == 17
+
+
+def test_unlock_records_last_open_at(
+    controller: LockerController,
+    device_secret: str, device_id: str, locker_id: str, reservation_id: str,
+) -> None:
+    """Un handle_unlock réussi met à jour l'état GPIO exposé au heartbeat."""
+    token = _make_token(
+        device_secret,
+        device_id=device_id,
+        locker_id=locker_id,
+        reservation_id=reservation_id,
+        jti="nonce-state-track",
+    )
+    assert controller.handle_unlock(token).ok is True
+    status = controller.get_locker_status(locker_id)
+    assert isinstance(status["last_open_at"], int)

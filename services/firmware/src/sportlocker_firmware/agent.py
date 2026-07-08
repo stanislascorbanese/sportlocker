@@ -2,9 +2,10 @@
 
 Orchestration des sous-systèmes :
   - MQTT vers EMQX Cloud (telemetry + commandes)
-  - Lecteur QR (caméra USB, OpenCV + pyzbar)
-  - Controller casiers (GPIO + RFID llrpy)
-  - Heartbeat périodique (toutes les 30s)
+  - Lecteur QR (caméra Pi v3 CSI, picamera2 + pyzbar)
+  - Lecteur NFC (modules PN532 en I2C)
+  - Controller casiers (GPIO relais via RelayController)
+  - Heartbeat périodique enrichi (toutes les 30s)
 """
 from __future__ import annotations
 
@@ -24,9 +25,13 @@ from .config import load_config
 from .heartbeat import heartbeat_loop
 from .locker_ctrl import LockerController
 from .mqtt_client import MQTTClient
+from .nfc_reader import PRIMARY_ADDRESS, SECONDARY_ADDRESS, NFCReader
 from .qr_reader import QRReader
 
 log = structlog.get_logger()
+
+# Un 2ᵉ module PN532 (0x25) couvre les casiers 5-8 ; inutile en deçà.
+_DUAL_NFC_LOCKER_THRESHOLD = 4
 
 CALIBRATION_PATH = Path(os.environ.get("CALIBRATION_PATH", "/etc/sportlocker/calibration.json"))
 AGENT_DB_PATH = os.environ.get("FIRMWARE_DB_PATH", "/var/lib/sportlocker/agent.db")
@@ -79,6 +84,37 @@ def _make_open_cmd_handler(
     return _handle
 
 
+class _AgentHeartbeatSource:
+    """Branche le heartbeat sur l'état matériel réel (GPIO + caméra + NFC).
+
+    Toutes les méthodes sont non bloquantes et ne lèvent pas (le heartbeat
+    est vital) : elles lisent des attributs/snapshots déjà calculés.
+    """
+
+    def __init__(
+        self, controller: LockerController, qr: QRReader, nfc: NFCReader,
+    ) -> None:
+        self._controller = controller
+        self._qr = qr
+        self._nfc = nfc
+
+    def gpio_states(self) -> dict[str, str]:
+        return self._controller.get_gpio_states()
+
+    def camera_ok(self) -> bool:
+        return self._qr.camera_ok
+
+    def nfc_ok(self) -> bool:
+        return self._nfc.nfc_ok
+
+
+def _nfc_addresses(locker_count: int) -> tuple[int, ...]:
+    """0x24 seul jusqu'à 4 casiers, + 0x25 au-delà (casiers 5-8)."""
+    if locker_count > _DUAL_NFC_LOCKER_THRESHOLD:
+        return (PRIMARY_ADDRESS, SECONDARY_ADDRESS)
+    return (PRIMARY_ADDRESS,)
+
+
 async def main() -> None:
     cfg = load_config()
     log.info("agent_starting", device_id=cfg.device_id)
@@ -97,11 +133,17 @@ async def main() -> None:
     mqtt.on_command(_make_open_cmd_handler(controller), subtopic="open")
 
     qr = QRReader(mqtt=mqtt, controller=controller, device_secret=cfg.device_secret)
+    nfc = NFCReader(addresses=_nfc_addresses(cfg.locker_count))
+    hb_source = _AgentHeartbeatSource(controller, qr, nfc)
 
     tasks = [
         asyncio.create_task(mqtt.run(), name="mqtt"),
         asyncio.create_task(qr.run(), name="qr"),
-        asyncio.create_task(heartbeat_loop(mqtt, device_id=cfg.device_id), name="heartbeat"),
+        asyncio.create_task(nfc.run(), name="nfc"),
+        asyncio.create_task(
+            heartbeat_loop(mqtt, device_id=cfg.device_id, source=hb_source),
+            name="heartbeat",
+        ),
     ]
 
     loop = asyncio.get_running_loop()
