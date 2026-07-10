@@ -128,6 +128,21 @@ function arrow(p1, p2, color='#dc2626', w=2) {
 function svgWrap(inner, vb='-320 -260 640 480') {
   return `<svg viewBox="${vb}" width="760" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
 }
+/* Cote 2D (plan) : double flèche + texte, horizontale ou verticale */
+function dim2d(x1, y1, x2, y2, txt, side=14, color='#0f766e') {
+  const horiz = Math.abs(y2 - y1) < Math.abs(x2 - x1);
+  const ox = horiz ? 0 : side, oy = horiz ? side : 0;
+  const a = [x1+ox, y1+oy], b = [x2+ox, y2+oy];
+  const mid = [(a[0]+b[0])/2, (a[1]+b[1])/2];
+  const ang = Math.atan2(b[1]-a[1], b[0]-a[0]);
+  const hd = (p, s) => { const h1=[p[0]+s*7*Math.cos(ang-0.35), p[1]+s*7*Math.sin(ang-0.35)],
+    h2=[p[0]+s*7*Math.cos(ang+0.35), p[1]+s*7*Math.sin(ang+0.35)]; return poly([p,h1,h2], color); };
+  return `<line x1="${x1}" y1="${y1}" x2="${a[0]}" y2="${a[1]}" stroke="${color}" stroke-width=".7" stroke-dasharray="2 2"/>` +
+    `<line x1="${x2}" y1="${y2}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width=".7" stroke-dasharray="2 2"/>` +
+    `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="1.2"/>` +
+    hd(a, 1) + hd(b, -1) +
+    `<text x="${mid[0] + (horiz?0:8)}" y="${mid[1] + (horiz?-4:3)}" text-anchor="${horiz?'middle':'start'}" font-size="10.5" fill="${color}" font-weight="700">${txt}</text>`;
+}
 
 /* ───────── Armoire 3×3 (90 × 45 × 92,5 → unités : 1 cm ≈ 2 u) ───────── */
 const W = 180, D = 90, H = 185, CW = W/3, CH = H/3;
@@ -206,37 +221,50 @@ const SCENES = {
     s += label(90, 0, 200, '🔩 Kit mural fourni — 4 fixations dans les montants', 0, 0, 'middle', 12, '#334155', true);
     return svgWrap(s, '-340 -230 700 460');
   },
-  /* 3 — façade TECH : perçages */
+  /* 3 — façade TECH : plan de perçage coté (porte ~285×285 mm, échelle ~0,9 px/mm) */
   facade() {
+    const K = 0.9;                       /* px par mm */
+    const DW = 285*K, DH = 285*K;        /* porte */
+    const L = -DW/2, T = -DH/2 - 20;     /* coin haut-gauche */
+    const mx = (mm) => L + mm*K, my = (mm) => T + mm*K;   /* mm depuis coin haut-gauche de porte */
     let s = '';
-    /* porte TECH agrandie, vue de face (pas iso, plan de perçage) */
-    s += `<rect x="-130" y="-160" width="260" height="270" rx="8" fill="#475569" stroke="#1e293b" stroke-width="2"/>`;
+    s += `<rect x="${L}" y="${T}" width="${DW}" height="${DH}" rx="6" fill="#475569" stroke="#1e293b" stroke-width="2"/>`;
+    /* persiennes basses (existantes) */
     for (let l = 0; l < 4; l++)
-      s += `<line x1="-100" y1="${60 + l*12}" x2="100" y2="${60 + l*12}" stroke="rgba(255,255,255,.25)" stroke-width="3"/>`;
-    /* fenêtre caméra */
-    s += `<circle cx="0" cy="-105" r="14" fill="#0f172a" stroke="#93c5fd" stroke-width="3"/>`;
-    s += `<circle cx="0" cy="-105" r="6" fill="#1e3a8a"/>`;
-    s += `<text x="115" y="-102" font-size="12" fill="#1d4ed8" font-weight="700">Ø 12 mm — caméra (h ≈ 1,25 m)</text>`;
-    s += `<line x1="18" y1="-105" x2="108" y2="-105" stroke="#1d4ed8" stroke-width="1.5"/>`;
-    /* découpe NFC + plaque acrylique */
-    s += `<rect x="-45" y="-55" width="90" height="90" fill="#94a3b8" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="6 4"/>`;
-    s += `<rect x="-55" y="-65" width="110" height="110" fill="rgba(147,197,253,.35)" stroke="#2563eb" stroke-width="2.5" rx="4"/>`;
-    s += `<circle cx="-49" cy="-59" r="2.5" fill="#1e293b"/><circle cx="49" cy="-59" r="2.5" fill="#1e293b"/>`;
-    s += `<circle cx="-49" cy="39" r="2.5" fill="#1e293b"/><circle cx="49" cy="39" r="2.5" fill="#1e293b"/>`;
-    s += `<text x="115" y="-40" font-size="12" fill="#dc2626" font-weight="700">Découpe 60×60 mm (tôle)</text>`;
-    s += `<text x="115" y="-24" font-size="12" fill="#2563eb" font-weight="700">Plaque acrylique 3 mm vissée</text>`;
-    s += `<text x="115" y="-8" font-size="11" fill="#334155">PN532 collé au dos → le NFC</text>`;
-    s += `<text x="115" y="6" font-size="11" fill="#334155">traverse le plastique (3-4 cm)</text>`;
-    s += `<text x="0" y="-6" font-size="11" fill="#1e293b" font-weight="700" text-anchor="middle">📶 badge ici</text>`;
-    /* LED */
-    s += `<circle cx="0" cy="48" r="5" fill="#22c55e" stroke="#166534" stroke-width="1.5"/>`;
-    s += `<text x="115" y="52" font-size="12" fill="#16a34a" font-weight="700">Ø 6 mm — LED d'état</text>`;
-    s += `<line x1="7" y1="48" x2="108" y2="48" stroke="#16a34a" stroke-width="1.5"/>`;
-    /* serrure d'origine conservée */
-    s += `<circle cx="95" y="0" cy="-140" r="6" fill="#0f172a" stroke="#f59e0b" stroke-width="2.5"/>`;
-    s += `<text x="115" y="-136" font-size="12" fill="#d97706" font-weight="700">Serrure à clé d'origine = accès mainteneur</text>`;
-    s += `<text x="0" y="135" font-size="13" fill="#334155" text-anchor="middle" font-weight="700">Vue de face — porte du compartiment TECH (plan de perçage)</text>`;
-    return svgWrap(s, '-340 -190 700 350');
+      s += `<line x1="${mx(40)}" y1="${my(225 + l*13)}" x2="${mx(245)}" y2="${my(225 + l*13)}" stroke="rgba(255,255,255,.25)" stroke-width="3"/>`;
+    /* axes centraux */
+    s += `<line x1="${mx(142.5)}" y1="${T-6}" x2="${mx(142.5)}" y2="${T+DH+6}" stroke="#94a3b8" stroke-width=".6" stroke-dasharray="5 4"/>`;
+    /* ① caméra Ø12 — centre X=142,5 / Y=45 depuis le haut */
+    s += `<circle cx="${mx(142.5)}" cy="${my(45)}" r="${6*K}" fill="#0f172a" stroke="#93c5fd" stroke-width="2.5"/>`;
+    s += `<circle cx="${mx(142.5)}" cy="${my(45)}" r="${2.5*K}" fill="#1e3a8a"/>`;
+    s += `<text x="${mx(142.5)+16}" y="${my(45)+4}" font-size="11" fill="#1d4ed8" font-weight="700">① Ø 12 — fenêtre caméra</text>`;
+    /* ② découpe NFC 60×60 centrée X=142,5 / Y=120 */
+    s += `<rect x="${mx(112.5)}" y="${my(90)}" width="${60*K}" height="${60*K}" fill="#94a3b8" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 4"/>`;
+    /* plaque acrylique 110×110 centrée par-dessus, 4 vis M3 entraxe 100×100 */
+    s += `<rect x="${mx(87.5)}" y="${my(65)}" width="${110*K}" height="${110*K}" rx="3" fill="rgba(147,197,253,.3)" stroke="#2563eb" stroke-width="2"/>`;
+    for (const [vx, vy] of [[92.5,70],[192.5,70],[92.5,170],[192.5,170]])
+      s += `<circle cx="${mx(vx)}" cy="${my(vy)}" r="2.5" fill="#1e293b"/>`;
+    s += `<text x="${mx(142.5)}" y="${my(122)}" font-size="10" fill="#0f172a" font-weight="700" text-anchor="middle">📶 badge</text>`;
+    s += `<text x="${mx(200)+8}" y="${my(95)}" font-size="11" fill="#dc2626" font-weight="700">② découpe 60×60 (tôle)</text>`;
+    s += `<text x="${mx(200)+8}" y="${my(110)}" font-size="11" fill="#2563eb" font-weight="700">acrylique 110×110×3</text>`;
+    s += `<text x="${mx(200)+8}" y="${my(124)}" font-size="10" fill="#334155">4× Ø 3 — entraxe 100×100</text>`;
+    s += `<text x="${mx(200)+8}" y="${my(137)}" font-size="10" fill="#334155">M3×8 + rondelle nylon</text>`;
+    /* ③ LED Ø6 — X=142,5 / Y=195 */
+    s += `<circle cx="${mx(142.5)}" cy="${my(195)}" r="${3*K}" fill="#22c55e" stroke="#166534" stroke-width="1.5"/>`;
+    s += `<text x="${mx(142.5)+12}" y="${my(198)}" font-size="11" fill="#16a34a" font-weight="700">③ Ø 6 — LED</text>`;
+    /* serrure d'origine (à conserver) en haut à droite */
+    s += `<circle cx="${mx(255)}" cy="${my(30)}" r="6" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>`;
+    s += `<text x="${mx(255)}" y="${my(14)}" font-size="10" fill="#d97706" font-weight="700" text-anchor="end">serrure d'origine — NE PAS TOUCHER</text>`;
+    /* cotes */
+    s += dim2d(mx(0), my(45), mx(142.5), my(45), '142,5', -(45*K)+ -14);              /* X caméra depuis bord gauche */
+    s += dim2d(mx(142.5), T, mx(142.5), my(45), '45', 46);                            /* Y caméra */
+    s += dim2d(mx(112.5), my(90), mx(172.5), my(90), '60', -12);                      /* largeur découpe */
+    s += dim2d(mx(142.5), my(45), mx(142.5), my(120), '75', 74);                      /* caméra → centre NFC */
+    s += dim2d(mx(142.5), my(120), mx(142.5), my(195), '75', 74);                     /* NFC → LED */
+    s += dim2d(L, T+DH+8, L+DW, T+DH+8, 'porte ≈ 285 mm', 10);
+    s += `<text x="0" y="${T+DH+42}" font-size="12.5" fill="#334155" text-anchor="middle" font-weight="700">PLAN DE PERÇAGE — porte TECH vue de face · cotes en mm depuis bord gauche / haut de porte</text>`;
+    s += `<text x="0" y="${T+DH+58}" font-size="11" fill="#64748b" text-anchor="middle">Gamme : pointeau → avant-trou Ø 3 → Ø 8 → alésage Ø 12 · découpe : 4 coins Ø 8 + scie sauteuse · ébavurage lime + papier 240</text>`;
+    return svgWrap(s, '-360 -190 720 400');
   },
   /* 4 — plaque de montage */
   plate() {
@@ -291,10 +319,12 @@ const SCENES = {
     s += `<text x="-200" y="4" font-size="10" fill="#334155">M3 + nylstop</text>`;
     /* pêne sorti (repos = verrouillé) */
     s += `<rect x="-108" y="30" width="12" height="26" fill="#f59e0b" stroke="#b45309" stroke-width="1.5"/>`;
-    s += `<text x="-84" y="46" font-size="11" fill="#b45309" font-weight="700">pêne (sorti au repos = verrouillé)</text>`;
+    s += `<text x="-84" y="40" font-size="11" fill="#b45309" font-weight="700">pêne Ø 8 — course 10 mm, ressort de rappel</text>`;
     /* engagement derrière retour */
-    s += `<path d="M -102 56 L -102 66" stroke="#dc2626" stroke-width="2" marker-end="none"/>`;
-    s += `<text x="-84" y="66" font-size="11" fill="#dc2626" font-weight="700">s'engage derrière le retour — pas de gâche à fabriquer</text>`;
+    s += `<text x="-84" y="56" font-size="11" fill="#dc2626" font-weight="700">recouvrement pêne/retour : 6–8 mm mini</text>`;
+    s += dim2d(-96, 56, -96, 70, 'jeu 1–2', 26, '#dc2626');
+    s += dim2d(-148, -12, -94, -12, '54', -8);
+    s += dim2d(-160, 84, -150, 84, 'tôle 0,6', 12);
     /* came retirée */
     s += `<circle cx="110" cy="58" r="9" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>`;
     s += `<line x1="103" y1="51" x2="117" y2="65" stroke="#dc2626" stroke-width="2.5"/>`;
@@ -321,8 +351,13 @@ const SCENES = {
       s += `<circle cx="${b[0]}" cy="${b[1]}" r="4" fill="#0f172a" stroke="#dc2626"/>`;
     }
     s += label(W/2, D, H/2 - 4, '⭐ WAGO', 0, 24, 'middle', 11, '#dc2626', true);
-    s += label(90, 0, 212, 'Perçages Ø 10 mm + passe-fils · 2×0,75 mm² · étiquettes aux 2 bouts', 0, 0, 'middle', 12, '#334155', true);
-    s += label(90, 0, -18, 'Cases 2·4·6·8 = phase pilote (4 solénoïdes) · 1·3·7·9 restent à clé', 0, 26, 'middle', 12, '#b45309', true);
+    /* longueurs par ligne (run + 150 mm de mou) */
+    s += label(W/2, D, H - CH/2 - 16, 'L≈35 → couper 50 cm', 0, 26, 'middle', 10.5, '#0f766e', true);
+    s += label(CW/2 + 4, D, H/2 - 16, 'L≈30 → 45 cm', 0, 26, 'middle', 10.5, '#0f766e', true);
+    s += label(W - CW/2 - 4, D, H/2 - 16, 'L≈30 → 45 cm', 0, 26, 'middle', 10.5, '#0f766e', true);
+    s += label(W/2, D, CH/2 - 16, 'L≈35 → couper 50 cm', 0, 26, 'middle', 10.5, '#0f766e', true);
+    s += label(90, 0, 212, 'Traversées Ø 10 + passe-fils · 2×0,75 mm² (H05VV-F) · embouts sertis · repères aux 2 bouts', 0, 0, 'middle', 12, '#334155', true);
+    s += label(90, 0, -18, 'Débit total : ~2 m de bifilaire (4 lignes) + 0,5 m de réserve · cases 1·3·7·9 restent à clé', 0, 26, 'middle', 12, '#b45309', true);
     return svgWrap(s, '-320 -250 660 480');
   },
   /* 8 — antennes + routeur */
@@ -335,7 +370,12 @@ const SCENES = {
       s += isoBox(ax, 30, H+8, 4, 4, 34, '#334155', '#1e293b', '#0f172a');
       s += `<circle cx="${ip(ax+2, 32, H+46)[0]}" cy="${ip(ax+2, 32, H+46)[1]}" r="4" fill="#0ea5e9"/>`;
     }
-    s += label(45, 30, H+56, 'Antennes 4G ×2 — embases SMA traversantes (Ø 6,5 mm + joint)', 0, -6, 'middle', 12, '#0369a1', true);
+    s += label(45, 30, H+56, 'Antennes 4G ×2 — embases SMA traversantes Ø 6,5 + joint torique', 0, -6, 'middle', 12, '#0369a1', true);
+    /* cotes toit : entraxe 15 cm, à 15 cm du bord arrière */
+    s += arrow([30, 30, H+2], [60, 30, H+2], '#0f766e', 1.5);
+    s += arrow([60, 30, H+2], [30, 30, H+2], '#0f766e', 1.5);
+    s += label(45, 30, H+2, 'entraxe 150 mm', 0, 16, 'middle', 10.5, '#0f766e', true);
+    s += label(76, 30, H+14, 'à 150 mm du bord arrière — serrage écrou clé de 8, modéré (joint écrasé ≠ étanche)', 10, 0, 'start', 10.5, '#0f766e', true);
     s += label(90, 0, 214, '⚠️ Armoire acier = cage de Faraday → antenne INTERNE = zéro signal', 0, 0, 'middle', 12, '#dc2626', true);
     s += label(90, 0, -16, 'RUT241 sur la plaque (12 V WAGO) → RJ45 30 cm → IO Board · SIM M2M 1 Go', 0, 24, 'middle', 12, '#334155', true);
     return svgWrap(s, '-320 -300 660 520');
@@ -388,10 +428,10 @@ const STEPS = [
     tools:['Perceuse + forets métal Ø 3/6/8/12','Scie sauteuse lame métal fine (ou grignoteuse)','Lime demi-ronde + papier 240','Ruban de masquage, pointeau'],
     subs:[
       {t:'Démonter la porte TECH', d:'Travailler la porte à plat sur l\'établi (tréteaux + couverture) : perçages plus propres et pas de copeaux dans l\'armoire. Repérer le sens des charnières.'},
-      {t:'Tracer les 3 percements au masquage', d:'Ruban de masquage sur la zone, tracer : fenêtre caméra Ø 12 mm en haut au centre, découpe NFC 60×60 mm au centre, LED Ø 6 mm sous la zone NFC. Pointeau sur chaque centre.'},
-      {t:'Percer la fenêtre caméra', d:'Pré-trou Ø 3 puis Ø 8 puis Ø 12 mm — monter progressivement évite que le foret morde la tôle fine. Ébavurer à la lime.'},
-      {t:'Découper la fenêtre NFC 60×60', d:'Percer les 4 coins Ø 8 mm, relier à la scie sauteuse (lame métal fine, vitesse lente) ou grignoteuse. Limer les bords + papier 240 : cette découpe sera cachée par l\'acrylique mais ne doit pas couper les doigts.'},
-      {t:'Percer les 4 trous de vis de l\'acrylique + la LED', d:'Plaque acrylique en gabarit : marquer ses 4 coins (Ø 3 mm), percer. Puis LED Ø 6 mm. Ébavurer tout.'},
+      {t:'Tracer les 3 percements au masquage', d:'Ruban de masquage, tracé au réglet depuis le bord GAUCHE et le HAUT de porte : ① caméra X=142,5 / Y=45 · ② centre NFC X=142,5 / Y=120 (découpe 60×60 → tracer de X=112,5 à 172,5 et Y=90 à 150) · ③ LED X=142,5 / Y=195. Pointeau sur chaque centre — un foret sans pointeau dérape sur tôle peinte.'},
+      {t:'Percer la fenêtre caméra', d:'Gamme : avant-trou Ø 3 → Ø 8 → alésage final Ø 12, vitesse lente, huile de coupe (ou WD-40). Monter progressivement évite que la tôle 0,6 mm ne « tire » le foret. Ébavurage lime demi-ronde puis papier 240.'},
+      {t:'Découper la fenêtre NFC 60×60', d:'4 avant-trous Ø 8 aux coins intérieurs du tracé (60×60), relier à la scie sauteuse lame métal fine (T118A) vitesse lente, ou grignoteuse. Rester 1 mm À L\'INTÉRIEUR du trait puis finir à la lime plate : arêtes cachées par l\'acrylique mais elles frôlent les câbles du PN532.'},
+      {t:'Percer les 4 trous de vis de l\'acrylique + la LED', d:'La plaque 110×110 sert de gabarit : la centrer sur la découpe (25 mm de recouvrement par côté), marquer les 4 vis à l\'entraxe 100×100, percer Ø 3. Puis LED Ø 6 à X=142,5 / Y=195. Ébavurer tout.'},
       {t:'Visser la plaque acrylique', d:'M3 × 8 + rondelles nylon côté acrylique (le serrage direct fend le PMMA — serrer « au contact », pas plus). La plaque couvre la découpe 60×60 avec 25 mm de marge par côté.'},
       {t:'Coller le PN532 au dos de l\'acrylique', d:'Adhésif double-face mousse (3M VHB), câbles I2C vers le bas. Test immédiat au badge à travers la plaque : lecture attendue à 3–4 cm.'},
       {t:'Fixer la caméra derrière sa fenêtre', d:'Support imprimé ou équerre + M2 × 4. Objectif centré dans le Ø 12, nappe CSI avec boucle de mou vers la charnière. Collerette anti-reflet (tube noir mat 10 mm) si le site est plein sud.'},
@@ -405,8 +445,8 @@ const STEPS = [
       {t:'Fixer le CM4 IO Board', d:'4 × M2,5 sur entretoises 10 mm, connecteurs (USB, RJ45, jack 12 V J19) orientés vers le bas/porte pour rester accessibles. Coller le dissipateur sur le CM4.'},
       {t:'Fixer le relais 8CH et le RUT241', d:'Relais : 4 × M3 entretoises 6 mm, borniers COM/NO vers la droite (côté passe-fils). RUT241 : pattes de fixation fournies ou colliers, port SIM accessible.'},
       {t:'Monter les 2 alims + borniers WAGO', d:'Blocs secteur en haut de plaque (colliers + embase adhésive), WAGO vissés au centre : 1 × 221-415 pour le 12 V+ (1 entrée alim → 4 départs solénoïdes + 1 routeur), 1 × pour le GND COMMUN (alim 12 V + Pi + relais).'},
-      {t:'Câbler le signal GPIO → relais', d:'BCM17→IN1, 27→IN2, 22→IN3, 23→IN4 + 5V/GND du relais depuis l\'IO Board. Remplacer les Dupont volants par du fil serti/vissé — la version armoire vibre.'},
-      {t:'Câbler la puissance', d:'Alim 12 V → WAGO 12V+ et WAGO GND. Départs 0,75 mm² vers les 4 borniers COM du relais. Embouts sertis sur chaque fil multibrin avant bornier à vis (0,4 N·m, cf. ASSEMBLY).'},
+      {t:'Câbler le signal GPIO → relais', d:'BCM17→IN1, 27→IN2, 22→IN3, 23→IN4 + 5V/GND relais depuis l\'IO Board : 6 fils 0,25 mm² × 15 cm, cosses serties ou soudées (pas de Dupont volants — la version armoire vibre). Code couleur du volet ⚡ d\'ASSEMBLY : orange/vert/jaune = signaux, rouge = 5 V, noir = GND.'},
+      {t:'Câbler la puissance', d:'Alim 12 V → WAGO 221-415 (12V+) et WAGO GND commun : 2 fils 1 mm² × 20 cm. Départs 0,75 mm² × 15 cm du WAGO vers les 4 COM du relais. Dénudage 7 mm exactement, embouts sertis sur tout multibrin, serrage borniers 0,4 N·m (cf. ASSEMBLY).'},
       {t:'Étiqueter TOUT', d:'Chaque conducteur aux deux bouts : L2-BCM17-CH1, etc. + schéma photo de la plaque imprimé.'},
       {t:'Re-test complet sur la plaque', d:'Brancher 5 V + 12 V, rejouer local_scan sur les 4 canaux avec un solénoïde de test : c\'est le banc validé, juste re-mécanisé. Serre-câble (strain relief) sur l\'arrivée 230 V.'}],
     note:{type:'tip', txt:'💡 Prends une photo zénithale de la plaque finie AVANT la pose — c\'est ta doc de maintenance quand tout sera dans l\'armoire.'}},
@@ -426,7 +466,7 @@ const STEPS = [
     tools:['Clés M3, tournevis','Perceuse Ø 3,2 mm','Frein-filet','Fer à souder (flyback) + gaine thermo'],
     subs:[
       {t:'Démonter la came de la case 2', d:'Ouvrir la porte à la clé, dévisser l\'écrou de came derrière le barillet, retirer la languette. Remonter l\'écrou : le barillet reste (bouche le trou, la poignée fonctionne).'},
-      {t:'Positionner le solénoïde à blanc', d:'Sur la cloison verticale côté serrure, pêne vers l\'avant à la hauteur exacte où la came verrouillait. Porte fermée : le pêne doit tomber DERRIÈRE le retour replié de la porte avec 1–2 mm de jeu.'},
+      {t:'Positionner le solénoïde à blanc', d:'Sur la cloison verticale côté serrure, corps du solénoïde (27×29×18) plaqué, pêne Ø 8 vers l\'avant à la hauteur exacte de l\'ancienne came. Porte fermée : recouvrement pêne/retour de 6–8 mm mini, jeu latéral 1–2 mm (trop serré = frottement = surchauffe ; trop de jeu = porte qui claque).'},
       {t:'Percer et boulonner', d:'2 trous Ø 3,2 mm à travers la cloison (trous oblongs du solénoïde = réglage), M3 + nylstop côté case voisine. Ne pas freiner tout de suite.'},
       {t:'Régler l\'engagement', d:'Porte fermée, actionner le pêne à la main (il se rétracte au doigt) : la porte doit se verrouiller/déverrouiller sans forcer. Ajuster dans les oblongs, puis frein-filet. 20 cycles manuels.'},
       {t:'Souder la flyback 1N4007', d:'Directement sur les cosses du solénoïde, bande blanche (cathode) côté +12 V, gaine thermo. PAS au niveau du relais : la surtension s\'écrête à la source.'},
@@ -439,7 +479,7 @@ const STEPS = [
     tools:['Perceuse Ø 10 mm','Passe-fils caoutchouc','Fil 2×0,75 mm² (~3 m)','Colliers, étiquettes, pince à sertir embouts'],
     subs:[
       {t:'Percer les 4 traversées de cloison', d:'Ø 10 mm au plus court entre la case TECH et chaque case équipée, dans l\'angle arrière (invisible porte ouverte). Ébavurer + passe-fil caoutchouc sur CHAQUE trou.'},
-      {t:'Tirer les lignes', d:'2 × 0,75 mm² par solénoïde : COM du canal → 12V+ (WAGO), NO → solénoïde+, solénoïde− → GND (WAGO). Runs < 50 cm, colliers tous les 15 cm le long des angles.'},
+      {t:'Tirer les lignes', d:'Bifilaire 2×0,75 mm² (H05VV-F) : COM du canal → 12V+ (WAGO), NO → solénoïde+, solénoïde− → GND (WAGO). Longueurs de coupe = run + 150 mm de mou : cases 2 et 8 → 50 cm, cases 4 et 6 → 45 cm (≈ 2 m au total). Embouts sertis avant chaque bornier à vis (0,4 N·m). Colliers tous les 15 cm dans les angles arrière.'},
       {t:'Étiqueter aux deux bouts', d:'L2-BCM17-CH1 côté relais ET côté solénoïde. Sans étiquette, la première maintenance devient une séance de devinettes.'},
       {t:'Séparer signal et puissance', d:'La nappe CSI et les fils I2C ne longent pas les lignes 12 V (le pulse solénoïde induit des artefacts caméra). Croiser à 90° si nécessaire, jamais en parallèle collé.'},
       {t:'Remplir le tableau de câblage', d:'Case ↔ position ↔ UUID (BDD) ↔ pin BCM ↔ canal ↔ longueur, dans IMPLANTATION.md. Le vérifier À DEUX.'},
