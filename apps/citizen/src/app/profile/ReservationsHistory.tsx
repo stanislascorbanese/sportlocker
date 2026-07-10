@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { fetchMyReservations, type ReservationHistoryItem } from '../../lib/api'
+import { fmtEuro, formatDuration } from '../../lib/format'
 import { useI18n, useT } from '../../lib/i18n/I18nProvider'
 import type { MessageKey } from '../../lib/i18n/messages'
 
@@ -146,14 +147,33 @@ function ReservationRow({
   const range = formatRange(item, locale)
   const navigable = isNavigable(item)
 
+  // Montant : masqué tant que non fixé (résa legacy `pending` sans prix). 0 ⇒
+  // « Gratuit » (grille MVP). Durée : celle du créneau réservé.
+  const amountLabel =
+    item.priceCents === null
+      ? null
+      : item.priceCents === 0
+        ? t('booking.free')
+        : fmtEuro(item.priceCents, locale)
+  const durationLabel =
+    item.durationMinutes !== null ? formatDuration(item.durationMinutes, t) : null
+  const subtitleParts = [item.distributor.name, range, durationLabel].filter(Boolean)
+
   const inner = (
     <div className="flex items-center gap-3 px-2 py-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
-          {item.item.typeName}
-        </p>
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
+            {item.item.typeName}
+          </p>
+          {amountLabel && (
+            <span className="shrink-0 text-sm font-medium tabular-nums text-navy-900 dark:text-white/90">
+              {amountLabel}
+            </span>
+          )}
+        </div>
         <p className="truncate text-meta text-gray-600 dark:text-white/60">
-          {item.distributor.name} · {range}
+          {subtitleParts.join(' · ')}
         </p>
       </div>
       <Badge tone={meta.tone} size="xs" className="shrink-0">

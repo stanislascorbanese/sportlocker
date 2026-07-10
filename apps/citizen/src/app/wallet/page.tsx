@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { Loader2, Wallet as WalletIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 
 import { Card } from '../../components/ui/Card'
@@ -12,6 +13,7 @@ import {
   createTopup,
   fetchWallet,
   type TopupIntent,
+  type Wallet,
 } from '../../lib/api'
 import { useRequireAuth } from '../../lib/auth-context'
 import { useI18n, useT } from '../../lib/i18n/I18nProvider'
@@ -118,33 +120,110 @@ export default function WalletPage() {
         </Card>
       )}
 
-      {/* Historique des recharges */}
-      {walletQuery.data && walletQuery.data.topups.length > 0 && (
-        <Card>
-          <p className="text-sm font-medium text-navy-900 dark:text-white">{t('wallet.history_title')}</p>
-          <ul className="mt-2 divide-y divide-gray-100 dark:divide-white/5">
-            {walletQuery.data.topups.map((topup) => (
-              <li key={topup.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-gray-600 dark:text-white/60">
-                  {new Date(topup.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
-                    day: '2-digit', month: 'short',
-                  })}
-                </span>
-                <span className="tabular-nums font-medium text-navy-900 dark:text-white">
-                  +{fmtEur(topup.amountCents, locale)}
-                </span>
-                <span className={topup.status === 'succeeded'
-                  ? 'text-meta text-emerald-700 dark:text-emerald-300'
-                  : 'text-meta text-gray-400 dark:text-white/40'}>
-                  {t(`wallet.status.${topup.status}` as 'wallet.status.succeeded')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      {/* Historique des transactions : recharges (+) et locations débitées (−),
+          fusionnées et triées du plus récent au plus ancien. */}
+      {walletQuery.data && (() => {
+        const txns = buildTransactions(walletQuery.data)
+        if (txns.length === 0) return null
+        return (
+          <Card>
+            <p className="text-sm font-medium text-navy-900 dark:text-white">
+              {t('wallet.transactions_title')}
+            </p>
+            <ul className="mt-2 divide-y divide-gray-100 dark:divide-white/5">
+              {txns.map((txn) => (
+                <TransactionRow key={txn.key} txn={txn} locale={locale} />
+              ))}
+            </ul>
+          </Card>
+        )
+      })()}
     </main>
   )
+}
+
+type Transaction = {
+  key: string
+  date: string | null
+  amountCents: number
+  kind: 'topup' | 'spend'
+  status?: Wallet['topups'][number]['status']
+  reservationId?: string
+}
+
+/**
+ * Fusionne recharges + dépenses en un flux chronologique unique. Les recharges
+ * portent leur statut (une recharge Stripe reste `pending` tant que le webhook
+ * n'a pas crédité) ; les dépenses (`payments` provider=wallet) sont toujours
+ * abouties donc affichées sans statut. Tri décroissant par date.
+ */
+function buildTransactions(wallet: Wallet): Transaction[] {
+  const topups: Transaction[] = wallet.topups.map((tp) => ({
+    key: `topup-${tp.id}`,
+    date: tp.createdAt,
+    amountCents: tp.amountCents,
+    kind: 'topup',
+    status: tp.status,
+  }))
+  const spends: Transaction[] = wallet.spends.map((sp, i) => ({
+    key: `spend-${sp.reservationId}-${i}`,
+    date: sp.paidAt,
+    amountCents: sp.amountCents,
+    kind: 'spend',
+    reservationId: sp.reservationId,
+  }))
+  return [...topups, ...spends].sort(
+    (a, b) => (b.date ? new Date(b.date).getTime() : 0) - (a.date ? new Date(a.date).getTime() : 0),
+  )
+}
+
+function TransactionRow({ txn, locale }: { txn: Transaction; locale: 'fr' | 'en' }) {
+  const t = useT()
+  const isTopup = txn.kind === 'topup'
+  const dateLabel = txn.date
+    ? new Date(txn.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+        day: '2-digit', month: 'short',
+      })
+    : '—'
+
+  const inner = (
+    <div className="flex items-center gap-3 py-2 text-sm">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-navy-900 dark:text-white">
+          {t(isTopup ? 'wallet.txn.topup' : 'wallet.txn.spend')}
+        </p>
+        <p className="text-meta text-gray-500 dark:text-white/50">{dateLabel}</p>
+      </div>
+      {isTopup && txn.status !== 'succeeded' && (
+        <span className="text-meta text-gray-400 dark:text-white/40">
+          {t(`wallet.status.${txn.status ?? 'pending'}` as 'wallet.status.succeeded')}
+        </span>
+      )}
+      <span
+        className={
+          isTopup
+            ? 'shrink-0 tabular-nums font-semibold text-emerald-700 dark:text-emerald-300'
+            : 'shrink-0 tabular-nums font-medium text-navy-900 dark:text-white'
+        }
+      >
+        {isTopup ? '+' : '−'}{fmtEur(txn.amountCents, locale)}
+      </span>
+    </div>
+  )
+
+  if (!isTopup && txn.reservationId) {
+    return (
+      <li>
+        <Link
+          href={`/reservations/${txn.reservationId}`}
+          className="block transition-colors duration-base hover:bg-gray-50 dark:hover:bg-white/5"
+        >
+          {inner}
+        </Link>
+      </li>
+    )
+  }
+  return <li>{inner}</li>
 }
 
 function SimulateTopupPanel({ topupId, onDone }: { topupId: string; onDone: () => void }) {

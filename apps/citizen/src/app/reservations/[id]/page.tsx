@@ -1,7 +1,18 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, Clock, MapPin, Package, Plus, WifiOff, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarClock,
+  Clock,
+  Coins,
+  MapPin,
+  Package,
+  Plus,
+  Timer,
+  WifiOff,
+  X,
+} from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useRef, useState } from 'react'
@@ -24,7 +35,9 @@ import {
 } from '../../../lib/api'
 import { useRequireAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/cn'
+import { fmtEuro, formatDuration } from '../../../lib/format'
 import { useI18n, useT } from '../../../lib/i18n/I18nProvider'
+import { actualDurationMinutes, qrRefetchInterval, returnedLate } from './reservation-logic'
 
 /**
  * Affiche la réservation active avec son QR code à scanner sur la borne.
@@ -51,10 +64,7 @@ export default function ReservationPage() {
     queryKey: ['reservation-active'],
     queryFn: fetchActiveReservation,
     enabled: Boolean(user),
-    // Polling rapide tant que le paiement n'est pas réglé : après confirmation
-    // Stripe, le passage `pending_payment → scheduled` (webhook) arrive vite.
-    refetchInterval: (q) =>
-      q.state.data?.status === 'pending_payment' ? 3_000 : 30_000,
+    refetchInterval: (q) => qrRefetchInterval(q.state.data ?? null),
   })
 
   const cancelMutation = useMutation({
@@ -131,10 +141,19 @@ export default function ReservationPage() {
  * Le `ReviewPrompt` se masque tout seul si l'avis a déjà été envoyé/ignoré
  * (mémoire localStorage par id de résa).
  */
-function ReturnedView({ r }: { r: ReservationHistoryItem }) {
+export function ReturnedView({ r }: { r: ReservationHistoryItem }) {
   const t = useT()
+  const { locale } = useI18n()
+
+  const actualMinutes = actualDurationMinutes(r)
+  const wasLate = returnedLate(r)
+
   return (
     <>
+      <p className="text-center text-meta leading-relaxed text-gray-500 dark:text-white/50">
+        {t('reservation.returned.instructions')}
+      </p>
+
       <Card>
         <div className="space-y-3">
           <Row
@@ -147,8 +166,37 @@ function ReturnedView({ r }: { r: ReservationHistoryItem }) {
             label={t('reservation.page.item')}
             value={r.item.typeName}
           />
+          {actualMinutes !== null && (
+            <Row
+              icon={<Timer className="h-4 w-4" />}
+              label={t('reservation.returned.duration')}
+              value={formatDuration(actualMinutes, t)}
+            />
+          )}
+          {r.priceCents !== null && (
+            <Row
+              icon={<Coins className="h-4 w-4" />}
+              label={t('reservation.returned.amount')}
+              value={fmtEuro(r.priceCents, locale)}
+              highlight
+            />
+          )}
         </div>
       </Card>
+
+      {wasLate && (
+        <div
+          className="flex items-start gap-3 rounded-card border p-3 border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
+          role="status"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">{t('reservation.returned.late_title')}</p>
+            <p className="text-meta leading-relaxed">{t('reservation.returned.late_body')}</p>
+          </div>
+        </div>
+      )}
+
       <ReviewPrompt reservationId={r.id} />
     </>
   )

@@ -5,6 +5,7 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { CreditCard, Loader2, ShieldCheck, Wallet as WalletIcon } from 'lucide-react'
 import { useState } from 'react'
 
+import { Badge } from './ui/Badge'
 import { Card } from './ui/Card'
 import {
   confirmSimulatedPayment,
@@ -66,9 +67,16 @@ export function PaymentStep({ reservation }: { reservation: ReservationActive })
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-navy-900 dark:text-white">
-              {t('payment.title')}
-            </p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium text-navy-900 dark:text-white">
+                {t('payment.title')}
+              </p>
+              {canPayWithWallet && (
+                <Badge tone="success" size="xs" className="shrink-0">
+                  {t('payment.prepaid_badge')}
+                </Badge>
+              )}
+            </div>
             <p className="mt-0.5 text-meta text-gray-600 dark:text-white/60">
               {reservation.item.typeName} · {reservation.distributor.name}
             </p>
