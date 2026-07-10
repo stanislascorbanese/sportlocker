@@ -137,7 +137,31 @@ deux (relire ASSEMBLY.html volet ⚡ pour le brochage), et on ne le change plus.
 
 ---
 
-## 6. Ordre de montage
+## 6. Connectivité réseau (armoire métallique = cage de Faraday)
+
+⚠️ Une armoire acier atténue fortement Wi-Fi et 4G : **toute antenne doit être
+déportée à l'extérieur du caisson** (traversée de cloison), jamais laissée à
+l'intérieur.
+
+| Option | Quand | Matériel | Note |
+|---|---|---|---|
+| **Routeur 4G industriel** (défaut) | Terrains communaux, campings — partout | Teltonika RUT241 (~120 €) : alim **12 V** (bornier WAGO existant), RJ45 30 cm → port Ethernet de l'IO Board | Antennes 4G sur embases **SMA traversantes** en toit d'armoire (percement Ø 6,5 mm + joint). Watchdog intégré, reboot autonome |
+| Wi-Fi du site | Campings avec borne maîtrisée à < 30 m | Antenne officielle Raspberry Pi sur l'**U.FL du CM4**, déportée par embase SMA | Ne jamais compter sur l'antenne PCB interne dans un caisson acier |
+| Clé 4G USB | Dépannage / pilote court | Huawei E3372 (~40 €) sur USB de l'IO Board | Reconnexions fragiles, pas pour la prod |
+
+Points qui rendent la 4G simple ici :
+- MQTT EMQX Cloud = connexion **sortante** TLS 8883 → aucun port entrant,
+  le CGNAT des SIM 4G n'est pas un problème.
+- SSH distant via tunnel Balena (VPN device) → sortant également.
+- Firmware **offline-first** (JWT vérifié localement + cache de réservations) :
+  une coupure réseau ne bloque pas les ouvertures des résas en cache.
+
+Data : heartbeat 30 s + events ≈ 50 Mo/mois ; prévoir la marge pour les
+**OTA Balena** (deltas d'image) → SIM M2M 500 Mo–1 Go (~2–5 €/mois).
+
+---
+
+## 7. Ordre de montage
 
 1. Préparer la **plaque support** complète sur l'établi (modules + borniers +
    câblage interne), rejouer `local_scan` sur la plaque seule — c'est le banc
@@ -154,7 +178,7 @@ deux (relire ASSEMBLY.html volet ⚡ pour le brochage), et on ne le change plus.
 
 ---
 
-## Checklist finale in situ
+## 8. Checklist finale in situ
 
 - [ ] 4 portes : scan QR → **la bonne** porte s'ouvre, franche, ~0,5 s.
 - [ ] NFC lit à travers la façade (< 5 cm) sur les 2 modules.
