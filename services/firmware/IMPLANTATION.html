@@ -55,6 +55,21 @@
   .note { margin-top:14px; padding:12px 14px; border-radius:10px; font-size:13px; line-height:1.5; }
   .note.warn { background:#fef3c7; border-left:4px solid var(--warn); }
   .note.tip  { background:#dbeafe; border-left:4px solid var(--acc); }
+  .tools { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .tool-chip { font-size:12px; font-weight:600; background:var(--sl); border:1px solid #e2e8f0;
+    padding:5px 12px; border-radius:20px; color:#475569; }
+  .subs { display:flex; flex-direction:column; gap:6px; }
+  .sub { display:flex; gap:12px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px;
+    cursor:pointer; align-items:flex-start; background:#fff; }
+  .sub:hover { background:var(--sl); }
+  .sub.on { background:var(--gl); border-color:var(--g); }
+  .sub .cb { width:20px; height:20px; min-width:20px; border:2px solid #cbd5e1; border-radius:6px;
+    display:flex; align-items:center; justify-content:center; font-size:13px; color:#fff; margin-top:1px; }
+  .sub.on .cb { background:var(--g); border-color:var(--g); }
+  .sub .txt { font-size:14px; line-height:1.45; }
+  .sub .txt .d { display:block; font-size:12.5px; color:#64748b; margin-top:2px; }
+  .sub.on .txt { text-decoration:line-through; opacity:.65; }
+  .step-progress { font-size:12px; font-weight:700; color:#64748b; margin:14px 0 8px; }
   .stepnav { display:flex; justify-content:space-between; margin-top:20px; }
   .stepnav button { padding:10px 20px; border-radius:10px; border:1px solid #cbd5e1; background:#fff;
     font-weight:600; cursor:pointer; font-size:14px; }
@@ -346,96 +361,165 @@ const SCENES = {
 /* ───────── Contenu des étapes ───────── */
 const STEPS = [
   { id:'bench', title:'Valider le banc de test', sub:'Prérequis absolu', time:'~2 h', scene:'bench',
-    items:[
-      'Dérouler <b>BENCH_TEST.md</b> étapes 1→6 : boot eMMC → firmware → GPIO → relais → solénoïde → chaîne QR complète.',
-      'Les 4 canaux verts, <code>calibration.json</code> figé, test de reboot fail-secure OK.',
-      'Ne rien monter dans l\'armoire avant ce feu vert — règle d\'or : jamais deux inconnues à la fois.'],
-    note:{type:'warn', txt:'⚠️ Vérifier au multimètre que la carte relais est bien <b>active-LOW</b> avant tout branchement 12 V (cf. BENCH_TEST §0).'}},
+    tools:['Multimètre','LED + résistance 330 Ω','Tournevis plat 2 mm (borniers)','SSH depuis le Mac'],
+    subs:[
+      {t:'Flasher l\'eMMC du CM4', d:'IO Board en mode nRPIBOOT (jumper), rpiboot + Raspberry Pi Imager, OS Lite 64-bit Bookworm. Pré-remplir hostname, user pi, SSH, Wi-Fi.'},
+      {t:'Premier boot + setup_pi.sh', d:'SSH OK → sudo bash setup_pi.sh, puis compléter /etc/sportlocker/.env (DEVICE_ID, JWT_DEVICE_SECRET, MQTT_URL) et calibration.json (UUID casiers → pins BCM 17/27/22/23).'},
+      {t:'Vérifier la polarité du relais au multimètre', d:'Carte débranchée du 12 V : IN à 3,3 V (HIGH) → relais OFF attendu. Si le relais colle à HIGH, c\'est une carte active-HIGH → STOP, inverser la logique avant tout 12 V.'},
+      {t:'Test GPIO seul (LED sur BCM17)', d:'python -m sportlocker_firmware.tools.local_scan --pin 17 : repos HIGH, pulse LOW ~0,5 s, retour HIGH. Rejouer les cas d\'erreur (replay, hors créneau, offline) : aucun ne doit pulser.'},
+      {t:'GPIO → relais, canal par canal', d:'BCM17→IN1, 27→IN2, 22→IN3, 23→IN4. Le canal clique uniquement pendant le pulse. Au repos : NO ouvert au multimètre (= solénoïde futur hors tension).'},
+      {t:'Premier solénoïde sous 12 V', d:'Un seul canal. 12V+ → COM, NO → solénoïde+, solénoïde− → 12V−, GND commun, flyback en place. Repos : 0 V aux bornes, froid. Scan nominal : armement franc 0,5 s.'},
+      {t:'Chaîne complète caméra → ouverture', d:'Caméra CSI branchée (rpicam-hello pour vérifier), service systemd démarré, QR JWT de test présenté → unlock_success dans journalctl + event MQTT reçu côté broker.'},
+      {t:'Test de reboot fail-secure', d:'sudo reboot : AUCUN solénoïde ne doit s\'armer pendant le boot. Service enabled qui remonte seul.'}],
+    note:{type:'warn', txt:'⚠️ Règle d\'or de BENCH_TEST.md : jamais deux inconnues à la fois. Chaque sous-étape se valide isolément avant de brancher la suivante.'}},
+
   { id:'wall', title:'Fixer l\'armoire au mur', sub:'Bas à 0,65 m du sol', time:'~1 h', scene:'wall',
-    items:[
-      'L\'armoire ne fait que <b>92,5 cm de haut</b> : posée au sol, la caméra serait à 45 cm. La fixer avec le kit mural fourni, <b>bas de caisson à ~0,65 m</b>.',
-      'La rangée médiane (façade caméra/NFC) tombe alors à ~1,15 m — hauteur naturelle pour présenter un téléphone.',
-      'Chevilles adaptées au support (parpaing/béton) — l\'armoire chargée de matériel sportif pèsera.'],
-    note:{type:'tip', txt:'💡 Sur terrain public, prévoir aussi un ancrage antivol bas (platine au sol ou chaîne scellée).'}},
+    tools:['Perceuse + forets béton Ø 8/10','Niveau à bulle','Chevilles adaptées au mur + tirefonds','Crayon, mètre'],
+    subs:[
+      {t:'Choisir l\'emplacement', d:'Mur porteur ou support maçonné, zone abritée du plein soleil si possible (le CM4 throttle à 80 °C), prise 230 V à proximité (< 2 m) ou saignée prévue.'},
+      {t:'Tracer les fixations', d:'Bas de caisson à 0,65 m du sol → la rangée médiane (façade caméra/NFC) tombe à ~1,15 m. Reporter les trous du kit mural fourni, vérifier le niveau.'},
+      {t:'Percer et cheviller', d:'Ø 8–10 mm selon chevilles. Dans du parpaing creux : chevilles à expansion type Molly métal ou scellement chimique — l\'armoire chargée + arrachement = vraie contrainte.'},
+      {t:'Poser l\'armoire à deux', d:'Elle fait ~35 kg à vide et 92,5 cm de haut à 65 cm du sol : à deux impérativement. Serrer les tirefonds, re-vérifier le niveau (une armoire penchée = portes qui frottent).'},
+      {t:'Test des 9 portes à vide', d:'Chaque porte s\'ouvre et se ferme librement à la clé d\'origine, sans point dur. Corriger le niveau avant d\'aller plus loin si une porte frotte.'},
+      {t:'Ancrage antivol (terrain public)', d:'Platine basse ou chaîne scellée en complément du mur : l\'armoire contiendra du matériel et un routeur 4G.'}],
+    note:{type:'tip', txt:'💡 Prends les photos du mur AVANT perçage (état des lieux pour la commune/le camping) et note les cotes dans BENCH_TEST.md.'}},
+
   { id:'facade', title:'Percer la façade TECH', sub:'Caméra · NFC · LED', time:'~1 h 30', scene:'facade',
-    items:[
-      'Porte de la case centrale : fenêtre <b>Ø 12 mm</b> pour l\'objectif caméra (haut de porte).',
-      '<b>Découpe 60×60 mm</b> au centre : le métal bloque le NFC. Visser la <b>plaque acrylique 3 mm</b> par-dessus, PN532 collé au dos — le champ 13,56 MHz traverse le plastique (lecture à 3-4 cm).',
-      'Perçage Ø 6 mm pour la LED d\'état (vert = accordé, rouge = refus).',
-      'Ébavurer chaque perçage, passe-fils sur chaque traversée. La serrure à clé d\'origine de cette porte est <b>conservée</b> : c\'est l\'accès mainteneur.'],
-    note:{type:'tip', txt:'💡 Découpe propre dans la tôle fine : percer les 4 coins Ø 8 mm puis relier à la scie sauteuse lame métal fine, ou grignoteuse.'}},
+    tools:['Perceuse + forets métal Ø 3/6/8/12','Scie sauteuse lame métal fine (ou grignoteuse)','Lime demi-ronde + papier 240','Ruban de masquage, pointeau'],
+    subs:[
+      {t:'Démonter la porte TECH', d:'Travailler la porte à plat sur l\'établi (tréteaux + couverture) : perçages plus propres et pas de copeaux dans l\'armoire. Repérer le sens des charnières.'},
+      {t:'Tracer les 3 percements au masquage', d:'Ruban de masquage sur la zone, tracer : fenêtre caméra Ø 12 mm en haut au centre, découpe NFC 60×60 mm au centre, LED Ø 6 mm sous la zone NFC. Pointeau sur chaque centre.'},
+      {t:'Percer la fenêtre caméra', d:'Pré-trou Ø 3 puis Ø 8 puis Ø 12 mm — monter progressivement évite que le foret morde la tôle fine. Ébavurer à la lime.'},
+      {t:'Découper la fenêtre NFC 60×60', d:'Percer les 4 coins Ø 8 mm, relier à la scie sauteuse (lame métal fine, vitesse lente) ou grignoteuse. Limer les bords + papier 240 : cette découpe sera cachée par l\'acrylique mais ne doit pas couper les doigts.'},
+      {t:'Percer les 4 trous de vis de l\'acrylique + la LED', d:'Plaque acrylique en gabarit : marquer ses 4 coins (Ø 3 mm), percer. Puis LED Ø 6 mm. Ébavurer tout.'},
+      {t:'Visser la plaque acrylique', d:'M3 × 8 + rondelles nylon côté acrylique (le serrage direct fend le PMMA — serrer « au contact », pas plus). La plaque couvre la découpe 60×60 avec 25 mm de marge par côté.'},
+      {t:'Coller le PN532 au dos de l\'acrylique', d:'Adhésif double-face mousse (3M VHB), câbles I2C vers le bas. Test immédiat au badge à travers la plaque : lecture attendue à 3–4 cm.'},
+      {t:'Fixer la caméra derrière sa fenêtre', d:'Support imprimé ou équerre + M2 × 4. Objectif centré dans le Ø 12, nappe CSI avec boucle de mou vers la charnière. Collerette anti-reflet (tube noir mat 10 mm) si le site est plein sud.'},
+      {t:'Remonter la porte et tester', d:'rpicam-hello --timeout 0 : cadrage OK à 10–25 cm. Badge NFC lu. LED câblée en attente (GPIO libre, IN5–IN8 côté relais).'}],
+    note:{type:'warn', txt:'⚠️ La serrure à clé d\'origine de CETTE porte est conservée telle quelle : c\'est ton accès mainteneur. Ne pas démonter sa came.'}},
+
   { id:'plate', title:'Préparer la plaque de montage', sub:'Sur l\'établi, pas dans l\'armoire', time:'~2 h', scene:'plate',
-    items:[
-      'Plaque contreplaqué 10 mm (~300×250 mm) : IO Board (entretoises M2,5), relais 8CH (M3), routeur RUT241, 2 alims, 2 borniers WAGO.',
-      'Distribution <b>en étoile</b> depuis les WAGO : une borne 12 V+, une borne GND <b>commune</b> (Pi + relais + alim 12 V). Jamais de GND en chaîne.',
-      'Câbler entièrement, puis rejouer un <code>local_scan</code> sur la plaque seule : c\'est le banc validé, juste re-mécanisé.'],
-    note:{type:'warn', txt:'⚠️ Serre-câble sur l\'arrivée 230 V et connecteurs vissés (pas de Dupont volants) : version armoire = version qui vibre.'}},
+    tools:['Contreplaqué 10 mm ~300×250','Visserie M2,5/M3 + entretoises','Fer à souder + gaine thermo','Pince à dénuder, embouts, étiqueteuse'],
+    subs:[
+      {t:'Découper et présenter la plaque', d:'300×250 mm (vérifier qu\'elle passe la porte TECH en diagonale : ouverture ~28×28 cm → si trop juste, réduire à 260×240). Positionner à blanc tous les modules avant de percer.'},
+      {t:'Fixer le CM4 IO Board', d:'4 × M2,5 sur entretoises 10 mm, connecteurs (USB, RJ45, jack 12 V J19) orientés vers le bas/porte pour rester accessibles. Coller le dissipateur sur le CM4.'},
+      {t:'Fixer le relais 8CH et le RUT241', d:'Relais : 4 × M3 entretoises 6 mm, borniers COM/NO vers la droite (côté passe-fils). RUT241 : pattes de fixation fournies ou colliers, port SIM accessible.'},
+      {t:'Monter les 2 alims + borniers WAGO', d:'Blocs secteur en haut de plaque (colliers + embase adhésive), WAGO vissés au centre : 1 × 221-415 pour le 12 V+ (1 entrée alim → 4 départs solénoïdes + 1 routeur), 1 × pour le GND COMMUN (alim 12 V + Pi + relais).'},
+      {t:'Câbler le signal GPIO → relais', d:'BCM17→IN1, 27→IN2, 22→IN3, 23→IN4 + 5V/GND du relais depuis l\'IO Board. Remplacer les Dupont volants par du fil serti/vissé — la version armoire vibre.'},
+      {t:'Câbler la puissance', d:'Alim 12 V → WAGO 12V+ et WAGO GND. Départs 0,75 mm² vers les 4 borniers COM du relais. Embouts sertis sur chaque fil multibrin avant bornier à vis (0,4 N·m, cf. ASSEMBLY).'},
+      {t:'Étiqueter TOUT', d:'Chaque conducteur aux deux bouts : L2-BCM17-CH1, etc. + schéma photo de la plaque imprimé.'},
+      {t:'Re-test complet sur la plaque', d:'Brancher 5 V + 12 V, rejouer local_scan sur les 4 canaux avec un solénoïde de test : c\'est le banc validé, juste re-mécanisé. Serre-câble (strain relief) sur l\'arrivée 230 V.'}],
+    note:{type:'tip', txt:'💡 Prends une photo zénithale de la plaque finie AVANT la pose — c\'est ta doc de maintenance quand tout sera dans l\'armoire.'}},
+
   { id:'install', title:'Poser la plaque dans la case TECH', sub:'4 boulons M3 traversants', time:'~45 min', scene:'install',
-    items:[
-      'Glisser la plaque complète au fond de la case centrale, fixer sur 4 entretoises par <b>boulons M3 traversants + écrous nylstop</b> (tôle 0,6 mm : les rivnuts tiennent mal).',
-      'Fixer caméra + PN532 + LED au dos de la façade percée à l\'étape 3, avec une boucle de mou sur la nappe CSI (la porte doit s\'ouvrir pour la maintenance).',
-      'Les persiennes de la porte assurent la ventilation — rien à percer de plus. Dissipateur collé sur le CM4 quand même (caisson fermé l\'été).'],
-    note:null},
+    tools:['Clé à pipe / douille M3','Perceuse foret Ø 3,2 mm','4 entretoises + nylstop','Passe-fils Ø 10'],
+    subs:[
+      {t:'Percer le fond de la case TECH', d:'4 trous Ø 3,2 mm aux coins du gabarit de la plaque (la présenter et marquer). Ébavurer.'},
+      {t:'Boulonner les entretoises', d:'M3 traversants + écrous nylstop côté extérieur (dos de l\'armoire) — la tôle 0,6 mm ne tient pas un rivnut. Les entretoises décollent la plaque du fond (circulation d\'air).'},
+      {t:'Poser la plaque câblée', d:'La glisser en diagonale, visser sur les 4 entretoises. Vérifier qu\'aucun connecteur ne force contre une cloison.'},
+      {t:'Raccorder la façade', d:'Nappe CSI caméra (boucle de mou côté charnière), I2C du PN532 (SDA bleu, SCL violet, 3V3 rouge, GND noir), 2 fils LED. La porte doit s\'ouvrir à 90° sans tirer sur rien.'},
+      {t:'Amener le 230 V', d:'Multiprise compacte fixée dans la case, presse-étoupe ou passe-fil sur l\'entrée du câble secteur, serre-câble. Jamais de 230 V volant dans une armoire métallique.'},
+      {t:'Boot de contrôle', d:'Tout sous tension : le Pi boote, la caméra répond, le PN532 lit à travers l\'acrylique, journalctl propre. Rien d\'autre n\'est encore câblé — c\'est normal.'}],
+    note:{type:'warn', txt:'⚠️ Le châssis de l\'armoire étant métallique et le 230 V présent : si tu peux, ajoute un différentiel 30 mA en amont (multiprise avec protection intégrée) et relie le caisson à la terre de la prise.'}},
+
   { id:'solenoid', title:'Monter les 4 solénoïdes', sub:'Cases 2 · 4 · 6 · 8', time:'~2 h', scene:'solenoid',
-    items:[
-      'Sur chaque case équipée : <b>démonter la came</b> (languette) de la serrure d\'origine, laisser le barillet (bouche le trou, la poignée reste).',
-      'Solénoïde sur la <b>cloison verticale côté serrure</b>, boulons M3 traversants, à la hauteur de l\'ancienne came. Le pêne s\'engage <b>derrière le retour replié de la porte</b> — pas de gâche à fabriquer dans la plupart des cas.',
-      'Trous oblongs pour le réglage (tolérance ±1 mm), frein-filet une fois aligné, 20 cycles manuels de test.',
-      '<b>Diode 1N4007 soudée aux cosses du solénoïde</b> (bande blanche côté +12 V) + gaine thermo.'],
-    note:{type:'tip', txt:'💡 Ouverture de secours : poussoir Ø 4 mm à travers une persienne aligné sur le pêne, ou accès par la case voisine ouverte à la clé.'}},
+    tools:['Clés M3, tournevis','Perceuse Ø 3,2 mm','Frein-filet','Fer à souder (flyback) + gaine thermo'],
+    subs:[
+      {t:'Démonter la came de la case 2', d:'Ouvrir la porte à la clé, dévisser l\'écrou de came derrière le barillet, retirer la languette. Remonter l\'écrou : le barillet reste (bouche le trou, la poignée fonctionne).'},
+      {t:'Positionner le solénoïde à blanc', d:'Sur la cloison verticale côté serrure, pêne vers l\'avant à la hauteur exacte où la came verrouillait. Porte fermée : le pêne doit tomber DERRIÈRE le retour replié de la porte avec 1–2 mm de jeu.'},
+      {t:'Percer et boulonner', d:'2 trous Ø 3,2 mm à travers la cloison (trous oblongs du solénoïde = réglage), M3 + nylstop côté case voisine. Ne pas freiner tout de suite.'},
+      {t:'Régler l\'engagement', d:'Porte fermée, actionner le pêne à la main (il se rétracte au doigt) : la porte doit se verrouiller/déverrouiller sans forcer. Ajuster dans les oblongs, puis frein-filet. 20 cycles manuels.'},
+      {t:'Souder la flyback 1N4007', d:'Directement sur les cosses du solénoïde, bande blanche (cathode) côté +12 V, gaine thermo. PAS au niveau du relais : la surtension s\'écrête à la source.'},
+      {t:'Si le pêne ne tombe pas en face du pli', d:'Équerre en L percée Ø 11 mm vissée sur la porte en guise de gâche — cas de secours seulement, tester d\'abord le retour d\'origine.'},
+      {t:'Répéter pour les cases 4, 6, 8', d:'Même séquence. Sur la 4 et la 6 le solénoïde se fixe sur la cloison mitoyenne de la case TECH : vérifier qu\'il ne gêne pas la plaque.'},
+      {t:'Joint mousse si la porte « sonne »', d:'Bande mousse adhésive fine sur le battant : supprime le bruit du pêne au vent et rattrape le jeu.'}],
+    note:{type:'tip', txt:'💡 Ouverture de secours par case : repérer la persienne alignée sur le pêne et vérifier qu\'un poussoir Ø 4 mm l\'atteint. Sinon, l\'accès par la case voisine (ouverte à sa clé) doit permettre d\'atteindre les écrous du solénoïde.'}},
+
   { id:'wiring', title:'Câbler les 4 lignes 12 V', sub:'TECH → cases 2/4/6/8', time:'~1 h 30', scene:'wiring',
-    items:[
-      'Perçages Ø 10 mm dans les cloisons + <b>passe-fils caoutchouc</b> (la tôle fine coupe les câbles).',
-      '2 × 0,75 mm² par solénoïde depuis les borniers relais (COM/NO), runs < 50 cm — aucune chute de tension.',
-      '<b>Étiqueter chaque conducteur aux deux bouts</b> (ex. <code>L2-BCM17-CH1</code>) et remplir le tableau de câblage d\'IMPLANTATION.md.',
-      'Ce tableau <b>est</b> le <code>calibration.json</code> : le vérifier à deux — une inversion = la mauvaise porte s\'ouvre.'],
-    note:null},
+    tools:['Perceuse Ø 10 mm','Passe-fils caoutchouc','Fil 2×0,75 mm² (~3 m)','Colliers, étiquettes, pince à sertir embouts'],
+    subs:[
+      {t:'Percer les 4 traversées de cloison', d:'Ø 10 mm au plus court entre la case TECH et chaque case équipée, dans l\'angle arrière (invisible porte ouverte). Ébavurer + passe-fil caoutchouc sur CHAQUE trou.'},
+      {t:'Tirer les lignes', d:'2 × 0,75 mm² par solénoïde : COM du canal → 12V+ (WAGO), NO → solénoïde+, solénoïde− → GND (WAGO). Runs < 50 cm, colliers tous les 15 cm le long des angles.'},
+      {t:'Étiqueter aux deux bouts', d:'L2-BCM17-CH1 côté relais ET côté solénoïde. Sans étiquette, la première maintenance devient une séance de devinettes.'},
+      {t:'Séparer signal et puissance', d:'La nappe CSI et les fils I2C ne longent pas les lignes 12 V (le pulse solénoïde induit des artefacts caméra). Croiser à 90° si nécessaire, jamais en parallèle collé.'},
+      {t:'Remplir le tableau de câblage', d:'Case ↔ position ↔ UUID (BDD) ↔ pin BCM ↔ canal ↔ longueur, dans IMPLANTATION.md. Le vérifier À DEUX.'},
+      {t:'Reporter dans calibration.json', d:'sudo nano /etc/sportlocker/calibration.json puis restart du service. Ce fichier EST le tableau : toute divergence = la mauvaise porte s\'ouvre.'}],
+    note:{type:'warn', txt:'⚠️ Test croisé obligatoire après câblage : déclencher CH1 seul et vérifier que SEULE la porte 2 s\'ouvre, puis CH2→4, CH3→6, CH4→8. Une inversion silencieuse est le pire bug possible en prod.'}},
+
   { id:'antenna', title:'Réseau 4G + antennes', sub:'Toujours à l\'extérieur du caisson', time:'~45 min', scene:'antenna',
-    items:[
-      '2 embases <b>SMA traversantes</b> sur le toit de l\'armoire (Ø 6,5 mm + joint) → antennes 4G dehors. Armoire acier = cage de Faraday : une antenne interne ne capte rien.',
-      'RUT241 alimenté en 12 V depuis le WAGO, RJ45 30 cm vers l\'IO Board, SIM M2M (500 Mo–1 Go suffisent).',
-      'MQTT et Balena sont en connexions <b>sortantes</b> : le CGNAT 4G ne pose aucun problème, rien à configurer côté réseau.'],
-    note:{type:'tip', txt:'💡 Le firmware est offline-first (JWT local + cache) : une coupure 4G n\'empêche pas les ouvertures des réservations déjà en cache.'}},
+    tools:['Perceuse Ø 6,5 mm','Clé plate 8 mm (écrous SMA)','SIM M2M activée','Joint / mastic extérieur'],
+    subs:[
+      {t:'Percer le toit pour les embases SMA', d:'2 trous Ø 6,5 mm espacés d\'au moins 10 cm (diversité antennes), vers l\'arrière du toit. Ébavurer, joint torique ou mastic : l\'eau ne doit pas entrer.'},
+      {t:'Monter les embases traversantes', d:'Câble Bingfu : embase côté extérieur, écrou serré clé de 8, SMA mâle qui pend à l\'intérieur vers le RUT241. Visser les antennes fouet dehors.'},
+      {t:'Insérer la SIM et configurer le RUT241', d:'SIM M2M dans le slot, interface web (192.168.1.1) : APN de l\'opérateur, PIN désactivé, mode routeur DHCP. Firmware Teltonika à jour.'},
+      {t:'Raccorder au Pi', d:'RJ45 30 cm RUT241 → port Ethernet IO Board. Alimentation du routeur en 12 V depuis le WAGO (entrée 9–30 V DC du RUT241).'},
+      {t:'Vérifier le signal', d:'Interface RUT241 : RSRP > −110 dBm attendu. Si faible, déplacer les antennes (plus haut, dégagées du mur).'},
+      {t:'Test bout-en-bout réseau', d:'Le Pi ping api.sportlocker.fr, le heartbeat MQTT apparaît sur ops.sportlocker.fr, le tunnel Balena répond. Débrancher le Wi-Fi du Pi pour forcer le chemin 4G.'}],
+    note:{type:'tip', txt:'💡 Note l\'ICCID de la SIM + l\'IMEI du routeur dans le tableau de câblage : indispensable pour le support opérateur à distance.'}},
+
   { id:'final', title:'Tests finaux in situ', sub:'Checklist de mise en service', time:'~1 h', scene:'final',
-    items:[
-      'Scan QR sur chaque case → <b>la bonne</b> porte s\'ouvre, franche, ~0,5 s. NFC lu à travers l\'acrylique.',
-      '<code>sudo reboot</code> → toutes portes verrouillées, service revient seul, heartbeat MQTT visible sur ops.sportlocker.fr.',
-      'Coupure secteur 10 min → redémarrage propre. 10 cycles consécutifs → solénoïde à peine tiède.',
-      'Tableau de câblage plastifié collé dans la case TECH. Ouverture de secours testée sur les 4 cases.'],
-    note:{type:'warn', txt:'⚠️ Rejouer aussi le test « offline » : 4G coupée + résa en cache → ouverture OK ; pas de cache → refus propre.'}},
+    tools:['Téléphone avec l\'app (QR réel)','Badge NFC','Chronomètre','Le tableau de câblage plastifié'],
+    subs:[
+      {t:'Scan QR sur les 4 cases', d:'Réservation réelle depuis app.sportlocker.fr → QR → LA BONNE porte s\'ouvre, franche, ~0,5 s. NFC : badge lu à travers l\'acrylique à 3–4 cm.'},
+      {t:'Test de reboot', d:'sudo reboot : aucune porte ne s\'arme au boot, service revient seul (enabled), heartbeat MQTT réapparaît sur ops.sportlocker.fr en < 2 min.'},
+      {t:'Test de coupure secteur', d:'Débrancher 10 min, rebrancher : redémarrage propre, toutes portes verrouillées pendant ET après la coupure (fail-secure).'},
+      {t:'Test offline 4G', d:'Antennes débranchées + résa en cache → ouverture OK. Sans cache → refus propre (cache_miss_offline). Rebrancher : les events en attente partent.'},
+      {t:'Test thermique', d:'10 cycles consécutifs sur une porte : solénoïde à peine tiède. Température CM4 < 70 °C après 1 h porte fermée (vcgencmd measure_temp).'},
+      {t:'Ouvertures de secours', d:'Tester le poussoir/accès voisin sur chacune des 4 cases équipées. Une case non-ouvrable en panne = intervention destructive.'},
+      {t:'Finaliser la doc', d:'Tableau de câblage plastifié collé dans la case TECH, photos de la plaque et du câblage archivées, ICCID/IMEI notés, ticket « mise en service » créé sur ops.'},
+      {t:'Coller les consignes utilisateur', d:'Autocollant A6 en façade : 1. Réservez sur app.sportlocker.fr · 2. Présentez votre QR ici · 3. Le casier s\'ouvre.'}],
+    note:{type:'warn', txt:'⚠️ Ne mets PAS de matériel sportif dedans avant que les 4 ouvertures de secours soient validées. Un casier plein non-ouvrable, c\'est une pince-monseigneur et une porte à racheter.'}},
 ];
 
 /* ───────── Rendu + état ───────── */
-const state = JSON.parse(localStorage.getItem('sl-implantation') || '{}');
+const state = JSON.parse(localStorage.getItem('sl-implantation-v2') || '{}');
 let current = state.current || 0;
-const done = state.done || {};
+const subDone = state.subDone || {};   /* clé : `${stepId}.${idx}` */
 
-function save() { localStorage.setItem('sl-implantation', JSON.stringify({current, done})); }
+function save() { localStorage.setItem('sl-implantation-v2', JSON.stringify({current, subDone})); }
+function stepPct(s) {
+  const total = s.subs.length;
+  const ok = s.subs.filter((_, i) => subDone[`${s.id}.${i}`]).length;
+  return {ok, total, full: ok === total};
+}
 function renderNav() {
   const nav = document.getElementById('nav');
-  nav.innerHTML = '<div class="nav-title">ÉTAPES</div>' + STEPS.map((s, i) =>
-    `<div class="nav-item ${i === current ? 'active' : ''} ${done[s.id] ? 'done' : ''}" onclick="goTo(${i})">
-      <div class="num">${done[s.id] ? '✓' : i + 1}</div>
-      <div><div class="t">${s.title}</div><div class="st">${s.sub} · ${s.time}</div></div>
-    </div>`).join('');
-  const pct = Math.round(Object.values(done).filter(Boolean).length / STEPS.length * 100);
+  nav.innerHTML = '<div class="nav-title">ÉTAPES</div>' + STEPS.map((s, i) => {
+    const p = stepPct(s);
+    return `<div class="nav-item ${i === current ? 'active' : ''} ${p.full ? 'done' : ''}" onclick="goTo(${i})">
+      <div class="num">${p.full ? '✓' : i + 1}</div>
+      <div><div class="t">${s.title}</div><div class="st">${p.ok}/${p.total} · ${s.time}</div></div>
+    </div>`;
+  }).join('');
+  const all = STEPS.reduce((a, s) => a + s.subs.length, 0);
+  const ok = Object.values(subDone).filter(Boolean).length;
+  const pct = Math.round(ok / all * 100);
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('progress-pct').textContent = pct + '%';
 }
 function renderMain() {
   const s = STEPS[current];
+  const p = stepPct(s);
   document.getElementById('main').innerHTML =
     `<div class="step-card">
       <div class="step-head">
         <div class="num">${current + 1}</div>
         <div><h2>${s.title}</h2><p>${s.sub} — ${s.time}</p></div>
         <div class="spacer"></div>
-        <button class="btn-done ${done[s.id] ? 'on' : ''}" onclick="toggleDone('${s.id}')">
-          ${done[s.id] ? '✓ Fait' : '○ Marquer fait'}</button>
+        <button class="btn-done ${p.full ? 'on' : ''}" onclick="toggleAll('${s.id}')">
+          ${p.full ? '✓ Étape complète' : `${p.ok}/${p.total} fait`}</button>
       </div>
       <div class="scene">${SCENES[s.scene]()}</div>
       <div class="step-body">
-        <ol>${s.items.map(i => `<li>${i}</li>`).join('')}</ol>
+        <div class="tools">${s.tools.map(t => `<span class="tool-chip">🔧 ${t}</span>`).join('')}</div>
+        <div class="step-progress">SOUS-ÉTAPES — ${p.ok}/${p.total}</div>
+        <div class="subs">${s.subs.map((sub, i) => {
+          const on = subDone[`${s.id}.${i}`];
+          return `<div class="sub ${on ? 'on' : ''}" onclick="toggleSub('${s.id}', ${i})">
+            <div class="cb">${on ? '✓' : ''}</div>
+            <div class="txt"><b>${sub.t}</b><span class="d">${sub.d}</span></div>
+          </div>`;
+        }).join('')}</div>
         ${s.note ? `<div class="note ${s.note.type}">${s.note.txt}</div>` : ''}
         <div class="stepnav">
           <button onclick="goTo(${current - 1})" ${current === 0 ? 'disabled' : ''}>← Précédent</button>
@@ -445,7 +529,13 @@ function renderMain() {
     </div>`;
 }
 function goTo(i) { if (i < 0 || i >= STEPS.length) return; current = i; save(); renderNav(); renderMain(); window.scrollTo({top:0}); }
-function toggleDone(id) { done[id] = !done[id]; save(); renderNav(); renderMain(); }
+function toggleSub(id, i) { subDone[`${id}.${i}`] = !subDone[`${id}.${i}`]; save(); renderNav(); renderMain(); }
+function toggleAll(id) {
+  const s = STEPS.find(x => x.id === id);
+  const full = s.subs.every((_, i) => subDone[`${id}.${i}`]);
+  s.subs.forEach((_, i) => subDone[`${id}.${i}`] = !full);
+  save(); renderNav(); renderMain();
+}
 renderNav(); renderMain();
 </script>
 </body>
