@@ -8,6 +8,7 @@ import { db } from '../db/client.js'
 import { adminInvites, communes, users } from '../db/schema.js'
 import { env } from '../config/env.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
+import { adminRoleSchema } from '../lib/roles.js'
 import { verifyFirebaseToken } from './admin-auth.js'
 
 const CreateInviteBody = z.object({
@@ -59,7 +60,7 @@ const AcceptInviteBody = z.object({
 const SessionUser = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
-  role: z.enum(['admin', 'super_admin']),
+  role: adminRoleSchema,
   communeId: z.string().uuid().nullable(),
 })
 

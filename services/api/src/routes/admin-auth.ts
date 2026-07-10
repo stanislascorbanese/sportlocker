@@ -7,6 +7,7 @@ import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { env } from '../config/env.js'
 import { getFirebaseAdmin } from '../lib/firebase-admin.js'
+import { adminRoleSchema } from '../lib/roles.js'
 
 const LoginBody = z.object({
   firebaseIdToken: z.string().min(20)
@@ -16,7 +17,7 @@ const LoginBody = z.object({
 const SessionUser = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
-  role: z.enum(['admin', 'super_admin'])
+  role: adminRoleSchema
     .describe('`admin` = scopé à une commune. `super_admin` = équipe SportLocker, cross-tenant.'),
   communeId: z.string().uuid().nullable().describe('Tenant pour `admin`. Null pour `super_admin`.'),
 })

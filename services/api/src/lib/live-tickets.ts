@@ -25,6 +25,7 @@ import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 
 import { redis } from '../redis/client.js'
+import { userRoleSchema } from './roles.js'
 
 /** Durée de vie d'un ticket entre l'émission (Next) et le handshake (browser). */
 export const LIVE_TICKET_TTL_SECONDS = 30
@@ -33,7 +34,7 @@ const KEY = (ticket: string) => `live-ticket:${ticket}`
 
 export const LiveTicketScope = z.object({
   sub: z.string(),
-  role: z.enum(['citizen', 'operator', 'admin', 'super_admin']),
+  role: userRoleSchema,
   /** null = super_admin (voit tout) ; sinon commune scopée de l'admin. */
   communeId: z.string().uuid().nullable(),
 })

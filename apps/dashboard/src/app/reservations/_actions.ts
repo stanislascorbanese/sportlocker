@@ -10,6 +10,7 @@ import {
   type ReservationExportFilters,
   type ReservationStatus,
 } from '../../lib/api'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -61,9 +62,10 @@ export async function exportReservationsCsvAction(
     const csv = await fetchReservationsCsv(filters)
     return { ok: true, csv, filename, source: 'live' }
   } catch (err) {
-    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+    if (isDemoFallbackEnabled() && err instanceof ApiError && (err.status === 401 || err.status === 403)) {
       // Fallback démo — on génère un CSV à partir des fixtures pour que
       // l'utilisateur puisse au moins voir le format même sans token valide.
+      // Coupé en prod (garde) : on propage alors la vraie erreur d'API.
       const csv = await demoCsv(filters)
       return { ok: true, csv, filename, source: 'demo' }
     }

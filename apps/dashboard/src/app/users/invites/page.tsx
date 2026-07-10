@@ -7,6 +7,7 @@ import {
   type InviteSummary,
 } from '../../../lib/api'
 import { cn } from '../../../lib/cn'
+import { isDemoFallbackEnabled } from '../../../lib/demo-fallback'
 import { RefreshButton } from '../../../components/RefreshButton'
 import { getLang } from '../../../lib/lang-server'
 import { getSessionUser } from '../../../lib/session-server'
@@ -63,7 +64,7 @@ export default async function InvitesPage() {
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
 
-  const useDemo = fetchError !== null
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null)
   if (useDemo) invites = DEMO_INVITES
 
   // Communes pour le sélecteur (super_admin uniquement).

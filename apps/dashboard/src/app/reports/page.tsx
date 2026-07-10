@@ -17,6 +17,7 @@ import { Sparkline } from '../../components/Sparkline'
 import { StatCard } from '../../components/StatCard'
 import { TopList } from '../../components/TopList'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { commonStrings, fmtDateShort } from '../../lib/i18n/common'
@@ -112,7 +113,7 @@ async function loadAll(days: number): Promise<LoadResult> {
   const allZero = realStats !== null
     && realStats.daily.every((p) => p.count === 0)
     && realStats.topDistributors.every((d) => d.count === 0)
-  const useDemo = fetchError !== null || realStats === null || allZero
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null || realStats === null || allZero)
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   let stats: StatsDashboard

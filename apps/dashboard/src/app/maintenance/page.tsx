@@ -1,5 +1,6 @@
 import { fetchMaintenanceTickets, type MaintenanceTicket } from '../../lib/api'
 import { RefreshButton } from '../../components/RefreshButton'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { maintenanceStrings } from '../../lib/i18n/maintenance'
@@ -43,7 +44,7 @@ export default async function MaintenancePage() {
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
 
-  const useDemo = fetchError !== null || realTickets.length === 0
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null || realTickets.length === 0)
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const tickets = useDemo
     ? (await import('../../lib/demo-data')).DEMO_MAINTENANCE_TICKETS
