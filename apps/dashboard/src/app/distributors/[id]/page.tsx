@@ -6,6 +6,7 @@ import {
   type DistributorDetail, type ItemTypeAdmin,
 } from '../../../lib/api'
 import { RefreshButton } from '../../../components/RefreshButton'
+import { isDemoFallbackEnabled } from '../../../lib/demo-fallback'
 import { getLang } from '../../../lib/lang-server'
 import { commonStrings } from '../../../lib/i18n/common'
 import { distributorsStrings } from '../../../lib/i18n/distributors'
@@ -48,13 +49,16 @@ export default async function DistributorDetailPage(
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur) —
   // chargé uniquement si distributor introuvable OU catalogue item_types vide.
-  const useDemo = distributor == null
+  const useDemo = isDemoFallbackEnabled() && (distributor == null)
+  // Catalogue item_types fictif pour le drawer d'ajout : lui aussi coupé en
+  // prod (sinon un catalogue réellement vide afficherait de faux types).
+  const useDemoTypes = isDemoFallbackEnabled() && itemTypes.length === 0
   let data: DistributorDetail = distributor!  // narrow garanti par le if ci-dessous
   let types: ItemTypeAdmin[] = itemTypes
-  if (useDemo || itemTypes.length === 0) {
+  if (useDemo || useDemoTypes) {
     const demo = await import('../../../lib/demo-data')
     if (useDemo) data = demo.demoDistributorDetail(id)
-    if (itemTypes.length === 0) types = demo.DEMO_ITEM_TYPES
+    if (useDemoTypes) types = demo.DEMO_ITEM_TYPES
   }
   const loadable = loadableLockers(data.lockers).map((l) => ({ id: l.id, position: l.position }))
 

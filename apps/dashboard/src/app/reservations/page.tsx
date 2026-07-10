@@ -15,6 +15,7 @@ import { ClickableRow } from './ClickableRow'
 import { ExportCsvButton } from './ExportCsvButton'
 import { ReservationDrawer } from './ReservationDrawer'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings, fmtDateTime } from '../../lib/i18n/common'
 import { reservationsStrings, reservationStatusLabel } from '../../lib/i18n/reservations'
@@ -160,7 +161,7 @@ export default async function ReservationsPage({
   const noFilterActive = !status && !distributorId && !from && !to && !params.cursor
   // Bascule en démo si l'API a planté OU si la table est vide sans filtre.
   // Avec filtre, on respecte le vrai résultat même s'il est vide (sinon UX trompeuse).
-  const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
+  const useDemo = isDemoFallbackEnabled() && ((fetchError !== null) || (realItems.length === 0 && noFilterActive))
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   // On charge la lib une seule fois et réutilise pour le drawer detail.

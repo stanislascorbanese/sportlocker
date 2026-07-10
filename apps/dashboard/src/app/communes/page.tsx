@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { fetchCommunes, type Commune } from '../../lib/api'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings, dateLocale } from '../../lib/i18n/common'
 import { communesStrings } from '../../lib/i18n/communes'
@@ -64,7 +65,7 @@ export default async function CommunesPage() {
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
 
-  const useDemo = fetchError !== null || realCommunes.length === 0
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null || realCommunes.length === 0)
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur) —
   // évite d'embarquer les ~10k de fixtures dans le bundle de chaque page
   // quand l'API renvoie des données réelles (cas nominal en prod tenant).

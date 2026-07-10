@@ -7,6 +7,7 @@ import { DonutChart } from '../../components/DonutChart'
 import { Heatmap } from '../../components/Heatmap'
 import { TopList } from '../../components/TopList'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { statsStrings, reservationStatusLabel } from '../../lib/i18n/stats'
@@ -56,7 +57,7 @@ export default async function StatsPage({
   const everythingEmpty = real
     && real.daily.reduce((a, p) => a + p.count, 0) === 0
     && real.topDistributors.every((d) => d.count === 0)
-  const useDemo = fetchError !== null || !real || everythingEmpty
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null || !real || everythingEmpty)
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const stats: StatsDashboard = useDemo
