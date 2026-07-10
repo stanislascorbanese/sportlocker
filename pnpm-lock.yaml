@@ -300,6 +300,9 @@ importers:
       '@sentry/node':
         specifier: ^10.63.0
         version: 10.63.0(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))
+      '@sportlocker/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       bullmq:
         specifier: ^5.79.2
         version: 5.79.2
@@ -346,9 +349,6 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
-      '@sportlocker/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@testcontainers/postgresql':
         specifier: ^10.9.0
         version: 10.28.0
