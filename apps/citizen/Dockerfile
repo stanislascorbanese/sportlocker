@@ -32,6 +32,11 @@ RUN corepack prepare pnpm@9.0.0 --activate \
 COPY packages/types ./packages/types
 COPY apps/citizen ./apps/citizen
 
+# Compile @sportlocker/types → dist/ (les exports du paquet pointent sur
+# ./dist/index.js ; sans ce build, webpack ne résout pas le module au
+# `next build` → « Module not found: Can't resolve '@sportlocker/types' »)
+RUN pnpm --filter @sportlocker/types build
+
 # NEXT_PUBLIC_* sont bakés dans le bundle client au build par Next.js.
 # Railway les injecte comme build args si on les déclare avec ARG ici.
 # Sans valeur, le build passe mais l'app ne pourra pas joindre Firebase/API

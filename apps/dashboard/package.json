@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@sentry/nextjs": "^10.63.0",
+    "@sportlocker/types": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
     "firebase": "^12.15.0",
     "lucide-react": "^1.23.0",
@@ -24,7 +25,6 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@sportlocker/types": "workspace:*",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^26.1.0",
