@@ -6,15 +6,14 @@ import { z } from 'zod'
 import { db } from '../db/client.js'
 import { communes, users } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
-
-const USER_ROLE = ['citizen', 'operator', 'admin', 'super_admin'] as const
+import { USER_ROLES, type UserRole } from '../lib/roles.js'
 
 const UserDTO = z.object({
   id: z.string().uuid(),
   email: z.string(),
   displayName: z.string().nullable(),
   phone: z.string().nullable(),
-  role: z.enum(USER_ROLE),
+  role: z.enum(USER_ROLES),
   trustScore: z.number().int().min(0).max(100),
   totalReservations: z.number().int().nonnegative(),
   isBanned: z.boolean(),
@@ -30,13 +29,13 @@ const UserDTO = z.object({
 })
 
 const ListQuery = z.object({
-  role:     z.enum(USER_ROLE).optional(),
+  role:     z.enum(USER_ROLES).optional(),
   banned:   z.enum(['true', 'false']).optional(),
   q:        z.string().min(1).max(100).optional(),
 })
 
 const UpdateBody = z.object({
-  role:                 z.enum(USER_ROLE).optional(),
+  role:                 z.enum(USER_ROLES).optional(),
   isBanned:             z.boolean().optional(),
   bannedReason:         z.string().max(500).nullable().optional(),
   trustScore:           z.number().int().min(0).max(100).optional(),
@@ -51,7 +50,7 @@ type UserRow = {
   email: string
   displayName: string | null
   phone: string | null
-  role: typeof USER_ROLE[number]
+  role: UserRole
   trustScore: number
   totalReservations: number
   isBanned: boolean
