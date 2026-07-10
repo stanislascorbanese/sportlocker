@@ -15,6 +15,11 @@ import {
 } from '@sportlocker/types'
 
 import { getFirebaseAuth } from './firebase'
+import {
+  clearOfflineReservation,
+  persistOrClearOfflineReservation,
+  readOfflineReservation,
+} from './offline-reservation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
 
@@ -45,6 +50,10 @@ export const ReservationActive = z.object({
   slotEndAt: z.string().datetime().nullable().optional(),
   durationMinutes: z.number().int().nullable().optional(),
   priceCents: z.number().int().nullable().optional(),
+  // Marqueur transient (jamais envoyé par l'API) : `true` quand cette résa est
+  // servie depuis le cache local hors-ligne (cf. offline-reservation.ts). Sert
+  // à afficher le badge « hors-ligne » sur la page QR.
+  offline: z.boolean().optional(),
 })
 export type ReservationActive = z.infer<typeof ReservationActive>
 
@@ -427,11 +436,68 @@ export async function fetchMyReservations(): Promise<ReservationHistoryItem[]> {
   return data.items
 }
 
+// ─── Compte citoyen (profil + suppression RGPD) ────────────────────────────
+
+/**
+ * Profil du user courant renvoyé par `GET /v1/users/me`. Porte le `trustScore`
+ * (affiché en badge sur /profile) et l'éventuelle demande de suppression RGPD
+ * en cours (`gdprDeleteRequestedAt` non-null → compte programmé pour effacement).
+ */
+export const UserMe = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  displayName: z.string().nullable(),
+  role: UserRole,
+  trustScore: z.number().int(),
+  communeId: z.string().uuid().nullable(),
+  gdprDeleteRequestedAt: z.string().datetime().nullable(),
+})
+export type UserMe = z.infer<typeof UserMe>
+
+/** Récupère le profil (dont trustScore + état RGPD) du citoyen authentifié. */
+export async function fetchMe(): Promise<UserMe> {
+  return apiFetch(`/v1/users/me`, UserMe)
+}
+
+const DeleteAccountResult = z.object({
+  ok: z.literal(true),
+  gdprDeleteRequestedAt: z.string().datetime(),
+})
+export type DeleteAccountResult = z.infer<typeof DeleteAccountResult>
+
+/**
+ * Demande la suppression RGPD du compte courant (`DELETE /v1/users/me`).
+ * Soft-delete : le backend pose `gdpr_delete_requested_at` et le cron RGPD
+ * anonymise à J+30. Lève `ApiError(409, 'active_reservation')` si une
+ * réservation est encore vivante. Idempotent côté serveur.
+ */
+export async function deleteMyAccount(): Promise<DeleteAccountResult> {
+  return apiFetch(`/v1/users/me`, DeleteAccountResult, { method: 'DELETE', body: '{}' })
+}
+
 export async function fetchActiveReservation(): Promise<ReservationActive | null> {
   try {
-    return await apiFetch(`/v1/reservations/active`, ReservationActive)
+    const res = await apiFetch(`/v1/reservations/active`, ReservationActive)
+    // Met à jour (ou purge) le cache offline du QR à chaque fetch réussi.
+    persistOrClearOfflineReservation(res)
+    return res
   } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null
+    if (err instanceof ApiError && err.status === 404) {
+      clearOfflineReservation()
+      return null
+    }
+    // Échec réseau (`fetch` lève un TypeError) ou navigateur hors-ligne : on
+    // sert le dernier QR mis en cache s'il est encore valide, pour que le
+    // citoyen en zone blanche puisse ouvrir son casier déjà réservé/payé. Une
+    // vraie erreur applicative (ApiError non-404, ZodError en ligne) continue
+    // de remonter pour ne pas masquer un bug.
+    const offline =
+      err instanceof TypeError
+      || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    if (offline) {
+      const cached = readOfflineReservation()
+      if (cached) return { ...cached, offline: true }
+    }
     throw err
   }
 }
@@ -634,4 +700,73 @@ export async function fetchReminderPreferences(): Promise<{ reminderMinutesBefor
     `/v1/push-subscriptions/preferences`,
     z.object({ reminderMinutesBefore: z.number().int() }),
   )
+}
+
+// ─── Avis (boucle de feedback citoyen) ────────────────────────────────────
+
+/** Longueur max d'un commentaire d'avis (aligné sur la contrainte API Zod). */
+export const REVIEW_COMMENT_MAX = 280
+
+export const ReviewCreated = z.object({
+  id: z.string().uuid(),
+  reservationId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string().datetime(),
+})
+export type ReviewCreated = z.infer<typeof ReviewCreated>
+
+/**
+ * Dépose un avis sur une réservation rendue (`status='returned'`).
+ * Erreurs métier remontées via ApiError.code :
+ *   - `reservation_not_reviewable` (résa pas encore rendue)
+ *   - `review_already_exists` (un avis existe déjà)
+ *   - `reservation_not_found` (résa inexistante ou d'un autre user)
+ */
+export async function submitReview(
+  reservationId: string,
+  input: { rating: number; comment?: string },
+): Promise<ReviewCreated> {
+  return apiFetch(`/v1/reservations/${reservationId}/review`, ReviewCreated, {
+    method: 'POST',
+    body: JSON.stringify({
+      rating: input.rating,
+      ...(input.comment && input.comment.trim() ? { comment: input.comment.trim() } : {}),
+    }),
+  })
+}
+
+export const PublicReview = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  authorName: z.string().nullable(),
+})
+export type PublicReview = z.infer<typeof PublicReview>
+
+export const DistributorReviews = z.object({
+  average: z.number().nullable(),
+  count: z.number().int().min(0),
+  items: z.array(PublicReview),
+})
+export type DistributorReviews = z.infer<typeof DistributorReviews>
+
+/**
+ * Avis publics d'un distributeur + agrégats (moyenne, total). Route publique
+ * (pas d'auth) → fetch direct pour éviter le retry session sur 401.
+ */
+export async function fetchDistributorReviews(
+  id: string,
+  opts: { limit?: number; offset?: number } = {},
+): Promise<DistributorReviews> {
+  const params = new URLSearchParams()
+  if (opts.limit != null) params.set('limit', String(opts.limit))
+  if (opts.offset != null) params.set('offset', String(opts.offset))
+  const qs = params.toString()
+  const res = await fetch(`${API_URL}/v1/distributors/${id}/reviews${qs ? `?${qs}` : ''}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body?.error ?? `http_${res.status}`)
+  }
+  return DistributorReviews.parse(await res.json())
 }

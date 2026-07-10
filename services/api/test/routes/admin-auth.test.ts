@@ -1,7 +1,7 @@
 /**
  * Tests d'intégration multi-tenant admin :
  *   - POST /v1/admin/auth/login (Firebase exchange → JWT session)
- *   - POST /v1/admin/invites (super_admin only, génère token+URL)
+ *   - POST /v1/admin/invites (admin scopé sur sa commune ou super_admin, génère token+URL)
  *   - POST /v1/admin/invites/accept (consomme token, crée user, JWT session)
  *
  * Stack identique aux autres tests (testcontainers, app.inject, TRUNCATE).
@@ -550,7 +550,7 @@ describe('POST /v1/admin/invites', () => {
     expect(rows[0]!.accepted_at).toBeNull()
   })
 
-  it('admin (pas super) → 403 forbidden_super_admin_required', async () => {
+  it('admin → 201 : peut inviter dans SA commune', async () => {
     const communeId = await seedCommune()
     const adminUser = await seedUser({ role: 'admin', communeId })
 
@@ -563,8 +563,26 @@ describe('POST /v1/admin/invites', () => {
         communeId,
       },
     })
+    expect(res.statusCode).toBe(201)
+    expect(res.json().communeId).toBe(communeId)
+  })
+
+  it('admin visant une autre commune → 403 forbidden_cross_commune', async () => {
+    const own = await seedCommune()
+    const other = await seedCommune()
+    const adminUser = await seedUser({ role: 'admin', communeId: own })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/invites/',
+      headers: { authorization: authHeader(adminUser.id, 'admin', own) },
+      payload: {
+        email: 'someone@test.local',
+        communeId: other,
+      },
+    })
     expect(res.statusCode).toBe(403)
-    expect(res.json().error).toBe('forbidden_super_admin_required')
+    expect(res.json().error).toBe('forbidden_cross_commune')
   })
 
   it('commune inconnue → 404 commune_not_found', async () => {

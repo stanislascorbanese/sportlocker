@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 import { cn } from '../../lib/cn'
 import type { MaintenanceStatus, MaintenanceTicket } from '../../lib/api'
@@ -53,9 +54,26 @@ export function TicketCard({
   const sev = SEVERITY_STYLE[ticket.severity] ?? SEVERITY_STYLE[3]!
 
   return (
-    <article className="rounded-card border bg-white p-3 shadow-card transition-colors duration-base hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:shadow-none dark:hover:border-white/20">
+    <article className="relative rounded-card border bg-white p-3 shadow-card transition-colors duration-base hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:shadow-none dark:hover:border-white/20">
+      {/* Overlay cliquable : toute la carte mène au détail. Les boutons d'action
+          (z-10) restent au-dessus et ne déclenchent pas la navigation. */}
+      <Link
+        href={`/maintenance/${ticket.id}`}
+        className="absolute inset-0 rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500"
+        aria-label={t.cardViewDetail}
+      />
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-medium leading-tight text-navy-900 dark:text-white">{ticket.title}</h3>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {ticket.isAuto && (
+            <span
+              title={t.badgeAutoTitle}
+              className="shrink-0 rounded border border-sky-200 bg-sky-50 px-1 py-0 text-[9px] font-semibold uppercase tracking-wide text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+            >
+              {t.badgeAuto}
+            </span>
+          )}
+          <h3 className="text-sm font-medium leading-tight text-navy-900 dark:text-white">{ticket.title}</h3>
+        </div>
         <span className={cn(
           'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
           sev,
@@ -88,7 +106,7 @@ export function TicketCard({
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="relative z-10 mt-3 flex flex-wrap gap-2">
         {ticket.status === 'open' && (
           <button
             type="button"

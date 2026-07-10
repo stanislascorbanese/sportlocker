@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
+import StickyCta from '@/components/StickyCta.astro'
 import PriceCalculator from '@/components/PriceCalculator.tsx'
 import { DEPOSITS, MARKETPLACE, PRICING_TEMPLATES, SLOT_DURATIONS } from '@/data/site'
 
@@ -53,7 +54,7 @@ const notIncluded = [
   'Travaux de génie civil (ancrage spécifique, dalle béton, arrivée électrique > 5m)',
   'Wrapping personnalisé du distributeur (sticker logo simple inclus)',
   'Remplacement du matériel usé par vétusté normale (à votre charge, financé par votre part des locations)',
-  'Frais de transport hors Île-de-France au-delà de 200km (devis sur mesure)',
+  'Frais de transport au-delà de 300 km du site de fabrication (devis sur mesure)',
 ]
 
 const faqTarifs = [
@@ -206,9 +207,7 @@ const faqTarifs = [
         </div>
 
         <p class="text-[0.7rem] text-white/60 italic leading-relaxed mt-6 text-center max-w-2xl mx-auto">
-          Prix éditables à tout moment depuis votre dashboard. Aucun paiement réel
-          activé en MVP — les prix sont affichés au citoyen et utilisés pour le calcul
-          de revenu, l'encaissement Stripe sera ouvert en phase suivante.
+          Prix éditables à tout moment depuis votre dashboard. Encaissement Stripe activé — carte, Apple Pay, Google Pay, PayPal et Klarna acceptés.
         </p>
       </div>
     </div>
@@ -382,4 +381,6 @@ const faqTarifs = [
     primary={{ href: '/contact#formulaire', label: 'Demander un devis détaillé' }}
     secondary={{ href: '/comment-ca-marche#installation', label: 'Voir le parcours d\'installation' }}
   />
+
+  <StickyCta />
 </Base>

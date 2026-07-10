@@ -13,46 +13,155 @@ const {
   highlight,
   desc,
   primary = { href: '/contact#formulaire', label: 'Demander un devis' },
-  secondary = { href: '/comment-ca-marche#distributeur-3d', label: 'Voir comment ça marche' },
+  secondary = { href: '/comment-ca-marche', label: 'Voir comment ça marche' },
 } = Astro.props
+
+const titleWords = title.trim().split(/\s+/)
+const highlightWords = (highlight ?? '').trim().split(/\s+/).filter(Boolean)
+const totalWords = titleWords.length + highlightWords.length
+const descDelay  = (totalWords * 0.1 + 0.05).toFixed(2)
+const ctaDelay   = (totalWords * 0.1 + 0.15).toFixed(2)
+const metricsDelay = (totalWords * 0.1 + 0.4).toFixed(2)
 ---
 
-<section class="min-h-screen flex items-center pt-28 pb-20 relative overflow-hidden">
-  <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
-  <div class="container-x relative z-10">
-    <div class="max-w-3xl">
-      {
-        tag && (
-          <div data-reveal class="mb-6">
+<section class="hero-section">
+  <div class="hero-blob hero-blob-1" aria-hidden="true"></div>
+  <div class="hero-blob hero-blob-2" aria-hidden="true"></div>
+  <div class="hero-blob hero-blob-3" aria-hidden="true"></div>
+
+  <!-- Particules sport décoratives -->
+  <svg class="hero-particle" style="--dur:28s;--del:-3s;--tx:18px;--ty:-22px;--rot:15deg; top:12%; right:8%; width:180px; height:180px;" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+    <circle cx="50" cy="50" r="47" stroke="currentColor" stroke-width="2.5"/>
+    <path d="M50 3 Q66 26 66 50 Q66 74 50 97 Q34 74 34 50 Q34 26 50 3Z" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3 50 Q26 34 50 34 Q74 34 97 50 Q74 66 50 66 Q26 66 3 50Z" stroke="currentColor" stroke-width="1.5"/>
+  </svg>
+  <svg class="hero-particle" style="--dur:22s;--del:-9s;--tx:-14px;--ty:18px;--rot:-10deg; bottom:22%; right:12%; width:90px; height:90px;" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+    <rect x="8" y="8" width="84" height="84" rx="12" stroke="currentColor" stroke-width="3"/>
+    <line x1="50" y1="8" x2="50" y2="92" stroke="currentColor" stroke-width="2"/>
+    <path d="M8 50 Q29 36 50 50 Q71 64 92 50" stroke="currentColor" stroke-width="2"/>
+  </svg>
+  <svg class="hero-particle" style="--dur:18s;--del:-15s;--tx:8px;--ty:-12px;--rot:8deg; top:62%; left:3%; width:70px; height:70px;" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+    <polygon points="50,5 95,75 5,75" stroke="currentColor" stroke-width="3" fill="none"/>
+  </svg>
+
+  <div class="container-x relative z-10 w-full">
+    <div class="hero-layout">
+
+      <!-- Colonne texte -->
+      <div class="hero-text-col">
+        {tag && (
+          <div class="hero-appear mb-7" style="animation-delay: 0s">
             <span class="tag tag-brand">{tag}</span>
           </div>
-        )
-      }
-      <h1
-        data-reveal
-        data-reveal-delay="1"
-        class="font-extrabold text-display-xl text-white mb-6"
-      >
-        {title}
-        {highlight && (
-          <>
-            <br />
-            <span class="text-brand-400">{highlight}</span>
-          </>
         )}
-      </h1>
-      <p
-        data-reveal
-        data-reveal-delay="2"
-        class="text-[1.15rem] text-white/65 leading-loose max-w-xl mb-10 font-light"
-      >
-        {desc}
-      </p>
-      <div data-reveal data-reveal-delay="3" class="flex items-center gap-3 flex-wrap">
-        <a href={primary.href} class="btn btn-primary">{primary.label} →</a>
-        <a href={secondary.href} class="btn btn-outline">{secondary.label}</a>
+
+        <h1 class="hero-headline">
+          {titleWords.map((word, i) => (
+            <span class="hero-word" style={`animation-delay:${(i * 0.1).toFixed(2)}s`}>
+              {word}&nbsp;
+            </span>
+          ))}
+          {highlightWords.length > 0 && (
+            <>
+              <br />
+              {highlightWords.map((word, i) => (
+                <span class="hero-word hero-word-accent" style={`animation-delay:${((titleWords.length + i) * 0.1).toFixed(2)}s`}>
+                  {word}{i < highlightWords.length - 1 ? ' ' : ''}
+                </span>
+              ))}
+            </>
+          )}
+        </h1>
+
+        <p class="hero-desc hero-appear" style={`animation-delay:${descDelay}s`}>
+          {desc}
+        </p>
+
+        <div class="hero-actions hero-appear" style={`animation-delay:${ctaDelay}s`}>
+          <a href={primary.href} class="btn btn-primary">{primary.label} →</a>
+          <a href={secondary.href} class="btn btn-outline">{secondary.label}</a>
+        </div>
+
+        <div class="hero-appear" style={`animation-delay:${metricsDelay}s`}>
+          <slot />
+        </div>
       </div>
-      <slot />
+
+      <!-- Colonne visuelle produit (desktop uniquement) -->
+      <div class="hero-visual-col hero-appear" style={`animation-delay:${ctaDelay}s`} aria-hidden="true">
+        <div class="hero-product-frame">
+          <div class="hero-product-halo"></div>
+          <!-- Mockup distributeur SVG -->
+          <div class="hero-distributor">
+            <svg viewBox="0 0 260 480" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+              <rect x="20" y="20" width="220" height="440" rx="16" fill="#111C27" stroke="#1D9E75" stroke-width="1.5"/>
+              <rect x="20" y="20" width="220" height="56" rx="16" fill="#0F6E56"/>
+              <rect x="20" y="56" width="220" height="20" fill="#0F6E56"/>
+              <text x="130" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="18" fill="white" opacity="0.9">SportLocker</text>
+              <!-- Écran -->
+              <rect x="38" y="92" width="184" height="100" rx="8" fill="#0A1520"/>
+              <rect x="38" y="92" width="184" height="100" rx="8" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
+              <rect x="50" y="104" width="80" height="10" rx="3" fill="#1D9E75" opacity="0.7"/>
+              <rect x="50" y="122" width="120" height="8" rx="3" fill="white" opacity="0.15"/>
+              <rect x="50" y="138" width="100" height="8" rx="3" fill="white" opacity="0.1"/>
+              <rect x="50" y="154" width="60" height="8" rx="3" fill="white" opacity="0.08"/>
+              <!-- QR zone -->
+              <rect x="152" y="100" width="60" height="60" rx="6" fill="#1D9E75" opacity="0.12" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
+              <rect x="158" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
+              <rect x="176" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
+              <rect x="158" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
+              <rect x="176" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
+              <rect x="158" y="142" width="32" height="4" rx="2" fill="#2BC295" opacity="0.4"/>
+              <!-- Casier 1 -->
+              <rect x="38" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="81" cy="244" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <text x="44" y="224" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">01</text>
+              <!-- Casier 2 — actif -->
+              <rect x="134" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1.5" stroke-opacity="0.9"/>
+              <rect x="134" y="210" width="86" height="68" rx="6" fill="#1D9E75" opacity="0.06"/>
+              <circle cx="177" cy="244" r="8" fill="#2BC295" opacity="0.9"/>
+              <path d="M173 244 l3 3 6-6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="140" y="224" font-family="system-ui,sans-serif" font-size="9" fill="#2BC295" opacity="0.6">02</text>
+              <!-- Casier 3 -->
+              <rect x="38" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="81" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <text x="44" y="302" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">03</text>
+              <!-- Casier 4 -->
+              <rect x="134" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="177" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <text x="140" y="302" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">04</text>
+              <!-- Casier 5 -->
+              <rect x="38" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="81" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <text x="44" y="380" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">05</text>
+              <!-- Casier 6 -->
+              <rect x="134" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <circle cx="177" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
+              <text x="140" y="380" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">06</text>
+              <!-- Pied -->
+              <rect x="80" y="432" width="100" height="12" rx="4" fill="#0A1520" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.3"/>
+              <!-- Panneau solaire -->
+              <rect x="55" y="450" width="150" height="6" rx="3" fill="#1D9E75" opacity="0.2"/>
+              <!-- Status pulsant -->
+              <circle cx="218" cy="42" r="5" fill="#2BC295"/>
+              <circle cx="218" cy="42" r="5" fill="#2BC295" opacity="0.4">
+                <animate attributeName="r" values="5;10;5" dur="2s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          </div>
+          <!-- Badges flottants -->
+          <div class="hero-badge hero-badge-1">
+            <span class="hero-badge-dot"></span>
+            <span>En ligne · 8 casiers libres</span>
+          </div>
+          <div class="hero-badge hero-badge-2">
+            <span>⚡</span>
+            <span>Ouverture en 28s</span>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>

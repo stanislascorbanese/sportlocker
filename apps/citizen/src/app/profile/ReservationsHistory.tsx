@@ -38,6 +38,15 @@ const STATUS_META: Record<ReservationHistoryItem['status'], StatusMeta> = {
   expired:         { tone: 'neutral', live: false, labelKey: 'reservation.status_long.expired' },
 }
 
+/**
+ * Une ligne est cliquable vers /reservations/<id> si elle est "vivante" (QR à
+ * afficher) OU si elle est `returned` — dans ce dernier cas pour permettre de
+ * laisser un avis (carte "Comment c'était ?").
+ */
+function isNavigable(item: ReservationHistoryItem): boolean {
+  return STATUS_META[item.status].live || item.status === 'returned'
+}
+
 export function ReservationsHistory() {
   const t = useT()
   const { locale } = useI18n()
@@ -135,6 +144,7 @@ function ReservationRow({
   const t = useT()
   const meta = STATUS_META[item.status]
   const range = formatRange(item, locale)
+  const navigable = isNavigable(item)
 
   const inner = (
     <div className="flex items-center gap-3 px-2 py-3">
@@ -149,7 +159,7 @@ function ReservationRow({
       <Badge tone={meta.tone} size="xs" className="shrink-0">
         {t(meta.labelKey)}
       </Badge>
-      {meta.live && (
+      {navigable && (
         <ChevronRight
           className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/40"
           aria-hidden="true"
@@ -158,7 +168,7 @@ function ReservationRow({
     </div>
   )
 
-  if (meta.live) {
+  if (navigable) {
     return (
       <li>
         <Link

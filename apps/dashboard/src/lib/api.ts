@@ -200,6 +200,12 @@ export type ReservationsPage = z.infer<typeof ReservationsPage>
 export const MAINTENANCE_STATUSES = ['open', 'in_progress', 'resolved', 'wontfix'] as const
 export type MaintenanceStatus = typeof MAINTENANCE_STATUSES[number]
 
+const MaintenanceUserRef = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  displayName: z.string().nullable(),
+}).nullable()
+
 export const MaintenanceTicket = z.object({
   id: z.string().uuid(),
   status: z.enum(MAINTENANCE_STATUSES),
@@ -210,19 +216,55 @@ export const MaintenanceTicket = z.object({
   resolvedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  // isAuto = ticket ouvert automatiquement (cron/watchdog, opened_by NULL).
+  isAuto: z.boolean(),
+  openedBy: MaintenanceUserRef,
   distributor: z.object({
     id: z.string().uuid(),
     name: z.string(),
     serialNumber: z.string(),
   }),
-  assignee: z.object({
-    id: z.string().uuid(),
-    email: z.string(),
-    displayName: z.string().nullable(),
-  }).nullable(),
+  assignee: MaintenanceUserRef,
 })
 
 export type MaintenanceTicket = z.infer<typeof MaintenanceTicket>
+
+export const MaintenanceComment = z.object({
+  id: z.string().uuid(),
+  authorId: z.string().uuid(),
+  authorEmail: z.string(),
+  authorName: z.string().nullable(),
+  body: z.string(),
+  createdAt: z.string().datetime(),
+})
+
+export type MaintenanceComment = z.infer<typeof MaintenanceComment>
+
+export const MaintenanceStatusChange = z.object({
+  from: z.enum(MAINTENANCE_STATUSES).nullable(),
+  to: z.enum(MAINTENANCE_STATUSES),
+  at: z.string().datetime(),
+  byId: z.string().uuid().nullable(),
+  byEmail: z.string().nullable(),
+})
+
+export type MaintenanceStatusChange = z.infer<typeof MaintenanceStatusChange>
+
+export const MaintenanceTicketDetail = MaintenanceTicket.extend({
+  locker: z.object({
+    id: z.string().uuid(),
+    position: z.number().int(),
+  }).nullable(),
+  item: z.object({
+    id: z.string().uuid(),
+    rfidTag: z.string(),
+    typeName: z.string(),
+  }).nullable(),
+  comments: z.array(MaintenanceComment),
+  statusHistory: z.array(MaintenanceStatusChange),
+})
+
+export type MaintenanceTicketDetail = z.infer<typeof MaintenanceTicketDetail>
 
 export const Commune = z.object({
   id: z.string().uuid(),
@@ -650,6 +692,29 @@ export async function updateMaintenanceTicket(
   return MaintenanceTicket.parse(await res.json())
 }
 
+export async function fetchMaintenanceTicket(id: string): Promise<MaintenanceTicketDetail> {
+  const res = await fetch(`${API_URL}/v1/admin/maintenance-tickets/${id}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['maintenance', `maintenance:${id}`] },
+  })
+  if (res.status === 404) throw new ApiError(404, 'ticket_not_found')
+  if (!res.ok) await throwApiError(res)
+  return MaintenanceTicketDetail.parse(await res.json())
+}
+
+export async function addMaintenanceComment(id: string, body: string): Promise<MaintenanceComment> {
+  const res = await fetch(`${API_URL}/v1/admin/maintenance-tickets/${id}/comments`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ body }),
+    cache: 'no-store',
+  })
+  if (res.status === 404) throw new ApiError(404, 'ticket_not_found')
+  if (!res.ok) await throwApiError(res)
+  return MaintenanceComment.parse(await res.json())
+}
+
 // ─── Audit / Activité (locker_events stream) ────────────────────────────────
 
 export const AuditEvent = z.object({
@@ -820,13 +885,17 @@ export async function fetchFleetHealth(): Promise<FleetHealthDashboard> {
 export const Invite = z.object({
   token: z.string().min(20),
   inviteUrl: z.string().url(),
+  email: z.string().email(),
+  communeId: z.string().uuid(),
+  expiresAt: z.string().datetime(),
 })
 
 export type Invite = z.infer<typeof Invite>
 
 export const InviteCreateInput = z.object({
   email:     z.string().email().max(180),
-  communeId: z.string().uuid(),
+  // Optionnel : un super_admin choisit la commune, un admin est forcé à la sienne.
+  communeId: z.string().uuid().optional(),
 })
 
 export type InviteCreateInput = z.infer<typeof InviteCreateInput>
@@ -841,6 +910,55 @@ export async function createInvite(input: InviteCreateInput): Promise<Invite> {
   })
   if (!res.ok) await throwApiError(res)
   return Invite.parse(await res.json())
+}
+
+export const INVITE_STATUSES = ['pending', 'accepted', 'expired'] as const
+export type InviteStatus = typeof INVITE_STATUSES[number]
+
+export const InviteSummary = z.object({
+  token: z.string(),
+  email: z.string().email(),
+  communeId: z.string().uuid(),
+  communeName: z.string(),
+  status: z.enum(INVITE_STATUSES),
+  expiresAt: z.string().datetime(),
+  acceptedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+})
+
+export type InviteSummary = z.infer<typeof InviteSummary>
+
+const ListInvites = z.object({ items: z.array(InviteSummary) })
+
+export async function fetchInvites(communeId?: string): Promise<InviteSummary[]> {
+  const qs = communeId ? `?communeId=${encodeURIComponent(communeId)}` : ''
+  const res = await fetch(`${API_URL}/v1/admin/invites${qs}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['invites'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return ListInvites.parse(await res.json()).items
+}
+
+export async function resendInvite(token: string): Promise<Invite> {
+  const res = await fetch(`${API_URL}/v1/admin/invites/${encodeURIComponent(token)}/resend`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({}),
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return Invite.parse(await res.json())
+}
+
+export async function revokeInvite(token: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/admin/invites/${encodeURIComponent(token)}`, {
+    method: 'DELETE',
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
 }
 
 const ListAdminItemTypes = z.object({ items: z.array(ItemTypeAdmin) })
@@ -1185,6 +1303,32 @@ export async function fetchAdminPayments(filters: PaymentFilters = {}): Promise<
   })
   if (!res.ok) await throwApiError(res)
   return AdminPaymentsPage.parse(await res.json())
+}
+
+// ─── Temps réel (WebSocket) — mint de ticket ─────────────────────────────
+
+export const LiveTicket = z.object({
+  ticket: z.string(),
+  ttlSeconds: z.number().int().positive(),
+})
+
+export type LiveTicket = z.infer<typeof LiveTicket>
+
+/**
+ * Échange le cookie de session (httpOnly, illisible côté browser) contre un
+ * ticket court permettant d'ouvrir le flux WebSocket `/v1/admin/live`.
+ * Appelée server-side uniquement (via la route Next `/api/live-ticket`), car
+ * elle a besoin du Bearer. Le client la déclenche à chaque (re)connexion —
+ * un ticket est mono-usage et expire vite.
+ */
+export async function fetchLiveTicket(): Promise<LiveTicket> {
+  const res = await fetch(`${API_URL}/v1/admin/live/ticket`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    cache: 'no-store',
+  })
+  if (!res.ok) await throwApiError(res)
+  return LiveTicket.parse(await res.json())
 }
 
 export class ApiError extends Error {

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hors-ligne — SportLocker</title>
+  <!--
+    Page de repli hors-ligne servie par le service worker (sw.js) quand une
+    navigation échoue en zone blanche sur une route non cachée. Volontairement
+    autonome : aucun JS applicatif, aucune font/CSS externe (elles ne se
+    chargeraient pas hors-ligne). Le lien "Voir mon QR" est construit depuis le
+    snapshot localStorage `sl-active-reservation` (cf. offline-reservation.ts).
+  -->
+  <style>
+    :root {
+      --bg: #ffffff;
+      --card: #f7f8fa;
+      --border: #e5e7eb;
+      --text: #0d1b2a;
+      --muted: #5b6472;
+      --accent: #059669;
+      --accent-contrast: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1b2a;
+        --card: rgba(255, 255, 255, 0.05);
+        --border: rgba(255, 255, 255, 0.1);
+        --text: #ffffff;
+        --muted: rgba(255, 255, 255, 0.6);
+        --accent: #10b981;
+        --accent-contrast: #0d1b2a;
+      }
+    }
+    html[data-theme='dark'] {
+      --bg: #0d1b2a;
+      --card: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #ffffff;
+      --muted: rgba(255, 255, 255, 0.6);
+      --accent: #10b981;
+      --accent-contrast: #0d1b2a;
+    }
+    html[data-theme='light'] {
+      --bg: #ffffff;
+      --card: #f7f8fa;
+      --border: #e5e7eb;
+      --text: #0d1b2a;
+      --muted: #5b6472;
+      --accent: #059669;
+      --accent-contrast: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: calc(env(safe-area-inset-top) + 1.5rem) 1.5rem calc(env(safe-area-inset-bottom) + 1.5rem);
+      text-align: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .icon {
+      width: 5rem;
+      height: 5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      color: var(--accent);
+    }
+    .icon svg { width: 2.25rem; height: 2.25rem; }
+    h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+    p { margin: 0.5rem 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--muted); max-width: 22rem; }
+    .lang-en { font-size: 0.8125rem; margin-top: 0.25rem; opacity: 0.75; }
+    .actions { display: flex; flex-direction: column; gap: 0.625rem; width: 100%; max-width: 20rem; }
+    a.btn, button.btn {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      height: 3rem;
+      padding: 0 1.25rem;
+      border-radius: 0.75rem;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-contrast); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn svg { width: 1.1rem; height: 1.1rem; }
+    #qr-link { display: none; }
+  </style>
+</head>
+<body>
+  <div class="icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 1l22 22" />
+      <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+      <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+      <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+      <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+      <line x1="12" y1="20" x2="12.01" y2="20" />
+    </svg>
+  </div>
+
+  <div>
+    <h1>Tu es hors-ligne</h1>
+    <p>Pas de connexion pour le moment. Ton QR de réservation reste accessible sans réseau — reconnecte-toi pour le reste de l'app.</p>
+    <p class="lang-en">You're offline. Your booking QR still works without a connection — reconnect for the rest of the app.</p>
+  </div>
+
+  <div class="actions">
+    <a id="qr-link" class="btn btn-primary" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+      </svg>
+      <span>Voir mon QR · My QR</span>
+    </a>
+    <button class="btn btn-secondary" type="button" onclick="location.reload()">Réessayer · Retry</button>
+  </div>
+
+  <script>
+    // Thème : aligne la page sur la préférence stockée par l'app (sl-theme),
+    // sinon on laisse le média prefers-color-scheme décider.
+    (function () {
+      try {
+        var stored = localStorage.getItem('sl-theme');
+        if (stored === 'light' || stored === 'dark') {
+          document.documentElement.setAttribute('data-theme', stored);
+        }
+      } catch (e) {}
+
+      // Lien vers la réservation active si un QR est en cache (sl-active-reservation).
+      try {
+        var raw = localStorage.getItem('sl-active-reservation');
+        if (raw) {
+          var res = JSON.parse(raw);
+          var valid = res && res.id && res.expiresAt && Date.parse(res.expiresAt) > Date.now();
+          if (valid) {
+            var link = document.getElementById('qr-link');
+            link.setAttribute('href', '/reservations/' + res.id);
+            link.style.display = 'inline-flex';
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

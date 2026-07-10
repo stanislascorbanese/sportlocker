@@ -129,6 +129,22 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v4.png" />
     <meta name="theme-color" content="#0D1B2A" />
 
+    <!-- Playfair Display — display serif for headlines -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Dark mode: apply before paint to avoid flash -->
+    <script is:inline>
+      ;(function () {
+        const saved = localStorage.getItem('sl-theme')
+        if (saved === 'light') document.documentElement.classList.add('light')
+      })()
+    </script>
+
     <script
       type="application/ld+json"
       set:html={JSON.stringify(orgJsonLd)}
@@ -145,11 +161,57 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     ))}
   </head>
   <body>
+    <a href="#main" class="skip-link">Aller au contenu</a>
     <Nav />
-    <main>
+    <main id="main">
       <slot />
     </main>
     <Footer />
+
+    <script>
+      // Animated counters
+      const counterObs = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue
+            const el = entry.target as HTMLElement
+            const target = Number(el.dataset.counter)
+            if (!target) continue
+            counterObs.unobserve(el)
+            const duration = 1600
+            const start = performance.now()
+            const suffix = el.dataset.counterSuffix ?? ''
+            const run = (now: number) => {
+              const elapsed = now - start
+              const progress = Math.min(elapsed / duration, 1)
+              const eased = 1 - Math.pow(1 - progress, 3)
+              el.textContent = Math.floor(eased * target).toLocaleString('fr-FR') + suffix
+              if (progress < 1) requestAnimationFrame(run)
+            }
+            requestAnimationFrame(run)
+          }
+        },
+        { threshold: 0.5 },
+      )
+      document.querySelectorAll('[data-counter]').forEach((el) => counterObs.observe(el))
+
+      // Dark/light toggle
+      const toggleTheme = () => {
+        const isLight = document.documentElement.classList.toggle('light')
+        localStorage.setItem('sl-theme', isLight ? 'light' : 'dark')
+        document.querySelectorAll<HTMLElement>('[data-theme-icon]').forEach((icon) => {
+          icon.textContent = isLight ? '☀️' : '🌙'
+        })
+      }
+      document.querySelectorAll('[data-theme-toggle]').forEach((btn) => {
+        btn.addEventListener('click', toggleTheme)
+      })
+      // Set initial icon
+      const isLight = document.documentElement.classList.contains('light')
+      document.querySelectorAll<HTMLElement>('[data-theme-icon]').forEach((icon) => {
+        icon.textContent = isLight ? '☀️' : '🌙'
+      })
+    </script>
 
     <script>
       // Fade in on scroll for elements with data-reveal
@@ -168,6 +230,30 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
     </script>
 
     <style is:global>
+      /* Skip link : masqué hors focus clavier, révélé au Tab en haut à gauche,
+         au-dessus de la nav fixe (z-index > #nav). */
+      .skip-link {
+        position: fixed;
+        top: 0.75rem;
+        left: 0.75rem;
+        z-index: 200;
+        padding: 0.6rem 1rem;
+        border-radius: 0.5rem;
+        background: #1d9e75;
+        color: #fff;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        transform: translateY(calc(-100% - 1rem));
+        transition: transform 0.18s ease;
+      }
+      .skip-link:focus {
+        transform: translateY(0);
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
+
       [data-reveal] {
         opacity: 0;
         transform: translateY(28px);
