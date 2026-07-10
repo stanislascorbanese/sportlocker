@@ -421,6 +421,7 @@ const LEXIQUE = [
   ['Dénuder', 'enlever la gaine plastique au bout d\'un fil pour exposer le cuivre. 7 mm = la longueur qui rentre pile dans nos borniers.'],
   ['GND (masse)', 'le « moins » commun de tout le circuit. TOUTES les masses doivent être reliées entre elles, sinon rien ne marche de façon fiable.'],
   ['SMA', 'petit connecteur à vis doré pour les antennes.'],
+  ['ILS (contact magnétique)', 'interrupteur qui se ferme quand un aimant s\'approche. Vissé sur le cadre + aimant sur la porte = le Pi sait si la porte est vraiment fermée.'],
   ['Fail-secure', 'en cas de panne de courant, les portes restent VERROUILLÉES (c\'est voulu : personne ne peut voler le matériel pendant une coupure).'],
 ];
 
@@ -530,7 +531,7 @@ const STEPS = [
     note:{type:'warn', txt:'⚠️ Armoire métallique + 230 V : utiliser une multiprise avec différentiel 30 mA, et si la prise murale a une terre, vérifier que le caisson y est relié (vis + cosse à œillet sur le châssis). En cas de doute → électricien, 20 minutes de boulot.'}},
 
   { id:'solenoid', title:'Monter les 4 solénoïdes', sub:'Cases 2 · 4 · 6 · 8', time:'~2 h', scene:'solenoid',
-    tools:['Clé de 5,5 + tournevis','Perceuse Ø 2 et 3,2','Frein-filet (petit flacon bleu)','Fer à souder + gaine thermo (flybacks)'],
+    tools:['Clé de 5,5 + tournevis','Perceuse Ø 2 et 3,2','Frein-filet (petit flacon bleu)','Fer à souder + gaine thermo (flybacks)','4× ILS + aimants (contacts d\'alarme)'],
     intro:'Une case à la fois, toujours dans le même ordre : enlever la languette de l\'ancienne serrure, positionner le solénoïde, percer, boulonner, régler, verrouiller les vis. La vue de dessus ci-dessus montre exactement où tout se place.',
     subs:[
       {t:'Case 2 : enlever la came de la serrure', d:'Ouvrir la porte avec sa clé. Derrière la poignée, un écrou tient une languette métallique (la came) : le dévisser, retirer la languette, revisser l\'écrou. La serrure et la poignée restent en place et bouchent le trou — seul le verrouillage mécanique disparaît.',
@@ -548,7 +549,9 @@ const STEPS = [
       {t:'Répéter pour les cases 4, 6 et 8', d:'Exactement la même séquence. Attention pour les cases 4 et 6 : le solénoïde se fixe sur la cloison mitoyenne de la case TECH — vérifier que les écrous ne touchent pas la planche électronique.',
        c:'4 solénoïdes montés, 4 sachets de cames étiquetés, 4 × 20 cycles OK.'},
       {t:'Anti-bruit', d:'Si une porte « sonne » contre son pêne au vent : bande de mousse adhésive fine (joint de fenêtre) sur le chant du battant.',
-       c:'Porte fermée secouée à la main : pas de cliquetis.'}],
+       c:'Porte fermée secouée à la main : pas de cliquetis.'},
+      {t:'Coller le capteur de porte (ILS)', d:'Sur chaque case équipée : la partie CAPTEUR (avec les 2 fils) se colle/visse sur la cloison fixe, la partie AIMANT sur la porte, les deux à moins de 10 mm l\'une de l\'autre porte fermée. C\'est ce capteur qui dira au système si la porte est VRAIMENT fermée — sans lui, un casier laissé ouvert passe pour sécurisé et la caution du client est litigieuse.',
+       c:'Multimètre en mode bip sur les 2 fils : ça bipe porte fermée, ça s\'arrête dès qu\'on entrouvre de 2 cm.'}],
     note:{type:'tip', txt:'💡 Repérer pour chaque case la persienne alignée avec le pêne : en cas de panne, une tige Ø 4 (rayon de vélo, tournevis fin) glissée dedans permet de repousser le pêne à la main. Tester ce geste MAINTENANT, pas le jour de la panne.'}},
 
   { id:'wiring', title:'Câbler les 4 lignes 12 V', sub:'TECH → cases 2/4/6/8', time:'~1 h 30', scene:'wiring',
@@ -557,8 +560,10 @@ const STEPS = [
     subs:[
       {t:'Percer les 4 passages de cloison', d:'Un trou Ø 10 par case équipée, dans l\'angle ARRIÈRE de la cloison (invisible quand la porte est ouverte), au plus court vers la case TECH. Ébavurer soigneusement puis enfoncer un passe-fil caoutchouc dans CHAQUE trou — la tôle nue cisaillerait le câble en quelques mois de vibrations.',
        c:'Le passe-fil est clipsé, on peut frotter le doigt sur le bord sans rien sentir de coupant.'},
-      {t:'Couper les 4 longueurs', d:'Cases 2 et 8 (haut et bas) : 50 cm chacune. Cases 4 et 6 (côtés) : 45 cm. Étiqueter chaque câble AVANT de le tirer (après, les deux bouts se ressemblent).',
-       c:'4 câbles coupés, 8 étiquettes posées (une par bout).'},
+      {t:'Couper les 4 longueurs', d:'Cases 2 et 8 (haut et bas) : 50 cm chacune. Cases 4 et 6 (côtés) : 45 cm. Étiqueter chaque câble AVANT de le tirer (après, les deux bouts se ressemblent). Prévoir EN PLUS 4 paires fines (0,25 mm², mêmes longueurs) pour les capteurs de porte ILS.',
+       c:'4 câbles puissance + 4 paires capteur coupés, 16 étiquettes posées.'},
+      {t:'Tirer les 4 paires capteur (ILS)', d:'Elles passent par les MÊMES passe-fils que la puissance. Côté case : sur les 2 fils de l\'ILS. Côté TECH : un fil sur le GPIO dédié (BCM 5 → case 2, BCM 6 → case 4, BCM 12 → case 6, BCM 13 → case 8), l\'autre sur GND. Pas de résistance à ajouter : le Pi active une résistance interne (pull-up) par logiciel.',
+       c:'Porte fermée = le GPIO lit 0 · porte ouverte = il lit 1 (test : python -c "import gpiozero; …" ou via le firmware).'},
       {t:'Tirer et raccorder chaque ligne', d:'Pour chaque case : passer le câble par le passe-fil. Côté TECH : fil marron → borne NO du bon canal du relais, et un fil du WAGO 12V+ → borne COM du même canal. Côté case : fil marron → cosse + du solénoïde (celle avec la bande blanche de la diode), fil bleu → retour vers le WAGO GND. Dénuder 7 mm, embout serti, bornier vissé ferme.',
        c:'Tirer sur chaque fil au niveau de chaque bornier : rien ne sort.'},
       {t:'Fixer le cheminement', d:'Colliers tous les 15 cm le long des angles arrière. Les câbles 12 V ne doivent PAS courir collés à la nappe caméra ni aux fils NFC (l\'impulsion du solénoïde perturbe l\'image) : les croiser à angle droit si besoin, jamais en parallèle côte à côte.',
