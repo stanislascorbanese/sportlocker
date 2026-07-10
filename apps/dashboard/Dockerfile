@@ -44,6 +44,11 @@ RUN pnpm install --frozen-lockfile --filter "@sportlocker/dashboard..." --ignore
 COPY apps/dashboard   apps/dashboard
 COPY packages/types   packages/types
 
+# Compile @sportlocker/types → dist/ (les exports du paquet pointent sur
+# ./dist/index.js ; requis par `next build` ET par `pnpm deploy --prod`
+# plus bas, qui n'embarque que dist/ via le champ files du package.json)
+RUN pnpm --filter @sportlocker/types build
+
 # Désactive la télémétrie Next.js au build
 ENV NEXT_TELEMETRY_DISABLED=1
 
