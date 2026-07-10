@@ -46,7 +46,7 @@
     "postgres": "^3.4.4",
     "stripe": "^15.0.0",
     "web-push": "^3.6.7",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sportlocker/types": "workspace:*",

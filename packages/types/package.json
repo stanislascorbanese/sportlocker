@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "zod":        "^3.23.0"
+    "zod":        "^4.4.3"
   },
   "peerDependencies": {
     "zod": "^3.23.0"
