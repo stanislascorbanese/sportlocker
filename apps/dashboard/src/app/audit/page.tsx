@@ -9,6 +9,7 @@ import {
 } from '../../lib/api'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { commonStrings, fmtRelative } from '../../lib/i18n/common'
@@ -140,7 +141,7 @@ export default async function AuditPage({
   const noFilterActive = !eventType && !source && !distributorId && !from && !to && !params.cursor
   // Démo si l'API a planté OU si la table est vide sans filtre.
   // Avec filtre, on respecte le vrai résultat (vide = "aucun event pour ces filtres").
-  const useDemo = (fetchError !== null) || (realItems.length === 0 && noFilterActive)
+  const useDemo = isDemoFallbackEnabled() && ((fetchError !== null) || (realItems.length === 0 && noFilterActive))
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const items: AuditEvent[] = useDemo

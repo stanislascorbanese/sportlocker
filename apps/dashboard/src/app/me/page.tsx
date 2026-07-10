@@ -15,6 +15,7 @@ import {
 import { getSessionUser } from '../../lib/session-server'
 import { StatCard } from '../../components/StatCard'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import type { SessionPayload } from '../../lib/session'
 import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
@@ -98,7 +99,7 @@ async function loadAdminTenantData(): Promise<AdminTenantData> {
     safe(fetchReservationsDaily(30), []),
   ])
 
-  const useDemo = hadError || communes.length === 0
+  const useDemo = isDemoFallbackEnabled() && (hadError || communes.length === 0)
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const needsDailyFallback = useDemo || daily.length === 0
   let commune: Commune
@@ -148,7 +149,7 @@ async function loadSuperAdminData(): Promise<SuperAdminData> {
   distributors = d
   stats7d = statsResult
 
-  const useDemo = hadError || (communes.length === 0 && distributors.length === 0)
+  const useDemo = isDemoFallbackEnabled() && (hadError || (communes.length === 0 && distributors.length === 0))
   if (useDemo) {
     // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
     const demo = await import('../../lib/demo-data')

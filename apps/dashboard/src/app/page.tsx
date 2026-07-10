@@ -15,6 +15,7 @@ import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
 import { StatCard } from '../components/StatCard'
 import { cn } from '../lib/cn'
+import { isDemoFallbackEnabled } from '../lib/demo-fallback'
 import { getLang } from '../lib/lang-server'
 import { commonStrings, fmtRelative, fmtToday } from '../lib/i18n/common'
 import { homeStrings } from '../lib/i18n/home'
@@ -83,7 +84,7 @@ export default async function HomePage() {
     && data.activeReservations.length === 0
     && data.overdueReservations.length === 0
     && data.openTickets.length === 0
-  const useDemo = data.hadError || everythingEmpty
+  const useDemo = isDemoFallbackEnabled() && (data.hadError || everythingEmpty)
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   const needsDailyFallback = useDemo || data.dailySeries.length === 0

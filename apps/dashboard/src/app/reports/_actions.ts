@@ -7,6 +7,7 @@ import {
   type Commune,
   type StatsDashboard,
 } from '../../lib/api'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getSessionUser } from '../../lib/session-server'
 
 import { generatePdfBuffer, type ReportFilters } from './pdf-generator'
@@ -55,8 +56,9 @@ export async function generateReportAction(filters: ReportFilters): Promise<PdfR
       communes = []
     }
   } catch (err) {
-    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+    if (isDemoFallbackEnabled() && err instanceof ApiError && (err.status === 401 || err.status === 403)) {
       // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
+      // Coupé en prod (garde) : on propage alors la vraie erreur d'API.
       const demo = await import('../../lib/demo-data')
       stats = demo.demoStatsDashboard(days)
       communes = demo.DEMO_COMMUNES
@@ -69,7 +71,7 @@ export async function generateReportAction(filters: ReportFilters): Promise<PdfR
   // Si tout est vide après live, on bascule en démo pour avoir un PDF utile.
   const allZero = stats.daily.every((p) => p.count === 0)
     && stats.topDistributors.every((d) => d.count === 0)
-  if (source === 'live' && allZero) {
+  if (isDemoFallbackEnabled() && source === 'live' && allZero) {
     const demo = await import('../../lib/demo-data')
     stats = demo.demoStatsDashboard(days)
     if (communes.length === 0) communes = demo.DEMO_COMMUNES

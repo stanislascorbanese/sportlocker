@@ -6,6 +6,7 @@ import {
 import { getSessionUser } from '../../lib/session-server'
 import { RefreshButton } from '../../components/RefreshButton'
 import { cn } from '../../lib/cn'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import type { Lang } from '../../lib/lang'
 import { commonStrings, dateLocale } from '../../lib/i18n/common'
@@ -82,7 +83,7 @@ export default async function ItemsPage({
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
 
-  const useDemo = fetchError !== null || (realTypes.length === 0 && realItems.length === 0)
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null || (realTypes.length === 0 && realItems.length === 0))
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   let itemTypes: ItemTypeAdmin[] = realTypes
   let physicalItems: Item[] = realItems
