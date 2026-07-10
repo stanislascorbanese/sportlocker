@@ -10,6 +10,17 @@ export const LockerState = z.enum(['idle', 'reserved', 'active', 'returning', 'f
 export type LockerState = z.infer<typeof LockerState>
 
 /**
+ * Type d'un événement casier (`locker_events.event_type`). **Source de vérité** :
+ * enum SQL `locker_event_type` (`services/api/src/db/schema.ts` →
+ * `lockerEventType`). Garder synchro à chaque `ALTER TYPE`.
+ */
+export const LockerEventType = z.enum([
+  'reserved', 'opened', 'closed', 'returned',
+  'expired', 'cancelled', 'fault', 'maintenance', 'extended',
+])
+export type LockerEventType = z.infer<typeof LockerEventType>
+
+/**
  * Statut d'une réservation. **Source de vérité** : enum SQL `reservation_status`
  * dans `database/schema.sql`. Garder ce tableau en synchro à chaque ajout
  * de valeur côté SQL (`ALTER TYPE reservation_status ADD VALUE`).

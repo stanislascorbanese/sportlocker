@@ -1,22 +1,26 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, Clock, MapPin, Package, Plus, X } from 'lucide-react'
+import { CalendarClock, Clock, MapPin, Package, Plus, WifiOff, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Card } from '../../../components/ui/Card'
 import { ErrorState } from '../../../components/ui/ErrorState'
 import { PageHeader } from '../../../components/ui/PageHeader'
 import { PaymentStep } from '../../../components/PaymentStep'
+import { ReviewPrompt } from '../../../components/ReviewPrompt'
 import { Skeleton } from '../../../components/ui/Skeleton'
+import { SuccessCheck } from '../../../components/ui/SuccessCheck'
 import {
   MAX_EXTENSIONS,
   cancelReservation,
   extendReservation,
   fetchActiveReservation,
+  fetchMyReservations,
   type ReservationActive,
+  type ReservationHistoryItem,
 } from '../../../lib/api'
 import { useRequireAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/cn'
@@ -68,27 +72,41 @@ export default function ReservationPage() {
     },
   })
 
-  if (!user) return null
-
   const reservation = query.data
   const isCurrent = reservation?.id === params.id
+
+  // La résa vivante (GET /active) ne renvoie PAS les statuts terminaux. Quand
+  // l'utilisateur atterrit ici après un retour (statut `returned`), on retombe
+  // sur l'historique pour retrouver la résa par son id et proposer l'avis.
+  const historyQuery = useQuery({
+    queryKey: ['my-reservations'],
+    queryFn: fetchMyReservations,
+    enabled: Boolean(user) && !query.isLoading && !isCurrent,
+  })
+
+  if (!user) return null
+
+  const historical = historyQuery.data?.find((h) => h.id === params.id) ?? null
+  const showReturned = !isCurrent && historical?.status === 'returned'
+  const historyPending = !isCurrent && historyQuery.isLoading
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-5 px-5 pb-[calc(var(--safe-bottom)+1rem)] bg-white dark:bg-navy-900">
       <PageHeader
         eyebrow={t('reservation.page.eyebrow')}
-        title={t('reservation.page.title')}
+        title={showReturned ? t('reservation.returned.title') : t('reservation.page.title')}
         backHref="/"
         backLabel={t('nav.back')}
       />
 
-      {query.isLoading && (
+      {(query.isLoading || historyPending) && (
         <div className="space-y-5" aria-label={t('reservation.page.loading')}>
           <Skeleton height={300} rounded="card" />
           <Skeleton height={140} rounded="card" />
         </div>
       )}
-      {!query.isLoading && !isCurrent && (
+      {showReturned && historical && <ReturnedView r={historical} />}
+      {!query.isLoading && !isCurrent && !showReturned && !historyPending && (
         <p className="rounded-card border p-3 text-sm border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
           {t('reservation.page.not_found')}
         </p>
@@ -105,6 +123,34 @@ export default function ReservationPage() {
         />
       )}
     </main>
+  )
+}
+
+/**
+ * Vue d'une réservation rendue (`returned`) : récap emprunt + carte d'avis.
+ * Le `ReviewPrompt` se masque tout seul si l'avis a déjà été envoyé/ignoré
+ * (mémoire localStorage par id de résa).
+ */
+function ReturnedView({ r }: { r: ReservationHistoryItem }) {
+  const t = useT()
+  return (
+    <>
+      <Card>
+        <div className="space-y-3">
+          <Row
+            icon={<MapPin className="h-4 w-4" />}
+            label={t('reservation.page.distributor')}
+            value={r.distributor.name}
+          />
+          <Row
+            icon={<Package className="h-4 w-4" />}
+            label={t('reservation.page.item')}
+            value={r.item.typeName}
+          />
+        </div>
+      </Card>
+      <ReviewPrompt reservationId={r.id} />
+    </>
   )
 }
 
@@ -129,6 +175,23 @@ function ReservationContent({
   const { locale } = useI18n()
   const [remaining, setRemaining] = useState(() => msUntil(r.expiresAt))
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+
+  // Célébration paiement : quand la résa passe de `pending_payment` à un statut
+  // confirmé (scheduled/pending après webhook Stripe ou paiement wallet/simulé),
+  // on affiche brièvement une coche animée avant de révéler le QR — qui slide-in
+  // depuis le bas. `wasPendingPayment` démarre à false si on arrive directement
+  // sur une résa déjà confirmée → pas de célébration intempestive.
+  const wasPendingPayment = useRef(r.status === 'pending_payment')
+  const [celebrating, setCelebrating] = useState(false)
+  useEffect(() => {
+    if (wasPendingPayment.current && r.status !== 'pending_payment') {
+      setCelebrating(true)
+      const id = setTimeout(() => setCelebrating(false), 1900)
+      wasPendingPayment.current = false
+      return () => clearTimeout(id)
+    }
+    wasPendingPayment.current = r.status === 'pending_payment'
+  }, [r.status])
 
   useEffect(() => {
     const id = setInterval(() => setRemaining(msUntil(r.expiresAt)), 1000)
@@ -155,12 +218,41 @@ function ReservationContent({
     || r.status === 'pending'
     || (isScheduled && minutesUntilSlot > CANCEL_CUTOFF_MIN)
 
+  if (celebrating) {
+    return (
+      <div
+        className="flex animate-fade-in flex-col items-center justify-center gap-4 py-20 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <SuccessCheck className="h-20 w-20" label={t('payment.success_title')} />
+        <div className="space-y-1">
+          <p className="text-lg font-semibold text-navy-900 dark:text-white">
+            {t('payment.success_title')}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            {t('payment.success_body')}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       {isPendingPayment ? (
         <PaymentStep reservation={r} />
       ) : (
-        <section className="flex animate-scale-in flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+        <section className="flex animate-slide-up flex-col items-center gap-3 rounded-card bg-white p-6 shadow-card dark:bg-white">
+          {r.offline && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full bg-navy-900/5 px-3 py-1 text-meta font-medium text-navy-900/70"
+              role="status"
+            >
+              <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('reservation.page.offline_badge')}
+            </span>
+          )}
           <QRCodeSVG
             value={r.qrToken ?? ''}
             size={256}
@@ -171,6 +263,11 @@ function ReservationContent({
           <p className="max-w-[256px] truncate text-center font-mono text-meta text-navy-900/50">
             {(r.qrToken ?? '').slice(0, 32)}…
           </p>
+          {r.offline && (
+            <p className="max-w-[256px] text-center text-meta text-navy-900/50">
+              {t('reservation.page.offline_hint')}
+            </p>
+          )}
         </section>
       )}
 

@@ -14,11 +14,11 @@
     "db:studio":  "pnpm --filter @sportlocker/api db:studio"
   },
   "devDependencies": {
-    "turbo":            "^2.9.16",
+    "turbo":            "^2.10.3",
     "typescript":       "^5.9.3",
     "eslint":           "^8.57.1",
-    "@types/node":      "^22.0.0",
-    "prettier":         "^3.8.3"
+    "@types/node":      "^26.1.0",
+    "prettier":         "^3.9.4"
   },
   "pnpm": {
     "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9).",
@@ -26,7 +26,7 @@
       "@xmldom/xmldom": ">=0.8.13",
       "fast-jwt":       ">=6.2.4",
       "fast-uri":       ">=3.1.2",
-      "undici":         ">=6.24.0",
+      "undici":         ">=6.27.0 <7",
       "drizzle-orm":    ">=0.45.2",
       "rollup":         ">=3.30.0",
       "tar":            ">=7.5.4",

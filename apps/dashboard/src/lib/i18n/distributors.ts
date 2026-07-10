@@ -24,6 +24,8 @@ type DistributorsKey =
   | 'toneReturning' | 'toneFault'
   | 'cellFaultPlaceholder' | 'cellEmptyPlaceholder'
   | 'infoAddress' | 'infoCoords' | 'infoCommune'
+  // Temps réel (WebSocket)
+  | 'liveConnecting' | 'liveOn' | 'liveReconnecting' | 'liveOffline' | 'liveOfflineHint'
   // Edit page
   | 'editMetaTitle' | 'back'
   // New page
@@ -103,6 +105,11 @@ const STRINGS: Record<Lang, Record<DistributorsKey, string>> = {
     infoAddress:            'Adresse',
     infoCoords:             'Coordonnées GPS',
     infoCommune:            'Commune',
+    liveConnecting:         'Connexion temps réel…',
+    liveOn:                 'Temps réel',
+    liveReconnecting:       'Reconnexion…',
+    liveOffline:            'Hors ligne',
+    liveOfflineHint:        'Temps réel indisponible — les données peuvent être en retard. Rafraîchissez pour resynchroniser.',
 
     editMetaTitle:          'Modifier distributeur · SportLocker ops',
     back:                   '← Retour',
@@ -214,6 +221,11 @@ const STRINGS: Record<Lang, Record<DistributorsKey, string>> = {
     infoAddress:            'Address',
     infoCoords:             'GPS coordinates',
     infoCommune:            'Commune',
+    liveConnecting:         'Connecting live…',
+    liveOn:                 'Live',
+    liveReconnecting:       'Reconnecting…',
+    liveOffline:            'Offline',
+    liveOfflineHint:        'Live updates unavailable — data may be stale. Refresh to resync.',
 
     editMetaTitle:          'Edit distributor · SportLocker ops',
     back:                   '← Back',

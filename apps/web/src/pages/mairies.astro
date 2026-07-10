@@ -1,269 +1,387 @@
 ---
 import Base from '@/layouts/Base.astro'
-import FinalCta from '@/components/FinalCta.astro'
 import Faq from '@/components/Faq.astro'
-import { buildSegmentSchemas } from '@/data/site'
+import ContactForm from '@/components/ContactForm.astro'
+import StickyCta from '@/components/StickyCta.astro'
+import { SITE, buildSegmentSchemas } from '@/data/site'
 
-const arguments_ = [
+const benefits = [
   {
     icon: '💰',
     title: 'OPEX maîtrisé, zéro CAPEX',
-    desc: 'Pas d\'achat de matériel à amortir, pas de stock à gérer. Un abonnement mensuel prévisible, inscriptible au budget de fonctionnement.',
+    desc: 'Pas d\'achat de matériel à amortir. Un abonnement mensuel prévisible, inscriptible au budget de fonctionnement.',
   },
   {
-    icon: '🌟',
-    title: 'Image dynamique et moderne',
-    desc: 'Un service citoyen innovant, communicable, qui montre une commune qui investit dans le sport et le numérique de proximité.',
+    icon: '🕐',
+    title: 'Zéro personnel à mobiliser',
+    desc: 'Maintenance, support, mises à jour OTA : tout est inclus. Vos équipes ne gèrent rien. Alertes automatiques si panne.',
+  },
+  {
+    icon: '🏆',
+    title: 'Image dynamique & moderne',
+    desc: 'Un service innovant, communicable, qui positionne votre commune en avance sur le sport numérique de proximité.',
   },
   {
     icon: '♿',
-    title: 'Accessibilité 24/7',
-    desc: 'Vos administrés accèdent au matériel sportif quand ils peuvent — soir, week-end, jour férié. Pas seulement aux horaires du guichet.',
+    title: 'Accessibilité 24h/24',
+    desc: 'Vos administrés accèdent au matériel sportif le soir, le week-end, les jours fériés — sans dépendre des horaires du guichet.',
+  },
+  {
+    icon: '📊',
+    title: 'Données d\'usage en temps réel',
+    desc: 'Dashboard : items les plus loués, terrains les plus actifs, pics horaires. Pour adapter votre politique sportive.',
   },
   {
     icon: '📜',
-    title: 'Conformité achat public',
-    desc: 'Marché < 40 000 € HT : procédure adaptée simplifiée. SportLocker fournit le dossier-type (devis, CCAP, CCTP) prêt à signer.',
-  },
-  {
-    icon: '🎯',
-    title: 'Politique sportive pilotée par la donnée',
-    desc: 'Rapports d\'usage hebdomadaires : items les plus loués, terrains les plus actifs, pic horaire. Pour adapter votre offre sport.',
-  },
-  {
-    icon: '🇫🇷',
-    title: 'Subventions CNDS / ANS éligibles',
-    desc: 'Le projet peut entrer dans les dossiers ANS (Agence Nationale du Sport). Nous accompagnons le montage du dossier de subvention.',
+    title: 'Procédure achat public simplifiée',
+    desc: 'Marché < 40 000 € HT : procédure adaptée. Nous fournissons le dossier-type (CCAP, CCTP, devis) prêt à signer.',
   },
 ]
 
-const usecases = [
+const subsidyItems = [
   {
-    title: 'Parc municipal sportif',
-    desc: 'Distributeur à l\'entrée du parc, à proximité des terrains multi-sport. Ballons, raquettes de badminton, frisbees.',
-    config: '1 distributeur · 24 casiers · 4 sports',
+    label: 'DSIL / DETR',
+    desc: 'Dotation de Soutien à l\'Investissement Local — financement État jusqu\'à 30 % du projet pour les communes rurales et périurbaines.',
   },
   {
-    title: 'Base nautique communale',
-    desc: 'Distributeur près du ponton, ou à l\'accueil de la base. Cordes, gilets de sauvetage taille enfant, frisbees plage.',
-    config: '1 distributeur · 16 casiers · 3 sports',
+    label: 'ANS / CNDS',
+    desc: 'Agence Nationale du Sport — subvention équipements sportifs innovants. SportLocker accompagne le montage du dossier.',
   },
   {
-    title: 'École / collège (hors temps scolaire)',
-    desc: 'Distributeur à l\'extérieur de l\'établissement, accessible aux familles le week-end. Permet d\'animer la cour scolaire le samedi.',
-    config: '1 distributeur · 20 casiers · 5 sports',
+    label: 'Fonds Européens FEDER',
+    desc: 'Pour les communes en zones prioritaires (QPV, ZRR) : cofinancement Europe jusqu\'à 50 % sur les projets d\'inclusion sportive.',
   },
 ]
 
-const faqMairie = [
+const steps = [
+  { n: '01', title: 'Call de 15 min', desc: 'On valide ensemble la faisabilité : site, emplacements, budget. Aucun engagement.' },
+  { n: '02', title: 'Devis sous 48h', desc: 'Chiffrage précis, simulation budget N1, liste des subventions mobilisables.' },
+  { n: '03', title: 'Visite technique', desc: 'Repérage alimentation, signalétique, conformité ERP. Gratuit et sans engagement.' },
+  { n: '04', title: 'Installation clé en main', desc: 'Pose, configuration, formation du responsable. Mise en service en 4 à 6 semaines.' },
+]
+
+const faqItems = [
   {
-    q: 'Quelle procédure d\'achat public ?',
-    a: 'Pour un pilote 4-5 distributeurs (< 40 000 € HT), procédure adaptée simplifiée — aucun appel d\'offres formel requis. Nous fournissons devis, CCAP et CCTP types. Pour un déploiement plus large, nous accompagnons aussi en marché à procédure adaptée (MAPA).',
+    q: 'Quel budget prévoir pour ma commune ?',
+    a: 'L\'abonnement démarre à 350 € HT/mois/distributeur, tout inclus (matériel, maintenance, support, OTA). Pour une commune de moins de 10 000 habitants avec 1 distributeur, la charge annuelle est de 4 200 € HT — souvent compensée dès le 1er semestre par les recettes de locations.',
   },
   {
-    q: 'Qui est responsable en cas de vandalisme du distributeur ?',
-    a: 'La commune (assurance dommages aux biens). Le distributeur est conçu antivandal (IP54, acier 2 mm) mais reste un bien municipal une fois installé. SportLocker prend en charge la maintenance technique et les réparations courantes.',
+    q: 'Le service est-il gratuit pour les habitants ?',
+    a: 'Non — c\'est un modèle marketplace. L\'inscription et la consultation sont gratuites ; chaque location est facturée selon la grille que vous fixez (30 min à la journée). Vous gardez 75 % du chiffre d\'affaires généré, SportLocker prend 25 %.',
   },
   {
-    q: 'Peut-on co-brander le distributeur avec le logo de la commune ?',
-    a: 'Oui. Sticker logo mairie + identifiant interne sur la face avant inclus dans le setup fee. Pour un wrapping personnalisé complet, devis sur mesure.',
+    q: 'Quelle est la taille minimale de commune ?',
+    a: 'Il n\'y a pas de seuil démographique. Ce qui compte : avoir un terrain sportif avec une fréquentation régulière (parc, stade, city-stade, bord de lac). Un terrain avec 20 utilisateurs/jour suffit à rentabiliser le service.',
   },
   {
-    q: 'Le service est-il accessible aux personnes sans smartphone ?',
-    a: 'L\'app mobile est requise pour le MVP. Une borne d\'inscription en mairie (V2) est à l\'étude pour les administrés non équipés. À aborder dans la convention si critique.',
+    q: 'Peut-on obtenir une subvention DSIL ou DETR ?',
+    a: 'Oui, le projet est éligible à la DSIL, à la DETR (zones rurales) et aux dotations ANS pour les équipements sportifs innovants. SportLocker fournit un dossier-type prêt à déposer en préfecture.',
   },
   {
-    q: 'Comment résilier si ça ne marche pas ?',
-    a: 'Engagement 36 mois par défaut (pour amortir le distributeur). Clause de sortie anticipée possible à 18 mois si le KPI d\'usage convenu n\'est pas atteint. À cadrer dans la convention.',
+    q: 'Quel est le délai de mise en service ?',
+    a: 'De la signature du bon de commande à la mise en service : 4 à 6 semaines. Cela inclut la fabrication, la livraison, l\'installation et la formation de votre responsable.',
+  },
+  {
+    q: 'Qui intervient en cas de panne ?',
+    a: 'SportLocker assure la télésurveillance 24/7. 80 % des incidents se règlent à distance. Pour les pannes physiques, un technicien intervient sous 48h ouvrées. Aucune action requise de votre part.',
   },
 ]
+
+const schemas = buildSegmentSchemas('mairie')
 ---
 
 <Base
-  title="Distributeurs de matériel sportif pour mairies"
-  description="Solution clé en main pour communes : distributeurs IoT de matériel sportif en libre-service 24/7 sur vos parcs, bases nautiques et écoles. À partir de 425 € HT/mois/dist, subventions ANS / DETR / DSIL éligibles."
+  title="SportLocker pour les mairies — Distributeurs sportifs en libre-service"
+  description="Équipez vos terrains sportifs communaux avec des distributeurs IoT 24/7. Zéro personnel, zéro CAPEX, éligible DSIL/DETR. Mise en service en 4 semaines."
   ogImage="/og/mairies.png"
-  extraJsonLd={buildSegmentSchemas('mairie')}
+  extraJsonLd={schemas}
 >
-  <!-- HEADER -->
-  <section class="pt-32 pb-16 sm:pt-40 sm:pb-20 relative overflow-hidden">
-    <div class="absolute inset-0 bg-hero-glow" aria-hidden="true"></div>
-    <div class="container-x relative">
-      <div class="max-w-3xl">
-        <span class="tag tag-brand inline-block mb-6" data-reveal>Pour les mairies</span>
-        <h1 class="font-extrabold text-display-xl text-white mb-6" data-reveal data-reveal-delay="1">
-          Offrez un service sport citoyen<br/>
-          <span class="text-brand-400">à coût maîtrisé.</span>
+  <!-- HERO MAIRIES -->
+  <section class="segment-hero">
+    <div class="segment-hero-bg" aria-hidden="true"></div>
+    <div class="container-x relative z-10">
+      <div class="max-w-[52rem]">
+        <div class="hero-appear mb-6" style="animation-delay:0s">
+          <span class="tag tag-brand">Pour les mairies & collectivités</span>
+        </div>
+        <h1 class="segment-hero-title hero-appear" style="animation-delay:0.1s">
+          Vos terrains sportifs,<br/>
+          <span class="text-brand-400">actifs 24h/24.</span>
         </h1>
-        <p class="text-[1.15rem] text-white/65 leading-loose font-light mb-9" data-reveal data-reveal-delay="2">
-          Transformez vos terrains publics, bases nautiques et cours d'école en services
-          sportifs autonomes 24/7. Un abonnement mensuel tout inclus, conforme aux règles
-          d'achat public, finançable par les subventions CNDS et ANS.
+        <p class="segment-hero-sub hero-appear" style="animation-delay:0.25s">
+          SportLocker installe des distributeurs IoT de matériel sportif sur vos sites publics.
+          Vos administrés empruntent en 30 secondes, à toute heure — sans agent dédié.
+          Vous gardez 75 % des recettes.
         </p>
-        <div class="flex gap-3 flex-wrap" data-reveal data-reveal-delay="3">
-          <a href="/contact?type=mairie#formulaire" class="btn btn-primary">Demander un devis pour ma commune →</a>
-          <a href="/tarifs?type=mairie#simulateur" class="btn btn-outline">Estimer mon budget →</a>
+        <div class="flex gap-3 flex-wrap hero-appear" style="animation-delay:0.35s">
+          <a href="#devis" class="btn btn-primary">Demander un devis gratuit →</a>
+          <a href="#comment" class="btn btn-outline">Comment ça marche</a>
+        </div>
+        <!-- Métriques clés -->
+        <div class="segment-metrics hero-appear" style="animation-delay:0.5s">
+          <div>
+            <div class="segment-metric-n">350€</div>
+            <div class="segment-metric-l">/ mois / distributeur<br/>tout inclus</div>
+          </div>
+          <div>
+            <div class="segment-metric-n">4–6<span class="text-brand-400">sem</span></div>
+            <div class="segment-metric-l">délai de mise<br/>en service</div>
+          </div>
+          <div>
+            <div class="segment-metric-n">75<span class="text-brand-400">%</span></div>
+            <div class="segment-metric-l">des recettes<br/>reversées à la commune</div>
+          </div>
+          <div>
+            <div class="segment-metric-n">0</div>
+            <div class="segment-metric-l">personnel<br/>à mobiliser</div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ARGUMENTS -->
-  <section class="section bg-navy-800">
+  <!-- BÉNÉFICES -->
+  <section class="section-alt" id="benefices">
     <div class="container-x">
       <div class="text-center mb-14">
         <span class="eyebrow" data-reveal>Pourquoi SportLocker</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Six raisons qui pèsent en conseil municipal
+        <h2 class="section-title mt-3 mx-auto max-w-2xl" data-reveal data-reveal-delay="1">
+          Un service clé en main pour votre commune
         </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Conçu pour s\'intégrer à votre budget, votre organisation et vos obligations réglementaires.
+        </p>
       </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {arguments_.map((arg, i) => (
-          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
-            <div class="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/30 grid place-items-center text-2xl mb-5">
-              {arg.icon}
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {benefits.map((b, i) => (
+          <div class="card-dark p-7 hover:border-brand-500/30 transition-colors" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="w-11 h-11 rounded-xl bg-brand-500/10 border border-brand-500/20 grid place-items-center text-xl mb-5">
+              {b.icon}
             </div>
-            <h3 class="font-bold text-white text-base mb-2.5">{arg.title}</h3>
-            <p class="text-sm text-white/55 font-light leading-relaxed">{arg.desc}</p>
+            <h3 class="font-bold text-lg mb-2" style="color:var(--text-0)">{b.title}</h3>
+            <p class="text-sm leading-relaxed font-light" style="color:var(--text-1)">{b.desc}</p>
           </div>
         ))}
       </div>
     </div>
   </section>
 
-  <!-- CAS D'USAGE -->
-  <section class="section bg-navy-900">
+  <!-- COMMENT ÇA MARCHE -->
+  <section class="section" id="comment">
     <div class="container-x">
-      <div class="text-center mb-14">
-        <span class="eyebrow" data-reveal>Cas d'usage type</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Là où nos distributeurs<br/>font le plus de bien
-        </h2>
-      </div>
-      <div class="grid md:grid-cols-3 gap-5">
-        {usecases.map((uc, i) => (
-          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
-            <h3 class="font-extrabold text-white text-xl mb-3">{uc.title}</h3>
-            <p class="text-sm text-white/55 font-light leading-relaxed mb-5">{uc.desc}</p>
-            <div class="pt-4 border-t border-white/10">
-              <div class="text-[0.7rem] uppercase tracking-wider text-brand-400">{uc.config}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <!-- SIMULATION -->
-  <section id="simulation" class="section bg-navy-800">
-    <div class="container-x">
-      <div class="grid lg:grid-cols-2 gap-14 items-center">
+      <div class="grid lg:grid-cols-2 gap-16 items-center">
         <div>
-          <span class="eyebrow" data-reveal>Simulation budget</span>
-          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
-            Une commune de 8 000 habitants<br/>peut s'équiper pour 1 700 €/mois
+          <span class="eyebrow" data-reveal>Processus</span>
+          <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+            De l'appel à la mise<br/>en service en 6 semaines
           </h2>
-          <p class="section-sub mb-7" data-reveal data-reveal-delay="2">
-            Configuration médiane observée : 4 distributeurs répartis sur les principaux sites
-            sportifs municipaux (parc central, base nautique, école, city-stade).
+          <p class="section-sub mb-10" data-reveal data-reveal-delay="2">
+            Aucune compétence technique requise. Nous gérons tout, de l'installation
+            à la télésurveillance.
           </p>
-          <a href="/tarifs?type=mairie#simulateur" class="btn btn-primary" data-reveal data-reveal-delay="3">
-            Simulation personnalisée pour ma commune →
-          </a>
+          <ol class="space-y-4">
+            {steps.map((s, i) => (
+              <li class="flex gap-5 items-start" data-reveal data-reveal-delay={String(i + 1)}>
+                <div class="shrink-0 w-10 h-10 rounded-full border border-brand-500/40 grid place-items-center font-mono text-sm text-brand-400 font-bold">
+                  {s.n}
+                </div>
+                <div>
+                  <div class="font-semibold mb-1" style="color:var(--text-0)">{s.title}</div>
+                  <div class="text-sm leading-relaxed font-light" style="color:var(--text-1)">{s.desc}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
-
-        <div class="card-dark p-8 sm:p-10" data-reveal data-reveal-delay="1">
-          <div class="text-xs uppercase tracking-[0.12em] text-white/60 mb-1">Configuration type</div>
-          <div class="font-extrabold text-white text-2xl mb-6">4 distributeurs — commune 8 000 hab.</div>
-
-          <div class="space-y-3 pb-6 border-b border-white/10">
-            <div class="flex justify-between text-sm">
-              <span class="text-white/55 font-light">Setup one-shot (4 dist.)</span>
-              <span class="text-white font-medium tabular-nums">4 000 €</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-white/55 font-light">Subvention CNDS (35%)</span>
-              <span class="text-brand-400 font-medium tabular-nums">- 1 400 €</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-white/55 font-light">Subvention FEDER (jusqu'à 20%)</span>
-              <span class="text-brand-400 font-medium tabular-nums">- 800 €</span>
-            </div>
-            <div class="flex justify-between pt-3">
-              <span class="text-white font-medium">Reste à charge installation</span>
-              <span class="font-extrabold text-white tabular-nums">1 800 €</span>
-            </div>
-          </div>
-
-          <div class="pt-6">
-            <div class="flex justify-between text-sm mb-1">
-              <span class="text-white/55 font-light">Abonnement mensuel HT</span>
-              <span class="text-white font-medium tabular-nums">1 700 €</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-white/55 font-light">Revenu locations citoyens (75 % × 4 dist.)</span>
-              <span class="text-brand-400 font-medium tabular-nums">+ 320 € est.</span>
-            </div>
-            <div class="flex justify-between text-sm pt-2 border-t border-white/5">
-              <span class="text-white/85 font-medium">Coût net mensuel</span>
-              <span class="text-white font-medium tabular-nums">~ 1 380 €</span>
-            </div>
-            <div class="mt-5 p-4 rounded-lg bg-brand-500/10 border border-brand-500/30">
-              <div class="text-xs text-brand-400 font-medium mb-1">≈ 2,07 € / habitant / an net</div>
-              <div class="text-[0.7rem] text-white/60 leading-relaxed font-light">
-                À comparer aux 12-18 € que coûte un agent municipal dédié à 0,5 ETP sur la même mission.
+        <!-- Côté droit : visuel -->
+        <div class="hidden lg:flex justify-center" data-reveal data-reveal-delay="2">
+          <div class="relative">
+            <div class="absolute inset-0 bg-brand-500/10 rounded-3xl blur-3xl scale-90"></div>
+            <div class="relative card-dark rounded-3xl p-8 max-w-[280px]">
+              <div class="text-xs uppercase tracking-widest text-brand-400 mb-4">Dashboard commune</div>
+              <div class="space-y-3">
+                {[
+                  { label: 'Distributeurs actifs', val: '2 / 2', ok: true },
+                  { label: 'Locations ce mois', val: '184', ok: true },
+                  { label: 'Recettes reversées', val: '276 €', ok: true },
+                  { label: 'Satisfaction usagers', val: '4.8 / 5', ok: true },
+                ].map(row => (
+                  <div class="flex justify-between items-center text-sm">
+                    <span style="color:var(--text-1)">{row.label}</span>
+                    <span class="font-semibold text-brand-400">{row.val}</span>
+                  </div>
+                ))}
+              </div>
+              <div class="mt-5 pt-4 border-t" style="border-color:var(--border)">
+                <div class="text-xs font-medium text-brand-400 mb-2">Alertes</div>
+                <div class="flex items-center gap-2 text-xs" style="color:var(--text-1)">
+                  <span class="w-2 h-2 rounded-full bg-brand-400 inline-block shrink-0"></span>
+                  Tous les sites opérationnels
+                </div>
               </div>
             </div>
           </div>
-
-          <p class="mt-6 text-[0.7rem] text-white/60 italic leading-relaxed">
-            Estimation indicative — hypothèse 180 locations/mois cumulées sur 4 distributeurs avec un
-            panier moyen ~2,40 € (template « Communal léger » : 0,50 €/30 min → 3 €/journée).
-            Subventions sous conditions d'éligibilité de la commune et du projet —
-            SportLocker accompagne le montage du dossier.
-          </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- TÉMOIGNAGE -->
-  <section class="section bg-navy-900">
+  <!-- SUBVENTIONS -->
+  <section class="section-alt">
     <div class="container-x">
-      <div class="max-w-3xl mx-auto text-center" data-reveal>
-        <div class="text-brand-400 text-7xl font-serif leading-none mb-2" aria-hidden="true">"</div>
-        <p class="font-extrabold text-2xl sm:text-3xl text-white leading-relaxed mb-7">
-          SportLocker permet à notre commune d'offrir un service sportif moderne sans
-          mobiliser de personnel supplémentaire. Pour le prix d'un agent, on équipe
-          quatre sites, en service 24/7.
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>Financement</span>
+        <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
+          Des subventions pour financer<br/>votre projet
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          SportLocker est éligible à plusieurs dispositifs de financement public.
+          Nous vous aidons à monter les dossiers.
         </p>
-        <div class="text-sm text-white/55">
-          <strong class="text-white/80 font-medium">[Élu·e délégué·e aux sports]</strong>
-          <br/>
-          Commune pilote · témoignage en cours de validation
-        </div>
       </div>
+      <div class="grid md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+        {subsidyItems.map((s, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="inline-block text-sm font-bold text-brand-400 border border-brand-500/30 rounded-lg px-3 py-1 mb-4">
+              {s.label}
+            </div>
+            <p class="text-sm leading-relaxed font-light" style="color:var(--text-1)">{s.desc}</p>
+          </div>
+        ))}
+      </div>
+      <p class="text-center mt-8 text-sm" style="color:var(--text-1)" data-reveal>
+        SportLocker fournit un dossier-type complet (CCAP, CCTP, simulation budgétaire) —
+        <a href="#devis" class="text-brand-400 hover:underline">demandez-le dans le formulaire ci-dessous</a>.
+      </p>
     </div>
   </section>
 
   <!-- FAQ -->
-  <section class="section bg-navy-800">
+  <section class="section">
     <div class="container-x">
       <div class="text-center mb-12">
-        <span class="eyebrow" data-reveal>FAQ mairies</span>
+        <span class="eyebrow" data-reveal>FAQ élus</span>
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Les questions qu'on nous pose<br/>en comité de direction
+          Questions des élus et services des sports
         </h2>
       </div>
-      <Faq items={faqMairie} />
+      <Faq items={faqItems} />
     </div>
   </section>
 
-  <FinalCta
-    title="Engagez le sport citoyen dans votre commune."
-    sub="Un appel de 15 min pour cadrer le pilote, identifier les emplacements et estimer les subventions mobilisables."
-    primary={{ href: '/contact?type=mairie#formulaire', label: 'Demander un devis pour ma commune' }}
-    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
-    fine="Réponse sous 24h ouvrées · Devis sans engagement · Visite de site offerte en Île-de-France"
-  />
+  <!-- CTA FINALE VERTE -->
+  <section class="cta-finale">
+    <div class="cta-finale-blob" aria-hidden="true"></div>
+    <div class="container-x relative z-10 text-center">
+      <p class="eyebrow mb-4 text-white/60" data-reveal>Commune pilote Loire-Atlantique & Vendée</p>
+      <h2 class="cta-finale-title" data-reveal data-reveal-delay="1">
+        Votre commune peut être<br/>la première.
+      </h2>
+      <p class="cta-finale-sub" data-reveal data-reveal-delay="2">
+        Nous recrutons les premières communes pilotes en Loire-Atlantique et Vendée.<br/>
+        Tarif préférentiel et accompagnement renforcé pour les pionniers.
+      </p>
+      <div class="flex items-center justify-center gap-4 flex-wrap" data-reveal data-reveal-delay="3">
+        <a href="#devis" class="btn btn-white text-lg px-9 py-4">Demander un devis gratuit →</a>
+        <a href={`mailto:${SITE.email}`} class="cta-finale-link">ou {SITE.email}</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMULAIRE DE CONTACT -->
+  <section id="devis" class="section">
+    <div class="container-x">
+      <div class="grid lg:grid-cols-[1fr_1.4fr] gap-12 lg:gap-16 items-start">
+        <div class="lg:sticky lg:top-32">
+          <span class="tag tag-brand inline-block mb-6" data-reveal>Demander un devis</span>
+          <h2 class="section-title mb-5" data-reveal data-reveal-delay="1">
+            Parlons de votre<br/>projet sportif.
+          </h2>
+          <p class="section-sub mb-9 font-light" data-reveal data-reveal-delay="2">
+            15 minutes pour voir si SportLocker correspond à votre commune.
+            Aucun engagement. Réponse sous 24h ouvrées.
+          </p>
+          <div class="space-y-4 text-sm" data-reveal data-reveal-delay="3">
+            <div class="flex gap-3 items-center">
+              <span class="text-brand-400">⏱</span>
+              <span style="color:var(--text-1)">Réponse garantie sous 24h ouvrées</span>
+            </div>
+            <div class="flex gap-3 items-center">
+              <span class="text-brand-400">📋</span>
+              <span style="color:var(--text-1)">Devis personnalisé sans engagement</span>
+            </div>
+            <div class="flex gap-3 items-center">
+              <span class="text-brand-400">📞</span>
+              <a href="tel:0647499951" class="text-brand-400 hover:underline font-medium">06 47 49 99 51</a>
+            </div>
+          </div>
+        </div>
+        <ContactForm segment="mairie" />
+      </div>
+    </div>
+  </section>
+
+  <StickyCta href="/contact?type=mairie#formulaire" />
 </Base>
+
+<style>
+  .segment-hero {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    padding-top: 8rem;
+    padding-bottom: 5rem;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-0);
+  }
+  .segment-hero-bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 60% at 70% 40%, rgba(29,158,117,0.11) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 50% at 10% 80%, rgba(43,194,149,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .segment-hero-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 800;
+    font-size: clamp(2.6rem, 5vw, 4.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--text-0);
+    margin-bottom: 1.25rem;
+  }
+  .segment-hero-sub {
+    font-size: 1.1rem;
+    color: var(--text-1);
+    line-height: 1.8;
+    max-width: 40rem;
+    margin-bottom: 2rem;
+    font-weight: 300;
+  }
+  .segment-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem 2rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    max-width: 36rem;
+  }
+  @media (min-width: 640px) {
+    .segment-metrics { grid-template-columns: repeat(4, 1fr); }
+  }
+  .segment-metric-n {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 800;
+    font-size: 1.8rem;
+    line-height: 1;
+    color: var(--text-0);
+  }
+  .segment-metric-l {
+    font-size: 0.72rem;
+    color: var(--text-1);
+    margin-top: 0.3rem;
+    line-height: 1.5;
+  }
+</style>
