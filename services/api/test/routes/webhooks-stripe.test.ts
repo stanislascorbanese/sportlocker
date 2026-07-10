@@ -218,17 +218,42 @@ const paymentEvent = (type: string, metadata: Record<string, string> = {}): unkn
 // ──────────────────────────────────────────────────────────────────────────
 
 describe('POST /v1/webhooks/stripe — config guards', () => {
-  it('503 si STRIPE_WEBHOOK_SECRET absent', async () => {
-    const originalSecret = process.env.STRIPE_WEBHOOK_SECRET
-    delete process.env.STRIPE_WEBHOOK_SECRET
-    // Re-import pour que `env` recharge la nouvelle valeur. En pratique env
-    // est lu une fois au boot — on triche en mockant directement le module
-    // env via vi (compliqué). Plus simple : test le cas inverse via le
-    // serveur normal et accepte que ce test soit "best effort".
-    // → On skip ce check ; le path 503 est trivialement couvert par lecture
-    // de code. Restaure la var pour ne pas casser les tests suivants.
-    process.env.STRIPE_WEBHOOK_SECRET = originalSecret
-    expect(true).toBe(true)
+  it('503 stripe_webhook_not_configured si aucun secret de signature Connect', async () => {
+    // `env` est un singleton mutable lu à chaque requête par la route : on peut
+    // donc éteindre les deux secrets (dédié Connect + fallback paiements) le
+    // temps du test pour exercer la garde ligne 83 de webhooks-stripe.ts.
+    const { env } = await import('../../src/config/env.js')
+    const originalConnect = env.STRIPE_CONNECT_WEBHOOK_SECRET
+    const originalFallback = env.STRIPE_WEBHOOK_SECRET
+    env.STRIPE_CONNECT_WEBHOOK_SECRET = undefined
+    env.STRIPE_WEBHOOK_SECRET = undefined
+    try {
+      const res = await postWebhook({ id: 'evt_test', type: 'account.updated' })
+      expect(res.statusCode).toBe(503)
+      expect(res.json()).toEqual({ error: 'stripe_webhook_not_configured' })
+    } finally {
+      env.STRIPE_CONNECT_WEBHOOK_SECRET = originalConnect
+      env.STRIPE_WEBHOOK_SECRET = originalFallback
+    }
+  })
+
+  it('503 stripe_not_configured si le secret existe mais STRIPE_SECRET_KEY absent', async () => {
+    // Secret de signature présent (on passe la 1ʳᵉ garde) mais SDK Stripe non
+    // initialisable faute de clé secrète → requireStripe() throw
+    // StripeNotConfiguredError, catché en 503 (ligne 94).
+    const { env } = await import('../../src/config/env.js')
+    const { resetStripeForTests } = await import('../../src/lib/stripe.js')
+    const originalKey = env.STRIPE_SECRET_KEY
+    env.STRIPE_SECRET_KEY = undefined
+    resetStripeForTests() // vide le singleton pour forcer getStripe() → null
+    try {
+      const res = await postWebhook({ id: 'evt_test', type: 'account.updated' })
+      expect(res.statusCode).toBe(503)
+      expect(res.json()).toEqual({ error: 'stripe_not_configured' })
+    } finally {
+      env.STRIPE_SECRET_KEY = originalKey
+      resetStripeForTests() // ré-arme un singleton propre pour les tests suivants
+    }
   })
 
   it('400 si stripe-signature header absent', async () => {
@@ -455,6 +480,21 @@ async function reservationStatus(reservationId: string): Promise<string> {
 }
 
 describe('POST /v1/stripe/webhook — paiement', () => {
+  it('503 stripe_disabled si PAYMENTS_PROVIDER n\'est pas stripe', async () => {
+    // Garde ligne 41 de stripe-webhook.ts : en provider `simulate`, l'endpoint
+    // de confirmation de paiement se désactive (aucun webhook Stripe attendu).
+    const { env } = await import('../../src/config/env.js')
+    const original = env.PAYMENTS_PROVIDER
+    env.PAYMENTS_PROVIDER = 'simulate'
+    try {
+      const res = await postPaymentWebhook()
+      expect(res.statusCode).toBe(503)
+      expect(res.json()).toEqual({ error: 'stripe_disabled' })
+    } finally {
+      env.PAYMENTS_PROVIDER = original
+    }
+  })
+
   it('400 missing_signature si le header stripe-signature est absent', async () => {
     const res = await postPaymentWebhook(false)
     expect(res.statusCode).toBe(400)
@@ -547,6 +587,18 @@ describe('POST /v1/stripe/webhook — paiement', () => {
     const res = await postPaymentWebhook()
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ received: true })
+  })
+
+  it('payment_failed kind=wallet_topup sans topupId → 200 no-op (pas de crédit débité)', async () => {
+    // Branche jumelle de la précédente côté échec : un topup failed sans
+    // topupId en metadata ne doit rien tenter (garde ligne 76 de
+    // stripe-webhook.ts) et répondre 200 pour couper les retries Stripe.
+    const topupId = await seedPendingTopup()
+    constructEventMock.mockReturnValue(topupEvent('payment_intent.payment_failed', { kind: 'wallet_topup' }))
+    const res = await postPaymentWebhook()
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true })
+    expect(await topupStatus(topupId)).toBe('pending') // inchangé
   })
 
   // ─── Idempotence : Stripe redélivre les events en cas de timeout ou de 5xx.
