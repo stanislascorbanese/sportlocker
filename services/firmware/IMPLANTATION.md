@@ -9,17 +9,42 @@ Dimensions issues des fiches techniques (détail : `ASSEMBLY.html`).
 
 ---
 
+## 0. Armoire retenue
+
+Armoire de bureau acier 9 cases (3×3), **90 × 45 × 92,5 cm**, tôle laminée à
+froid ~0,6 mm, portes à persiennes avec **serrure à came à clé** intégrée à la
+poignée, kit de fixation murale fourni.
+
+Conséquences directes de cette construction :
+
+- **92,5 cm de haut seulement → fixation murale en hauteur OBLIGATOIRE** :
+  caler le bas de l'armoire à ~0,65 m du sol pour que la rangée médiane (façade
+  caméra/NFC) tombe à ~1,10–1,30 m. Posée au sol, la caméra serait à 45 cm.
+- **Les serrures à came existantes sont réutilisées** :
+  - case TECH → la serrure à clé d'origine **est** l'accès mainteneur, rien à
+    modifier ;
+  - cases équipées solénoïde → **démonter la came (languette)** mais laisser le
+    barillet en place (bouche le trou, la poignée reste fonctionnelle) ;
+  - cases non équipées → inchangées, à clé.
+- **Persiennes des portes = ventilation gratuite** du compartiment TECH (pas de
+  grilles Ø 40 mm à percer) et accès de secours possible (poussoir Ø 4 mm à
+  travers une fente, aligné sur le pêne).
+- **Tôle fine (~0,6 mm)** : rivnuts déconseillés. Fixations en **boulons M3
+  traversants + écrous nylstop** (l'intérieur des cases est accessible).
+
+---
+
 ## 1. Topologie retenue
 
 Armoire 3×3, numérotation vue de face :
 
 ```
 ┌─────┬─────┬─────┐
-│  1  │  2  │  3  │   rangée haute (~1,50 m)
+│  1  │  2  │  3  │   rangée haute (~1,45 m avec pose murale)
 ├─────┼─────┼─────┤
-│  4  │ TECH│  6  │   rangée médiane (~1,10 m)
+│  4  │ TECH│  6  │   rangée médiane (~1,15 m)
 ├─────┼─────┼─────┤
-│  7  │  8  │  9  │   rangée basse (~0,60 m)
+│  7  │  8  │  9  │   rangée basse (~0,80 m)
 └─────┴─────┴─────┘
 ```
 
@@ -89,11 +114,16 @@ Le solénoïde ATOPLEE (27×29×18 mm, course ~10 mm, ressort de rappel =
 **fail-secure**, verrouillé hors tension) se monte **sur la structure fixe**,
 jamais sur la porte (le câble ne doit pas bouger).
 
-1. **Position** : sur le montant intérieur, côté ouverture de la porte, à
-   mi-hauteur. Le pêne sort **horizontalement** et entre dans une **gâche**
-   (trou Ø 11 mm ou plaque percée) fixée sur la porte.
+1. **Position** : sur la **cloison verticale côté serrure** (fixation M3
+   traversant + nylstop), à la hauteur de l'ancienne came. Le pêne sort
+   **horizontalement** et s'engage **derrière le retour replié de la porte** —
+   exactement là où la came d'origine se verrouillait ; dans la plupart des cas
+   **aucune gâche rapportée n'est nécessaire**. Si le pêne ne tombe pas en face
+   du pli : petite équerre en L percée Ø 11 mm vissée sur la porte.
 2. **Alignement** : tolérance ±1 mm. Monter en trous oblongs pour régler, puis
    freiner les vis (frein-filet). Tester 20 ouvertures/fermetures manuelles.
+   Ébavurer tous les perçages (la tôle fine coupe) — joint mousse adhésif sur
+   le battant si la porte « sonne » contre le pêne au vent.
 3. **La porte doit plaquer d'elle-même** : ajouter un aimant faible ou un
    ressort si la porte baille — un pêne qui frotte = solénoïde qui force =
    surchauffe (le pulse ne dure que 0,5 s, l'ouverture doit être franche).
