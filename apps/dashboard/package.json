@@ -12,11 +12,11 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.63.0",
+    "@sentry/nextjs": "^10.65.0",
     "@sportlocker/types": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
-    "firebase": "^12.15.0",
-    "lucide-react": "^1.23.0",
+    "firebase": "^12.16.0",
+    "lucide-react": "^1.24.0",
     "next": "^15.3.0",
     "pdfkit": "^0.19.1",
     "react": "^18.3.0",
@@ -27,7 +27,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "@types/pdfkit": "^0.17.6",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
@@ -35,10 +35,10 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "16.2.10",
     "happy-dom": "^20.10.6",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.18",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.9.3",
     "vite": "^7.0.0",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }
