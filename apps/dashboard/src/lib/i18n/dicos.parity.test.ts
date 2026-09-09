@@ -20,6 +20,7 @@ import { communesStrings } from './communes'
 import { homeStrings } from './home'
 import { invitesStrings } from './invites'
 import { itemsStrings } from './items'
+import { kioskStrings } from './kiosk'
 import { maintenanceStrings } from './maintenance'
 import { meStrings } from './me'
 import { reassortStrings } from './reassort'
@@ -38,6 +39,7 @@ const DICOS = {
   home:         homeStrings,
   invites:      invitesStrings,
   items:        itemsStrings,
+  kiosk:        kioskStrings,
   maintenance:  maintenanceStrings,
   me:           meStrings,
   reassort:     reassortStrings,

@@ -1,4 +1,4 @@
-import { withSentryConfig } from '@sentry/nextjs'
+import { withSentryConfig } from '@sentry/nextjs/config'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -31,5 +31,7 @@ export default withSentryConfig(nextConfig, {
   hideSourceMaps: true,
   // Upload skip silencieusement si pas de token.
   authToken: process.env.SENTRY_AUTH_TOKEN,
-  disableLogger: true,
+  // Retire les logs de debug du SDK du bundle de production.
+  // Remplace `disableLogger`, déprécié.
+  webpack: { treeshake: { removeDebugLogging: true } },
 })

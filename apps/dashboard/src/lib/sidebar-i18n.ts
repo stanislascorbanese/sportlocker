@@ -15,6 +15,8 @@ type SidebarKey =
   | 'navHealth' | 'navItems' | 'navCommunes' | 'navUsers' | 'navReservations'
   | 'navMaintenance' | 'navStats' | 'navReports' | 'navAudit'
   | 'navTenants' | 'navAgentOffice'
+  | 'groupParc' | 'groupSaison' | 'groupReglages'
+  | 'navKiosk' | 'kioskHint'
   | 'oneCommune' | 'logout' | 'loggingOut'
   | 'roleSuperAdmin' | 'roleAdmin' | 'roleOperator'
 
@@ -37,6 +39,11 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navAudit:         'Journal',
     navTenants:       'Clients',
     navAgentOffice:   'Agent Office',
+    groupParc:        'Mon parc',
+    groupSaison:      'Ma saison',
+    groupReglages:    'Réglages',
+    navKiosk:         'Mode accueil',
+    kioskHint:        'Plein écran pour la tablette de la réception',
     oneCommune:       '1 camping',
     logout:           'Se déconnecter',
     loggingOut:       'Déconnexion…',
@@ -62,6 +69,11 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navAudit:         'Activity log',
     navTenants:       'Clients',
     navAgentOffice:   'Agent Office',
+    groupParc:        'My kiosks',
+    groupSaison:      'My season',
+    groupReglages:    'Settings',
+    navKiosk:         'Front-desk mode',
+    kioskHint:        'Full screen for the reception tablet',
     oneCommune:       '1 campsite',
     logout:           'Sign out',
     loggingOut:       'Signing out…',

@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs'
+
 /**
  * Next.js instrumentation hook — appelé une fois au boot du serveur,
  * AVANT que toute requête soit traitée. C'est l'endroit recommandé par
@@ -15,3 +17,10 @@ export async function register() {
     await import('./sentry.edge.config')
   }
 }
+
+/**
+ * Sans ce hook, une erreur levée dans un Server Component imbriqué ne remonte
+ * nulle part. C'est là que vivent les appels à l'API : une borne qui ne répond
+ * plus doit se voir.
+ */
+export const onRequestError = Sentry.captureRequestError

@@ -8,6 +8,7 @@ import {
   Home,
   PackageOpen,
   AlertTriangle,
+  MonitorSmartphone,
   Map,
   Server,
   CalendarClock,
@@ -34,31 +35,56 @@ import { commonStrings } from '../lib/i18n/common'
 import { LanguageSelector } from './LanguageSelector'
 import { ThemeToggle } from './ThemeToggle'
 
-type Item = { href: string; labelKey: keyof ReturnType<typeof sidebarStrings>; icon: LucideIcon }
+type LabelKey = keyof ReturnType<typeof sidebarStrings>
+type Item = { href: string; labelKey: LabelKey; icon: LucideIcon }
+/** Un groupe sans titre est rendu en tête, sans séparateur. */
+type Group = { titleKey?: LabelKey; items: Item[] }
 
 /**
- * Ordre voulu : les deux premiers écrans après l'accueil sont ceux qu'on ouvre
- * tous les jours — regarnir les casiers, et regarder ce qui n'est pas rentré.
- * Tout le reste est consulté au mieux une fois par semaine, et descend donc.
+ * La navigation est groupée par fréquence d'usage, pas par nature technique.
+ *
+ * Un camping a une à quatre bornes. Il ouvre deux écrans tous les jours — quels
+ * casiers regarnir, ce qui n'est pas rentré — et le reste au mieux une fois par
+ * semaine. Une liste plate de quatorze entrées faisait porter au gérant le
+ * travail de retrouver les deux qui comptent.
  *
  * Retirés en septembre 2026 : la tarification et les paiements. SportLocker
  * n'encaisse plus rien du vacancier (cf. docs/CDC.md v2).
  */
-const COMMON_ITEMS: Item[] = [
-  { href: '/',             labelKey: 'navHome',          icon: Home },
-  { href: '/reassort',     labelKey: 'navReassort',      icon: PackageOpen },
-  { href: '/non-rendus',   labelKey: 'navUnreturned',    icon: AlertTriangle },
-  { href: '/reservations', labelKey: 'navReservations',  icon: CalendarClock },
-  { href: '/distributors', labelKey: 'navDistributors',  icon: Server },
-  { href: '/items',        labelKey: 'navItems',         icon: Package },
-  { href: '/maintenance',  labelKey: 'navMaintenance',   icon: Wrench },
-  { href: '/health',       labelKey: 'navHealth',        icon: Stethoscope },
-  { href: '/map',          labelKey: 'navMap',           icon: Map },
-  { href: '/stats',        labelKey: 'navStats',         icon: BarChart3 },
-  { href: '/reports',      labelKey: 'navReports',       icon: FileText },
-  { href: '/communes',     labelKey: 'navCommunes',      icon: Building2 },
-  { href: '/users',        labelKey: 'navUsers',         icon: Users },
-  { href: '/audit',        labelKey: 'navAudit',         icon: Activity },
+const GROUPS: Group[] = [
+  {
+    items: [
+      { href: '/',           labelKey: 'navHome',       icon: Home },
+      { href: '/reassort',   labelKey: 'navReassort',   icon: PackageOpen },
+      { href: '/non-rendus', labelKey: 'navUnreturned', icon: AlertTriangle },
+    ],
+  },
+  {
+    titleKey: 'groupParc',
+    items: [
+      { href: '/distributors', labelKey: 'navDistributors', icon: Server },
+      { href: '/items',        labelKey: 'navItems',        icon: Package },
+      { href: '/maintenance',  labelKey: 'navMaintenance',  icon: Wrench },
+    ],
+  },
+  {
+    titleKey: 'groupSaison',
+    items: [
+      { href: '/reservations', labelKey: 'navReservations', icon: CalendarClock },
+      { href: '/stats',        labelKey: 'navStats',        icon: BarChart3 },
+      { href: '/reports',      labelKey: 'navReports',      icon: FileText },
+    ],
+  },
+  {
+    titleKey: 'groupReglages',
+    items: [
+      { href: '/health',   labelKey: 'navHealth',   icon: Stethoscope },
+      { href: '/map',      labelKey: 'navMap',      icon: Map },
+      { href: '/communes', labelKey: 'navCommunes', icon: Building2 },
+      { href: '/users',    labelKey: 'navUsers',    icon: Users },
+      { href: '/audit',    labelKey: 'navAudit',    icon: Activity },
+    ],
+  },
 ]
 
 const SUPER_ADMIN_ITEMS: Item[] = [
@@ -74,9 +100,10 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
   const c = commonStrings(lang)
   const [loggingOut, setLoggingOut] = useState(false)
 
-  const items = user?.role === 'super_admin'
-    ? [...COMMON_ITEMS, ...SUPER_ADMIN_ITEMS]
-    : COMMON_ITEMS
+  const groups: Group[] =
+    user?.role === 'super_admin'
+      ? [...GROUPS, { titleKey: 'navTenants' as const, items: SUPER_ADMIN_ITEMS }]
+      : GROUPS
 
   async function onLogout() {
     setLoggingOut(true)
@@ -110,37 +137,62 @@ export function Sidebar({ user }: { user: SessionPayload | null }) {
       </div>
 
       <nav className="mt-2 flex flex-col gap-0.5 px-3">
-        {items.map(({ href, labelKey, icon: Icon }) => {
-          const active = href === '/'
-            ? pathname === '/'
-            : pathname.startsWith(href)
+        {groups.map((group, groupIndex) => (
+          <div key={group.titleKey ?? `g${groupIndex}`} className={groupIndex > 0 ? 'mt-5' : ''}>
+            {group.titleKey && (
+              <p className="mb-1.5 px-3 text-eyebrow font-semibold uppercase tracking-wider text-gray-400 dark:text-white/30">
+                {t[group.titleKey]}
+              </p>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {group.items.map(({ href, labelKey, icon: Icon }) => {
+                const active = href === '/' ? pathname === '/' : pathname.startsWith(href)
 
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-base ease-out-soft',
-                active
-                  ? 'bg-emerald-100 text-navy-900 dark:bg-emerald-500/10 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-navy-900 dark:text-white/60 dark:hover:bg-white/[0.04] dark:hover:text-white',
-              )}
-            >
-              {active && (
-                <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-              )}
-              <Icon
-                className={cn(
-                  'h-4 w-4 shrink-0',
-                  active
-                    ? 'text-emerald-600 dark:text-emerald-300'
-                    : 'text-gray-400 dark:text-white/50',
-                )}
-              />
-              <span>{t[labelKey]}</span>
-            </Link>
-          )
-        })}
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-base ease-out-soft',
+                      active
+                        ? 'bg-emerald-100 text-navy-900 dark:bg-emerald-500/10 dark:text-white'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-navy-900 dark:text-white/60 dark:hover:bg-white/[0.04] dark:hover:text-white',
+                    )}
+                  >
+                    {active && (
+                      <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+                    )}
+                    <Icon
+                      className={cn(
+                        'h-4 w-4 shrink-0',
+                        active
+                          ? 'text-emerald-600 dark:text-emerald-300'
+                          : 'text-gray-400 dark:text-white/50',
+                      )}
+                    />
+                    <span>{t[labelKey]}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Le mode accueil n'est pas une page de plus : c'est l'écran qu'on
+            laisse ouvert sur la tablette de la réception toute la saison. Il
+            mérite d'être trouvable sans chercher. */}
+        <Link
+          href="/accueil"
+          className="mt-5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5 transition-colors duration-base ease-out-soft hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20"
+        >
+          <span className="flex items-center gap-3 text-sm font-medium text-emerald-800 dark:text-emerald-200">
+            <MonitorSmartphone className="h-4 w-4 shrink-0" />
+            {t.navKiosk}
+          </span>
+          <span className="mt-0.5 block pl-7 text-eyebrow leading-snug text-emerald-700/70 dark:text-emerald-200/50">
+            {t.kioskHint}
+          </span>
+        </Link>
       </nav>
 
       <div className="mt-auto px-3 py-3">

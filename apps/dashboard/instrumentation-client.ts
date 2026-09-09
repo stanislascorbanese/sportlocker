@@ -26,3 +26,9 @@ if (dsn) {
     debug: false,
   })
 }
+
+/**
+ * Rattache une erreur à la page où elle s'est produite et non à celle
+ * d'arrivée après une navigation.
+ */
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
