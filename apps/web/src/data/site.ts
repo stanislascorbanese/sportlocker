@@ -14,6 +14,16 @@
 // plus rien du vacancier, ne vend plus aux communes, et n'invente plus de
 // chiffre d'usage tant qu'aucune borne n'a fait une saison.
 
+import produit from './produit.json'
+
+/**
+ * Les faits produit — offres, spécifications, dotation, engagements — vivent
+ * dans `produit.json`, lu à la fois par ce fichier et par
+ * `scripts/fiche-technique.py`. Le site et le PDF remis en rendez-vous ne
+ * peuvent donc pas diverger : c'est exactement la dérive qui avait produit
+ * trois modèles économiques contradictoires en mai 2026.
+ */
+
 export const SITE = {
   name: 'SportLocker',
   legalName: 'SportLocker',
@@ -45,66 +55,17 @@ export interface Offre {
   prix: string
   prixDetail: string
   /** Deuxième ligne de prix, quand l'offre en a une. */
-  recurrent?: string
-  recurrentDetail?: string
+  recurrent?: string | undefined
+  recurrentDetail?: string | undefined
   inclus: string[]
   pourQui: string
   /** Mise en avant sur la page tarifs. */
-  vedette?: boolean
+  vedette?: boolean | undefined
   /** Contrainte honnête à afficher, jamais cachée en petits caractères. */
-  limite?: string
+  limite?: string | undefined
 }
 
-export const OFFRES: Offre[] = [
-  {
-    slug: 'pilote',
-    label: 'Saison pilote 2027',
-    pitch: 'Vous testez une saison entière sans rien investir.',
-    prix: '149 € HT / mois',
-    prixDetail: 'sur les 6 mois de la saison, soit 894 € HT',
-    inclus: [
-      'Borne installée et garnie, posée avant votre ouverture',
-      'Matériel sportif fourni et remplacé',
-      'Application, tableau de bord, maintenance',
-      'Reprise de la borne en fin de saison si vous n’enchaînez pas',
-    ],
-    pourQui: 'Les trois premiers campings équipés, en Vendée et Loire-Atlantique.',
-    limite:
-      'Trois sites maximum pour la saison 2027. En échange : vos retours d’usage, et le droit de citer votre camping.',
-    vedette: true,
-  },
-  {
-    slug: 'achat',
-    label: 'Achat',
-    pitch: 'La borne vous appartient et s’amortit.',
-    prix: '4 500 € HT',
-    prixDetail: 'borne installée et garnie de 12 articles',
-    recurrent: '+ 790 € HT / saison',
-    recurrentDetail: 'application, maintenance à distance, remplacement du matériel d’usure',
-    inclus: [
-      'Borne 8 casiers, installée et mise en service',
-      '12 articles de dotation au choix dans le catalogue',
-      'Formation de votre accueil, 10 minutes',
-      'Garantie 2 ans pièces et main-d’œuvre',
-    ],
-    pourQui: 'Les campings qui préfèrent immobiliser une fois et ne plus y penser.',
-  },
-  {
-    slug: 'location',
-    label: 'Location saisonnière',
-    pitch: 'Rien à immobiliser, on pose au printemps et on reprend à l’automne.',
-    prix: '349 € HT / mois',
-    prixDetail: 'sur 6 mois, soit 2 094 € HT la saison',
-    inclus: [
-      'Borne, matériel, application, maintenance : tout compris',
-      'Pose avant l’ouverture, dépose après la fermeture',
-      'Remplacement immédiat en cas de panne bloquante',
-      'SportLocker reste propriétaire',
-    ],
-    pourQui:
-      'Les campings dont le budget d’investissement est déjà engagé ailleurs, ou qui veulent une saison de plus avant de s’engager.',
-  },
-]
+export const OFFRES: Offre[] = produit.offres as Offre[]
 
 /** Repère de marché cité sur la page tarifs. */
 export const REPERE_MARCHE = {
@@ -119,7 +80,7 @@ export const REPERE_MARCHE = {
 export interface SpecLine {
   poste: string
   valeur: string
-  note?: string
+  note?: string | undefined
 }
 
 /**
@@ -130,103 +91,34 @@ export interface SpecLine {
  * pas tourné — mentir sur une cote est le meilleur moyen de perdre un client
  * le jour de l'installation.
  */
-export const SPECS: SpecLine[] = [
-  { poste: 'Casiers', valeur: '8 casiers individuels', note: 'un article par casier' },
-  {
-    poste: 'Encombrement',
-    valeur: '≈ 90 × 50 × 180 cm (L × P × H)',
-    note: 'provisoire — figé après le prototype d’octobre 2026',
-  },
-  { poste: 'Fixation', valeur: 'Au sol ou murale', note: 'aucun génie civil, aucune dalle à couler' },
-  {
-    poste: 'Alimentation',
-    valeur: '230 V, prise standard, ≈ 30 W en veille',
-    note: 'onduleur intégré : la borne survit à une coupure',
-  },
-  {
-    poste: 'Connexion',
-    valeur: '4G intégrée, carte SIM fournie',
-    note: 'aucun raccordement à votre réseau, aucun accès à votre wifi',
-  },
-  {
-    poste: 'Ouverture',
-    valeur: 'Code signé vérifié par la borne elle-même',
-    note: 'une coupure 4G n’empêche pas vos clients d’emprunter',
-  },
-  { poste: 'Détection du retour', valeur: 'Capteur de fermeture sur chaque porte' },
-  { poste: 'Interface', valeur: 'Le smartphone du vacancier', note: 'pas d’écran à casser ni à nettoyer' },
-  { poste: 'Emplacement conseillé', valeur: 'Près du terrain multisports ou de l’espace aquatique', note: 'à l’abri si possible, sous auvent ou préau' },
-  { poste: 'Mise en service', valeur: 'Une demi-journée sur site' },
-]
+export const SPECS: SpecLine[] = produit.specs as SpecLine[]
 
-export const DOTATION = [
-  { titre: 'Ballons', detail: 'Football, basket, volley' },
-  { titre: 'Raquettes', detail: 'Ping-pong, badminton, beach-tennis, avec balles et volants' },
-  { titre: 'Matériel de plage', detail: 'Frisbees, mölkky, jeux de boules' },
-  { titre: 'Accessoires de terrain', detail: 'Chasubles, plots, cordes à sauter' },
-]
+export const DOTATION = produit.dotation
 
 /** Ce qu'on ne met pas dans un casier, dit franchement. */
-export const HORS_CATALOGUE =
-  'Ni vélo, ni paddle, ni kayak : seulement ce qui rentre dans un casier et se range en dix secondes.'
+export const HORS_CATALOGUE = produit.horsCatalogue
 
 // ---------------------------------------------------------------------------
 // Installation, SAV, engagements
 // ---------------------------------------------------------------------------
 
-export const ENGAGEMENTS = [
-  {
-    titre: 'Devis sous 48 h',
-    detail: 'Après une visite de site de trente minutes, ou un échange en visio si vous êtes loin.',
-  },
-  {
-    titre: 'Installation en une demi-journée',
-    detail: 'Entre la commande et la mise en service : 4 à 6 semaines, hors période de fabrication de série.',
-  },
-  {
-    titre: 'Intervention sous 48 h en saison',
-    detail: 'Vendée, Loire-Atlantique et Charente-Maritime. Nous sommes à moins d’une heure de route de la plupart des sites.',
-  },
-  {
-    titre: 'Garantie 2 ans',
-    detail: 'Pièces et main-d’œuvre sur la borne. Le matériel sportif d’usure est remplacé au titre de l’abonnement.',
-  },
-  {
-    titre: 'Pièces détachées tenues en stock',
-    detail: 'Serrures, capteurs, cartes électroniques. Une serrure se remplace en dix minutes sans démonter la borne.',
-  },
-  {
-    titre: 'Dossier d’exploitation remis à l’installation',
-    detail:
-      'Attestation d’assurance responsabilité civile professionnelle et produit, déclaration de conformité CE, registre de maintenance, et la procédure d’ouverture manuelle en cas de panne.',
-  },
-]
+export const ENGAGEMENTS = produit.engagements
 
 /** Ce qui reste à la charge du camping. Écrit pour éviter le litige, pas pour l'éviter. */
-export const A_VOTRE_CHARGE = [
-  'Une prise 230 V à proximité de l’emplacement retenu.',
-  'Remettre le matériel dans les casiers vides — l’écran de réassort vous dit lesquels.',
-  'Facturer sur le compte séjour ce qui n’est pas rendu, avec la caution que vous détenez déjà.',
-  'Assurer la borne au titre de votre multirisque professionnelle, comme le reste de vos équipements.',
-]
+export const A_VOTRE_CHARGE = produit.aVotreCharge
 
 // ---------------------------------------------------------------------------
 // Compatibilité logicielle — le point qui bloque tous les concurrents
 // ---------------------------------------------------------------------------
 
-export const PMS_MESSAGE = {
-  titre: 'Rien à changer dans votre logiciel',
-  corps:
-    'SportLocker ne se branche pas sur votre PMS et ne vous demande pas de le faire évoluer. Vous voyez la liste de ce qui n’est pas rentré, avec le nom du client et son emplacement, et vous le passez en mise en compte comme vous le faites déjà pour un vélo ou la laverie.',
-  cite: 'eSeason, Naxi Commerce, Secureholiday : aucune adaptation nécessaire, quel que soit le vôtre.',
-} as const
+export const PMS_MESSAGE = produit.pms
 
 // ---------------------------------------------------------------------------
 // Dimensionnement
 // ---------------------------------------------------------------------------
 
 /** Un point de distribution couvre confortablement ~120 emplacements. */
-export const EMPLACEMENTS_PAR_BORNE = 120
+export const EMPLACEMENTS_PAR_BORNE = produit.emplacementsParBorne
 
 export const recommendBornes = (emplacements: number): number =>
   Math.max(1, Math.min(4, Math.round(emplacements / EMPLACEMENTS_PAR_BORNE)))

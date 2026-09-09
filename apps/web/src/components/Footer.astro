@@ -2,7 +2,6 @@
 import { Image } from 'astro:assets'
 import logoMark from '@/assets/brand/logo-mark-outline.png'
 import { SITE } from '@/data/site'
-import { COMMUNES } from '@/data/communes'
 const year = new Date().getFullYear()
 ---
 
@@ -16,22 +15,13 @@ const year = new Date().getFullYear()
             Sport<span class="text-brand-400">Locker</span>
           </span>
         </a>
-        <p class="text-sm text-white/60 leading-relaxed max-w-[280px] font-light">
-          Distributeurs IoT de matériel sportif en libre-service.
-          Une infrastructure clé en main pour vos sites.
+        <p class="text-sm text-white/60 leading-relaxed max-w-[300px] font-light">
+          Bornes de prêt de matériel sportif pour les campings de la côte atlantique.
+          Conçues et installées depuis la Vendée.
         </p>
-        <div class="mt-5">
-          <div class="text-xs font-bold uppercase tracking-[0.06em] text-white/80 mb-2.5">
-            Villes desservies
-          </div>
-          <ul class="flex flex-wrap gap-x-3 gap-y-1.5 list-none">
-            {COMMUNES.map((c) => (
-              <li>
-                <a href={`/communes/${c.slug}`} class="link-quiet text-sm">{c.name}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <p class="mt-5 text-sm text-white/45 font-light max-w-[300px]">
+          Vendée · Loire-Atlantique · Charente-Maritime
+        </p>
       </div>
 
       <div>
@@ -39,8 +29,10 @@ const year = new Date().getFullYear()
           Solution
         </div>
         <ul class="flex flex-col gap-2.5 list-none">
+          <li><a href="/la-borne" class="link-quiet text-sm">La borne</a></li>
+          <li><a href="/tarifs" class="link-quiet text-sm">Tarifs</a></li>
+          <li><a href="/installation-sav" class="link-quiet text-sm">Installation &amp; SAV</a></li>
           <li><a href="/comment-ca-marche" class="link-quiet text-sm">Comment ça marche</a></li>
-          <li><a href="/campings" class="link-quiet text-sm">Pour les campings</a></li>
         </ul>
       </div>
 
