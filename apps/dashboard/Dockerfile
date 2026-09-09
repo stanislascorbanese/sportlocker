@@ -43,6 +43,9 @@ RUN pnpm install --frozen-lockfile --filter "@sportlocker/dashboard..." --ignore
 # Sources
 COPY apps/dashboard   apps/dashboard
 COPY packages/types   packages/types
+# @sportlocker/config porte le preset Tailwind et les jetons CSS : sans ses
+# sources, `next build` échoue sur la résolution de tailwind.config.ts.
+COPY packages/config  packages/config
 
 # Compile @sportlocker/types → dist/ (les exports du paquet pointent sur
 # ./dist/index.js ; requis par `next build` ET par `pnpm deploy --prod`

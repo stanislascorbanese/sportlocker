@@ -5,6 +5,7 @@
     "dockerfilePath": "apps/dashboard/Dockerfile",
     "watchPatterns": [
       "apps/dashboard/**",
+      "packages/config/**",
       "packages/types/**",
       "package.json",
       "pnpm-lock.yaml",
