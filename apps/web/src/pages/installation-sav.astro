@@ -1,0 +1,209 @@
+---
+import Base from '@/layouts/Base.astro'
+import Hero from '@/components/Hero.astro'
+import Faq from '@/components/Faq.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import { A_VOTRE_CHARGE, ENGAGEMENTS, PMS_MESSAGE, SITE } from '@/data/site'
+
+/**
+ * Installation et SAV.
+ *
+ * Chez tous les fournisseurs installés du secteur, le SAV et les pièces
+ * détachées sont en rubrique de premier niveau, pas en bas de page. La raison
+ * est simple : un camping achète un équipement qu'il devra faire tourner tout
+ * l'été sans personne pour le réparer, et « qui vient quand ça casse » pèse
+ * autant que le prix.
+ *
+ * Un fournisseur jeune n'a pas de références. Ce qu'il peut offrir tout de
+ * suite, c'est de retirer le risque : garantie chiffrée, délai chiffré, et un
+ * dossier d'exploitation complet remis à l'installation.
+ */
+
+const etapes = [
+  {
+    n: '01',
+    titre: 'Visite de site',
+    delai: '30 minutes',
+    detail:
+      'On regarde ensemble où poser la borne, où est la prise 230 V, et à quelle distance de vos terrains. C’est aussi là qu’on vous dit si ça n’a pas de sens chez vous.',
+  },
+  {
+    n: '02',
+    titre: 'Devis',
+    delai: 'sous 48 h',
+    detail:
+      'Un prix ferme, une date d’installation, et la liste de ce qui est inclus. Pas d’option cachée à négocier ensuite.',
+  },
+  {
+    n: '03',
+    titre: 'Fabrication',
+    delai: '4 à 6 semaines',
+    detail:
+      'La borne est assemblée et garnie avec les douze articles choisis avec vous. Vous recevez les photos avant la livraison.',
+  },
+  {
+    n: '04',
+    titre: 'Installation et mise en service',
+    delai: 'une demi-journée',
+    detail:
+      'Pose, raccordement, test des huit casiers un par un, pose du QR code et de la consigne d’usage. Vous repartez avec le dossier d’exploitation.',
+  },
+  {
+    n: '05',
+    titre: 'Formation de l’accueil',
+    delai: '10 minutes',
+    detail:
+      'Votre équipe n’a qu’un écran à connaître : quels casiers sont vides, quoi remettre dedans. On la refait gratuitement à chaque changement de saisonnier.',
+  },
+  {
+    n: '06',
+    titre: 'Bilan de saison',
+    delai: 'en octobre',
+    detail:
+      'Ce qui a été emprunté, quand, et ce qui n’est pas revenu. De quoi décider si vous continuez, et avec quel matériel.',
+  },
+]
+
+const faq = [
+  {
+    q: 'Qui intervient si la borne tombe en panne en plein mois d’août ?',
+    a: 'Nous, sous 48 h sur la Vendée, la Loire-Atlantique et la Charente-Maritime. Une bonne partie des incidents se règle à distance — la borne nous alerte souvent avant que vous ne l’ayez vue. Si un casier reste bloqué, la procédure d’ouverture manuelle est dans le dossier d’exploitation remis à l’installation : vous n’attendez jamais pour récupérer votre matériel.',
+  },
+  {
+    q: 'Et si personne ne peut venir ?',
+    a: 'En location et en saison pilote, une borne immobilisée plus de cinq jours en saison est remplacée ou le mois n’est pas facturé. C’est écrit dans le contrat, pas seulement sur cette page.',
+  },
+  {
+    q: 'Que se passe-t-il si un vacancier se blesse en jouant ?',
+    a: 'Le matériel est mis à disposition par le camping, comme le reste de vos équipements de loisirs, et relève de votre responsabilité d’exploitant. De notre côté, nous portons une responsabilité civile professionnelle et produit dont l’attestation vous est remise à l’installation et renouvelée chaque année.',
+  },
+  {
+    q: 'Faut-il un contrôle réglementaire, comme pour une aire de jeux ?',
+    a: 'Une borne de prêt n’est pas une aire collective de jeux au sens du décret de 1996 : elle ne comporte aucun équipement sur lequel on grimpe. Elle porte en revanche un marquage CE et un registre de maintenance, tous deux fournis. Si votre organisme de classement vous demande une pièce particulière, dites-le nous, on la produit.',
+  },
+  {
+    q: 'Les pièces détachées sont-elles disponibles ?',
+    a: 'Serrures, capteurs de porte et cartes électroniques sont tenus en stock. Une serrure se remplace en dix minutes sans démonter la borne, et nous pouvons vous en laisser une d’avance sur site si vous êtes loin.',
+  },
+  {
+    q: 'Que devient la borne en fin de contrat ?',
+    a: 'En location et en saison pilote, nous la déposons à la fermeture, sans frais. En achat, elle reste chez vous et continue de fonctionner même sans abonnement — vous perdez la maintenance à distance et les mises à jour, pas le prêt.',
+  },
+]
+
+const jsonLd = [
+  {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Accueil', item: SITE.url + '/' },
+      { '@type': 'ListItem', position: 2, name: 'Installation & SAV', item: SITE.url + '/installation-sav' },
+    ],
+  },
+]
+---
+
+<Base
+  title="Installation, SAV et garanties"
+  description="De la visite de site au bilan de saison : délais chiffrés, intervention sous 48 h en saison, garantie 2 ans, pièces détachées en stock, dossier d’exploitation remis à l’installation."
+  extraJsonLd={jsonLd}
+>
+  <Hero
+    tag="Installation & SAV"
+    title="Ce qui se passe"
+    highlight="quand ça casse."
+    desc="C’est la vraie question quand on achète à quelqu’un qu’on ne connaît pas encore. Voici les délais, les garanties, et ce qu’on vous remet le jour de l’installation."
+    primary={{ href: '/contact#formulaire', label: 'Demander une visite' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+  />
+
+  <!-- LES ÉTAPES -->
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>De la visite à la saison</span>
+      <h2 class="section-title mt-3 mb-10" data-reveal data-reveal-delay="1">
+        Six étapes, chacune avec son délai
+      </h2>
+
+      <ol class="space-y-4 list-none p-0">
+        {etapes.map((e, i) => (
+          <li class="card-dark p-6 flex gap-5" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <div class="font-extrabold text-2xl text-brand-400 leading-none w-10 shrink-0">{e.n}</div>
+            <div>
+              <div class="flex flex-wrap items-baseline gap-x-3">
+                <span class="font-bold text-white">{e.titre}</span>
+                <span class="text-sm text-brand-400 font-medium">{e.delai}</span>
+              </div>
+              <p class="text-sm text-white/60 font-light leading-relaxed mt-1.5">{e.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <!-- ENGAGEMENTS -->
+  <section class="section">
+    <div class="container-x">
+      <div class="text-center mb-14 max-w-2xl mx-auto">
+        <span class="eyebrow" data-reveal>Nos engagements</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Chiffrés, donc opposables
+        </h2>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {ENGAGEMENTS.map((e, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <h3 class="font-extrabold text-white mb-2">{e.titre}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{e.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- À VOTRE CHARGE -->
+  <section class="section-alt">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow" data-reveal>Le partage</span>
+      <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+        Ce qui reste à votre charge
+      </h2>
+      <p class="section-sub mb-8" data-reveal data-reveal-delay="2">
+        Écrit ici pour éviter le litige, pas pour l’éviter.
+      </p>
+      <ul class="check-list" data-reveal data-reveal-delay="3">
+        {A_VOTRE_CHARGE.map((item) => <li>{item}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <!-- PMS -->
+  <section class="section">
+    <div class="container-x max-w-3xl text-center">
+      <span class="eyebrow" data-reveal>Compatibilité</span>
+      <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">{PMS_MESSAGE.titre}</h2>
+      <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">{PMS_MESSAGE.corps}</p>
+      <p class="text-sm text-white/45 mt-5 font-light" data-reveal data-reveal-delay="3">{PMS_MESSAGE.cite}</p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section-alt">
+    <div class="container-x max-w-3xl">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>Questions</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Les questions qui fâchent</h2>
+      </div>
+      <Faq items={faq} />
+    </div>
+  </section>
+
+  <FinalCta
+    title="On commence par une visite."
+    sub="Trente minutes chez vous, et vous saurez où la borne irait, ce qu’il faut prévoir, et combien ça coûte."
+    primary={{ href: '/contact#formulaire', label: 'Demander une visite' }}
+    secondary={{ href: '/la-borne', label: 'Fiche technique' }}
+    fine="Devis sous 48 h ouvrées · Intervention sous 48 h en saison"
+  />
+</Base>

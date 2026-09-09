@@ -2,21 +2,22 @@
 import Base from '@/layouts/Base.astro'
 import Hero from '@/components/Hero.astro'
 import ContactForm from '@/components/ContactForm.astro'
-import Faq from '@/components/Faq.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import { OFFRE, SITE, loyerSaison } from '@/data/site'
+import {
+  A_VOTRE_CHARGE,
+  ENGAGEMENTS,
+  OFFRES,
+  PMS_MESSAGE,
+  buildSegmentSchemas,
+} from '@/data/site'
 
-const eur = (n: number): string =>
-  new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n) + ' € HT'
-
-// Constat terrain, formulé à la première personne d'un gérant de camping.
-// Volontairement sans pourcentages : aucune étude ne les étaye aujourd'hui.
-// Les chiffres reviendront quand la première saison d'exploitation les aura
-// produits.
+// Constat écrit à la première personne d'un gérant, sans un seul pourcentage :
+// aucune étude publique ne mesure le prêt de matériel en camping, et inventer
+// un chiffre est le meilleur moyen de se faire prendre par quelqu'un du métier.
 const constats = [
   'Le ballon se prête à l’accueil, contre une pièce d’identité et un cahier.',
-  'L’accueil est fermé entre 12 h et 14 h, et après 19 h — c’est-à-dire quand les gens jouent.',
+  'L’accueil ferme entre 12 h et 14 h, et après 19 h — c’est-à-dire quand les gens jouent.',
   'Personne ne sait combien de raquettes ont disparu cet été.',
   'La grille de classement demande de proposer du prêt de matériel. Il faut bien le cocher.',
 ]
@@ -35,117 +36,27 @@ const piliers = [
   {
     icon: '🧾',
     title: 'Rien à encaisser pour nous',
-    desc: 'Le prêt peut être gratuit, ou facturé sur le compte séjour comme le pain et la laverie. SportLocker ne touche jamais l’argent de vos clients.',
+    desc: 'Le prêt peut être gratuit, ou porté sur le compte séjour comme le pain et la laverie. SportLocker ne touche jamais l’argent de vos clients.',
   },
 ]
-
-const parcoursVacancier = [
-  { n: '01', title: 'Il scanne', desc: 'Le QR code collé sur la borne ouvre une page web. Rien à installer, pas de compte à créer.' },
-  { n: '02', title: 'Il s’identifie', desc: 'Numéro de séjour et nom. Vous avez déjà son identité et sa caution depuis le check-in.' },
-  { n: '03', title: 'Il prend', desc: 'Le casier s’ouvre en moins d’une seconde. Fonctionne même si la 4G est tombée.' },
-  { n: '04', title: 'Il rend', desc: 'Il repose l’article et referme. Le capteur de porte enregistre le retour.' },
-]
-
-const parcoursGerant = [
-  { n: '01', title: 'Visite du site', desc: 'On regarde ensemble où poser la borne et où est le 230 V. 30 minutes.' },
-  { n: '02', title: 'Devis', desc: 'Un prix, une ligne. Sous 48 h.' },
-  { n: '03', title: 'Installation avant l’ouverture', desc: 'Pose, mise en service, formation de l’accueil en 10 minutes.' },
-  { n: '04', title: 'Bilan de saison', desc: 'Ce qui a été emprunté, quand, et ce qui n’est pas revenu. De quoi décider pour l’an prochain.' },
-]
-
-// Positionnement concurrentiel, à jour de la recherche de septembre 2026.
-// Les deux acteurs installés en France sont sur le canal collectivités, avec
-// un modèle financé par le sponsoring qui n'a pas de sens en camping privé.
-const paysage = [
-  {
-    name: 'Equip Sport',
-    model: '250 stations, villes et collectivités, gratuit pour l’usager, matériel financé par Decathlon',
-    diff: 'Modèle adossé au sponsoring, pensé pour l’espace public. Pas d’offre camping.',
-  },
-  {
-    name: 'BoxUp / SMC2',
-    model: 'Casiers outdoor solaires en prêt gratuit, une dizaine de sites publics en France',
-    diff: 'Même canal collectivités, même logique d’équipement urbain.',
-  },
-  {
-    name: 'Prêt à l’accueil',
-    model: 'Une armoire, un cahier, une pièce d’identité en dépôt',
-    diff: 'C’est ce que SportLocker remplace : mêmes articles, sans mobiliser votre personnel.',
-  },
-]
-
-const faq = [
-  {
-    q: 'Combien ça coûte ?',
-    a: `Une borne de ${OFFRE.casiers} casiers, installée et garnie de ${OFFRE.articlesInclus} articles : ${eur(OFFRE.prixBorne)}. Puis ${eur(OFFRE.aboSaison)} par saison pour le logiciel, la maintenance et le remplacement du matériel d’usure. Si vous préférez ne rien investir, la même borne est disponible en location saisonnière à ${eur(OFFRE.loyerMensuel)} par mois sur ${OFFRE.moisSaison} mois, soit ${eur(loyerSaison)} la saison, tout compris.`,
-  },
-  {
-    q: 'Mes clients doivent-ils payer ?',
-    a: 'C’est vous qui décidez. La plupart des campings incluent le prêt dans le séjour : c’est ce qui coche le critère de classement. Si vous voulez facturer, la ligne est portée sur le compte séjour du client et réglée au check-out, comme le pain ou la laverie. Dans les deux cas, SportLocker n’encaisse rien et ne prend aucune commission.',
-  },
-  {
-    q: 'Et si un client ne rend pas le matériel ?',
-    a: 'L’emprunt est nominatif : vous voyez qui a pris quoi et à quel emplacement il séjourne. Vous facturez sur le compte séjour avec la caution que vous détenez déjà. C’est exactement votre procédure actuelle pour les vélos.',
-  },
-  {
-    q: 'Faut-il que mes clients installent une application ?',
-    a: 'Non. Le QR code de la borne ouvre une page web dans leur navigateur. Pas de compte, pas de téléchargement, pas de carte bancaire à saisir.',
-  },
-  {
-    q: 'Qu’est-ce que mon personnel a à faire ?',
-    a: 'Remettre du matériel dans les casiers vides. Un écran unique lui dit lesquels le sont et ce qu’il faut y mettre. La formation prend dix minutes.',
-  },
-  {
-    q: 'Et si la borne perd le réseau ?',
-    a: 'Le code d’ouverture est vérifié directement par la borne, sans passer par internet. Une coupure 4G n’empêche pas vos clients d’emprunter ; les données remontent quand la connexion revient.',
-  },
-  {
-    q: 'De quoi la borne a-t-elle besoin sur place ?',
-    a: 'Une prise 230 V et une surface plane, de préférence sous auvent ou à l’abri. Pas de génie civil, pas de raccordement réseau : la borne communique en 4G.',
-  },
-  {
-    q: 'Où en est le produit exactement ?',
-    a: 'Le logiciel est développé et déployé. Le prototype matériel est en cours d’assemblage pour des installations à partir du printemps 2027. Nous cherchons en ce moment des campings pilotes en Vendée — c’est le bon moment pour en parler si le sujet vous intéresse.',
-    note: 'premières installations prévues au printemps 2027.',
-  },
-]
-
-const serviceJsonLd = {
-  '@type': 'Service',
-  name: 'Borne de prêt de matériel sportif pour campings',
-  serviceType: 'Mise à disposition de matériel sportif en libre-service',
-  description:
-    'Borne de 8 casiers connectés installée en camping. Le vacancier emprunte ballon, raquette ou matériel de plage 24 h/24 avec son numéro de séjour, sans mobiliser l’accueil.',
-  provider: { '@type': 'Organization', name: SITE.legalName, url: SITE.url },
-  areaServed: { '@type': 'AdministrativeArea', name: 'Façade atlantique, France' },
-  audience: { '@type': 'BusinessAudience', name: 'Campings et hôtellerie de plein air' },
-  offers: {
-    '@type': 'Offer',
-    priceCurrency: 'EUR',
-    price: OFFRE.prixBorne,
-    description: 'Borne installée et garnie, puis abonnement saisonnier.',
-  },
-}
 ---
 
 <Base
   title="Le matériel de sport de votre camping, en libre-service"
-  description="Une borne de 8 casiers connectés dans votre camping. Vos clients empruntent ballon, raquette ou matériel de plage avec leur numéro de séjour, 24 h/24, sans passer par l’accueil. À partir de 4 500 € HT installée."
-  extraJsonLd={[serviceJsonLd]}
+  description="Une borne de 8 casiers connectés dans votre camping. Vos clients empruntent ballon, raquette ou matériel de plage avec leur numéro de séjour, 24 h/24, sans passer par l’accueil. Saison pilote à 149 € HT/mois, achat à 4 500 € HT."
+  extraJsonLd={buildSegmentSchemas('camping')}
 >
   <Hero
-    tag="Campings de la côte atlantique · saison 2027"
+    tag="Hôtellerie de plein air · côte atlantique"
     title="Le matériel de sport de votre camping,"
     highlight="en libre-service."
-    desc="Une borne de 8 casiers, posée près du terrain multisports. Vos clients prennent un ballon ou une raquette avec leur numéro de séjour, à toute heure, sans passer par l’accueil. Vous savez ce qui sort et ce qui ne revient pas."
-    primary={{ href: '/contact#formulaire', label: 'En parler 15 minutes' }}
-    secondary={{ href: '/campings', label: 'Voir l’offre camping' }}
+    desc="Une borne de huit casiers, posée près du terrain multisports. Vos clients prennent un ballon ou une raquette avec leur numéro de séjour, à toute heure, sans passer par l’accueil. Vous savez ce qui sort et ce qui ne revient pas."
+    primary={{ href: '/contact#formulaire', label: 'Demander un devis' }}
+    secondary={{ href: '/la-borne', label: 'Voir la fiche technique' }}
   >
     <div class="hero-metrics">
       <div>
-        <div class="hero-metric-value">
-          <span data-counter="8" data-counter-suffix="">8</span>
-        </div>
+        <div class="hero-metric-value"><span data-counter="8">8</span></div>
         <div class="hero-metric-label">Casiers<br/>par borne</div>
       </div>
       <div>
@@ -157,9 +68,7 @@ const serviceJsonLd = {
         <div class="hero-metric-label">Minute d’accueil<br/>mobilisée</div>
       </div>
       <div>
-        <div class="hero-metric-value">
-          <span data-counter="10" data-counter-suffix="">10</span><span class="hero-metric-accent">min</span>
-        </div>
+        <div class="hero-metric-value"><span data-counter="10">10</span><span class="hero-metric-accent">min</span></div>
         <div class="hero-metric-label">Pour former<br/>un saisonnier</div>
       </div>
     </div>
@@ -191,7 +100,7 @@ const serviceJsonLd = {
     </div>
   </section>
 
-  <!-- TROIS PILIERS -->
+  <!-- CE QUE ÇA CHANGE -->
   <section class="section">
     <div class="container-x">
       <div class="text-center mb-14">
@@ -236,55 +145,59 @@ const serviceJsonLd = {
     </div>
   </section>
 
-  <!-- PARCOURS -->
-  <section id="comment-ca-marche" class="section">
+  <!-- TARIFS -->
+  <section id="tarifs" class="section">
     <div class="container-x">
-      <div class="text-center mb-14">
-        <span class="eyebrow" data-reveal>Comment ça marche</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Trente secondes pour le client.<br/>Une demi-journée pour vous.
+      <div class="text-center mb-14 max-w-2xl mx-auto">
+        <span class="eyebrow" data-reveal>Trois façons de s’équiper</span>
+        <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+          Les prix sont écrits.
         </h2>
+        <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
+          Vous saurez en trente secondes si c’est dans votre budget. C’est le minimum qu’on
+          vous doit avant de vous demander un rendez-vous.
+        </p>
       </div>
 
-      <div class="grid lg:grid-cols-2 gap-10">
-        <div data-reveal>
-          <div class="text-xs uppercase tracking-[0.14em] text-white/60 mb-5">Côté vacancier</div>
-          <ol class="space-y-4">
-            {parcoursVacancier.map((s) => (
-              <li class="card-dark p-5 flex gap-4">
-                <div class="font-extrabold text-2xl text-brand-400 leading-none w-10 shrink-0">{s.n}</div>
-                <div>
-                  <div class="font-bold text-white mb-1">{s.title}</div>
-                  <div class="text-sm text-white/60 font-light">{s.desc}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
+      <div class="grid md:grid-cols-3 gap-5 items-stretch">
+        {OFFRES.map((offre, i) => (
+          <div
+            class:list={['price-card', offre.vedette ? 'price-card-featured' : '']}
+            data-reveal
+            data-reveal-delay={String(i + 1)}
+          >
+            {offre.vedette && <span class="tag tag-brand self-start mb-4">Places limitées</span>}
+            <h3 class="font-extrabold text-xl text-white">{offre.label}</h3>
+            <p class="text-sm text-white/55 font-light mt-1.5 mb-6">{offre.pitch}</p>
 
-        <div data-reveal data-reveal-delay="1">
-          <div class="text-xs uppercase tracking-[0.14em] text-white/60 mb-5">Côté camping</div>
-          <ol class="space-y-4">
-            {parcoursGerant.map((s) => (
-              <li class="card-dark p-5 flex gap-4">
-                <div class="font-extrabold text-2xl text-brand-400 leading-none w-10 shrink-0">{s.n}</div>
-                <div>
-                  <div class="font-bold text-white mb-1">{s.title}</div>
-                  <div class="text-sm text-white/60 font-light">{s.desc}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
+            <div class="price-amount">{offre.prix}</div>
+            <p class="text-sm text-white/50 font-light mt-1">{offre.prixDetail}</p>
+
+            {offre.recurrent && (
+              <div class="mt-4 pt-4 border-t border-white/10">
+                <div class="font-extrabold text-lg text-white">{offre.recurrent}</div>
+                <p class="text-sm text-white/50 font-light mt-1">{offre.recurrentDetail}</p>
+              </div>
+            )}
+
+            <ul class="check-list mt-6 mb-6">
+              {offre.inclus.map((item) => <li>{item}</li>)}
+            </ul>
+
+            {offre.limite && <p class="caveat mb-6">{offre.limite}</p>}
+
+            <p class="text-xs text-white/40 font-light mt-auto">{offre.pourQui}</p>
+          </div>
+        ))}
       </div>
 
       <div class="text-center mt-12">
-        <a href="/comment-ca-marche" class="btn btn-outline">Le détail complet →</a>
+        <a href="/tarifs" class="btn btn-outline">Le détail de chaque formule →</a>
       </div>
     </div>
   </section>
 
-  <!-- BORNE 3D -->
+  <!-- LA BORNE -->
   <section class="section-alt">
     <div class="container-x">
       <div class="text-center mb-10 max-w-3xl mx-auto">
@@ -294,102 +207,85 @@ const serviceJsonLd = {
         </h2>
         <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
           Faites-la pivoter, ouvrez les portes. Huit casiers, une prise 230 V, une carte SIM.
-          Pas de génie civil, pas de raccordement réseau.
+          Pas de génie civil, pas de raccordement à votre réseau.
         </p>
       </div>
 
       <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
         <LockerDistributor3D />
       </div>
+
+      <div class="text-center mt-10">
+        <a href="/la-borne" class="btn btn-outline">Fiche technique et prérequis →</a>
+      </div>
     </div>
   </section>
 
-  <!-- PRIX -->
+  <!-- CE QUI RASSURE -->
   <section class="section">
     <div class="container-x">
-      <div class="text-center mb-12 max-w-2xl mx-auto">
-        <span class="eyebrow" data-reveal>Prix</span>
+      <div class="text-center mb-14 max-w-2xl mx-auto">
+        <span class="eyebrow" data-reveal>Nos engagements</span>
         <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
-          Deux lignes, pas trois pages.
+          Ce qui se passe<br/>quand ça casse.
         </h2>
+        <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
+          C’est la vraie question quand on achète à quelqu’un qu’on ne connaît pas encore.
+        </p>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-5 max-w-4xl mx-auto">
-        <div class="card-dark p-8" data-reveal data-reveal-delay="2">
-          <div class="text-xs uppercase tracking-[0.12em] text-brand-400 mb-3">Vous achetez la borne</div>
-          <div class="font-extrabold text-3xl text-white mb-1">{eur(OFFRE.prixBorne)}</div>
-          <div class="text-sm text-white/60 font-light mb-5">
-            Borne de {OFFRE.casiers} casiers, installée, garnie de {OFFRE.articlesInclus} articles.
-          </div>
-          <div class="font-extrabold text-xl text-white mb-1">+ {eur(OFFRE.aboSaison)} / saison</div>
-          <div class="text-sm text-white/60 font-light">
-            Logiciel, maintenance, remplacement du matériel d’usure.
-          </div>
-        </div>
-
-        <div class="card-dark p-8" data-reveal data-reveal-delay="3">
-          <div class="text-xs uppercase tracking-[0.12em] text-brand-400 mb-3">Vous préférez louer</div>
-          <div class="font-extrabold text-3xl text-white mb-1">{eur(OFFRE.loyerMensuel)} / mois</div>
-          <div class="text-sm text-white/60 font-light mb-5">
-            Sur les {OFFRE.moisSaison} mois de la saison, soit {eur(loyerSaison)}.
-          </div>
-          <div class="font-extrabold text-xl text-white mb-1">Tout compris</div>
-          <div class="text-sm text-white/60 font-light">
-            Borne, matériel, logiciel, maintenance. Rien à immobiliser.
-          </div>
-        </div>
-      </div>
-
-      <p class="text-center text-sm text-white/50 font-light mt-8 max-w-2xl mx-auto" data-reveal data-reveal-delay="4">
-        Ce que vos clients paient, s’ils paient, vous revient intégralement. SportLocker ne
-        prélève aucune commission sur les emprunts.
-      </p>
-    </div>
-  </section>
-
-  <!-- PAYSAGE -->
-  <section class="section-alt">
-    <div class="container-x">
-      <div class="text-center mb-12">
-        <span class="eyebrow" data-reveal>Ce qui existe déjà</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Des casiers connectés, oui.<br/>Dans les campings, non.
-        </h2>
-      </div>
-      <div class="grid md:grid-cols-3 gap-5">
-        {paysage.map((c, i) => (
-          <div class="card-dark p-7" data-reveal data-reveal-delay={String(i + 1)}>
-            <div class="font-extrabold text-white mb-2">{c.name}</div>
-            <div class="text-sm text-white/50 font-light mb-4">{c.model}</div>
-            <div class="text-sm text-white/70 font-light">{c.diff}</div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {ENGAGEMENTS.map((e, i) => (
+          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
+            <h3 class="font-extrabold text-white mb-2">{e.titre}</h3>
+            <p class="text-sm text-white/55 font-light leading-relaxed">{e.detail}</p>
           </div>
         ))}
       </div>
+
+      <div class="max-w-3xl mx-auto mt-12" data-reveal>
+        <h3 class="font-extrabold text-white mb-4 text-center">Et ce qui reste à votre charge</h3>
+        <ul class="check-list sm:grid sm:grid-cols-2 sm:gap-x-8 sm:space-y-0 sm:[&>li]:mb-3">
+          {A_VOTRE_CHARGE.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+
+      <div class="text-center mt-10">
+        <a href="/installation-sav" class="btn btn-outline">Installation, SAV, fin de contrat →</a>
+      </div>
     </div>
   </section>
 
-  <!-- FAQ -->
-  <section class="section">
-    <div class="container-x max-w-3xl">
-      <div class="text-center mb-12">
-        <span class="eyebrow" data-reveal>Questions</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Ce qu’on nous demande</h2>
+  <!-- PMS -->
+  <section class="section-alt">
+    <div class="container-x">
+      <div class="max-w-3xl mx-auto text-center">
+        <span class="eyebrow" data-reveal>Compatibilité</span>
+        <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+          {PMS_MESSAGE.titre}
+        </h2>
+        <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
+          {PMS_MESSAGE.corps}
+        </p>
+        <p class="text-sm text-white/45 mt-5 font-light" data-reveal data-reveal-delay="3">
+          {PMS_MESSAGE.cite}
+        </p>
       </div>
-      <Faq items={faq} />
     </div>
   </section>
 
   <!-- CONTACT -->
-  <section id="contact" class="section-alt">
+  <section id="contact" class="section">
     <div class="container-x max-w-3xl">
       <div class="text-center mb-12">
-        <span class="eyebrow" data-reveal>Parlons-en</span>
+        <span class="eyebrow" data-reveal>Saison 2027</span>
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Quinze minutes, sans engagement
+          Trois campings pilotes recherchés
         </h2>
         <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Nous cherchons des campings pilotes en Vendée pour la saison 2027. Si vous prêtez déjà
-          du matériel à vos clients, votre retour nous intéresse — même si vous n’achetez rien.
+          En Vendée et Loire-Atlantique, pour la saison 2027. Et si vous voulez simplement nous
+          raconter comment vous prêtez du matériel aujourd’hui, c’est utile aussi — c’est même
+          ce qui nous intéresse le plus en ce moment.
         </p>
       </div>
       <ContactForm segment="camping" />
@@ -397,10 +293,10 @@ const serviceJsonLd = {
   </section>
 
   <FinalCta
-    title="Votre terrain multisports mérite un ballon."
-    sub="Quinze minutes pour voir si une borne a du sens chez vous. Aucun engagement au-delà de la conversation."
-    primary={{ href: '/contact#formulaire', label: 'En parler' }}
-    secondary={{ href: '/campings', label: 'Voir l’offre camping' }}
-    fine="Réponse sous 24 h ouvrées · Visite de site offerte en Vendée et Loire-Atlantique"
+    title="Trente minutes sur votre site."
+    sub="On regarde ensemble où poser la borne et où est la prise. Vous saurez tout de suite si ça a du sens chez vous."
+    primary={{ href: '/contact#formulaire', label: 'Demander une visite' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+    fine="Devis sous 48 h · Visite offerte en Vendée, Loire-Atlantique et Charente-Maritime"
   />
 </Base>

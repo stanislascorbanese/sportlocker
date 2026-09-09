@@ -3,7 +3,7 @@ import Base from '@/layouts/Base.astro'
 import Hero from '@/components/Hero.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import { OFFRE, SITE } from '@/data/site'
+import { SITE, SPECS } from '@/data/site'
 
 const vacancier = [
   {
@@ -52,7 +52,7 @@ const accueil = [
 ]
 
 const technique = [
-  { label: 'Casiers', value: `${OFFRE.casiers} casiers individuels` },
+  { label: 'Casiers', value: SPECS[0]?.valeur ?? '8 casiers individuels' },
   { label: 'Alimentation', value: 'Prise 230 V standard, onduleur de secours intégré' },
   { label: 'Connexion', value: '4G intégrée — aucun raccordement réseau à prévoir' },
   { label: 'Ouverture', value: 'Code signé vérifié localement, fonctionne hors ligne' },

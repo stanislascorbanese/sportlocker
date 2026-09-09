@@ -12,7 +12,7 @@ const SITEMAP_EXCLUDE = [
   '/cgu', '/cgv', '/mentions-legales', '/confidentialite', '/contact',
   // Pages retirées en septembre 2026 (pivot campings) — conservées en
   // redirection meta-refresh, donc hors sitemap.
-  '/tarifs', '/mairies', '/hotels', '/couverture', '/communes', '/faq',
+  '/mairies', '/hotels', '/couverture', '/communes', '/faq', '/campings',
 ]
 
 export default defineConfig({
