@@ -3,34 +3,7 @@ import { withSentryConfig } from '@sentry/nextjs'
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@sportlocker/types'],
-  experimental: { typedRoutes: true },
-  // packages/types utilise la convention ESM TS (`./locker.js` qui pointe en
-  // réalité vers `./locker.ts`). tsc le résout via `moduleResolution: Bundler`,
-  // webpack a besoin d'un coup de pouce explicite — sinon "Can't resolve
-  // './locker.js'" au `next build`.
-  webpack: (config) => {
-    config.resolve.extensionAlias = {
-      '.js': ['.ts', '.tsx', '.js', '.jsx'],
-      '.mjs': ['.mts', '.mjs'],
-    }
-    return config
-  },
-  // /history était un cul-de-sac (page "Tu n'as pas encore d'emprunts" alors
-  // que l'historique réel vit sur /profile via <ReservationsHistory>).
-  // Redirect permanent 308 (preserve method, vs 301 qui force GET) — pas de
-  // form sur l'ancienne route donc impact nul. `permanent: true` est
-  // l'équivalent Next.js pour 308.
-  async redirects() {
-    return [
-      {
-        source: '/history',
-        destination: '/profile',
-        permanent: true,
-      },
-    ]
-  },
-
+  typedRoutes: true,
   // Headers PWA-ready : manifest + service worker servis avec les bons MIME
   // et cache courts pour permettre les màj des assets.
   async headers() {
