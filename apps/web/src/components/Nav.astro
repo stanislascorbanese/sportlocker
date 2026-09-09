@@ -5,14 +5,13 @@ import { NAV } from '@/data/site'
 
 const path = Astro.url.pathname
 
-const SEGMENT_PATHS = ['/mairies', '/campings', '/hotels']
-const segments = [
-  { href: '/mairies', label: 'Mairies', icon: '🏛️', desc: 'Stades municipaux & parcs publics' },
-  { href: '/campings', label: 'Campings', icon: '🏖️', desc: 'Plages publiques & bord de mer' },
-  { href: '/hotels', label: 'Hôtels', icon: '✨', desc: 'Complexes 3★ / 4★ / 5★' },
-]
-const mainNav = NAV.filter((item) => !SEGMENT_PATHS.includes(item.href))
-const solutionsActive = SEGMENT_PATHS.includes(path)
+// Le menu déroulant « Solutions » servait les trois segments de mai 2026
+// (mairies / campings / hôtels). Depuis le pivot de septembre 2026 il n'y a
+// plus qu'un segment : le lien direct suffit, le sous-menu a disparu.
+const SEGMENT_PATHS: string[] = []
+const segments: { href: string; label: string; icon: string; desc: string }[] = []
+const mainNav = NAV
+const solutionsActive = false
 ---
 
 <nav id="nav">

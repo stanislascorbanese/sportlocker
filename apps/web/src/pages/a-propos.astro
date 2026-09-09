@@ -3,38 +3,43 @@ import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import { SITE } from '@/data/site'
 
-// Page annexe « À propos » : crédibilise la vitrine B2B auprès des mairies,
-// campings et hôtels (qui achètent autant l'entreprise que le produit).
-// Contenu volontairement factuel et défendable — pas de chiffres inventés.
+// Page annexe « À propos » : crédibilise la vitrine auprès des gérants de
+// camping, qui achètent autant la personne que le produit.
+// Règle tenue ici : aucun chiffre d'usage tant qu'une borne n'a pas tourné
+// une saison. Ceux de la v1 (34 % de renoncement, 8 % de sites équipés)
+// n'avaient aucune source et ont été retirés.
 
 const valeurs = [
   {
-    icon: '🌍',
-    title: 'L\'accès au sport pour tous',
-    desc: 'Pas besoin de posséder son matériel pour jouer. Un ballon, une raquette, à deux pas de chez soi, à l\'heure qu\'on veut. Le sport redevient une décision spontanée.',
+    icon: '🎯',
+    title: 'Un problème étroit, bien résolu',
+    desc: 'SportLocker ne cherche pas à équiper tous les lieux publics de France. Il résout une chose : le prêt de matériel de sport dans un camping, quand l\'accueil est fermé.',
   },
   {
     icon: '🛠️',
     title: 'Clé en main, vraiment',
-    desc: 'On fournit la borne, le matériel, la connectivité, la maintenance et le support. L\'établissement n\'a rien à gérer au quotidien — c\'est notre métier, pas le sien.',
+    desc: 'Borne, matériel sportif, connectivité, maintenance et support. Votre accueil remet du matériel dans les casiers vides, c\'est tout ce qu\'on lui demande.',
   },
   {
-    icon: '🔒',
-    title: 'Robuste et durable',
-    desc: 'Bornes antivandales conçues pour dix ans en extérieur, firmware mis à jour à distance, matériel renouvelé inclus. On construit pour durer, pas pour remplacer.',
+    icon: '📍',
+    title: 'À une heure de route',
+    desc: 'Basé en Vendée, premier département français pour la capacité de camping. Une panne se règle le jour même, pas par un ticket dans une file d\'attente.',
   },
   {
     icon: '🇫🇷',
     title: 'Conçu et opéré en France',
-    desc: 'Hébergement des données en Europe, support en français, conformité RGPD by design. Une équipe joignable, pas un numéro surtaxé à l\'autre bout du monde.',
+    desc: 'Données hébergées en Europe, conformité RGPD dès la conception, support en français. Une personne joignable, pas un numéro surtaxé.',
   },
 ]
 
+// Aucun chiffre d'usage ici : aucune borne n'a encore tourné une saison. Ceux
+// qui figuraient sur cette page en mai 2026 (taux de renoncement, part des
+// sites équipés) n'étaient étayés par aucune source et ont été retirés.
 const chiffres = [
-  { value: '24/7', label: 'Libre-service, sans personnel sur site' },
-  { value: '3', label: 'Segments servis : mairies, campings, hôtels' },
-  { value: '< 1 s', label: 'Pour ouvrir un casier avec son QR code' },
-  { value: '4-6 sem.', label: 'De la demande à la mise en service' },
+  { value: '8', label: 'Casiers par borne' },
+  { value: '24 h', label: 'Service disponible, nuit comprise' },
+  { value: '< 1 s', label: 'Pour ouvrir un casier' },
+  { value: '2027', label: 'Premières installations, saison de printemps' },
 ]
 
 const aboutJsonLd = [
@@ -42,7 +47,7 @@ const aboutJsonLd = [
     '@type': 'AboutPage',
     name: `À propos — ${SITE.name}`,
     description:
-      'La mission, les valeurs et l\'approche de SportLocker : rendre le matériel sportif accessible en libre-service 24/7 sur les sites publics et touristiques.',
+      'Qui est derrière SportLocker, pourquoi les campings, et où en est le produit.',
     url: `${SITE.url}/a-propos`,
   },
   {
@@ -57,7 +62,7 @@ const aboutJsonLd = [
 
 <Base
   title="À propos — notre mission"
-  description="SportLocker rend le matériel sportif accessible en libre-service 24/7 sur les terrains publics, les campings et les hôtels. Notre mission, nos valeurs et notre approche clé en main, conçue et opérée en France."
+  description="Qui est derrière SportLocker, pourquoi le choix des campings de la côte atlantique, et où en est réellement le produit."
   extraJsonLd={aboutJsonLd}
 >
   <!-- HEADER -->
@@ -66,13 +71,13 @@ const aboutJsonLd = [
     <div class="container-x relative">
       <span class="eyebrow" data-reveal>À propos</span>
       <h1 class="font-extrabold text-display-xl text-white mt-3 mb-5" data-reveal data-reveal-delay="1">
-        Le sport en libre-service,<br/>
-        <span class="text-brand-400">partout, tout le temps.</span>
+        Une armoire à ballons<br/>
+        <span class="text-brand-400">qui se gère toute seule.</span>
       </h1>
       <p class="text-[1.15rem] text-white/65 leading-loose max-w-2xl font-light" data-reveal data-reveal-delay="2">
-        SportLocker installe des distributeurs connectés de matériel sportif sur les
-        terrains publics, les campings et les hôtels. Les usagers empruntent en 30 secondes
-        depuis leur téléphone. Les établissements offrent un nouveau service sans rien gérer.
+        SportLocker installe des bornes de casiers connectés dans les campings de la côte
+        atlantique. Les vacanciers empruntent un ballon ou une raquette avec leur numéro de
+        séjour, à toute heure. Le camping sait enfin ce qui sort et ce qui ne revient pas.
       </p>
     </div>
   </section>
