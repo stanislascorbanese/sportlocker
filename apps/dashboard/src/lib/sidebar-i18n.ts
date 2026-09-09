@@ -11,32 +11,33 @@ import type { Lang } from './lang'
 
 type SidebarKey =
   | 'consoleSubtitle'
-  | 'navHome' | 'navMap' | 'navDistributors' | 'navHealth' | 'navItems' | 'navPricing'
-  | 'navCommunes' | 'navUsers' | 'navReservations' | 'navMaintenance'
-  | 'navStats' | 'navReports' | 'navAudit' | 'navPayments' | 'navTenants' | 'navAgentOffice'
+  | 'navHome' | 'navReassort' | 'navUnreturned' | 'navMap' | 'navDistributors'
+  | 'navHealth' | 'navItems' | 'navCommunes' | 'navUsers' | 'navReservations'
+  | 'navMaintenance' | 'navStats' | 'navReports' | 'navAudit'
+  | 'navTenants' | 'navAgentOffice'
   | 'oneCommune' | 'logout' | 'loggingOut'
   | 'roleSuperAdmin' | 'roleAdmin' | 'roleOperator'
 
 const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
   fr: {
-    consoleSubtitle:  'Console opérateur',
+    consoleSubtitle:  'Console camping',
     navHome:          'Accueil',
+    navReassort:      'Réassort',
+    navUnreturned:    'Non rendus',
     navMap:           'Carte',
-    navDistributors:  'Distributeurs',
-    navHealth:        'Santé du parc',
-    navItems:         'Articles',
-    navPricing:       'Tarification',
-    navCommunes:      'Communes',
+    navDistributors:  'Bornes',
+    navHealth:        'État des bornes',
+    navItems:         'Matériel',
+    navCommunes:      'Campings',
     navUsers:         'Utilisateurs',
-    navReservations:  'Réservations',
+    navReservations:  'Emprunts',
     navMaintenance:   'Maintenance',
-    navStats:         'Stats',
+    navStats:         'Statistiques',
     navReports:       'Rapports',
-    navAudit:         'Audit',
-    navPayments:      'Paiements',
-    navTenants:       'Tenants',
+    navAudit:         'Journal',
+    navTenants:       'Clients',
     navAgentOffice:   'Agent Office',
-    oneCommune:       '1 commune',
+    oneCommune:       '1 camping',
     logout:           'Se déconnecter',
     loggingOut:       'Déconnexion…',
     roleSuperAdmin:   'Super-admin',
@@ -44,24 +45,24 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     roleOperator:     'Opérateur',
   },
   en: {
-    consoleSubtitle:  'Operator console',
+    consoleSubtitle:  'Campsite console',
     navHome:          'Home',
+    navReassort:      'Restocking',
+    navUnreturned:    'Not returned',
     navMap:           'Map',
-    navDistributors:  'Distributors',
-    navHealth:        'Fleet health',
-    navItems:         'Items',
-    navPricing:       'Pricing',
-    navCommunes:      'Communes',
+    navDistributors:  'Kiosks',
+    navHealth:        'Kiosk status',
+    navItems:         'Gear',
+    navCommunes:      'Campsites',
     navUsers:         'Users',
-    navReservations:  'Reservations',
+    navReservations:  'Loans',
     navMaintenance:   'Maintenance',
-    navStats:         'Stats',
+    navStats:         'Statistics',
     navReports:       'Reports',
-    navAudit:         'Audit',
-    navPayments:      'Payments',
-    navTenants:       'Tenants',
+    navAudit:         'Activity log',
+    navTenants:       'Clients',
     navAgentOffice:   'Agent Office',
-    oneCommune:       '1 commune',
+    oneCommune:       '1 campsite',
     logout:           'Sign out',
     loggingOut:       'Signing out…',
     roleSuperAdmin:   'Super-admin',

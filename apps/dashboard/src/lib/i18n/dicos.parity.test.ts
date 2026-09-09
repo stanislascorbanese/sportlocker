@@ -22,11 +22,11 @@ import { invitesStrings } from './invites'
 import { itemsStrings } from './items'
 import { maintenanceStrings } from './maintenance'
 import { meStrings } from './me'
-import { paymentsStrings } from './payments'
-import { pricingStrings } from './pricing'
+import { reassortStrings } from './reassort'
 import { reportsStrings } from './reports'
 import { reservationsStrings } from './reservations'
 import { statsStrings } from './stats'
+import { unreturnedStrings } from './unreturned'
 import { superAdminStrings } from './super-admin'
 import { usersStrings } from './users'
 
@@ -40,12 +40,12 @@ const DICOS = {
   items:        itemsStrings,
   maintenance:  maintenanceStrings,
   me:           meStrings,
-  payments:     paymentsStrings,
-  pricing:      pricingStrings,
+  reassort:     reassortStrings,
   reports:      reportsStrings,
   reservations: reservationsStrings,
   stats:        statsStrings,
   superAdmin:   superAdminStrings,
+  unreturned:   unreturnedStrings,
   users:        usersStrings,
 } as const
 

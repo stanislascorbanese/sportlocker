@@ -8,11 +8,10 @@ import { lockerEventLabel } from './audit'
 import { mapFirebaseError } from './auth'
 import { conditionLabel } from './items'
 import { roleLabel } from './me'
-import { paymentStatusLabel } from './payments'
 import { reservationStatusLabel } from './stats'
 import { userRoleLabel } from './users'
 
-import type { ItemCondition, LockerEventType, PaymentStatus, ReservationStatus, UserRole } from '../api'
+import type { ItemCondition, LockerEventType, ReservationStatus, UserRole } from '../api'
 import type { SessionPayload } from '../session'
 
 describe('lockerEventLabel', () => {
@@ -68,22 +67,6 @@ describe('conditionLabel', () => {
   it('FR labels are translated (different from EN slug)', () => {
     expect(conditionLabel('fr', 'damaged')).toBe('endommagé')
     expect(conditionLabel('en', 'damaged')).toBe('damaged')
-  })
-})
-
-describe('paymentStatusLabel', () => {
-  const statuses: PaymentStatus[] = ['succeeded', 'pending', 'failed', 'cancelled', 'refunded']
-
-  it.each(statuses)('FR returns a non-empty label for %s', (s) => {
-    expect(paymentStatusLabel('fr', s)).toBeTruthy()
-  })
-
-  it('FR succeeded is "Payé"', () => {
-    expect(paymentStatusLabel('fr', 'succeeded')).toBe('Payé')
-  })
-
-  it('EN succeeded is "Paid"', () => {
-    expect(paymentStatusLabel('en', 'succeeded')).toBe('Paid')
   })
 })
 

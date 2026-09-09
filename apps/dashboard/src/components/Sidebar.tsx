@@ -6,6 +6,8 @@ import { useState } from 'react'
 import { signOut } from 'firebase/auth'
 import {
   Home,
+  PackageOpen,
+  AlertTriangle,
   Map,
   Server,
   CalendarClock,
@@ -13,10 +15,8 @@ import {
   Building2,
   Users,
   Package,
-  Tag,
   BarChart3,
   Activity,
-  CreditCard,
   FileText,
   ShieldCheck,
   Stethoscope,
@@ -36,21 +36,29 @@ import { ThemeToggle } from './ThemeToggle'
 
 type Item = { href: string; labelKey: keyof ReturnType<typeof sidebarStrings>; icon: LucideIcon }
 
+/**
+ * Ordre voulu : les deux premiers écrans après l'accueil sont ceux qu'on ouvre
+ * tous les jours — regarnir les casiers, et regarder ce qui n'est pas rentré.
+ * Tout le reste est consulté au mieux une fois par semaine, et descend donc.
+ *
+ * Retirés en septembre 2026 : la tarification et les paiements. SportLocker
+ * n'encaisse plus rien du vacancier (cf. docs/CDC.md v2).
+ */
 const COMMON_ITEMS: Item[] = [
   { href: '/',             labelKey: 'navHome',          icon: Home },
-  { href: '/map',          labelKey: 'navMap',           icon: Map },
-  { href: '/distributors', labelKey: 'navDistributors',  icon: Server },
-  { href: '/health',       labelKey: 'navHealth',        icon: Stethoscope },
-  { href: '/items',        labelKey: 'navItems',         icon: Package },
-  { href: '/pricing',      labelKey: 'navPricing',       icon: Tag },
-  { href: '/communes',     labelKey: 'navCommunes',      icon: Building2 },
-  { href: '/users',        labelKey: 'navUsers',         icon: Users },
+  { href: '/reassort',     labelKey: 'navReassort',      icon: PackageOpen },
+  { href: '/non-rendus',   labelKey: 'navUnreturned',    icon: AlertTriangle },
   { href: '/reservations', labelKey: 'navReservations',  icon: CalendarClock },
+  { href: '/distributors', labelKey: 'navDistributors',  icon: Server },
+  { href: '/items',        labelKey: 'navItems',         icon: Package },
   { href: '/maintenance',  labelKey: 'navMaintenance',   icon: Wrench },
+  { href: '/health',       labelKey: 'navHealth',        icon: Stethoscope },
+  { href: '/map',          labelKey: 'navMap',           icon: Map },
   { href: '/stats',        labelKey: 'navStats',         icon: BarChart3 },
   { href: '/reports',      labelKey: 'navReports',       icon: FileText },
+  { href: '/communes',     labelKey: 'navCommunes',      icon: Building2 },
+  { href: '/users',        labelKey: 'navUsers',         icon: Users },
   { href: '/audit',        labelKey: 'navAudit',         icon: Activity },
-  { href: '/settings/payments', labelKey: 'navPayments', icon: CreditCard },
 ]
 
 const SUPER_ADMIN_ITEMS: Item[] = [
