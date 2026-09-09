@@ -1,3 +1,6 @@
+/* Jetons partagés (clair/sombre) — packages/config/tailwind/tokens.css */
+@import '@sportlocker/config/tailwind/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
