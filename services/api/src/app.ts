@@ -40,6 +40,7 @@ import { stripeWebhookRoutes } from './routes/stripe-webhook.js'
 import { webhooksStripeRoutes } from './routes/webhooks-stripe.js'
 import { adminLiveRoutes } from './routes/admin-live.js'
 import { devRoutes } from './routes/dev.js'
+import { kioskRoutes } from './routes/kiosk.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -138,6 +139,8 @@ export async function buildApp() {
   await app.register(authRoutes,         { prefix: '/v1/auth' })
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
+  // Parcours vacancier — sans compte, sans paiement. Cf. docs/API-VACANCIER.md.
+  await app.register(kioskRoutes,        { prefix: '/v1/kiosk' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
   await app.register(userRoutes,         { prefix: '/v1/users' })
   await app.register(walletRoutes,       { prefix: '/v1/wallet' })

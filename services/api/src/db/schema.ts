@@ -411,3 +411,59 @@ export const reservationsRelations = relations(reservations, ({ one }) => ({
   item: one(items, { fields: [reservations.itemId], references: [items.id] }),
   distributor: one(distributors, { fields: [reservations.distributorId], references: [distributors.id] }),
 }))
+
+// ─── stays / loans — modèle camping (septembre 2026) ───────────────────────
+//
+// Le vacancier n'a pas de compte : il existe le temps de son séjour et
+// s'identifie par (numéro d'emplacement, nom de famille), que le camping a
+// déjà vérifié au check-in. D'où deux tables séparées de `reservations`, qui
+// reste au modèle historique avec compte, créneau et prix.
+// Cf. database/migrations/0021_stays_and_loans.sql pour le raisonnement.
+
+export const stays = pgTable('stays', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  communeId: uuid('commune_id').notNull().references(() => communes.id, { onDelete: 'cascade' }),
+  stayRef: varchar('stay_ref', { length: 32 }).notNull(),
+  lastName: varchar('last_name', { length: 120 }).notNull(),
+  firstName: varchar('first_name', { length: 120 }),
+  arrivesOn: date('arrives_on').notNull(),
+  departsOn: date('departs_on').notNull(),
+  importBatch: uuid('import_batch'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uxCommuneRefArrival: uniqueIndex('idx_stays_commune_ref_arrival')
+    .on(t.communeId, t.stayRef, t.arrivesOn),
+  byCommuneRef: index('idx_stays_commune_ref').on(t.communeId, t.stayRef),
+  byWindow: index('idx_stays_window').on(t.communeId, t.departsOn),
+}))
+
+export const loans = pgTable('loans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  stayId: uuid('stay_id').notNull().references(() => stays.id, { onDelete: 'restrict' }),
+  distributorId: uuid('distributor_id').notNull().references(() => distributors.id, { onDelete: 'restrict' }),
+  lockerId: uuid('locker_id').notNull().references(() => lockers.id, { onDelete: 'restrict' }),
+  itemId: uuid('item_id').notNull().references(() => items.id, { onDelete: 'restrict' }),
+  borrowedAt: timestamp('borrowed_at', { withTimezone: true }).notNull().defaultNow(),
+  returnedAt: timestamp('returned_at', { withTimezone: true }),
+  returnLockerId: uuid('return_locker_id').references(() => lockers.id, { onDelete: 'set null' }),
+  chargedAt: timestamp('charged_at', { withTimezone: true }),
+  chargedByUserId: uuid('charged_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byStay: index('idx_loans_stay').on(t.stayId),
+  byBorrowed: index('idx_loans_borrowed').on(t.borrowedAt),
+}))
+
+export const staysRelations = relations(stays, ({ one, many }) => ({
+  commune: one(communes, { fields: [stays.communeId], references: [communes.id] }),
+  loans: many(loans),
+}))
+
+export const loansRelations = relations(loans, ({ one }) => ({
+  stay: one(stays, { fields: [loans.stayId], references: [stays.id] }),
+  distributor: one(distributors, { fields: [loans.distributorId], references: [distributors.id] }),
+  locker: one(lockers, { fields: [loans.lockerId], references: [lockers.id] }),
+  item: one(items, { fields: [loans.itemId], references: [items.id] }),
+}))

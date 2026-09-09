@@ -23,7 +23,7 @@ type SidebarKey =
 const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
   fr: {
     consoleSubtitle:  'Console camping',
-    navHome:          'Accueil',
+    navHome:          "Aujourd'hui",
     navReassort:      'Réassort',
     navUnreturned:    'Non rendus',
     navMap:           'Carte',
@@ -53,7 +53,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
   },
   en: {
     consoleSubtitle:  'Campsite console',
-    navHome:          'Home',
+    navHome:          'Today',
     navReassort:      'Restocking',
     navUnreturned:    'Not returned',
     navMap:           'Map',

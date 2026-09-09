@@ -93,59 +93,79 @@ const metricsDelay = (totalWords * 0.1 + 0.4).toFixed(2)
           <div class="hero-product-halo"></div>
           <!-- Mockup distributeur SVG -->
           <div class="hero-distributor">
+            <!--
+              Mockup de la borne, aligné sur la fiche technique : format portrait
+              (90 × 50 × 180 cm), trois colonnes de 30 cm, deux grandes portes de
+              1 m pour le matériel long, six casiers à ballons, plaque QR à la
+              place de l'ancien écran tactile, et le câble 230 V au lieu du
+              panneau solaire — la borne n'en a plus.
+            -->
             <svg viewBox="0 0 260 480" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
-              <rect x="20" y="20" width="220" height="440" rx="16" fill="#111C27" stroke="#1D9E75" stroke-width="1.5"/>
-              <rect x="20" y="20" width="220" height="56" rx="16" fill="#0F6E56"/>
-              <rect x="20" y="56" width="220" height="20" fill="#0F6E56"/>
-              <text x="130" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="18" fill="white" opacity="0.9">SportLocker</text>
-              <!-- Écran -->
-              <rect x="38" y="92" width="184" height="100" rx="8" fill="#0A1520"/>
-              <rect x="38" y="92" width="184" height="100" rx="8" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
-              <rect x="50" y="104" width="80" height="10" rx="3" fill="#1D9E75" opacity="0.7"/>
-              <rect x="50" y="122" width="120" height="8" rx="3" fill="white" opacity="0.15"/>
-              <rect x="50" y="138" width="100" height="8" rx="3" fill="white" opacity="0.1"/>
-              <rect x="50" y="154" width="60" height="8" rx="3" fill="white" opacity="0.08"/>
-              <!-- QR zone -->
-              <rect x="152" y="100" width="60" height="60" rx="6" fill="#1D9E75" opacity="0.12" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
-              <rect x="158" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
-              <rect x="176" y="106" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
-              <rect x="158" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.5"/>
-              <rect x="176" y="124" width="14" height="14" rx="2" fill="#2BC295" opacity="0.7"/>
-              <rect x="158" y="142" width="32" height="4" rx="2" fill="#2BC295" opacity="0.4"/>
-              <!-- Casier 1 -->
-              <rect x="38" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="81" cy="244" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <text x="44" y="224" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">01</text>
-              <!-- Casier 2 — actif -->
-              <rect x="134" y="210" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1.5" stroke-opacity="0.9"/>
-              <rect x="134" y="210" width="86" height="68" rx="6" fill="#1D9E75" opacity="0.06"/>
-              <circle cx="177" cy="244" r="8" fill="#2BC295" opacity="0.9"/>
-              <path d="M173 244 l3 3 6-6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <text x="140" y="224" font-family="system-ui,sans-serif" font-size="9" fill="#2BC295" opacity="0.6">02</text>
-              <!-- Casier 3 -->
-              <rect x="38" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="81" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <text x="44" y="302" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">03</text>
-              <!-- Casier 4 -->
-              <rect x="134" y="288" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="177" cy="322" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <text x="140" y="302" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">04</text>
-              <!-- Casier 5 -->
-              <rect x="38" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="81" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <text x="44" y="380" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">05</text>
-              <!-- Casier 6 -->
-              <rect x="134" y="366" width="86" height="68" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
-              <circle cx="177" cy="400" r="8" fill="#1D2F3F" opacity="0.6"/>
-              <text x="140" y="380" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">06</text>
-              <!-- Pied -->
-              <rect x="80" y="432" width="100" height="12" rx="4" fill="#0A1520" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.3"/>
-              <!-- Panneau solaire -->
-              <rect x="55" y="450" width="150" height="6" rx="3" fill="#1D9E75" opacity="0.2"/>
+              <!-- Corps -->
+              <rect x="44" y="24" width="172" height="424" rx="12" fill="#111C27" stroke="#1D9E75" stroke-width="1.5"/>
+              <!-- Capot -->
+              <rect x="38" y="18" width="184" height="16" rx="6" fill="#0F6E56" opacity="0.85"/>
+              <!-- Antenne 4G -->
+              <path d="M196 18 l4 -18" stroke="#2BC295" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
+              <circle cx="200" cy="-1" r="3" fill="#2BC295" opacity="0.8"/>
+              <!-- Liseré de marque -->
+              <rect x="52" y="38" width="156" height="3" rx="1.5" fill="#2BC295" opacity="0.75"/>
+
+              <!-- Colonne interface (droite) : marque + plaque QR + plaque signalétique -->
+              <rect x="164" y="50" width="44" height="196" rx="7" fill="#0A1520" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.35"/>
+              <rect x="170" y="56" width="32" height="9" rx="3" fill="#1D9E75" opacity="0.55"/>
+              <rect x="170" y="74" width="32" height="44" rx="4" fill="#0D1B2A" stroke="#2BC295" stroke-width="1" stroke-opacity="0.55"/>
+              <rect x="176" y="80" width="8" height="8" rx="1.5" fill="#2BC295" opacity="0.75"/>
+              <rect x="188" y="80" width="8" height="8" rx="1.5" fill="#2BC295" opacity="0.5"/>
+              <rect x="176" y="92" width="8" height="8" rx="1.5" fill="#2BC295" opacity="0.5"/>
+              <rect x="188" y="92" width="8" height="8" rx="1.5" fill="#2BC295" opacity="0.75"/>
+              <rect x="176" y="104" width="20" height="3" rx="1.5" fill="#2BC295" opacity="0.4"/>
+              <rect x="170" y="128" width="32" height="26" rx="3" fill="#1D2F3F" opacity="0.7"/>
+              <rect x="174" y="133" width="24" height="2.5" rx="1.25" fill="white" opacity="0.18"/>
+              <rect x="174" y="139" width="18" height="2.5" rx="1.25" fill="white" opacity="0.12"/>
+              <rect x="174" y="145" width="21" height="2.5" rx="1.25" fill="white" opacity="0.12"/>
+
+              <!-- Deux grandes portes (matériel long) -->
+              <rect x="56" y="50" width="48" height="196" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.3"/>
+              <text x="62" y="64" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">01</text>
+              <circle cx="96" cy="60" r="3.5" fill="#2BC295" opacity="0.85"/>
+              <rect x="96" y="138" width="4" height="20" rx="2" fill="white" opacity="0.18"/>
+              <rect x="110" y="50" width="48" height="196" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.3"/>
+              <text x="116" y="64" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">02</text>
+              <circle cx="150" cy="60" r="3.5" fill="#2BC295" opacity="0.85"/>
+              <rect x="150" y="138" width="4" height="20" rx="2" fill="white" opacity="0.18"/>
+
+              <!-- Six casiers à ballons, 3 colonnes × 2 rangées -->
+              <rect x="56" y="256" width="48" height="80" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <text x="62" y="270" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">03</text>
+              <circle cx="80" cy="302" r="9" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="110" y="256" width="48" height="80" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1.5" stroke-opacity="0.9"/>
+              <rect x="110" y="256" width="48" height="80" rx="6" fill="#1D9E75" opacity="0.07"/>
+              <text x="116" y="270" font-family="system-ui,sans-serif" font-size="9" fill="#2BC295" opacity="0.6">04</text>
+              <circle cx="134" cy="302" r="9" fill="#2BC295" opacity="0.9"/>
+              <path d="M130 302 l3 3 6-6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="164" y="256" width="44" height="80" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <text x="170" y="270" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">05</text>
+              <circle cx="186" cy="302" r="9" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="56" y="346" width="48" height="80" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <text x="62" y="360" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">06</text>
+              <circle cx="80" cy="392" r="9" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="110" y="346" width="48" height="80" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <text x="116" y="360" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">07</text>
+              <circle cx="134" cy="392" r="9" fill="#1D2F3F" opacity="0.6"/>
+              <rect x="164" y="346" width="44" height="80" rx="6" fill="#0D1B2A" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.25"/>
+              <text x="170" y="360" font-family="system-ui,sans-serif" font-size="9" fill="white" opacity="0.3">08</text>
+              <circle cx="186" cy="392" r="9" fill="#1D2F3F" opacity="0.6"/>
+
+              <!-- Socle et câble 230 V -->
+              <rect x="52" y="448" width="156" height="12" rx="4" fill="#0A1520" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.3"/>
+              <path d="M70 460 C 60 470, 42 470, 30 464" stroke="#1D9E75" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+              <rect x="18" y="458" width="12" height="9" rx="2" fill="#0A1520" stroke="#1D9E75" stroke-width="1" stroke-opacity="0.4"/>
+
               <!-- Status pulsant -->
-              <circle cx="218" cy="42" r="5" fill="#2BC295"/>
-              <circle cx="218" cy="42" r="5" fill="#2BC295" opacity="0.4">
-                <animate attributeName="r" values="5;10;5" dur="2s" repeatCount="indefinite"/>
+              <circle cx="204" cy="30" r="4" fill="#2BC295"/>
+              <circle cx="204" cy="30" r="4" fill="#2BC295" opacity="0.4">
+                <animate attributeName="r" values="4;9;4" dur="2s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
               </circle>
             </svg>
@@ -157,7 +177,7 @@ const metricsDelay = (totalWords * 0.1 + 0.4).toFixed(2)
           </div>
           <div class="hero-badge hero-badge-2">
             <span>⚡</span>
-            <span>Ouverture en 28s</span>
+            <span>Emprunt en 30 secondes</span>
           </div>
         </div>
       </div>

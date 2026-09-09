@@ -1,13 +1,16 @@
 import type { Lang } from '../lang'
 
 /**
- * Strings du /page.tsx (home super_admin + parc global) ET de _TenantHome
- * (home admin scopé commune). Les 2 partagent les mêmes KPI cards / sections.
+ * Strings de /page.tsx — la vue parc globale servie aux super-admins.
+ *
+ * Les clés `tenant*` ont été retirées en septembre 2026 avec le composant
+ * _TenantHome : le gérant de camping voit désormais « Aujourd'hui »
+ * (lib/i18n/today.ts), qui ne parle plus de commune ni de parc.
  */
 
 type HomeKey =
   // En-tête commun
-  | 'pageTitleOverview' | 'pageTitleTenant' | 'metaTitle'
+  | 'pageTitleOverview' | 'metaTitle'
   // Sections
   | 'sectionTrend' | 'sectionPark' | 'sectionMaintenance' | 'sectionAlerts'
   | 'sectionMyDistributors' | 'sectionTopDistributors'
@@ -26,26 +29,10 @@ type HomeKey =
   | 'overdueReservations' | 'criticalTickets' | 'seeAll' | 'seeKanban'
   // Due relative
   | 'duePrefix'
-  // _TenantHome specific
-  | 'tenantSnapshotLabel'
-  | 'tenantParcCount' | 'tenantBookingsActive' | 'tenantOpenTicketsLabel'
-  | 'topRevenueTitle' | 'topRevenueHint'
-  | 'tenantGreeting'
-  | 'tenantDistributorsInService1' | 'tenantDistributorsInServiceMany'
-  | 'tenantLockersFree' | 'tenantFillRate'
-  | 'tenantToday' | 'tenantThisWeek'
-  | 'tenantViewDetailedStats'
-  | 'tenantOngoingReservations' | 'tenantOverdue' | 'tenantOpenTickets'
-  | 'tenantCriticalOf' | 'tenantCriticalOfOne'
-  | 'tenantYourDistributors' | 'tenantOfflineSuffix'
-  | 'tenantNoDistributors' | 'tenantNoDistributorsHint'
-  | 'tenantCriticalTickets'
-  | 'tenantFooterPart1' | 'tenantFooterOpenTicket' | 'tenantFooterOrContact'
 
 const STRINGS: Record<Lang, Record<HomeKey, string>> = {
   fr: {
     pageTitleOverview:        "Vue d'ensemble",
-    pageTitleTenant:          "Tableau de bord",
     metaTitle:                'Accueil · SportLocker ops',
 
     sectionTrend:             'Tendance · réservations',
@@ -87,38 +74,10 @@ const STRINGS: Record<Lang, Record<HomeKey, string>> = {
 
     duePrefix:                'dû',
 
-    tenantSnapshotLabel:      'Aperçu',
-    tenantParcCount:          'distributeurs',
-    tenantBookingsActive:     'emprunts en cours',
-    tenantOpenTicketsLabel:   'tickets ouverts',
-    topRevenueTitle:          'Revenus locations',
-    topRevenueHint:           '30 derniers jours · vos distributeurs uniquement',
 
-    tenantGreeting:                    'Bonjour,',
-    tenantDistributorsInService1:      'distributeur en service',
-    tenantDistributorsInServiceMany:   'distributeurs en service',
-    tenantLockersFree:                 'casiers libres',
-    tenantFillRate:                    "taux d'occupation",
-    tenantToday:                       "Aujourd'hui",
-    tenantThisWeek:                    'Cette semaine',
-    tenantViewDetailedStats:           'voir stats détaillées →',
-    tenantOngoingReservations:         'Réservations en cours',
-    tenantOverdue:                     'En retard',
-    tenantOpenTickets:                 'Tickets ouverts',
-    tenantCriticalOf:                  'dont %d critiques',
-    tenantCriticalOfOne:               'dont 1 critique',
-    tenantYourDistributors:            'Vos distributeurs',
-    tenantOfflineSuffix:               'hors ligne',
-    tenantNoDistributors:              "Aucun distributeur installé sur votre commune pour l'instant.",
-    tenantNoDistributorsHint:          "Contactez votre référent SportLocker pour planifier l'installation.",
-    tenantCriticalTickets:             'Tickets critiques',
-    tenantFooterPart1:                 "Besoin d'aide ? Un casier bloqué, un distributeur hors ligne ?",
-    tenantFooterOpenTicket:            'Ouvrez un ticket de maintenance',
-    tenantFooterOrContact:             'ou contactez',
   },
   en: {
     pageTitleOverview:        'Overview',
-    pageTitleTenant:          'Dashboard',
     metaTitle:                'Home · SportLocker ops',
 
     sectionTrend:             'Reservation trend',
@@ -160,34 +119,7 @@ const STRINGS: Record<Lang, Record<HomeKey, string>> = {
 
     duePrefix:                'due',
 
-    tenantSnapshotLabel:      'Snapshot',
-    tenantParcCount:          'distributors',
-    tenantBookingsActive:     'active loans',
-    tenantOpenTicketsLabel:   'open tickets',
-    topRevenueTitle:          'Booking revenue',
-    topRevenueHint:           'last 30 days · your distributors only',
 
-    tenantGreeting:                    'Hello,',
-    tenantDistributorsInService1:      'distributor in service',
-    tenantDistributorsInServiceMany:   'distributors in service',
-    tenantLockersFree:                 'free lockers',
-    tenantFillRate:                    'fill rate',
-    tenantToday:                       'Today',
-    tenantThisWeek:                    'This week',
-    tenantViewDetailedStats:           'view detailed stats →',
-    tenantOngoingReservations:         'Active reservations',
-    tenantOverdue:                     'Overdue',
-    tenantOpenTickets:                 'Open tickets',
-    tenantCriticalOf:                  'including %d critical',
-    tenantCriticalOfOne:               'including 1 critical',
-    tenantYourDistributors:            'Your distributors',
-    tenantOfflineSuffix:               'offline',
-    tenantNoDistributors:              'No distributors installed in your commune yet.',
-    tenantNoDistributorsHint:          'Contact your SportLocker rep to schedule installation.',
-    tenantCriticalTickets:             'Critical tickets',
-    tenantFooterPart1:                 'Need help? A stuck locker, an offline distributor?',
-    tenantFooterOpenTicket:            'Open a maintenance ticket',
-    tenantFooterOrContact:             'or contact',
   },
 }
 
