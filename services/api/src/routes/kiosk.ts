@@ -21,6 +21,8 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
+import { Identity, Kiosk, Loan, ReturnResult, type ItemKind } from '@sportlocker/types'
+
 import { db } from '../db/client.js'
 import {
   distributors,
@@ -40,8 +42,7 @@ const STAY_TOKEN_TTL_SEC = 30 * 60
  * Pictogramme affiché par l'app. Il ne pilote que le dessin, jamais une règle
  * métier : un type inconnu tombe sur `autre` et reste empruntable.
  */
-const KINDS = ['ballon', 'basket', 'volley', 'raquette', 'disque', 'plot', 'corde', 'boule', 'autre'] as const
-type Kind = typeof KINDS[number]
+type Kind = ItemKind
 
 /**
  * Déduit le pictogramme d'un type d'article. On regarde le slug puis le nom,
@@ -79,29 +80,6 @@ export function normalizeName(value: string): string {
     .replace(/[\s'\u2019-]/g, '')
 }
 
-const KioskItem = z.object({
-  itemTypeId: z.string().uuid(),
-  label: z.string(),
-  kind: z.enum(KINDS),
-  available: z.number().int().nonnegative(),
-})
-
-const KioskState = z.object({
-  serial: z.string(),
-  siteName: z.string(),
-  items: z.array(KioskItem),
-})
-
-const LoanView = z.object({
-  id: z.string().uuid(),
-  itemLabel: z.string(),
-  kind: z.enum(KINDS),
-  lockerNumber: z.number().int(),
-  borrowedAt: z.string(),
-  serial: z.string(),
-  siteName: z.string(),
-})
-
 const err = <T extends string>(code: T) => z.object({ error: z.literal(code) })
 
 /** Claims du `stayId`. Il est lié à une borne : il ne vaut pas ailleurs. */
@@ -130,7 +108,7 @@ async function readStayToken(token: string): Promise<StayTokenClaims | null> {
 }
 
 /** Le format d'emprunt renvoyé par trois routes sur cinq. */
-async function loadLoanView(loanId: string): Promise<z.infer<typeof LoanView> | null> {
+async function loadLoanView(loanId: string): Promise<z.infer<typeof Loan> | null> {
   const [row] = await db
     .select({
       id: loans.id,
@@ -172,7 +150,7 @@ export async function kioskRoutes(app: FastifyInstance): Promise<void> {
       tags: ['Kiosk'],
       summary: 'État public d\'une borne — ce qu\'elle contient, en un coup d\'œil.',
       params: z.object({ serial: z.string().min(1) }),
-      response: { 200: KioskState, 404: err('kiosk_not_found') },
+      response: { 200: Kiosk, 404: err('kiosk_not_found') },
     },
   }, async (req, reply) => {
     const { serial } = req.params as { serial: string }
@@ -237,11 +215,7 @@ export async function kioskRoutes(app: FastifyInstance): Promise<void> {
         lastName: z.string().min(1).max(120),
       }),
       response: {
-        200: z.object({
-          stayId: z.string(),
-          guestName: z.string(),
-          activeLoan: LoanView.nullable(),
-        }),
+        200: Identity,
         404: err('stay_not_found'),
       },
     },
@@ -304,7 +278,7 @@ export async function kioskRoutes(app: FastifyInstance): Promise<void> {
         itemTypeId: z.string().uuid(),
       }),
       response: {
-        200: LoanView,
+        200: Loan,
         401: err('stay_not_found'),
         404: err('kiosk_not_found'),
         409: z.union([err('item_unavailable'), err('loan_already_active')]),
@@ -410,7 +384,7 @@ export async function kioskRoutes(app: FastifyInstance): Promise<void> {
       tags: ['Kiosk'],
       summary: 'État d\'un emprunt en cours.',
       params: z.object({ loanId: z.string().uuid() }),
-      response: { 200: LoanView, 404: err('loan_not_found') },
+      response: { 200: Loan, 404: err('loan_not_found') },
     },
   }, async (req, reply) => {
     const { loanId } = req.params as { loanId: string }
@@ -427,7 +401,7 @@ export async function kioskRoutes(app: FastifyInstance): Promise<void> {
       summary: 'Ouvre un casier libre pour le dépôt et clôture l\'emprunt.',
       params: z.object({ loanId: z.string().uuid() }),
       response: {
-        200: z.object({ lockerNumber: z.number().int() }),
+        200: ReturnResult,
         404: err('loan_not_found'),
         409: err('no_free_locker'),
         502: err('locker_stuck'),

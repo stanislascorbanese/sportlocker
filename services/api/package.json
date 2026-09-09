@@ -16,6 +16,7 @@
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:seed": "node ./scripts/seed.mjs",
     "db:seed-fw-sim": "node ./scripts/seed-firmware-sim.mjs",
+    "db:seed-camping": "node ./scripts/seed-camping.mjs",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
     "bootstrap-super-admin": "node ./scripts/bootstrap-super-admin.mjs",
     "onboard-tenant": "node ./scripts/onboard-tenant.mjs",

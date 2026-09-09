@@ -20,6 +20,7 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json turbo.json ./
 COPY apps/citizen/package.json ./apps/citizen/
 COPY packages/config/package.json ./packages/config/
+COPY packages/types/package.json ./packages/types/
 
 # Install scoped sur @sportlocker/citizen + ses dépendances d'espace de travail
 # (aujourd'hui : @sportlocker/config, qui porte le preset Tailwind partagé).
@@ -31,8 +32,10 @@ RUN corepack prepare pnpm@9.0.0 --activate \
 
 # Sources des packages workspace utilisés + de l'app.
 # @sportlocker/config n'a rien à compiler : il expose directement du .cjs et du
-# .css, contrairement à @sportlocker/types dont l'app vacancier ne dépend plus.
+# .css. @sportlocker/types porte le contrat de l'API vacancier, partagé avec le
+# serveur pour que les deux bouts ne puissent plus diverger.
 COPY packages/config ./packages/config
+COPY packages/types ./packages/types
 COPY apps/citizen ./apps/citizen
 
 # NEXT_PUBLIC_* sont bakés dans le bundle client au build par Next.js.

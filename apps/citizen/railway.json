@@ -6,6 +6,7 @@
     "watchPatterns": [
       "apps/citizen/**",
       "packages/config/**",
+      "packages/types/**",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
