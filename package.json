@@ -21,11 +21,12 @@
     "prettier":         "^3.9.4"
   },
   "pnpm": {
-    "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9).",
+    "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9). La forme `paquet@majeure` cible une ligne de version précise : brace-expansion et fast-uri vivent en plusieurs majeures dans l'arbre, et forcer une seule version pour toutes casserait les paquets qui dépendent de l'ancienne API.",
     "overrides": {
       "@xmldom/xmldom": ">=0.8.13",
       "fast-jwt":       ">=6.2.4",
-      "fast-uri":       ">=3.1.2",
+      "fast-uri@3":     ">=3.1.6",
+      "fast-uri@4":     ">=4.1.3",
       "undici":         ">=6.27.0 <7",
       "drizzle-orm":    ">=0.45.2",
       "rollup":         ">=3.30.0",
@@ -34,7 +35,21 @@
       "ws":             ">=8.21.0",
       "form-data":      ">=4.0.6",
       "protobufjs":     ">=7.6.3",
-      "@grpc/grpc-js@1.14.3": "1.14.4"
+      "@grpc/grpc-js@1.14.3": "1.14.4",
+
+      "brace-expansion@1": ">=1.1.18",
+      "brace-expansion@2": ">=2.1.4",
+      "brace-expansion@5": ">=5.0.9",
+      "browserslist":   ">=4.28.7",
+      "find-my-way":    ">=9.7.0",
+      "@fastify/static": ">=10.1.1",
+      "ip-address":     ">=10.3.1",
+      "js-yaml":        ">=4.3.2",
+      "nanoid":         ">=3.3.18",
+      "postcss":        ">=8.5.18",
+      "sharp":          ">=0.35.4",
+      "smol-toml":      ">=1.7.1",
+      "svgo":           ">=4.1.0"
     },
     "//audit": "Les GHSAs non couvertes par les overrides ci-dessus sont filtrées dans .github/workflows/security.yml (pnpm 9 n'applique pas pnpm.auditConfig.ignoreCves). Voir docs/SECURITY.md §9."
   }

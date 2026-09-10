@@ -105,7 +105,15 @@ jobs:
           # que la CI tourne en Node 20 (cf. §9 #14). Risque réel faible : apps/web est
           # `output: static` (pas de SSR/slot dynamique côté requête). Fix = migration
           # Astro 6 + Node 22 (cf. §9 item #18).
-          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7'
+          # GHSA-26w7-cxv4-gfx2 : astro (RCE via l'optimisation d'images AVIF).
+          # Critique, et sans correctif en Astro 5 — patch >=7.2.8 seulement, or
+          # Astro 6+ exige Node >=22.12 quand la CI tourne en Node 20 (cf. §9 #14).
+          # Exposition réelle nulle en l'état : apps/web est `output: static`,
+          # l'optimisation d'images s'exécute au build sur des fichiers du dépôt,
+          # jamais à la requête sur une image fournie par un visiteur. Le vecteur
+          # de l'advisory — un AVIF hostile passé au pipeline — n'existe pas ici.
+          # Levée avec la migration Astro 6/7 + Node 22 (cf. §9 item #18).
+          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7 GHSA-26w7-cxv4-gfx2'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
