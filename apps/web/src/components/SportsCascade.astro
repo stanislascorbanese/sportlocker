@@ -660,9 +660,13 @@
     // tombe dans l'arceau et fait gonfler le filet au passage — c'est ce
     // gonflement qui vend le tir, bien plus que la trajectoire.
 
-    var NET_STRANDS = 14
-    var NET_RINGS = [0, -0.38, -0.74, -1.02]
-    var NET_RADII = [0.72, 0.62, 0.48, 0.34]
+    // Vingt brins et cinq cerclages au lieu de quatorze et quatre. Un filet de
+    // basket réel en a douze, mais un tracé d'un pixel de large ne rend pas
+    // l'épaisseur de la corde : la densité compense ce que la ligne ne peut pas
+    // dire. Un cerclage de plus au fond ferme la poche, qui bâillait.
+    var NET_STRANDS = 20
+    var NET_RINGS = [0, -0.3, -0.58, -0.84, -1.06]
+    var NET_RADII = [0.72, 0.645, 0.55, 0.44, 0.33]
 
     function netPoints() {
       var pts = []
@@ -703,6 +707,25 @@
       panel.position.set(0, 0.75, -0.85)
       g.add(panel)
 
+      // Le cadre. Une vitre sans bord flotte et se lit comme un rectangle de
+      // brouillard ; c'est le cadre qui en fait un panneau accroché à quelque
+      // chose. Quatre barres, la même laque que l'arceau.
+      var cadreMat = new THREE.MeshStandardMaterial({
+        color: p.hoop, roughness: 0.3, metalness: 0.5,
+      })
+      var barH = new THREE.BoxGeometry(3.18, 0.09, 0.11)
+      var barV = new THREE.BoxGeometry(0.09, 2.13, 0.11)
+      for (var cy2 = -1; cy2 <= 1; cy2 += 2) {
+        var bh = new THREE.Mesh(barH, cadreMat)
+        bh.position.set(0, 0.75 + cy2 * 1.025, -0.85)
+        g.add(bh)
+      }
+      for (var cx2 = -1; cx2 <= 1; cx2 += 2) {
+        var bv = new THREE.Mesh(barV, cadreMat)
+        bv.position.set(cx2 * 1.545, 0.75, -0.85)
+        g.add(bv)
+      }
+
       // Le petit rectangle peint au centre du panneau : c'est lui qui fait
       // reconnaître un panneau de basket au premier coup d'œil.
       var markPts = []
@@ -713,8 +736,13 @@
       g.add(mark)
 
       var ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.72, 0.055, 8, 30),
-        new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.45, metalness: 0.1 }),
+        // 16 x 64 : l'arceau est l'objet que la caméra approche le plus, et un
+        // tore à 30 segments s'y lit comme un polygone.
+        new THREE.TorusGeometry(0.72, 0.055, 16, 64),
+        // De l'acier laqué, pas du plastique. La métallicité peut monter
+        // maintenant qu'il y a un environnement à réfléchir — c'est le reflet du
+        // panneau lumineux qui court le long du tube quand le panier tourne.
+        new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.28, metalness: 0.55 }),
       )
       ring.rotation.x = Math.PI / 2
       g.add(ring)
@@ -789,31 +817,59 @@
         }
         ball.visible = true
 
-        if (qi < 0.55) {
-          // Montée : une parabole, plus un décalage latéral qui amène le ballon
-          // depuis le hors-champ gauche.
-          var t = clamp01(qi / 0.55)
+        if (qi < 0.58) {
+          // Montée. Le déplacement horizontal ralentit vers le sommet et la
+          // hauteur y est étirée : c'est la suspension, le temps que le regard
+          // a besoin de prendre pour anticiper le panier. Une parabole à vitesse
+          // constante passe trop vite au sommet et le tir ne se raconte pas.
+          var t = clamp01(qi / 0.58)
+          var slow = 1 - Math.pow(1 - t, 2.2)
+          var arc = Math.sin(Math.PI * Math.pow(t, 0.82))
           ball.position.set(
-            lerp(d[0], 0, t),
-            lerp(d[1], 0.95, t) + Math.sin(Math.PI * t) * 4.4,
-            lerp(d[2], 0, t),
+            lerp(d[0], 0, slow),
+            lerp(d[1], 0.95, slow) + arc * 4.4,
+            lerp(d[2], 0, slow),
           )
-        } else if (qi < 0.76) {
-          // Traversée de l'arceau.
-          var t2 = (qi - 0.55) / 0.21
-          ball.position.set(0, lerp(0.95, -1.7, t2), 0)
+          // La rotation suit la vitesse : elle ralentit au sommet avec le reste.
+          ball.rotation.z = qi * 5 + slow * 3
+        } else if (qi < 0.68) {
+          // Traversée. Fenêtre volontairement courte — c'est l'accélération
+          // après la suspension qui fait l'impact, pas la vitesse absolue.
+          var t2 = (qi - 0.58) / 0.10
+          ball.position.set(0, lerp(0.95, -1.7, t2 * t2 * (3 - 2 * t2)), 0)
+          ball.rotation.z += 0.22
         } else {
-          // Chute au sol, hors cadre.
-          var t3 = (qi - 0.76) / 0.24
-          ball.position.set(lerp(0, 0.9 + i * 0.4, t3), lerp(-1.7, -8, t3), lerp(0, 1.2, t3))
+          // Chute. En t² : une chute linéaire flotte, et une balle qui flotte
+          // annule tout le travail de la suspension juste avant.
+          var t3 = (qi - 0.68) / 0.32
+          var g3 = t3 * t3
+          ball.position.set(lerp(0, 0.9 + i * 0.4, t3), lerp(-1.7, -8, g3), lerp(0, 1.2, t3))
+          ball.rotation.z += 0.14
         }
         ball.rotation.x += 0.004
-        ball.rotation.z = qi * 6
       }
 
-      // Gonflement du filet, centré sur le moment où le ballon en cours traverse.
-      var swell = clamp01(1 - Math.abs((lastShot - 0.63) / 0.16))
-      swell = swell * swell * (3 - 2 * swell)
+      // Le claquement du filet.
+      //
+      // Un gonflement symétrique — il enfle, il dégonfle — est ce qu'on fait
+      // quand on n'a pas regardé de filet. Un vrai filet est chassé d'un coup
+      // par le ballon, puis oscille en s'amortissant, et il passe *sous* sa
+      // forme de repos entre deux oscillations : la corde se resserre. C'est ce
+      // resserrement, plus que le gonflement, qui rend le mouvement vivant.
+      var tw = (lastShot - 0.60) / 0.40
+      var swell = 0
+      if (tw > 0) {
+        // Attaque sur 4 % de la fenêtre : quasi instantanée, comme le contact.
+        var att = clamp01(tw / 0.04)
+        if (tw < 0.04) {
+          swell = att
+        } else {
+          // Puis une oscillation amortie. Les valeurs négatives sont voulues :
+          // c'est le filet qui se pince en revenant.
+          var rest = clamp01((tw - 0.04) / 0.96)
+          swell = Math.exp(-rest * 5.5) * Math.cos(rest * 19)
+        }
+      }
       var attr = scn.net.geometry.attributes.position
       var arr = attr.array
       var base = scn.netBase
