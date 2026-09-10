@@ -855,63 +855,24 @@ footer {
 
 /* ─── Lisibilité du texte au-dessus de la cascade ─────────────────────────────
  *
- * Les sections sont volontairement transparentes : le décor doit passer
- * derrière. Mais un filet de tennis qui traverse un paragraphe le rend
- * illisible, et le lecteur ne se dit pas « joli décor », il se dit « je n'y
- * arrive pas ».
+ * Pas de voile. J'en avais posé un — une ellipse en dégradé derrière chaque
+ * bloc — et ça se voyait : un rectangle flou qui traîne derrière le texte est
+ * plus laid que le problème qu'il règle. Un fond qu'on remarque a échoué.
  *
- * Chaque bloc de texte pose donc son propre voile, et pas la section entière :
- * une ellipse en dégradé calée sur le bloc, qui s'éteint avant ses bords. Le
- * décor reste pleinement visible partout ailleurs — entre les blocs, dans les
- * marges — et le texte porte là où il est. Un aplat sur la section aurait
- * réglé la lisibilité en supprimant ce qu'on essaie de montrer.
- *
- * `isolation: isolate` garantit que le voile reste derrière le texte de son
- * propre bloc et devant tout le reste, quel que soit l'empilement autour.
+ * L'ombre portée fait le même travail sans forme : elle épaissit le contraste
+ * autour des lettres, elle n'a pas de bord, donc rien à remarquer. Le décor
+ * reste entièrement visible, y compris à travers les interlignes.
  */
 .section-title,
+.hero-section h1 {
+  text-shadow: 0 2px 24px var(--wash-text), 0 1px 3px var(--wash-text);
+}
+
 .section-sub,
-.hero-section h1,
 .hero-section p,
 .section .max-w-3xl > p,
 .section-alt .max-w-3xl > p {
-  position: relative;
-  isolation: isolate;
-}
-
-.section-title::after,
-.section-sub::after,
-.hero-section h1::after,
-.hero-section p::after,
-.section .max-w-3xl > p::after,
-.section-alt .max-w-3xl > p::after {
-  content: '';
-  position: absolute;
-  inset: -0.75em -2em;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse 100% 100% at 50% 50%,
-    var(--wash-text) 0%,
-    var(--wash-text) 44%,
-    transparent 76%
-  );
-}
-
-/* Les titres portent plus loin que les paragraphes : ils sont plus gros, donc
-   leur voile doit déborder davantage pour ne pas se voir. */
-.section-title::after,
-.hero-section h1::after {
-  inset: -0.5em -1.2em;
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .section-title::after,
-  .section-sub::after,
-  .hero-section h1::after,
-  .hero-section p::after {
-    background: var(--wash-text);
-  }
+  text-shadow: 0 1px 14px var(--wash-text), 0 1px 2px var(--wash-text);
 }
 
 /* Les halos décoratifs du hero font 700 px et débordent volontairement du

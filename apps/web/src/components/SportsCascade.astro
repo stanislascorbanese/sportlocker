@@ -91,7 +91,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · le terrain'
+    var CASCADE_BUILD = '2026-09-11 · vrai court'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -644,169 +644,161 @@
 
     // ─── Le terrain ───────────────────────────────────────────────────────────
     //
-    // Un city-stade vu de haut, qui se rapproche pendant qu'on lit. Il n'y a
-    // pas de sol dans le reste du décor : les objets flottent dans le vide, et
-    // c'est ce qui les empêchait de donner une échelle. Une ligne peinte au sol
-    // suffit à dire « on est dehors, sur un terrain », et à poser le bas du
-    // cadre.
-
-    function makeCourt(p) {
-      var g = new THREE.Group()
-      var pts = []
-      var W = 13
-      var D = 8.5
-
-      pushRect(pts, -W, -D, W, D, 0)
-      pts.push(0, 0, -D, 0, 0, D) // ligne médiane
-      pushArc(pts, 0, 0, 2.1, 0, Math.PI * 2, 36, 0)
-
-      // Les deux raquettes, et l'arc de lancer franc au bout de chacune.
-      pushRect(pts, -W, -2.6, -W + 4.2, 2.6, 0)
-      pushRect(pts, W - 4.2, -2.6, W, 2.6, 0)
-      pushArc(pts, -W + 4.2, 0, 2.1, -Math.PI / 2, Math.PI / 2, 18, 0)
-      pushArc(pts, W - 4.2, 0, 2.1, Math.PI / 2, (Math.PI * 3) / 2, 18, 0)
-
-      g.add(segments(pts, lineMaterial(p, 0.72)))
-
-      // Une dalle à peine teintée sous les lignes : sans elle le tracé flotte
-      // dans le noir et se lit comme un schéma, pas comme un sol.
-      var slab = new THREE.Mesh(
-        new THREE.PlaneGeometry(W * 2 + 1.4, D * 2 + 1.4),
-        new THREE.MeshBasicMaterial({
-          color: p.line,
-          transparent: true,
-          opacity: 0.09,
-          depthWrite: false,
-        }),
-      )
-      slab.rotation.x = -Math.PI / 2
-      slab.position.y = -0.02
-      g.add(slab)
-
-      return { group: g }
-    }
-
-    // ─── Le terrain ───────────────────────────────────────────────────────────
+    // Un vrai court de tennis, aux cotes réglementaires (une unité = un mètre) :
+    // 23,77 de long, 10,97 de large en double, 8,23 en simple, lignes de service
+    // à 6,40 du filet. Le tracé générique qu'il y avait avant — cercle central,
+    // raquettes de basket — se lisait comme « un terrain », pas comme « un court
+    // de tennis », et le filet posé en travers ressemblait à un mur.
     //
-    // Une seule scène pour deux sports, et c'est le point : le panier est
-    // planté au milieu du camp adverse du court. On n'a donc pas à transporter
-    // le regard d'un lieu à un autre — le regard se relève, et le sujet suivant
-    // était déjà là. C'est la coupe la moins chère qui existe : celle qu'on n'a
-    // pas à faire.
+    // Le jeu se déroule le long de X, comme au tennis : la balle vient de la
+    // droite et part vers la gauche. La caméra, elle, traverse selon Z — elle
+    // survole donc le court perpendiculairement à l'échange, ce qui est
+    // exactement le mouvement d'un drone qui accompagne un point.
     //
-    // Le plan se joue en deux temps, dans un seul mouvement d'appareil :
-    //   1. vue du dessus, la caméra suit la balle smashée de droite à gauche ;
-    //   2. la balle touche le sol — et à cet instant précis l'appareil descend
-    //      au ras du court et se relève vers le panier, en contre-plongée.
-    //
-    // Le raccord sur l'impact est ce qui rend le mouvement lisible : un
-    // changement de cadrage a besoin d'un évènement pour le justifier, sinon il
-    // se lit comme une hésitation. Le rebond est cet évènement.
+    // Le panier est planté au milieu du camp adverse, et la balle rebondit à
+    // son pied. C'est le raccord : l'œil est déjà au bon endroit quand la
+    // caméra se relève, il n'a rien à chercher.
 
-    var TERRAIN_BOUNCE = 0.42   // où la balle touche le sol, dans le plan
-    var TERRAIN_TILT = 0.16     // durée du relevé, juste après
+    var COURT_L = 11.885   // demi-longueur
+    var COURT_W = 5.485    // demi-largeur, double
+    var COURT_S = 4.115    // demi-largeur, simple
+    var COURT_SERVICE = 6.40
+    var HOOP_X = -6.0      // milieu du camp adverse
+    var HOOP_Y = 3.05      // hauteur d'arceau réglementaire
+
+    var TERRAIN_BOUNCE = 0.44   // où la balle touche le sol, dans le plan
+    var TERRAIN_TILT = 0.18     // durée du relevé, juste après
 
     function makeTerrain(p) {
       var g = new THREE.Group()
 
-      var court = makeCourt(p)
-      court.group.rotation.y = Math.PI / 2
-      g.add(court.group)
+      var pts = []
+      pushRect(pts, -COURT_L, -COURT_W, COURT_L, COURT_W, 0)
+      // Couloirs de simple.
+      pts.push(-COURT_L, 0, -COURT_S, COURT_L, 0, -COURT_S)
+      pts.push(-COURT_L, 0, COURT_S, COURT_L, 0, COURT_S)
+      // Lignes de service et ligne médiane de service.
+      pts.push(-COURT_SERVICE, 0, -COURT_S, -COURT_SERVICE, 0, COURT_S)
+      pts.push(COURT_SERVICE, 0, -COURT_S, COURT_SERVICE, 0, COURT_S)
+      pts.push(-COURT_SERVICE, 0, 0, COURT_SERVICE, 0, 0)
+      // Marques centrales sur les lignes de fond.
+      pts.push(-COURT_L, 0, 0, -COURT_L + 0.3, 0, 0)
+      pts.push(COURT_L, 0, 0, COURT_L - 0.3, 0, 0)
+      g.add(segments(pts, lineMaterial(p, 0.72)))
 
-      // Le filet, en travers, au milieu. Deux mailles suffisent à le dire.
-      var net = new THREE.Group()
-      var maille = new THREE.Mesh(
-        new THREE.PlaneGeometry(9, 1.05),
-        new THREE.MeshStandardMaterial({
-          color: p.line, roughness: 0.9, metalness: 0,
-          transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false,
+      // Une dalle à peine teintée sous le tracé : sans elle les lignes flottent
+      // dans le noir et se lisent comme un schéma, pas comme un sol.
+      var dalle = new THREE.Mesh(
+        new THREE.PlaneGeometry(COURT_L * 2 + 4, COURT_W * 2 + 4),
+        new THREE.MeshBasicMaterial({
+          color: p.line, transparent: true, opacity: 0.07, depthWrite: false,
         }),
       )
-      maille.position.y = 0.52
+      dalle.rotation.x = -Math.PI / 2
+      dalle.position.y = -0.02
+      g.add(dalle)
+
+      // Le filet : en travers du jeu, donc le long de Z, et pas l'inverse.
+      // 0,914 au centre, 1,07 aux poteaux — c'est ce léger affaissement qui
+      // fait qu'on le reconnaît sans y penser.
+      var net = new THREE.Group()
+      var maille = new THREE.Mesh(
+        new THREE.PlaneGeometry(COURT_W * 2 + 0.9, 0.98, 1, 1),
+        new THREE.MeshStandardMaterial({
+          color: p.line, roughness: 0.95, metalness: 0,
+          transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false,
+        }),
+      )
+      maille.rotation.y = Math.PI / 2
+      maille.position.y = 0.49
       net.add(maille)
       var bande = new THREE.Mesh(
-        new THREE.BoxGeometry(9, 0.1, 0.06),
-        new THREE.MeshStandardMaterial({ color: p.line, roughness: 0.6, metalness: 0.1 }),
+        new THREE.BoxGeometry(0.05, 0.07, COURT_W * 2 + 0.9),
+        new THREE.MeshStandardMaterial({ color: p.line, roughness: 0.5, metalness: 0.1 }),
       )
-      bande.position.y = 1.05
+      bande.position.y = 0.98
       net.add(bande)
+      var poteauMat = new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.5, metalness: 0.35 })
+      for (var sgn = -1; sgn <= 1; sgn += 2) {
+        var poteau = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 1.07, 10), poteauMat)
+        poteau.position.set(0, 0.535, sgn * (COURT_W + 0.45))
+        net.add(poteau)
+      }
       g.add(net)
 
-      // La raquette qui vient de frapper, à droite, en fin d'accompagnement.
-      var swing = new THREE.Group()
-      var r = racket(p)
-      r.scale.setScalar(1.5)
-      swing.add(r)
-      swing.position.set(10.5, 2.2, 6)
-      g.add(swing)
+      // Pas de raquette. À l'échelle du mètre, elle fait soixante-huit
+      // centimètres : soit elle est juste et on ne la voit pas, soit on la
+      // grossit et c'est une raquette de trois mètres qui flotte sans joueur.
+      // La balle arrive déjà frappée — c'est tout ce que le plan a besoin de
+      // dire.
 
       var ball = new THREE.Mesh(
-        new THREE.SphereGeometry(0.24, 18, 14),
+        // Vingt-six centimètres au lieu de six et demi. Une balle juste est
+        // invisible depuis dix mètres de haut, et un plan où on ne voit pas le
+        // sujet n'est pas un plan.
+        new THREE.SphereGeometry(0.26, 18, 14),
         new THREE.MeshStandardMaterial({ color: 0xd8e64a, roughness: 0.85, metalness: 0.02 }),
       )
       g.add(ball)
 
-      // L'onde au sol : c'est elle qui dit « ça a touché ». Sans marque
-      // d'impact, une balle qui rebondit se lit comme une balle qui flotte.
+      // L'onde au sol. Sans marque d'impact, une balle qui rebondit se lit
+      // comme une balle qui flotte — et c'est cet impact qui justifie le
+      // changement de cadrage juste après.
       var impact = new THREE.Mesh(
-        new THREE.RingGeometry(0.55, 0.68, 40),
+        new THREE.RingGeometry(0.5, 0.62, 40),
         new THREE.MeshBasicMaterial({
-          color: p.line, transparent: true, opacity: 0, depthWrite: false,
+          color: p.accent, transparent: true, opacity: 0, depthWrite: false,
           side: THREE.DoubleSide,
         }),
       )
       impact.rotation.x = -Math.PI / 2
-      impact.position.y = 0.02
+      impact.position.set(HOOP_X, 0.02, 0)
       impact.visible = false
       g.add(impact)
 
-      // Le panier, au milieu du camp adverse. L'origine du groupe `makeHoop`
-      // est l'arceau lui-même : 3,2 unités au-dessus du sol, soit la hauteur
-      // réglementaire à l'échelle du court.
+      // Le panier, debout au milieu du camp adverse, face au jeu. La balle
+      // rebondit à son pied : quand la caméra se relève, l'arceau est
+      // exactement au-dessus du point qu'on regardait déjà.
       var hoop = makeHoop(p)
-      hoop.group.position.set(0, 3.2, -7)
+      hoop.group.position.set(HOOP_X, HOOP_Y, 0)
+      hoop.group.rotation.y = Math.PI / 2
       g.add(hoop.group)
 
-      // Le mât. Un panier qui flotte annule tout le reste.
       var acier = new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.45, metalness: 0.4 })
-      var mat = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 3.3, 12), acier)
-      mat.position.set(0, 1.65, -8.4)
+      var mat = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, HOOP_Y + 0.3, 12), acier)
+      mat.position.set(HOOP_X - 1.35, (HOOP_Y + 0.3) / 2, 0)
       g.add(mat)
-      var potence = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 1.5), acier)
-      potence.position.set(0, 3.3, -7.75)
+      var potence = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.12), acier)
+      potence.position.set(HOOP_X - 0.7, HOOP_Y + 0.28, 0)
       g.add(potence)
 
-      return { group: g, swing: swing, ball: ball, impact: impact, hoop: hoop }
+      return { group: g, ball: ball, impact: impact, hoop: hoop }
     }
 
     function updateTerrain(scn, q) {
       if (q < TERRAIN_BOUNCE) {
-        // La balle vient de droite, déjà frappée, et descend. Elle accélère :
+        // La balle arrive de droite, déjà frappée, et descend en accélérant :
         // un smash n'a pas de temps mort, il ne fait que tomber plus vite.
         var t = q / TERRAIN_BOUNCE
         var f = t * t * 0.34 + t * 0.66
-        scn.ball.position.set(lerp(11, -6.5, f), lerp(7.4, 0.26, f * f), lerp(5.5, -1.5, f))
+        scn.ball.position.set(lerp(11.6, HOOP_X, f), lerp(5.2, 0.26, f * f), lerp(1.2, 0, f))
         scn.ball.visible = true
-        scn.swing.rotation.z = lerp(-1.05, -1.95, t)
-        scn.swing.rotation.y = lerp(-0.3, -0.9, t)
         scn.impact.visible = false
       } else {
         var u = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
-        // Le rebond : haut d'abord, puis amorti. Elle sort du cadre à gauche.
-        var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.4, 1))) * (1 - u) * 3.4
-        scn.ball.position.set(lerp(-6.5, -16, u), 0.26 + reb, lerp(-1.5, -4.5, u))
-        scn.ball.visible = u < 0.6
+        var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.6, 1))) * (1 - u) * 2.6
+        scn.ball.position.set(lerp(HOOP_X, -13.5, u), 0.26 + reb, lerp(0, -1.4, u))
+        scn.ball.visible = u < 0.55
 
-        var iw = clamp01(u / 0.16)
+        var iw = clamp01(u / 0.14)
         scn.impact.visible = iw > 0.001 && iw < 1
-        scn.impact.position.set(-6.5, 0.02, -1.5)
-        scn.impact.scale.setScalar(0.35 + iw * 3.6)
-        scn.impact.material.opacity = 0.55 * (1 - iw)
+        scn.impact.scale.setScalar(0.4 + iw * 4.2)
+        scn.impact.material.opacity = 0.6 * (1 - iw)
       }
-      scn.ball.rotation.x += 0.3
+      scn.ball.rotation.x += 0.35
 
       // Le panier prend le relais dès que l'appareil s'est relevé.
-      updateHoop(scn.hoop, clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.4)) / 0.5))
+      updateHoop(scn.hoop, clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.35)) / 0.48))
     }
 
     // ─── Le panier ────────────────────────────────────────────────────────────
@@ -1001,7 +993,9 @@
           // annule tout le travail de la suspension juste avant.
           var t3 = (qi - 0.68) / 0.32
           var g3 = t3 * t3
-          ball.position.set(lerp(0, 0.9 + i * 0.4, t3), lerp(-1.7, -8, g3), lerp(0, 1.2, t3))
+          // -3,3 et pas -8 : l'arceau est à 3,05 m du sol, donc huit mètres de
+        // chute enterraient le ballon. Il s'arrête juste sous le cercle.
+        ball.position.set(lerp(0, 0.9 + i * 0.4, t3), lerp(-1.7, -3.3, g3), lerp(0, 1.2, t3))
           ball.rotation.z += 0.14
         }
         ball.rotation.x += 0.004
@@ -1295,11 +1289,14 @@
       // Le terrain porte deux sports et deux cadrages : il lui faut plus du
       // double du temps d'un plan ordinaire, sinon le relevé sur le panier
       // arrive avant qu'on ait lu la balle.
-      { key: 'terrain', ox: 0, oy: -4.0, make: makeTerrain, update: updateTerrain,
+      { key: 'terrain', ox: 0, oy: -3.0, make: makeTerrain, update: updateTerrain,
         holdBefore: 0.20, holdAfter: 0.06,
         // Entrée : le point de départ de la balle smashée. Sortie : le ballon
         // qui retombe sous l'arceau, dans le repère du panier décalé.
-        entryAt: [11, 7.4, 5.5], exitAt: [0.9, -4.8, -5.8], relayColor: 0xf0a463 },
+        // Entrée : le départ de la balle smashée. Sortie : le ballon qui
+        // retombe sous l'arceau — coordonnées du court, le panier étant tourné
+        // d'un quart de tour.
+        entryAt: [11.6, 5.2, 1.2], exitAt: [-4.8, -0.25, -0.9], relayColor: 0xf0a463 },
       { key: 'petanque', ox: 3.0, oy: -4.6, make: makePetanque, update: updatePetanque,
         entryAt: [-9, 0.38, 3.2] },
     ]
@@ -1527,9 +1524,15 @@
       // téléphone il n'y a que deux scènes, et les étaler de 0,10 à 0,90
       // laissait les deux tiers de la page avec une caméra qui rampe dans le
       // vide. Trente pour cent de page par plan, centrés, plafonnés à 0,80.
+      // La borne est le produit : elle doit être là quand le lecteur arrive,
+      // pas au cinquième de la page. Dès qu'il y a trois plans ou plus, le
+      // premier est calé haut et les autres suivent.
       var n = scenes.length
-      var span = n > 1 ? Math.min(0.80, (n - 1) * 0.30) : 0
-      var start = Math.max(0.10, (1 - span) / 2)
+      // À deux plans (téléphone), un espacement de 0,34 laisserait la moitié
+      // basse de la page vide ; on étire à 0,55. Le premier plan, lui, est
+      // calé haut dans tous les cas.
+      var span = n > 2 ? Math.min(0.84, (n - 1) * 0.34) : n > 1 ? 0.55 : 0
+      var start = 0.07
       var prev = -1
       for (var k = 0; k < n; k++) {
         var ideal = n > 1 ? start + (k / (n - 1)) * span : 0.5
@@ -1610,18 +1613,26 @@
       */
       terrain: function (q) {
         var tilt = smooth(clamp01((q - TERRAIN_BOUNCE) / TERRAIN_TILT))
-        // La caméra suit la balle sur son axe, mais à moitié : suivre au pixel
-        // donne une image morte où la balle ne bouge jamais dans le cadre.
-        var bx = lerp(11, -6.5, clamp01(q / TERRAIN_BOUNCE))
+        // La caméra suit la balle sur l'axe du jeu, mais à moitié : suivre au
+        // pixel donne une image morte où la balle ne bouge jamais dans le
+        // cadre. À moitié, elle dérive vers la gauche — on sent qu'elle va
+        // quelque part.
+        var bx = lerp(11.6, HOOP_X, clamp01(q / TERRAIN_BOUNCE))
         return {
-          x: lerp(bx * 0.55, -1.8, tilt),
-          y: lerp(17, 0.6, tilt),
+          // Plan 1 : dix mètres au-dessus du court, regard plongeant sur la
+          // balle. Plan 2 : au ras du sol, à quelques mètres du panier, regard
+          // relevé vers l'arceau. Entre les deux, le rebond.
+          x: lerp(bx * 0.5, -0.8, tilt),
+          y: lerp(10, 1.1, tilt),
           z: 0,
-          lookX: lerp(bx, 0, tilt),
-          lookY: lerp(0.2, 6.6, tilt),
-          lookAhead: lerp(3, 14, tilt),
-          fov: lerp(1.06, 0.9, tilt),
-          roll: lerp(0.004, -0.018, tilt),
+          lookX: lerp(bx, HOOP_X, tilt),
+          lookY: lerp(0.3, HOOP_Y + 0.5, tilt),
+          // `lookAhead` reste court dans les deux plans : le sujet est décalé
+          // en X, pas au fond du couloir. Viser loin devant redresserait le
+          // regard vers l'horizon et perdrait à la fois la balle et l'arceau.
+          lookAhead: lerp(3, 4, tilt),
+          fov: lerp(1.05, 0.92, tilt),
+          roll: lerp(0.004, -0.016, tilt),
         }
       },
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
