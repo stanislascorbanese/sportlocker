@@ -1,11 +1,13 @@
-import { withSentryConfig } from '@sentry/nextjs/config'
+import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@sportlocker/types'],
+  // `typedRoutes` est sorti d'`experimental` en 15.5 ; l'y laisser déclenche un
+  // avertissement au build et finira par ne plus être lu du tout.
+  typedRoutes: true,
   experimental: {
-    typedRoutes: true,
     // L'import des séjours fait traverser le CSV par une server action, et Next
     // plafonne leur corps à 1 Mo par défaut. L'API en accepte 4 : sans ce
     // réglage, un gros export serait refusé ici, avant même d'arriver à l'API.
