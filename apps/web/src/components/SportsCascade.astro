@@ -56,13 +56,13 @@
       -webkit-mask-image: linear-gradient(
         to right,
         #000 0%, #000 22%,
-        rgba(0, 0, 0, 0.35) 40%, rgba(0, 0, 0, 0.35) 60%,
+        rgba(0, 0, 0, 0.72) 42%, rgba(0, 0, 0, 0.72) 58%,
         #000 78%, #000 100%
       );
       mask-image: linear-gradient(
         to right,
         #000 0%, #000 22%,
-        rgba(0, 0, 0, 0.35) 40%, rgba(0, 0, 0, 0.35) 60%,
+        rgba(0, 0, 0, 0.72) 42%, rgba(0, 0, 0, 0.72) 58%,
         #000 78%, #000 100%
       );
     }
@@ -91,7 +91,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · la maquette devient la borne'
+    var CASCADE_BUILD = '2026-09-11 · plans séparés'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -685,8 +685,10 @@
     var COURT_W = 5.485    // demi-largeur, double
     var COURT_S = 4.115    // demi-largeur, simple
     var COURT_SERVICE = 6.40
-    var HOOP_X = -6.0      // milieu du camp adverse
+    var HOOP_X = 0         // au milieu de la longueur du court
     var HOOP_Y = 3.05      // hauteur d'arceau réglementaire
+    var HOOP_Z = -8.2      // sur le côté, au-delà du couloir de double
+    var BOUNCE_X = -7.4    // où la balle retombe, dans le camp adverse
 
     var TERRAIN_BOUNCE = 0.44   // où la balle touche le sol, dans le plan
     var TERRAIN_TILT = 0.18     // durée du relevé, juste après
@@ -706,14 +708,17 @@
       // Marques centrales sur les lignes de fond.
       pts.push(-COURT_L, 0, 0, -COURT_L + 0.3, 0, 0)
       pts.push(COURT_L, 0, 0, COURT_L - 0.3, 0, 0)
-      g.add(segments(pts, lineMaterial(p, 0.72)))
+      // Opacité poussée au maximum : à dix mètres au-dessus, derrière un décor
+      // sombre et sous le masque central, un tracé à 0,72 disparaissait. Un
+      // terrain qu'on ne distingue pas ne raconte rien.
+      g.add(segments(pts, lineMaterial(p, 1)))
 
       // Une dalle à peine teintée sous le tracé : sans elle les lignes flottent
       // dans le noir et se lisent comme un schéma, pas comme un sol.
       var dalle = new THREE.Mesh(
         new THREE.PlaneGeometry(COURT_L * 2 + 4, COURT_W * 2 + 4),
         new THREE.MeshBasicMaterial({
-          color: p.line, transparent: true, opacity: 0.07, depthWrite: false,
+          color: p.line, transparent: true, opacity: 0.16, depthWrite: false,
         }),
       )
       dalle.rotation.x = -Math.PI / 2
@@ -778,20 +783,27 @@
       impact.visible = false
       g.add(impact)
 
-      // Le panier, debout au milieu du camp adverse, face au jeu. La balle
-      // rebondit à son pied : quand la caméra se relève, l'arceau est
-      // exactement au-dessus du point qu'on regardait déjà.
+      // Le panier : sur le côté du court, en plein milieu de sa longueur,
+      // comme sur un terrain municipal où les deux équipements se partagent la
+      // même dalle. Pas au milieu du jeu — un panier planté sur la ligne de
+      // service, ça n'existe nulle part et ça se voit.
+      //
+      // Et à l'échelle : le modèle a un panneau de 3,10 m et un arceau de
+      // 1,44 m de diamètre, soit près du double du réglementaire. Sur un court
+      // aux vraies cotes, ça donnait le panneau géant en travers de l'image.
+      // Facteur 0,5 : panneau 1,55 m, arceau 0,72 m — encore un peu généreux,
+      // ce qu'il faut pour qu'il se lise de loin.
       var hoop = makeHoop(p)
-      hoop.group.position.set(HOOP_X, HOOP_Y, 0)
-      hoop.group.rotation.y = Math.PI / 2
+      hoop.group.scale.setScalar(0.5)
+      hoop.group.position.set(HOOP_X, HOOP_Y, HOOP_Z)
       g.add(hoop.group)
 
       var acier = new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.45, metalness: 0.4 })
-      var mat = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, HOOP_Y + 0.3, 12), acier)
-      mat.position.set(HOOP_X - 1.35, (HOOP_Y + 0.3) / 2, 0)
+      var mat = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, HOOP_Y + 0.35, 12), acier)
+      mat.position.set(HOOP_X, (HOOP_Y + 0.35) / 2, HOOP_Z - 1.1)
       g.add(mat)
-      var potence = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.12), acier)
-      potence.position.set(HOOP_X - 0.7, HOOP_Y + 0.28, 0)
+      var potence = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.1), acier)
+      potence.position.set(HOOP_X, HOOP_Y + 0.3, HOOP_Z - 0.55)
       g.add(potence)
 
       return { group: g, ball: ball, impact: impact, hoop: hoop }
@@ -803,13 +815,13 @@
         // un smash n'a pas de temps mort, il ne fait que tomber plus vite.
         var t = q / TERRAIN_BOUNCE
         var f = t * t * 0.34 + t * 0.66
-        scn.ball.position.set(lerp(11.6, HOOP_X, f), lerp(5.2, 0.26, f * f), lerp(1.2, 0, f))
+        scn.ball.position.set(lerp(11.6, BOUNCE_X, f), lerp(5.2, 0.26, f * f), lerp(-1.4, 1.2, f))
         scn.ball.visible = true
         scn.impact.visible = false
       } else {
         var u = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
         var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.6, 1))) * (1 - u) * 2.6
-        scn.ball.position.set(lerp(HOOP_X, -13.5, u), 0.26 + reb, lerp(0, -1.4, u))
+        scn.ball.position.set(lerp(BOUNCE_X, -13.5, u), 0.26 + reb, lerp(1.2, 2.6, u))
         scn.ball.visible = u < 0.55
 
         var iw = clamp01(u / 0.14)
@@ -1314,7 +1326,11 @@
      */
     var SCENE_DEFS = [
       { key: 'kiosk', ox: 0, oy: -0.6, make: makeKiosk, update: updateKiosk,
-        exitAt: [0, 0.18, -10], relayColor: 0xd8e64a },
+        // La caméra s'arrête 0,9 unité DEVANT la station : la porte remplit le
+        // cadre, et c'est le noir qui prend le relais. Entrer réellement dans
+        // le meuble donnait une paroi en gros plan, illisible.
+        exitDist: -0.9,
+        exitAt: [0, 0.18, -6], relayColor: 0xd8e64a },
       // Le terrain porte deux sports et deux cadrages : il lui faut plus du
       // double du temps d'un plan ordinaire, sinon le relevé sur le panier
       // arrive avant qu'on ait lu la balle.
@@ -1325,7 +1341,7 @@
         // Entrée : le départ de la balle smashée. Sortie : le ballon qui
         // retombe sous l'arceau — coordonnées du court, le panier étant tourné
         // d'un quart de tour.
-        entryAt: [11.6, 5.2, 1.2], exitAt: [-4.8, -0.25, -0.9], relayColor: 0xf0a463 },
+        entryAt: [11.6, 5.2, -1.4], exitAt: [0.9, -0.3, -7.4], relayColor: 0xf0a463 },
       { key: 'petanque', ox: 3.0, oy: -4.6, make: makePetanque, update: updatePetanque,
         entryAt: [-9, 0.38, 3.2] },
     ]
@@ -1346,7 +1362,7 @@
     var FLIGHT_Z0 = 18
     var STATION_APPROACH = 18   // où le drone prend son plan, devant la station
     var STATION_EXIT = 6        // de combien il la dépasse en repartant
-    var STATION_TRANSIT = 40    // distance parcourue entre deux plans
+    var STATION_TRANSIT = 62    // distance parcourue entre deux plans
     var STATION_STEP = STATION_APPROACH + STATION_EXIT + STATION_TRANSIT
 
     // Le plan tenu, en fraction de page, autour de la station.
@@ -1355,7 +1371,11 @@
     // Le recouvrement de deux plans. C'est lui, et lui seul, qui enchaîne :
     // pendant la liaison les deux poids se croisent, et le regard de la caméra
     // glisse du sujet qu'on quitte à celui qui arrive au lieu de sauter.
-    var HOLD_EDGE = 0.06
+    // Presque plus de recouvrement : les plans ne doivent plus s'enchaîner
+    // bord à bord. Entre deux, il y a maintenant du vide — du brouillard, rien
+    // à regarder, le temps de respirer. Un montage sans respiration est une
+    // succession, pas un montage.
+    var HOLD_EDGE = 0.018
     // Écart minimal entre deux stations : en dessous, la liaison n'a plus la
     // place d'exister et les deux plans se marchent dessus.
     var MIN_GAP = 0.17
@@ -1489,6 +1509,19 @@
      * Monotone décroissante par construction : la caméra n'avance jamais à
      * reculons, quelle que soit la répartition des stations.
      */
+    /**
+     * De combien la caméra dépasse une station.
+     *
+     * Réglable par plan, parce que « traverser » n'a pas le même sens partout.
+     * La borne s'arrête AVANT sa station (valeur négative) : la porte remplit
+     * le cadre et le noir prend le relais. Entrer vraiment dedans donnait une
+     * paroi verte en gros plan que personne ne reconnaît — un plan illisible
+     * n'est pas un plan audacieux, c'est un plan raté.
+     */
+    function exitOf(scn) {
+      return scn.def.exitDist === undefined ? STATION_EXIT : scn.def.exitDist
+    }
+
     function flightZ(p) {
       var n = scenes.length
       if (!n) return FLIGHT_Z0
@@ -1501,18 +1534,18 @@
         var scn = scenes[i]
         if (p <= scn.holdTo) {
           var u = clamp01((p - scn.holdFrom) / Math.max(scn.holdTo - scn.holdFrom, 0.0001))
-          return lerp(scn.stationZ + STATION_APPROACH, scn.stationZ - STATION_EXIT, smooth(u))
+          return lerp(scn.stationZ + STATION_APPROACH, scn.stationZ - exitOf(scn), smooth(u))
         }
         var nx = scenes[i + 1]
         if (!nx) break
         if (p <= nx.holdFrom) {
           var v = clamp01((p - scn.holdTo) / Math.max(nx.holdFrom - scn.holdTo, 0.0001))
-          return lerp(scn.stationZ - STATION_EXIT, nx.stationZ + STATION_APPROACH, smooth(v))
+          return lerp(scn.stationZ - exitOf(scn), nx.stationZ + STATION_APPROACH, smooth(v))
         }
       }
       var last = scenes[n - 1]
       var w = clamp01((p - last.holdTo) / Math.max(1 - last.holdTo, 0.0001))
-      return last.stationZ - STATION_EXIT - w * 26
+      return last.stationZ - exitOf(last) - w * 26
     }
 
     /**
@@ -1532,13 +1565,25 @@
       if (max <= 0 || !scenes.length) return
       lastDocHeight = document.documentElement.scrollHeight
 
+      // On vise les JOINTURES entre sections, pas leur centre.
+      //
+      // Le centre d'une section, c'est là où il y a le plus de contenu : des
+      // cartes opaques, une grille de tarifs, un formulaire. Un décor posé
+      // derrière n'y est pas discret, il est invisible — et c'est exactement ce
+      // qu'on voyait. La jointure, elle, est l'endroit où la marge basse d'une
+      // section rejoint la marge haute de la suivante : le seul vrai blanc de
+      // la page.
+      //
+      // C'est aussi ce qui donne les respirations demandées : chaque plan tombe
+      // dans un intervalle, pas par-dessus un bloc de texte.
       var marks = []
       try {
         var nodes = document.querySelectorAll('[data-cascade-beat], main section, main > article')
-        for (var i = 0; i < nodes.length; i++) {
-          var r = nodes[i].getBoundingClientRect()
-          var centre = r.top + window.scrollY + r.height / 2
-          var f = (centre - window.innerHeight / 2) / max
+        for (var i = 0; i < nodes.length - 1; i++) {
+          var a = nodes[i].getBoundingClientRect()
+          var bb = nodes[i + 1].getBoundingClientRect()
+          var joint = (a.bottom + bb.top) / 2 + window.scrollY
+          var f = (joint - window.innerHeight / 2) / max
           if (f > 0.03 && f < 0.97) marks.push(f)
         }
       } catch (e) {}
@@ -1646,16 +1691,16 @@
         // pixel donne une image morte où la balle ne bouge jamais dans le
         // cadre. À moitié, elle dérive vers la gauche — on sent qu'elle va
         // quelque part.
-        var bx = lerp(11.6, HOOP_X, clamp01(q / TERRAIN_BOUNCE))
+        var bx = lerp(11.6, BOUNCE_X, clamp01(q / TERRAIN_BOUNCE))
         return {
           // Plan 1 : dix mètres au-dessus du court, regard plongeant sur la
           // balle. Plan 2 : au ras du sol, à quelques mètres du panier, regard
           // relevé vers l'arceau. Entre les deux, le rebond.
-          x: lerp(bx * 0.5, -0.8, tilt),
-          y: lerp(10, 1.1, tilt),
-          z: 0,
+          x: lerp(bx * 0.5, HOOP_X + 0.4, tilt),
+          y: lerp(11, 1.4, tilt),
+          z: lerp(0, HOOP_Z + 7.5, tilt),
           lookX: lerp(bx, HOOP_X, tilt),
-          lookY: lerp(0.3, HOOP_Y + 0.5, tilt),
+          lookY: lerp(0.3, HOOP_Y + 0.6, tilt),
           // `lookAhead` reste court dans les deux plans : le sujet est décalé
           // en X, pas au fond du couloir. Viser loin devant redresserait le
           // regard vers l'horizon et perdrait à la fois la balle et l'arceau.
@@ -2186,7 +2231,7 @@
       // du panier et le regarde », pas « la caméra se décale de deux unités ».
       // Pendant la liaison les deux plans se croisent et tout s'interpole —
       // position, cible, roulis, focale — d'un sujet à l'autre.
-      var px = 0, py = 0, lx = 0, ly = 0, lz = 0
+      var px = 0, py = 0, pz = 0, lx = 0, ly = 0, lz = 0
       var roll = 0, fovMul = 1, total = 0, thread = 0, ahead = 0
 
       for (var i = 0; i < scenes.length; i++) {
@@ -2213,6 +2258,7 @@
         var sy = scn.def.oy
         px += (sx + beat.x * amp) * w
         py += (sy + beat.y * amp) * w
+        pz += (beat.z || 0) * w
         lx += (sx + beat.lookX * amp) * w
         ly += (sy + beat.lookY * amp) * w
         lz += scn.stationZ * w
@@ -2225,7 +2271,7 @@
       var baseZ = flightZ(progress)
 
       if (total > 0.0001) {
-        px /= total; py /= total; lx /= total; ly /= total; lz /= total; ahead /= total
+        px /= total; py /= total; pz /= total; lx /= total; ly /= total; lz /= total; ahead /= total
       } else {
         lz = baseZ - 34
         ahead = 12
@@ -2271,7 +2317,10 @@
       var k = reduced ? 1 : 0.12
       cam.pos.x += (targetX - cam.pos.x) * k
       cam.pos.y += (targetY - cam.pos.y) * k
-      cam.pos.z += (baseZ - cam.pos.z) * (reduced ? 1 : 0.2)
+      // `beat.z` décale la caméra en profondeur par rapport au vol : un plan
+      // peut avoir besoin d'être pris de plus près ou de plus loin que le point
+      // où le vol se trouve. Sans ce terme, la valeur était lue et jetée.
+      cam.pos.z += (baseZ + pz - cam.pos.z) * (reduced ? 1 : 0.2)
       cam.look.x += (lx - cam.look.x) * k
       cam.look.y += (ly - cam.look.y) * k
       cam.look.z += (lz - cam.look.z) * k
