@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// Sans ceci, `.env` n'est jamais lu : seul `src/index.ts` l'importait, et ce
+// script tourne hors de l'application. On échouait donc sur « DATABASE_URL
+// absent » avec un .env parfaitement rempli sous les yeux.
+import 'dotenv/config'
+
 /**
  * Seed du modèle camping — de quoi faire tourner le parcours vacancier en vrai,
  * sans borne et sans PMS.

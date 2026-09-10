@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// `.env` n'est lu que par ce qui l'importe : ce script tourne hors de
+// l'application, donc sans cette ligne il ne voit aucune variable.
+import 'dotenv/config'
+
 /**
  * Bootstrap d'un compte super_admin en base — l'œuf et la poule du système
  * d'invites. Avant que ce script ne tourne, aucun super_admin n'existe et
