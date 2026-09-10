@@ -843,26 +843,66 @@
 
     function makeKiosk(p) {
       var g = new THREE.Group()
+      var dark = sportSet(p) !== SPORT_LIGHT
+      var t = textures()
 
-      var shell = new THREE.Mesh(
-        new THREE.BoxGeometry(1.8, 3.6, 1.0),
-        sportMat(p, null, 'body', { roughness: 0.7 }),
-      )
-      shell.material.color.setHex(sportSet(p) === SPORT_LIGHT ? 0xc3d0db : 0x1f3a52)
-      g.add(shell)
+      // Tôle brossée. C'est le matériau qui change tout : jusqu'ici le meuble
+      // était un aplat mat, donc un rectangle. Une tôle réfléchit le panneau
+      // lumineux du studio, et ce reflet qui glisse quand la borne tourne est ce
+      // qui lui donne un volume.
+      function steel(hex, rough, metal) {
+        var m = new THREE.MeshStandardMaterial({
+          color: hex,
+          roughness: rough === undefined ? 0.38 : rough,
+          metalness: metal === undefined ? 0.62 : metal,
+        })
+        m.bumpMap = t.brushed
+        m.bumpScale = 0.006
+        m.roughnessMap = t.brushed
+        return m
+      }
 
-      // Bandeau de marque en haut, dans le vert SportLocker : c'est le seul
-      // endroit du décor où le vert de marque est utilisé franchement.
+      var bodyHex = dark ? 0x22394f : 0xb9c8d6
+      var doorHex = dark ? 0x2b4a67 : 0xd6e1ea
+      var wellHex = dark ? 0x060d15 : 0x2b3a47
+
+      var caisse = steel(bodyHex)
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8, 3.6, 1.0), caisse))
+
+      // Les arêtes. Un chanfrein n'existe pas dans une BoxGeometry, mais quatre
+      // baguettes légèrement plus claires posées sur les angles verticaux en
+      // font l'office : elles attrapent la lumière là où une arête vive le
+      // ferait, et c'est ce liseré qui détache le meuble du fond.
+      var areteMat = steel(dark ? 0x3d5c78 : 0xdfe9f1, 0.22, 0.8)
+      var arete = new THREE.BoxGeometry(0.05, 3.62, 0.05)
+      for (var ax = -1; ax <= 1; ax += 2) {
+        for (var az = -1; az <= 1; az += 2) {
+          var e = new THREE.Mesh(arete, areteMat)
+          e.position.set(ax * 0.895, 0, az * 0.495)
+          g.add(e)
+        }
+      }
+
+      // Bandeau de marque, seul endroit du décor où le vert est franc.
       var band = new THREE.Mesh(
         new THREE.BoxGeometry(1.84, 0.26, 1.04),
-        new THREE.MeshStandardMaterial({ color: 0x1d9e75, roughness: 0.5 }),
+        new THREE.MeshStandardMaterial({
+          color: 0x1d9e75, roughness: 0.35, metalness: 0.2,
+          emissive: 0x0d5c44, emissiveIntensity: dark ? 0.6 : 0.15,
+        }),
       )
       band.position.y = 1.62
       g.add(band)
 
-      // Huit portes : trois colonnes, deux longues à gauche pour les raquettes.
-      var doorMat = sportMat(p, null, 'body', { roughness: 0.55 })
-      doorMat.color.setHex(sportSet(p) === SPORT_LIGHT ? 0xdfe8ef : 0x2c4a66)
+      // Socle : une borne posée à même le sol flotte. Le retrait sous le meuble
+      // fait l'ombre portée que le rendu ne calcule pas.
+      var socle = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.14, 0.86), steel(wellHex, 0.7, 0.3))
+      socle.position.y = -1.85
+      g.add(socle)
+
+      var doorMat = steel(doorHex, 0.34, 0.55)
+      var wellMat = new THREE.MeshStandardMaterial({ color: wellHex, roughness: 0.95, metalness: 0 })
+      var poigneeMat = steel(dark ? 0x8fb8cf : 0x7d8fa0, 0.2, 0.9)
 
       var doors = []
       var cols = [-0.58, 0, 0.58]
@@ -877,19 +917,46 @@
         [2, -0.7, 0.52, 0.82],
       ]
       for (var i = 0; i < layout.length; i++) {
-        var L = layout[i]
-        // Un pivot au bord gauche de la porte : une porte qui tourne autour de
-        // son centre traverse le meuble.
+        var L = layout[i], w = L[2], h = L[3], cx = cols[L[0]], cy = L[1]
+
+        // Le puits derrière la porte. C'est lui qui fait qu'une porte ouverte
+        // révèle une cavité sombre au lieu d'un trou dans le vide — le détail
+        // qui décide si le meuble a une épaisseur.
+        var well = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, h - 0.04, 0.38), wellMat)
+        well.position.set(cx, cy, 0.3)
+        g.add(well)
+
         var pivot = new THREE.Group()
-        pivot.position.set(cols[L[0]] - L[2] / 2, L[1], 0.5)
-        var panel = new THREE.Mesh(new THREE.BoxGeometry(L[2], L[3], 0.05), doorMat)
-        panel.position.x = L[2] / 2
+        pivot.position.set(cx - w / 2, cy, 0.5)
+
+        var panel = new THREE.Mesh(new THREE.BoxGeometry(w - 0.03, h - 0.03, 0.045), doorMat)
+        panel.position.x = w / 2
         pivot.add(panel)
+
+        // Poignée verticale au bord libre, décollée du panneau : c'est l'objet
+        // le plus petit du meuble et celui qui dit le plus qu'il s'ouvre.
+        var poignee = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.018, 0.018, Math.min(h * 0.45, 0.5), 10),
+          poigneeMat,
+        )
+        poignee.position.set(w - 0.11, 0, 0.045)
+        pivot.add(poignee)
+
         g.add(pivot)
         doors.push(pivot)
       }
 
-      // Le ballon qui sort du casier ouvert.
+      // L'écran de la borne, en haut à droite : la seule surface qui émet.
+      var ecran = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.24, 0.02),
+        new THREE.MeshStandardMaterial({
+          color: 0x0a1f1a, roughness: 0.15, metalness: 0.1,
+          emissive: 0x2bc295, emissiveIntensity: dark ? 1.5 : 0.5,
+        }),
+      )
+      ecran.position.set(0.58, 1.34, 0.515)
+      g.add(ecran)
+
       var out = ballBasket(p)
       out.scale.setScalar(0.3)
       g.add(out)
@@ -1292,7 +1359,12 @@
       var narrow = window.innerWidth < 768
       // Moins d'objets sur téléphone : même densité apparente sur un écran trois
       // fois plus étroit, et une charge GPU qui reste honnête sur batterie.
-      var count = narrow ? 7 : 15
+      // Quinze objets en vol faisaient un confetti : l'œil ne se posait sur
+      // aucun, et chacun coûtait des polygones qu'on refusait ensuite aux
+      // scènes. Quatre suffisent à tenir la profondeur, et ils sont désormais
+      // relégués très en arrière — présents pour l'échelle, pas pour être
+      // regardés. Le propos, ce sont les scènes.
+      var count = narrow ? 2 : 4
 
       scene = new THREE.Scene()
       fogColor = new THREE.Color(p.fog)
@@ -1341,8 +1413,8 @@
         // volume, plus que le nombre d'objets.
         // Trois plans, tous repoussés vers le fond : au premier essai les objets
         // du plan avant arrivaient à la taille d'une carte du contenu.
-        var depth = [-9.5, -5.5, -2][i % 3]
-        var scale = (depth < -8 ? 0.62 : depth < -4 ? 0.76 : 0.88) * (narrow ? 0.72 : 1)
+        var depth = [-13, -10.5, -8][i % 3]
+        var scale = (depth < -12 ? 0.5 : depth < -9 ? 0.6 : 0.7) * (narrow ? 0.72 : 1)
 
         obj.scale.setScalar(scale)
         obj.position.set(
@@ -1553,9 +1625,9 @@
         y = ((((y + LANE / 2) % LANE) + LANE) % LANE) - LANE / 2
         o.group.position.y = y
         if (!reduced) {
-          o.group.rotation.x += o.spin.x * 16
-          o.group.rotation.y += o.spin.y * 16
-          o.group.rotation.z += o.spin.z * 16
+          o.group.rotation.x += o.spin.x * 6
+          o.group.rotation.y += o.spin.y * 6
+          o.group.rotation.z += o.spin.z * 6
         }
       }
 
