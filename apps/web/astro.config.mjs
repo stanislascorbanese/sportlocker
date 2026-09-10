@@ -10,9 +10,10 @@ import sitemap from '@astrojs/sitemap'
 // non indexable = signal contradictoire).
 const SITEMAP_EXCLUDE = [
   '/cgu', '/cgv', '/mentions-legales', '/confidentialite', '/contact',
-  // Pages retirées en septembre 2026 (pivot campings) — conservées en
-  // redirection meta-refresh, donc hors sitemap.
-  '/mairies', '/hotels', '/couverture', '/communes', '/faq', '/campings',
+  // Pages conservées en redirection meta-refresh pour ne pas casser les liens
+  // entrants, donc hors sitemap. `/hotels` en est sortie : c'est redevenu une
+  // vraie page en septembre 2026, avec la réouverture des publics privés.
+  '/mairies', '/couverture', '/communes', '/faq', '/campings',
 ]
 
 export default defineConfig({
