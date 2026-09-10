@@ -92,6 +92,31 @@
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     var THREE, renderer, scene, camera, fogColor
+
+    /**
+     * L'état de la caméra entre deux images.
+     *
+     * Tout est amorti plutôt qu'appliqué directement : la cible est recalculée à
+     * chaque image d'après le défilement, et la caméra la rejoint par un lissage
+     * exponentiel. Sans ça, un coup de molette brutal fait sauter le cadrage, et
+     * un saut de cadrage est exactement ce qui trahit une caméra pilotée par un
+     * script.
+     */
+    var cam = {
+      baseFov: 46,
+      pos: { x: 0, y: 0, z: 15.2 },
+      look: { x: 0, y: 0 },
+      roll: 0,
+      fov: 46,
+      // Position du curseur, ramenée dans [-1, 1]. Le parallaxe à la souris ne
+      // sert que sur desktop : sur un écran tactile il n'y a pas de curseur, et
+      // le mouvement au doigt appartient déjà au défilement.
+      mx: 0,
+      my: 0,
+      narrow: false,
+    }
+    var onPointer = null
+    var fx = null
     var objects = []
     var scenes = []
     var running = false
@@ -896,7 +921,261 @@
       { key: 'petanque', from: 0.87, to: 0.99, make: makePetanque, update: updatePetanque },
     ]
 
+    /**
+     * Ce que la caméra fait pendant chaque scène.
+     *
+     * Une caméra immobile devant un décor qui défile, c'est une vitrine. Ce qui
+     * fait le cinéma, c'est que le point de vue prenne parti : il se penche vers
+     * ce qui compte, se rapproche au moment de l'impact, et repart. Chaque scène
+     * a donc son plan.
+     *
+     * `x`, `y`, `z` sont un écart à la position de repos, pas une position
+     * absolue : le mouvement se superpose au travelling lent qui traverse toute
+     * la page, au lieu de l'écraser.
+     *
+     * `lookX`/`lookY` déplacent le point visé — c'est ce décalage, plus que le
+     * déplacement lui-même, qui donne l'impression d'un regard. `fov` resserre
+     * le champ : resserrer pendant qu'on avance est le vieux truc qui fait
+     * qu'un rapprochement se sent au lieu de se constater.
+     *
+     * `roll` incline l'horizon de quelques dixièmes de degré. À cette dose
+     * personne ne le remarque consciemment, et tout le monde trouve l'image
+     * plus vivante.
+     */
+    var CAMERA_BEATS = {
+      // Le casier vient de loin vers nous : la caméra recule pour lui laisser la
+      // place d'arriver, et plonge vers le bas, d'où il monte. C'est le seul
+      // plan où elle cède du terrain — partout ailleurs elle va au-devant.
+      kiosk:    { x: 0,    y: -1.4, z: 3.0,  lookX: 0,    lookY: -1.8, fov: 1.05, roll: 0 },
+      // Le panier est à droite : on se penche franchement de son côté, on avance
+      // et on resserre. Avancer en resserrant est le vieux truc qui fait qu'un
+      // rapprochement se sent au lieu de se constater.
+      hoop:     { x: 3.6,  y: 1.0,  z: -4.4, lookX: 4.8,  lookY: 0.8,  fov: 0.84, roll: -0.014 },
+      // Le terrain est large : on prend de la hauteur et on ouvre le champ, le
+      // seul moment du site où le décor respire au lieu de se refermer.
+      court:    { x: 2.3,  y: 3.0,  z: 1.6,  lookX: 3.4,  lookY: 0.4,  fov: 1.14, roll: 0.010 },
+      // La raquette frappe à gauche : contre-champ, et le plan le plus serré de
+      // la page — c'est l'instant le plus violent des cinq.
+      racket:   { x: -4.0, y: 0.6,  z: -5.0, lookX: -5.2, lookY: 0.6,  fov: 0.78, roll: 0.018 },
+      // La pétanque se joue au sol : on descend au ras du sable et on regarde
+      // vers le bas.
+      petanque: { x: -2.9, y: -2.2, z: -2.8, lookX: -4.2, lookY: -2.4, fov: 0.92, roll: -0.012 },
+    }
+
+    /**
+     * Le poids d'un plan au fil de sa scène : nul aux extrémités, maximal au
+     * milieu. La puissance resserre la cloche — la caméra reste posée plus
+     * longtemps et bascule plus franchement, au lieu de dériver mollement d'un
+     * bout à l'autre.
+     */
+    function beatWeight(q) {
+      if (q <= 0 || q >= 1) return 0
+      return Math.pow(Math.sin(Math.PI * q), 1.6)
+    }
+
     // ─── Mise en place ────────────────────────────────────────────────────────
+
+    /**
+     * Le post-traitement, écrit à la main.
+     *
+     * Il n'y a pas d'EffectComposer ici, et c'est délibéré : il vit dans les
+     * `examples/` de three.js, qu'il faudrait charger depuis un CDN. Un script
+     * externe qui n'arrive pas, c'est un hero noir en production, découvert par
+     * un client. Quatre passes écrites ici ne peuvent pas ne pas arriver.
+     *
+     * La chaîne :
+     *   scène ─→ cible pleine résolution
+     *          ─→ extraction des hautes lumières (demi-résolution)
+     *          ─→ flou horizontal ─→ flou vertical
+     *          ─→ composition : halo + vignettage + grain + aberration
+     *
+     * Le coût tient dans les trois passes en demi-résolution, soit un quart des
+     * pixels chacune. C'est ce qui rend l'effet payable ; c'est aussi pourquoi
+     * il reste coupé sur téléphone, où le GPU est déjà le facteur limitant.
+     *
+     * L'alpha traverse toute la chaîne. La cascade est posée derrière le
+     * contenu de la page, à travers lequel on doit continuer de voir : une
+     * composition qui sortirait alpha = 1 recouvrirait le site d'un rectangle
+     * opaque. L'alpha final est le maximum entre celui de la scène et le halo,
+     * sans quoi le halo s'arrêterait net au bord des objets.
+     */
+    var FX_VERT = [
+      'varying vec2 vUv;',
+      'void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    ].join('\n')
+
+    var FX_BRIGHT = [
+      'uniform sampler2D tDiffuse; uniform float threshold; varying vec2 vUv;',
+      'void main() {',
+      '  vec4 c = texture2D(tDiffuse, vUv);',
+      '  float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));',
+      '  float k = smoothstep(threshold, threshold + 0.30, l);',
+      '  gl_FragColor = vec4(c.rgb * k, c.a * k);',
+      '}',
+    ].join('\n')
+
+    // Gaussienne à cinq prises, décalages non entiers : l'interpolation
+    // linéaire du GPU fait le travail de neuf prises pour le prix de cinq.
+    var FX_BLUR = [
+      'uniform sampler2D tDiffuse; uniform vec2 dir; varying vec2 vUv;',
+      'void main() {',
+      '  vec4 sum = texture2D(tDiffuse, vUv) * 0.2270270270;',
+      '  sum += texture2D(tDiffuse, vUv + dir * 1.3846153846) * 0.3162162162;',
+      '  sum += texture2D(tDiffuse, vUv - dir * 1.3846153846) * 0.3162162162;',
+      '  sum += texture2D(tDiffuse, vUv + dir * 3.2307692308) * 0.0702702703;',
+      '  sum += texture2D(tDiffuse, vUv - dir * 3.2307692308) * 0.0702702703;',
+      '  gl_FragColor = sum;',
+      '}',
+    ].join('\n')
+
+    var FX_COMPOSE = [
+      'uniform sampler2D tScene; uniform sampler2D tBloom;',
+      'uniform float bloom; uniform float vignette; uniform float grain;',
+      'uniform float aberration; uniform float time;',
+      'varying vec2 vUv;',
+      'void main() {',
+      '  vec2 off = vUv - 0.5;',
+      '  float r2 = dot(off, off);',
+      // L'aberration croît avec le carré de la distance au centre : nulle au
+      // milieu de l'image, visible dans les angles. C'est le comportement d'un
+      // vrai objectif, et c'est ce qui la rend crédible plutôt que décorative.
+      '  float a = aberration * r2;',
+      '  vec4 s = texture2D(tScene, vUv);',
+      '  vec3 col = vec3(',
+      '    texture2D(tScene, vUv + off * a).r,',
+      '    s.g,',
+      '    texture2D(tScene, vUv - off * a).b',
+      '  );',
+      '  vec4 b = texture2D(tBloom, vUv);',
+      '  col += b.rgb * bloom;',
+      '  col *= 1.0 - vignette * r2;',
+      '  float n = fract(sin(dot(vUv * 1000.0 + time, vec2(12.9898, 78.233))) * 43758.5453);',
+      '  col += (n - 0.5) * grain;',
+      '  gl_FragColor = vec4(col, clamp(max(s.a, b.a * bloom), 0.0, 1.0));',
+      '}',
+    ].join('\n')
+
+    function makeRT(w, h) {
+      return new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w)), Math.max(2, Math.floor(h)), {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        depthBuffer: true,
+        stencilBuffer: false,
+      })
+    }
+
+    function buildFx(narrow) {
+      // Coupé sur téléphone et en mouvement réduit. Sur téléphone c'est le GPU
+      // qui commande ; en mouvement réduit, le grain est précisément le genre de
+      // scintillement qu'on nous demande d'éteindre.
+      if (narrow || reduced) return null
+      try {
+        var w = window.innerWidth, h = window.innerHeight
+        var pr = renderer.getPixelRatio()
+        var half = { w: (w * pr) / 2, h: (h * pr) / 2 }
+
+        var quadScene = new THREE.Scene()
+        var quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+        var geo = new THREE.PlaneGeometry(2, 2)
+
+        function pass(frag, uniforms) {
+          var mat = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: FX_VERT,
+            fragmentShader: frag,
+            depthTest: false,
+            depthWrite: false,
+            // Sans blending, le fragment remplace le tampon tel quel, alpha
+            // compris. Avec NormalBlending sur un tampon effacé à zéro, la
+            // couleur serait multipliée par son propre alpha et l'image
+            // s'assombrirait à chaque passe.
+            blending: THREE.NoBlending,
+          })
+          return mat
+        }
+
+        var mesh = new THREE.Mesh(geo, null)
+        quadScene.add(mesh)
+
+        return {
+          scene: quadScene,
+          cam: quadCam,
+          mesh: mesh,
+          geo: geo,
+          sceneRT: makeRT(w * pr, h * pr),
+          rtA: makeRT(half.w, half.h),
+          rtB: makeRT(half.w, half.h),
+          bright: pass(FX_BRIGHT, {
+            tDiffuse: { value: null },
+            // Seuil bas : le décor est sombre, et ce qu'on veut faire rayonner
+            // ce sont les liserés de marque et l'arceau, pas des blancs purs
+            // qui n'existent nulle part dans cette palette.
+            threshold: { value: 0.22 },
+          }),
+          blur: pass(FX_BLUR, { tDiffuse: { value: null }, dir: { value: new THREE.Vector2() } }),
+          compose: pass(FX_COMPOSE, {
+            tScene: { value: null },
+            tBloom: { value: null },
+            bloom: { value: 0.9 },
+            vignette: { value: 0.55 },
+            grain: { value: 0.05 },
+            aberration: { value: 0.0075 },
+            time: { value: 0 },
+          }),
+          half: half,
+        }
+      } catch (e) {
+        // Un GPU qui refuse une cible de rendu, un contexte perdu : on retombe
+        // sur le rendu direct plutôt que sur un écran noir.
+        return null
+      }
+    }
+
+    /** Dessine une passe plein écran vers `target` (null = écran). */
+    function blit(mat, target) {
+      fx.mesh.material = mat
+      renderer.setRenderTarget(target)
+      renderer.clear()
+      renderer.render(fx.scene, fx.cam)
+    }
+
+    function renderFrame(now) {
+      if (!fx) {
+        renderer.setRenderTarget(null)
+        renderer.render(scene, camera)
+        return
+      }
+      try {
+        renderer.setRenderTarget(fx.sceneRT)
+        renderer.clear()
+        renderer.render(scene, camera)
+
+        fx.bright.uniforms.tDiffuse.value = fx.sceneRT.texture
+        blit(fx.bright, fx.rtA)
+
+        fx.blur.uniforms.tDiffuse.value = fx.rtA.texture
+        fx.blur.uniforms.dir.value.set(1.4 / fx.half.w, 0)
+        blit(fx.blur, fx.rtB)
+
+        fx.blur.uniforms.tDiffuse.value = fx.rtB.texture
+        fx.blur.uniforms.dir.value.set(0, 1.4 / fx.half.h)
+        blit(fx.blur, fx.rtA)
+
+        fx.compose.uniforms.tScene.value = fx.sceneRT.texture
+        fx.compose.uniforms.tBloom.value = fx.rtA.texture
+        // Le grain doit sauter d'une image à l'autre, sinon c'est une texture
+        // collée sur l'écran et non du grain.
+        fx.compose.uniforms.time.value = (now % 1000) / 1000
+        blit(fx.compose, null)
+      } catch (e) {
+        // Une erreur en cours de chaîne laisserait l'écran sur la dernière
+        // image : on désarme définitivement et on repasse en rendu direct.
+        fx = null
+        renderer.setRenderTarget(null)
+        renderer.render(scene, camera)
+      }
+    }
 
     function build() {
       var p = palette()
@@ -915,7 +1194,20 @@
         0.1,
         110,
       )
-      camera.position.set(0, 0, 14)
+      camera.position.set(0, 0, 15.2)
+
+      // L'état amorti part de la position de repos, sinon la première image
+      // rattrape depuis (0,0,14) une cible déjà décalée et le décor entre en
+      // glissant, ce qui ressemble à un bug de chargement.
+      cam.baseFov = camera.fov
+      cam.fov = camera.fov
+      cam.narrow = narrow
+      cam.pos.x = 0
+      cam.pos.y = 0
+      cam.pos.z = 15.2
+      cam.look.x = 0
+      cam.look.y = 0
+      cam.roll = 0
 
       scene.add(new THREE.AmbientLight(0xffffff, p.ambient))
       var key = new THREE.DirectionalLight(p.key, p.keyIntensity)
@@ -1007,7 +1299,11 @@
       // Poignée de mise au point. Le décor n'a pas d'interface et ne laisse
       // aucune trace dans le DOM : sans ça, la seule façon de savoir pourquoi
       // une scène ne s'affiche pas est de deviner. Coût : une référence.
-      window.__slCascade = { scene: scene, camera: camera, scenes: scenes, objects: objects }
+      fx = buildFx(narrow)
+      window.__slCascade = {
+        scene: scene, camera: camera, scenes: scenes, objects: objects,
+        fx: function () { return !!fx },
+      }
     }
 
     // ─── Boucle ───────────────────────────────────────────────────────────────
@@ -1035,6 +1331,77 @@
       }
     }
 
+    /**
+     * Le cadrage d'une image.
+     *
+     * Trois couches qui s'additionnent :
+     *   1. un travelling lent qui traverse toute la page — la caméra avance de
+     *      trois unités du haut au bas du site, ce qui suffit à ce qu'on sente
+     *      qu'on descend dans le décor plutôt que devant lui ;
+     *   2. le plan de la scène active, pondéré par sa cloche ;
+     *   3. une respiration et le parallaxe à la souris, tous deux coupés en
+     *      mouvement réduit — ce sont les seules parties qui bougent sans que le
+     *      visiteur ait rien demandé.
+     *
+     * Les plans se cumulent au lieu de s'exclure : quand deux scènes se
+     * chevauchent, la caméra passe de l'une à l'autre en glissant, sans coupure.
+     */
+    function frameCamera(progress, now) {
+      var tx = 0, ty = 0, tz = 0, lx = 0, ly = 0, roll = 0, fovMul = 1, total = 0
+
+      for (var i = 0; i < scenes.length; i++) {
+        var def = scenes[i].def
+        var beat = CAMERA_BEATS[def.key]
+        if (!beat) continue
+        var w = beatWeight((progress - def.from) / (def.to - def.from))
+        if (w <= 0) continue
+        // Sur téléphone le champ est deux fois plus étroit : un déport de deux
+        // unités y sort la scène du cadre au lieu de la souligner.
+        var amp = cam.narrow ? 0.45 : 1
+        tx += beat.x * w * amp
+        ty += beat.y * w * amp
+        tz += beat.z * w * amp
+        lx += beat.lookX * w * amp
+        ly += beat.lookY * w * amp
+        roll += beat.roll * w
+        fovMul += (beat.fov - 1) * w
+        total += w
+      }
+
+      // Le travelling de fond. Il avance toujours, plan de scène ou pas.
+      var dolly = 15.2 - progress * 5.4
+      var breathe = reduced ? 0 : Math.sin(now * 0.00021) * 0.35
+      var sway = reduced ? 0 : Math.sin(now * 0.00013) * 0.5
+
+      var targetX = tx + sway + (reduced ? 0 : cam.mx * 0.9)
+      var targetY = ty + breathe + (reduced ? 0 : cam.my * 0.55)
+      var targetZ = dolly + tz
+
+      // Lissage exponentiel. 0,055 par image à 40 im/s met environ une demi-
+      // seconde à rattraper la cible : assez lent pour que le mouvement se voie,
+      // assez rapide pour ne pas traîner derrière le défilement.
+      var k = reduced ? 1 : 0.055
+      cam.pos.x += (targetX - cam.pos.x) * k
+      cam.pos.y += (targetY - cam.pos.y) * k
+      cam.pos.z += (targetZ - cam.pos.z) * k
+      cam.look.x += (lx - cam.look.x) * k
+      cam.look.y += (ly - cam.look.y) * k
+      cam.roll += (roll - cam.roll) * k
+
+      var targetFov = cam.baseFov * fovMul
+      cam.fov += (targetFov - cam.fov) * k
+      if (Math.abs(camera.fov - cam.fov) > 0.01) {
+        camera.fov = cam.fov
+        camera.updateProjectionMatrix()
+      }
+
+      camera.position.set(cam.pos.x, cam.pos.y, cam.pos.z)
+      camera.lookAt(cam.look.x, cam.look.y, 0)
+      // `lookAt` remet le roulis à zéro : on l'applique après, sinon il est
+      // écrasé à chaque image.
+      camera.rotation.z += cam.roll
+    }
+
     function layout(now) {
       // Le défilement entraîne la cascade, la dérive l'anime à l'arrêt. Le
       // facteur 2,4 veut dire : la page entière fait passer un peu plus de deux
@@ -1060,6 +1427,7 @@
       }
 
       playScenes(progress)
+      frameCamera(progress, now)
     }
 
     function frame(now) {
@@ -1069,7 +1437,7 @@
       if (now - lastFrame > 24) {
         lastFrame = now
         layout(now)
-        renderer.render(scene, camera)
+        renderFrame(now)
       }
       requestAnimationFrame(frame)
     }
@@ -1090,6 +1458,20 @@
       camera.aspect = window.innerWidth / window.innerHeight
       camera.updateProjectionMatrix()
       renderer.setSize(window.innerWidth, window.innerHeight)
+      // Une rotation de téléphone change le champ visible sans reconstruire la
+      // scène : sans cette ligne, l'amplitude des plans resterait celle du
+      // format précédent et les scènes sortiraient du cadre.
+      cam.narrow = window.innerWidth < 768
+
+      if (fx) {
+        var pr = renderer.getPixelRatio()
+        var w = window.innerWidth * pr, h = window.innerHeight * pr
+        fx.sceneRT.setSize(Math.max(2, Math.floor(w)), Math.max(2, Math.floor(h)))
+        fx.half.w = w / 2
+        fx.half.h = h / 2
+        fx.rtA.setSize(Math.max(2, Math.floor(fx.half.w)), Math.max(2, Math.floor(fx.half.h)))
+        fx.rtB.setSize(Math.max(2, Math.floor(fx.half.w)), Math.max(2, Math.floor(fx.half.h)))
+      }
     }
 
     /** Le bouton clair/sombre change la palette : on reconstruit la scène. */
@@ -1103,6 +1485,16 @@
           else n.material.dispose()
         }
       })
+      if (fx) {
+        fx.sceneRT.dispose()
+        fx.rtA.dispose()
+        fx.rtB.dispose()
+        fx.geo.dispose()
+        fx.bright.dispose()
+        fx.blur.dispose()
+        fx.compose.dispose()
+        fx = null
+      }
       renderer.dispose()
       host.innerHTML = ''
       objects = []
@@ -1116,7 +1508,7 @@
       if (!THREE) return
       build()
       layout(performance.now())
-      renderer.render(scene, camera)
+      renderFrame(performance.now())
       host.classList.add('is-ready')
 
       // En mouvement réduit, une seule image composée : le décor garde sa
@@ -1126,7 +1518,7 @@
           'scroll',
           function () {
             layout(performance.now())
-            renderer.render(scene, camera)
+            renderFrame(performance.now())
           },
           { passive: true },
         )
@@ -1135,6 +1527,18 @@
       }
 
       window.addEventListener('resize', onResize, { passive: true })
+
+      // Le parallaxe à la souris n'existe que sur pointeur fin : sur tactile il
+      // n'y a pas de curseur, et `pointermove` s'y déclencherait au doigt, en
+      // concurrence avec le défilement.
+      if (!reduced && window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+        onPointer = function (e) {
+          cam.mx = (e.clientX / window.innerWidth) * 2 - 1
+          // Inversé : la caméra suit le regard, elle ne le fuit pas.
+          cam.my = 1 - (e.clientY / window.innerHeight) * 2
+        }
+        window.addEventListener('pointermove', onPointer, { passive: true })
+      }
       // Onglet en arrière-plan : rien à dessiner.
       document.addEventListener('visibilitychange', function () {
         if (document.hidden) stop()
