@@ -86,15 +86,15 @@ Par ordre de valeur, aucun n'est gros :
 
 ## 6. Dette à traiter
 
-- **`database/migrations/0005_reservations_unique_active.sql` est un doublon de
-  `0018_reservations_unique_active.sql`.** Le fichier aurait dû être supprimé lors
-  du renommage du 10 juin 2026 ; il ne l'a pas été. Le runner applique les deux
-  (idempotent, sans dégât, mais deux entrées dans `schema_migrations`).
-  À faire : `git rm database/migrations/0005_reservations_unique_active.sql`.
-- **140 branches distantes non fusionnées**, majoritairement `claude/*`.
-  Voir `scripts/cleanup-repo.sh`.
-- **8 worktrees orphelins** dans le répertoire personnel, ~6,5 Go avec leurs
-  `node_modules`. Même script.
+- **102 branches distantes à supprimer**, `claude/*` et `dependabot/*`, toutes
+  générées automatiquement en mai-juin 2026 et référencées par aucune PR ouverte.
+  `scripts/cleanup-repo.sh` les liste mais ne les touche pas sans `DELETE_REMOTE=1`
+  en plus de `CONFIRM=1` : un `push --delete` ne se rejoue pas.
+- **8 worktrees abandonnés** dans le répertoire personnel, ~6,5 Go avec leurs
+  `node_modules`. Même script, qui ne retire que ceux dont le répertoire est
+  réellement visible et dont l'arbre est propre — lancé depuis un environnement
+  qui ne monte pas tout le disque, `git worktree list` les annonce tous
+  « prunable » alors qu'ils existent, et un prune les orphelinerait en bloc.
 - **Une clé de service Firebase en clair** dans
   `SportLocker-Docs/Archives/sportlocker-f85b7-firebase-adminsdk-*.json`.
   À révoquer dans la console Firebase et à supprimer du disque.
