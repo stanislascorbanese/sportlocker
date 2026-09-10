@@ -46,6 +46,9 @@ importers:
       '@sportlocker/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@sportlocker/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       lucide-react:
         specifier: ^1.23.0
         version: 1.23.0(react@18.3.1)
