@@ -1331,6 +1331,16 @@
       '}',
     ].join('\n')
 
+    /**
+     * Une cible de rendu.
+     *
+     * Pas de multi-échantillonnage ici, et c'est un choix appuyé sur un échec :
+     * `WebGLMultisampleRenderTarget` a rendu la page entièrement noire. Le gain
+     * ne valait pas de déboguer un chemin qui dépend de l'extension et du pilote
+     * sur la page d'accueil d'un site commercial.
+     *
+     * Le lissage passe donc par le suréchantillonnage — voir SUPER plus bas.
+     */
     function makeRT(w, h) {
       return new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w)), Math.max(2, Math.floor(h)), {
         minFilter: THREE.LinearFilter,
@@ -1340,6 +1350,24 @@
         stencilBuffer: false,
       })
     }
+
+    /**
+     * Facteur de suréchantillonnage.
+     *
+     * Le `antialias: true` du renderer ne vaut que pour le dessin direct à
+     * l'écran : dès que la scène est rendue dans une cible intermédiaire — ce
+     * que fait le post-traitement — il ne s'applique plus. Les arêtes fines
+     * redeviennent crénelées, et sur la borne, dont les poignées font 18
+     * millièmes d'unité et les jeux de porte trois centièmes, ça se lisait comme
+     * des stries verticales sur toute la façade.
+     *
+     * On rend donc la scène à une fois et demie la taille de l'écran et on la
+     * réduit à la composition : le filtre linéaire moyenne les pixels, ce qui
+     * est exactement ce que fait un antialiasing. Coût : 2,25 fois plus de
+     * pixels sur la seule passe de scène. C'est le prix du post-traitement, et
+     * il reste réservé au desktop.
+     */
+    var SUPER = 1.5
 
     function buildFx(narrow) {
       // Coupé sur téléphone et en mouvement réduit. Sur téléphone c'est le GPU
@@ -1379,7 +1407,7 @@
           cam: quadCam,
           mesh: mesh,
           geo: geo,
-          sceneRT: makeRT(w * pr, h * pr),
+          sceneRT: makeRT(w * pr * SUPER, h * pr * SUPER),
           rtA: makeRT(half.w, half.h),
           rtB: makeRT(half.w, half.h),
           bright: pass(FX_BRIGHT, {
@@ -1770,7 +1798,7 @@
       if (fx) {
         var pr = renderer.getPixelRatio()
         var w = window.innerWidth * pr, h = window.innerHeight * pr
-        fx.sceneRT.setSize(Math.max(2, Math.floor(w)), Math.max(2, Math.floor(h)))
+        fx.sceneRT.setSize(Math.max(2, Math.floor(w * SUPER)), Math.max(2, Math.floor(h * SUPER)))
         fx.half.w = w / 2
         fx.half.h = h / 2
         fx.rtA.setSize(Math.max(2, Math.floor(fx.half.w)), Math.max(2, Math.floor(fx.half.h)))
