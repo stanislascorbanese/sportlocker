@@ -220,19 +220,53 @@
      */
     var TEX = {}
 
+    /**
+     * Bruit de valeur, en deux octaves.
+     *
+     * La première version multipliait deux sinus — `sin(x·0,35) · sin(y·0,31)`.
+     * Ce n'est pas du bruit, c'est une grille régulière d'une trentaine de
+     * périodes. Posée en rugosité sur une surface métallique, elle produisait des
+     * stries verticales sur toute la façade de la borne, que j'ai d'abord prises
+     * pour un conflit de profondeur.
+     *
+     * Un bruit crédible n'a pas de période. On tire donc une grille aléatoire
+     * grossière, on l'interpole, et on superpose une octave plus fine : les
+     * creux viennent de la première, le piqué de la seconde, et aucune des deux
+     * ne se répète.
+     */
+    function valueNoise(size, cells, seedRand) {
+      var g = new Float32Array((cells + 1) * (cells + 1))
+      for (var i = 0; i < g.length; i++) g[i] = seedRand()
+      var out = new Float32Array(size * size)
+      var step = size / cells
+      for (var y = 0; y < size; y++) {
+        var gy = y / step, y0 = Math.floor(gy), fy = gy - y0
+        // Lissage en S : une interpolation linéaire laisse voir les arêtes de
+        // la grille, ce qui ramènerait le motif régulier qu'on cherche à fuir.
+        var sy = fy * fy * (3 - 2 * fy)
+        for (var x = 0; x < size; x++) {
+          var gx = x / step, x0 = Math.floor(gx), fx = gx - x0
+          var sx = fx * fx * (3 - 2 * fx)
+          var i00 = y0 * (cells + 1) + x0
+          var a = g[i00] + (g[i00 + 1] - g[i00]) * sx
+          var b = g[i00 + cells + 1] + (g[i00 + cells + 2] - g[i00 + cells + 1]) * sx
+          out[y * size + x] = a + (b - a) * sy
+        }
+      }
+      return out
+    }
+
     function noiseCanvas(size, base, amp, grain) {
       var cv = document.createElement('canvas')
       cv.width = cv.height = size
       var ctx = cv.getContext('2d')
       var img = ctx.createImageData(size, size)
       var d = img.data
+      var rnd = Math.random
+      var coarse = valueNoise(size, 12, rnd)
+      var fine = valueNoise(size, 48, rnd)
       for (var i = 0; i < size * size; i++) {
-        // Deux échelles de bruit superposées : la grosse donne les creux du
-        // cuir, la fine le piqué. Une seule échelle donne du sable.
-        var x = i % size, y = (i / size) | 0
-        var coarse = Math.sin(x * 0.35) * Math.sin(y * 0.31) * 0.5 + 0.5
-        var fine = Math.random()
-        var v = base + (coarse - 0.5) * amp + (fine - 0.5) * grain
+        var v = base + (coarse[i] - 0.5) * amp + (fine[i] - 0.5) * grain
         v = Math.max(0, Math.min(1, v)) * 255
         d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v
         d[i * 4 + 3] = 255
@@ -912,9 +946,10 @@
           roughness: rough === undefined ? 0.38 : rough,
           metalness: metal === undefined ? 0.62 : metal,
         })
-        m.bumpMap = t.brushed
-        m.bumpScale = 0.006
-        m.roughnessMap = t.brushed
+        // Aucune carte de rugosité ici, volontairement. C'est le reflet de
+        // l'environnement qui fait lire le métal ; un faux brossage plaqué
+        // par-dessus ne l'aide pas, il le salit. La borne est une tôle laquée
+        // propre, pas une pièce d'atelier.
         return m
       }
 
