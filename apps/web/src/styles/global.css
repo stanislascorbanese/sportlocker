@@ -751,6 +751,10 @@ html.light .hero-blob-1 {
   /* Intensité de la cascade 3D. En clair, les objets se détachent bien plus du
      fond qu'en sombre : la même valeur donnerait un décor criard. */
   --cascade-opacity: 1;
+  /* Voile porté par chaque bloc de texte. Plus dense que `--wash` : celui-ci
+     ne couvre qu'une ellipse autour du texte, il peut donc se permettre d'être
+     franc là où il agit sans assombrir la page. */
+  --wash-text: rgba(13, 27, 42, 0.88);
 }
 
 html.light {
@@ -759,6 +763,7 @@ html.light {
   --glow-cool: rgba(148, 187, 214, 0.2);
   --grain-opacity: 0.035;
   --cascade-opacity: 0.6;
+  --wash-text: rgba(255, 255, 255, 0.9);
 }
 
 /* Sur téléphone il n'y a pas de marge où reléguer le décor : le masque ne
@@ -846,4 +851,75 @@ footer {
   .hero-blob {
     animation: none;
   }
+}
+
+/* ─── Lisibilité du texte au-dessus de la cascade ─────────────────────────────
+ *
+ * Les sections sont volontairement transparentes : le décor doit passer
+ * derrière. Mais un filet de tennis qui traverse un paragraphe le rend
+ * illisible, et le lecteur ne se dit pas « joli décor », il se dit « je n'y
+ * arrive pas ».
+ *
+ * Chaque bloc de texte pose donc son propre voile, et pas la section entière :
+ * une ellipse en dégradé calée sur le bloc, qui s'éteint avant ses bords. Le
+ * décor reste pleinement visible partout ailleurs — entre les blocs, dans les
+ * marges — et le texte porte là où il est. Un aplat sur la section aurait
+ * réglé la lisibilité en supprimant ce qu'on essaie de montrer.
+ *
+ * `isolation: isolate` garantit que le voile reste derrière le texte de son
+ * propre bloc et devant tout le reste, quel que soit l'empilement autour.
+ */
+.section-title,
+.section-sub,
+.hero-section h1,
+.hero-section p,
+.section .max-w-3xl > p,
+.section-alt .max-w-3xl > p {
+  position: relative;
+  isolation: isolate;
+}
+
+.section-title::after,
+.section-sub::after,
+.hero-section h1::after,
+.hero-section p::after,
+.section .max-w-3xl > p::after,
+.section-alt .max-w-3xl > p::after {
+  content: '';
+  position: absolute;
+  inset: -0.75em -2em;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
+    var(--wash-text) 0%,
+    var(--wash-text) 44%,
+    transparent 76%
+  );
+}
+
+/* Les titres portent plus loin que les paragraphes : ils sont plus gros, donc
+   leur voile doit déborder davantage pour ne pas se voir. */
+.section-title::after,
+.hero-section h1::after {
+  inset: -0.5em -1.2em;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .section-title::after,
+  .section-sub::after,
+  .hero-section h1::after,
+  .hero-section p::after {
+    background: var(--wash-text);
+  }
+}
+
+/* Les halos décoratifs du hero font 700 px et débordent volontairement du
+   cadre. Sans cette coupe ils créent une barre de défilement horizontale de
+   douze pixels — assez pour que la page se décale sous le doigt sur téléphone,
+   pas assez pour qu'on en trouve la cause à l'œil.
+   `clip` et non `hidden` : `hidden` établit un conteneur de défilement et
+   casse `position: sticky` sur tous les descendants. */
+html {
+  overflow-x: clip;
 }
