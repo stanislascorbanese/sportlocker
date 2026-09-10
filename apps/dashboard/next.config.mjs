@@ -1,3 +1,14 @@
+// `withSentryConfig` est importé de la racine, pas de '@sentry/nextjs/config'.
+//
+// Le sous-chemin './config' n'existe pas dans @sentry/nextjs 10.63, la version
+// du lockfile : Node refusait le module et `next build` s'arrêtait avant même
+// d'avoir lu cette config (ERR_PACKAGE_PATH_NOT_EXPORTED). Il a été ajouté vers
+// 10.7x — et sur ces versions-là, c'est l'import racine qui est marqué déprécié,
+// « stop working in v11 ».
+//
+// Les deux formes ne sont donc jamais valides sur la même version. On garde la
+// racine tant qu'on est sur 10.63, et on repassera à './config' dans le même
+// mouvement que la montée de version — pas avant, sinon le build recasse.
 import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
