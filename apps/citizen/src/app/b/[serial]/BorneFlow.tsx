@@ -41,7 +41,7 @@ export function BorneFlow({ serial }: { serial: string }) {
         if (cancelled) return
         setKiosk(data)
         // On repropose ce qu'il a saisi la dernière fois sur cette même borne :
-        // en camping, on revient chercher un ballon plusieurs fois par semaine.
+        // sur un lieu de séjour, on revient chercher un ballon plusieurs fois par semaine.
         const remembered = getStay()
         if (remembered?.serial === serial) {
           setStayRef(remembered.stayRef)
@@ -188,7 +188,7 @@ export function BorneFlow({ serial }: { serial: string }) {
 
             <p className="text-center text-meta text-ink-muted">
               Ces informations servent uniquement à savoir à qui prêter le matériel. Elles
-              restent chez le camping.
+              restent chez votre hébergeur.
             </p>
           </form>
         </div>

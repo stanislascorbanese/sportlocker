@@ -10,7 +10,7 @@ import { A_VOTRE_CHARGE, ENGAGEMENTS, PMS_MESSAGE, SITE } from '@/data/site'
  *
  * Chez tous les fournisseurs installés du secteur, le SAV et les pièces
  * détachées sont en rubrique de premier niveau, pas en bas de page. La raison
- * est simple : un camping achète un équipement qu'il devra faire tourner tout
+ * est simple : un exploitant achète un équipement qu'il devra faire tourner tout
  * l'été sans personne pour le réparer, et « qui vient quand ça casse » pèse
  * autant que le prix.
  *
@@ -75,7 +75,7 @@ const faq = [
   },
   {
     q: 'Que se passe-t-il si un vacancier se blesse en jouant ?',
-    a: 'Le matériel est mis à disposition par le camping, comme le reste de vos équipements de loisirs, et relève de votre responsabilité d’exploitant. De notre côté, nous portons une responsabilité civile professionnelle et produit dont l’attestation vous est remise à l’installation et renouvelée chaque année.',
+    a: 'Le matériel est mis à disposition par votre établissement, comme le reste de vos équipements de loisirs, et relève de votre responsabilité d’exploitant. De notre côté, nous portons une responsabilité civile professionnelle et produit dont l’attestation vous est remise à l’installation et renouvelée chaque année.',
   },
   {
     q: 'Faut-il un contrôle réglementaire, comme pour une aire de jeux ?',
@@ -195,7 +195,7 @@ const jsonLd = [
         <span class="eyebrow" data-reveal>Questions</span>
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Les questions qui fâchent</h2>
       </div>
-      <Faq items={faq} />
+      <Faq id="faq" items={faq} />
     </div>
   </section>
 

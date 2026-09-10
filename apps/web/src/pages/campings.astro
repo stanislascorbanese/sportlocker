@@ -1,7 +1,8 @@
 ---
-// Le site entier s'adresse désormais aux campings : une page « pour les
-// campings » distincte de l'accueil n'a plus de sens. Redirection conservée
-// pour les liens entrants.
+// L'accueil est la page camping depuis septembre 2026 : garder une page
+// séparée dupliquait le même contenu à deux adresses.
+// Astro est en sortie statique : pas d'Astro.redirect ici, on sert une page de
+// redirection meta-refresh pour ne pas casser les liens entrants.
 const target = '/'
 ---
 <!doctype html>
@@ -10,7 +11,7 @@ const target = '/'
     <meta charset="utf-8" />
     <meta name="robots" content="noindex, follow" />
     <meta http-equiv="refresh" content={`0; url=${target}`} />
-    <link rel="canonical" href="https://sportlocker.fr/" />
+    <link rel="canonical" href={`https://sportlocker.fr${target}`} />
     <title>Redirection — SportLocker</title>
   </head>
   <body>

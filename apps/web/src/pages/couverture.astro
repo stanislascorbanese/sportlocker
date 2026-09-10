@@ -1,8 +1,9 @@
 ---
-// Page retirée en septembre 2026 (pivot campings — voir docs/CDC.md v2).
-// Astro est en sortie statique : pas d'Astro.redirect ici, on sert une page
-// de redirection meta-refresh pour ne pas casser les liens entrants.
-const target = '/campings'
+// La carte de couverture servait le modèle communes. Les délais
+// d'intervention par département vivent maintenant dans la page installation.
+// Astro est en sortie statique : pas d'Astro.redirect ici, on sert une page de
+// redirection meta-refresh pour ne pas casser les liens entrants.
+const target = '/installation-sav'
 ---
 <!doctype html>
 <html lang="fr">
@@ -14,6 +15,6 @@ const target = '/campings'
     <title>Redirection — SportLocker</title>
   </head>
   <body>
-    <p>Cette page a été retirée. <a href={target}>Voir l’offre pour les campings</a>.</p>
+    <p>Cette page a déménagé. <a href={target}>Voir les délais d’intervention</a>.</p>
   </body>
 </html>

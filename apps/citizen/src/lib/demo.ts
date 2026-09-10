@@ -8,7 +8,7 @@ import { ApiError, type Identity, type Kiosk, type Loan, type ReturnResult, type
  * réseau — en rendez-vous chez un gérant ou sur un stand.
  *
  * Ce n'est pas un mock de test : c'est un outil commercial. Il doit donc
- * raconter une histoire vraisemblable (un vrai nom de camping, du matériel
+ * raconter une histoire vraisemblable (un vrai nom d'établissement, du matériel
  * qu'on trouve vraiment dans un casier) et jamais laisser croire qu'un
  * matériel est réservé alors qu'il ne l'est pas.
  */

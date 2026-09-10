@@ -17,7 +17,7 @@ import type { z } from 'zod'
  * dis qui je suis, je choisis, un casier s'ouvre, je rends.
  *
  * Aucun jeton, aucun compte : c'est le couple (numéro de séjour, nom) qui fait
- * foi, et le camping l'a déjà vérifié au check-in. Le serveur répond par un
+ * foi, et l'établissement l'a déjà vérifié au check-in. Le serveur répond par un
  * `stayId` opaque et de courte durée que les appels suivants réutilisent.
  */
 

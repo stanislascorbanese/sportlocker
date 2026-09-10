@@ -5,18 +5,25 @@ interface Props {
   /** Le public de la page qui affiche le formulaire. */
   segment?: TenantSegment
 }
-const { segment = 'camping' } = Astro.props
+// Sans segment, on est sur la page /contact : le visiteur peut venir de
+// n'importe où, et lui demander « le nom de votre camping » c'est écarter d'une
+// question les trois quarts des publics qu'on vient de rouvrir. Dans ce cas le
+// libellé est neutre et on lui demande son type d'établissement.
+const impose = Astro.props.segment
+const segment: TenantSegment = impose ?? 'camping'
 const meta = SEGMENT_META[segment]
-// « Nom du camping » sur une page hôtel donne le sentiment d'un formulaire
-// recyclé — et c'est exactement ce que c'est, si on ne le nomme pas.
-const nomChamp = segment === 'hotel' ? 'Nom de l’hôtel'
-  : segment === 'village' ? 'Nom du village vacances'
-  : segment === 'loisirs' ? 'Nom du site'
-  : 'Nom du camping'
-const exemple = segment === 'hotel' ? 'Hôtel des Dunes'
-  : segment === 'village' ? 'Village vacances des Dunes'
-  : segment === 'loisirs' ? 'Base de loisirs des Dunes'
-  : 'Camping des Dunes'
+
+const CHAMPS = {
+  camping: { nom: 'Nom du camping', ex: 'Camping des Dunes', unite: 'emplacements' },
+  hotel: { nom: 'Nom de l’hôtel', ex: 'Hôtel des Dunes', unite: 'chambres' },
+  village: { nom: 'Nom du village vacances', ex: 'Village vacances des Dunes', unite: 'hébergements' },
+  loisirs: { nom: 'Nom du site', ex: 'Base de loisirs des Dunes', unite: 'visiteurs par jour en haute saison' },
+} as const
+
+const champs = CHAMPS[segment]
+const nomChamp = impose ? champs.nom : 'Nom de l’établissement'
+const exemple = impose ? champs.ex : 'Camping ou hôtel des Dunes'
+const uniteTaille = impose ? champs.unite : 'emplacements, chambres ou hébergements'
 const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
 
 /**
@@ -39,15 +46,7 @@ const INTENTIONS = [
   { value: 'echange', label: 'Je veux juste en parler', hint: 'Vous raconter comment on fait' },
 ]
 
-// L'unité de taille n'est pas la même d'un public à l'autre : un hôtelier
-// compte des chambres, une base de loisirs des visiteurs par jour. Demander des
-// emplacements à un hôtel, c'est avouer qu'on n'a pas relu son propre formulaire.
-const UNITES = {
-  camping: 'emplacements',
-  hotel: 'chambres',
-  village: 'hébergements',
-  loisirs: 'visiteurs par jour en haute saison',
-} as const
+
 
 const TAILLES = [
   { value: '<80', label: 'Moins de 80' },
@@ -133,8 +132,21 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
 
     <!-- QUALIFICATION -->
     <div class="grid sm:grid-cols-2 gap-5">
+      {!impose && (
+        <div class="sm:col-span-2">
+          <label for="typeEtab" class={legend}>Type d’établissement</label>
+          <select id="typeEtab" name="typeEtab" class={field}>
+            <option>Camping</option>
+            <option>Hôtel ou résidence de tourisme</option>
+            <option>Village vacances ou centre de séjour</option>
+            <option>Base de loisirs ou parc résidentiel</option>
+            <option>Autre</option>
+          </select>
+        </div>
+      )}
+
       <div>
-        <label for="taille" class={legend}>Nombre de {UNITES[segment]}</label>
+        <label for="taille" class={legend}>Nombre de {uniteTaille}</label>
         <select id="taille" name="taille" class={field}>
           {TAILLES.map((opt, i) => <option value={opt.label} selected={i === 2}>{opt.label}</option>)}
         </select>
@@ -295,7 +307,7 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
         const lignes = [
           ['Demande', data.get('intention')],
           ['Établissement', data.get('organization')],
-          ['Type', data.get('segment')],
+          ['Type', data.get('typeEtab') ?? data.get('segment')],
           ['Commune', data.get('locality')],
           ['Emplacements', data.get('taille')],
           ['Classement', data.get('classement')],

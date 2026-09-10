@@ -5,7 +5,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Emprunter du matériel — SportLocker',
   description:
-    "Empruntez un ballon ou une raquette à la borne de votre camping, avec votre numéro de séjour.",
+    "Empruntez un ballon ou une raquette à la borne de votre lieu de séjour, avec votre numéro de séjour.",
   manifest: '/manifest.json',
   // Cette page n'a rien à faire dans un moteur de recherche : on n'y arrive
   // qu'en scannant le QR code collé sur une borne.

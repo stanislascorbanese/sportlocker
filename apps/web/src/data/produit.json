@@ -13,8 +13,8 @@
         "Application, tableau de bord, maintenance",
         "Reprise de la borne en fin de saison si vous n’enchaînez pas"
       ],
-      "pourQui": "Les trois premiers campings équipés, en Vendée et Loire-Atlantique.",
-      "limite": "Trois sites maximum pour la saison 2027. En échange : vos retours d’usage, et le droit de citer votre camping.",
+      "pourQui": "Les trois premiers sites équipés, en Vendée et Loire-Atlantique.",
+      "limite": "Trois sites maximum pour la saison 2027. En échange : vos retours d’usage, et le droit de citer votre établissement.",
       "vedette": true
     },
     {
@@ -31,7 +31,7 @@
         "Formation de votre accueil, 10 minutes",
         "Garantie 2 ans pièces et main-d’œuvre"
       ],
-      "pourQui": "Les campings qui préfèrent immobiliser une fois et ne plus y penser."
+      "pourQui": "Les exploitants qui préfèrent immobiliser une fois et ne plus y penser."
     },
     {
       "slug": "location",
@@ -45,7 +45,7 @@
         "Remplacement immédiat en cas de panne bloquante",
         "SportLocker reste propriétaire"
       ],
-      "pourQui": "Les campings dont le budget d’investissement est déjà engagé ailleurs, ou qui veulent une saison de plus avant de s’engager."
+      "pourQui": "Les exploitants dont le budget d’investissement est déjà engagé ailleurs, ou qui veulent une saison de plus avant de s’engager."
     }
   ],
   "specs": [

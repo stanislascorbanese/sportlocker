@@ -67,7 +67,7 @@ const jsonLd = [
     '@type': 'HowTo',
     name: 'Emprunter du matériel sportif dans une borne SportLocker',
     description:
-      'Le parcours d’un vacancier qui emprunte un ballon ou une raquette dans la borne de son camping.',
+      'Le parcours d’un client qui emprunte un ballon ou une raquette dans la borne de son lieu de séjour.',
     step: vacancier.map((s, i) => ({
       '@type': 'HowToStep',
       position: i + 1,
@@ -87,7 +87,7 @@ const jsonLd = [
 
 <Base
   title="Comment ça marche"
-  description="Le parcours complet : le vacancier scanne, saisit son numéro de séjour, le casier s’ouvre. Côté camping, un écran de réassort et la liste des articles non rendus. Prise 230 V, 4G intégrée, aucun génie civil."
+  description="Le parcours complet : le vacancier scanne, saisit son numéro de séjour, le casier s’ouvre. Côté exploitant, un écran de réassort et la liste des articles non rendus. Prise 230 V, 4G intégrée, aucun génie civil."
   extraJsonLd={jsonLd}
 >
   <Hero

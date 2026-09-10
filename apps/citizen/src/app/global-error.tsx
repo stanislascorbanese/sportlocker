@@ -38,8 +38,8 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
         <div style={{ maxWidth: '22rem' }}>
           <h1 style={{ fontSize: '1.5rem', margin: '0 0 0.75rem' }}>L’application a planté</h1>
           <p style={{ margin: '0 0 1.75rem', color: '#5B6B64' }}>
-            Rechargez la page. Si le casier ne s’ouvre toujours pas, passez à l’accueil du
-            camping&nbsp;: ils peuvent l’ouvrir pour vous.
+            Rechargez la page. Si le casier ne s’ouvre toujours pas, passez à
+            l’accueil&nbsp;: ils peuvent l’ouvrir pour vous.
           </p>
           <a
             href="/"

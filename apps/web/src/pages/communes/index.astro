@@ -1,6 +1,9 @@
 ---
-// Pages SEO par commune retirées en septembre 2026 (pivot campings).
-const target = '/campings'
+// Pages SEO par commune retirées en septembre 2026, avec le modèle qu'elles
+// servaient.
+// Astro est en sortie statique : pas d'Astro.redirect ici, on sert une page de
+// redirection meta-refresh pour ne pas casser les liens entrants.
+const target = '/pour-qui'
 ---
 <!doctype html>
 <html lang="fr">
@@ -12,6 +15,6 @@ const target = '/campings'
     <title>Redirection — SportLocker</title>
   </head>
   <body>
-    <p>Cette page a été retirée. <a href={target}>Voir l’offre pour les campings</a>.</p>
+    <p>Cette page a déménagé. <a href={target}>Voir à qui s’adresse la borne</a>.</p>
   </body>
 </html>
