@@ -253,3 +253,80 @@ describe('GET /v1/admin/loans/daily', () => {
     expect(series.at(-1).count).toBe(1)
   })
 })
+
+/**
+ * Le super-admin.
+ *
+ * Tous les tests ci-dessus passent par un admin de camping, donc par la moitié
+ * du code où `auth.scope` filtre le SQL. Le super-admin exécute l'autre moitié :
+ * aucun filtre par commune, ni sur la liste, ni sur le marquage, ni sur la
+ * courbe. C'est le rôle qui voit tout — donc celui dont une erreur montrerait
+ * les clients d'un camping à quelqu'un d'autre, et il n'était pas testé.
+ */
+describe('super-admin', () => {
+  async function seedSuperAdmin(): Promise<string> {
+    const id = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email, role)
+      VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@t.local'}, 'super_admin')`
+    return `Bearer ${app.jwt.sign({ sub: id, role: 'super_admin' })}`
+  }
+
+  it('voit les emprunts de tous les campings', async () => {
+    const a = await seedSite('Camping A')
+    const b = await seedSite('Camping B')
+    await seedLoan(a, { ref: 'A1', lastName: 'ChezA' })
+    await seedLoan(b, { ref: 'B1', lastName: 'ChezB' })
+
+    const res = await app.inject({
+      method: 'GET', url: '/v1/admin/loans', headers: { authorization: await seedSuperAdmin() },
+    })
+    expect(res.statusCode).toBe(200)
+    const noms = res.json()
+      .map((l: { stay: { lastName: string } }) => l.stay.lastName)
+      .sort()
+    expect(noms).toEqual(['ChezA', 'ChezB'])
+  })
+
+  it('marque un emprunt quel que soit le camping', async () => {
+    const b = await seedSite('Camping B')
+    const loanId = await seedLoan(b, { ref: 'B1', lastName: 'ChezB' })
+
+    const res = await app.inject({
+      method: 'POST', url: `/v1/admin/loans/${loanId}/charge`,
+      headers: { authorization: await seedSuperAdmin() }, payload: { charged: true },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().chargedAt).not.toBeNull()
+  })
+
+  it('compte les emprunts de tous les campings dans la courbe', async () => {
+    const a = await seedSite('Camping A')
+    const b = await seedSite('Camping B')
+    await seedLoan(a, { ref: 'A1', lastName: 'ChezA', hoursAgo: 2 })
+    await seedLoan(b, { ref: 'B1', lastName: 'ChezB', hoursAgo: 2 })
+
+    const res = await app.inject({
+      method: 'GET', url: '/v1/admin/loans/daily?days=7',
+      headers: { authorization: await seedSuperAdmin() },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().at(-1).count).toBe(2)
+  })
+})
+
+describe('POST /v1/admin/loans/:id/charge — emprunt inexistant', () => {
+  /**
+   * Distinct du test « emprunt d'un autre camping » : celui-là vérifie qu'on
+   * ment par prudence, celui-ci qu'on dit vrai. Les deux rendent 404, mais par
+   * deux chemins différents, et seul le second était couvert.
+   */
+  it('404 sur un identifiant qui n\'existe pas', async () => {
+    const site = await seedSite()
+    const res = await app.inject({
+      method: 'POST', url: `/v1/admin/loans/${randomUUID()}/charge`,
+      headers: { authorization: site.auth }, payload: { charged: true },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'loan_not_found' })
+  })
+})

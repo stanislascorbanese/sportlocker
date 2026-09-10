@@ -243,3 +243,90 @@ describe('GET /v1/admin/stays', () => {
     expect(refs).not.toContain('PASSE')
   })
 })
+
+/**
+ * Le super-admin, et le garde-fou de volume.
+ *
+ * Un admin de camping est scopé sur le sien : le `communeId` qu'il enverrait est
+ * ignoré, et c'est testé plus haut. Le super-admin, lui, n'a pas de camping — il
+ * doit le nommer, et se voir refuser l'import s'il l'oublie. Importer les
+ * séjours d'un camping dans un autre ne se rattrape pas : les clients du second
+ * pourraient ouvrir les casiers du premier.
+ */
+describe('super-admin', () => {
+  async function seedSuperAdmin(): Promise<string> {
+    const id = randomUUID()
+    await pgSql`INSERT INTO users (id, firebase_uid, email, role)
+      VALUES (${id}, ${'fb-' + id.slice(0, 8)}, ${id.slice(0, 8) + '@t.local'}, 'super_admin')`
+    return `Bearer ${app.jwt.sign({ sub: id, role: 'super_admin' })}`
+  }
+
+  it('400 commune_id_required s\'il n\'a pas dit dans quel camping importer', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/admin/stays/import',
+      headers: { authorization: await seedSuperAdmin() },
+      payload: { csv: CSV },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'commune_id_required' })
+
+    const [{ count }] = await pgSql<{ count: string }[]>`SELECT count(*) FROM stays`
+    expect(Number(count)).toBe(0)
+  })
+
+  it('importe dans le camping qu\'il désigne', async () => {
+    const cible = await seedCommune()
+    const res = await app.inject({
+      method: 'POST', url: '/v1/admin/stays/import',
+      headers: { authorization: await seedSuperAdmin() },
+      payload: { csv: CSV, communeId: cible },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toMatchObject({ inserted: 2 })
+
+    const rows = await pgSql`SELECT commune_id FROM stays`
+    expect(rows.every((r) => r.commune_id === cible)).toBe(true)
+  })
+})
+
+describe('garde-fou de volume', () => {
+  /**
+   * 20 000 séjours, c'est déjà dix fois la saison d'un gros camping. Au-delà, le
+   * fichier n'est pas un export de séjours : c'est un export de tout autre chose,
+   * ou une boucle qui a mal tourné dans le PMS. On refuse plutôt que d'écrire.
+   *
+   * Les lignes sont volontairement courtes : le corps de requête doit rester
+   * sous la limite de 1 Mio de Fastify, sinon on testerait le refus du serveur
+   * HTTP au lieu du garde-fou de la route.
+   */
+  function csvDe(lignes: number): string {
+    const out = ['Emplacement;Nom;Arrivée;Départ']
+    for (let i = 0; i < lignes; i++) out.push(`${i};Martin;01/01/2027;02/01/2027`)
+    return out.join('\n')
+  }
+
+  const TROP = 20_001
+
+  it('400 too_many_rows à l\'aperçu', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/admin/stays/preview',
+      headers: { authorization: adminAuth },
+      payload: { csv: csvDe(TROP) },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'too_many_rows' })
+  })
+
+  it('400 too_many_rows à l\'import, et rien n\'est écrit', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/admin/stays/import',
+      headers: { authorization: adminAuth },
+      payload: { csv: csvDe(TROP) },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'too_many_rows' })
+
+    const [{ count }] = await pgSql<{ count: string }[]>`SELECT count(*) FROM stays`
+    expect(Number(count)).toBe(0)
+  })
+})

@@ -423,3 +423,72 @@ describe('parcours complet', () => {
     expect(ret.json()).toEqual({ error: 'no_free_locker' })
   })
 })
+
+/**
+ * Les deux chemins d'erreur du retour.
+ *
+ * Le parcours nominal est testé plus haut. Ces deux-là sont ceux qu'on rencontre
+ * un dimanche de juillet : quelqu'un qui appuie deux fois, et une porte qui ne
+ * répond pas. Ni l'un ni l'autre ne doit rendre un 500 — le vacancier est debout
+ * devant la borne et il a besoin d'une phrase, pas d'une trace de pile.
+ */
+describe('retour — chemins d\'erreur', () => {
+  it('404 quand l\'emprunt a déjà été rendu', async () => {
+    const { kiosk, foot, stayId } = await setupBorrowable()
+
+    const loan = await app.inject({
+      method: 'POST',
+      url: `/v1/kiosk/${kiosk.serial}/loans`,
+      payload: { stayId, itemTypeId: foot },
+    })
+    const loanId = loan.json().id as string
+
+    const premier = await app.inject({
+      method: 'POST', url: `/v1/kiosk/loans/${loanId}/return`,
+    })
+    expect(premier.statusCode).toBe(200)
+
+    // Double appui, ou le même lien rouvert depuis l'historique du téléphone.
+    const second = await app.inject({
+      method: 'POST', url: `/v1/kiosk/loans/${loanId}/return`,
+    })
+    expect(second.statusCode).toBe(404)
+    expect(second.json()).toEqual({ error: 'loan_not_found' })
+  })
+
+  it('502 locker_stuck quand la borne ne confirme pas l\'ouverture', async () => {
+    const { kiosk, foot, stayId } = await setupBorrowable()
+
+    const loan = await app.inject({
+      method: 'POST',
+      url: `/v1/kiosk/${kiosk.serial}/loans`,
+      payload: { stayId, itemTypeId: foot },
+    })
+    const loanId = loan.json().id as string
+
+    // Sans broker, `openLocker` considère l'ouverture faite : c'est ce qui rend
+    // tout le reste du fichier testable sans matériel. On lui en pose donc un
+    // faux, dont la publication échoue tout de suite — le cas du broker
+    // injoignable, sans attendre les huit secondes du délai de confirmation.
+    const vrai = (app as { mqttSubscriber?: unknown }).mqttSubscriber
+    ;(app as { mqttSubscriber?: unknown }).mqttSubscriber = {
+      publish(_t: string, _p: string, _o: unknown, cb: (e?: Error | null) => void) {
+        cb(new Error('broker down'))
+      },
+    }
+
+    try {
+      const res = await app.inject({
+        method: 'POST', url: `/v1/kiosk/loans/${loanId}/return`,
+      })
+      expect(res.statusCode).toBe(502)
+      expect(res.json()).toEqual({ error: 'locker_stuck' })
+
+      // L'emprunt reste ouvert : on n'a pas rendu ce qu'on n'a pas pu déposer.
+      const [row] = await pgSql`SELECT returned_at FROM loans WHERE id = ${loanId}`
+      expect(row!.returned_at).toBeNull()
+    } finally {
+      ;(app as { mqttSubscriber?: unknown }).mqttSubscriber = vrai
+    }
+  })
+})
