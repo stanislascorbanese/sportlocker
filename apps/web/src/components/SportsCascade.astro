@@ -91,7 +91,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-10 · surechantillonnage'
+    var CASCADE_BUILD = '2026-09-11 · enfilade'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -120,7 +120,9 @@
     var onPointer = null
     var fx = null
     var objects = []
+    var ambient = null
     var scenes = []
+    var lastDocHeight = 0
     var running = false
     var lastFrame = 0
 
@@ -682,11 +684,10 @@
 
     function updateCourt(scn, q) {
       var t = ease(q)
-      // Vient de loin, passe sous le cadre. L'inclinaison s'ouvre en même temps
-      // que la distance tombe : de loin on voit le tracé presque à plat, de
-      // près on le voit en fuite, ce qui accentie l'impression de survol.
-      scn.group.position.set(0, lerp(-10, -5.6, t), lerp(-26, 1, t))
-      scn.group.rotation.x = lerp(-0.18, 0.06, t)
+      // Le terrain est planté au sol de sa station : c'est la caméra qui le
+      // survole. L'inclinaison s'ouvre pendant l'approche — de loin on voit le
+      // tracé presque à plat, de près on le voit en fuite.
+      scn.group.rotation.x = lerp(-0.16, 0.04, t)
       scn.group.rotation.z = 0.04
     }
 
@@ -825,11 +826,10 @@
     }
 
     function updateHoop(scn, q) {
-      // Le panier lui-même monte doucement dans le cadre pendant sa fenêtre :
-      // sans ce déplacement il resterait planté au même endroit pendant un
-      // écran et demi, et l'œil le prendrait pour un élément d'interface.
-      scn.group.position.set(5.2 * scn.xf, lerp(-7.5, 6, ease(q)), -3.4)
-      scn.group.rotation.y = lerp(0.55, 0.1, ease(q))
+      // Le panier pivote pendant l'approche pour se présenter de face au
+      // moment où on arrive à sa hauteur : de loin on le voit de trois quarts,
+      // de près l'arceau est ouvert vers nous.
+      scn.group.rotation.y = lerp(0.55, 0.05, ease(q))
 
       // Les trois tirs se suivent à un tiers de fenêtre d'écart, et chacun part
       // d'un point différent : trois paraboles superposées se liraient comme un
@@ -1067,8 +1067,9 @@
 
     function updateKiosk(scn, q) {
       var t = ease(q)
-      scn.group.position.set(5.6 * scn.xf, lerp(-8.5, 7, t), -5.5)
-      scn.group.rotation.y = lerp(-0.75, -0.25, t)
+      // La borne est plein axe : la caméra entre par la porte ouverte. Elle
+      // se met de face pendant l'approche, sinon on traverserait une paroi.
+      scn.group.rotation.y = lerp(-0.55, 0, t)
 
       // La porte s'ouvre au tiers de la fenêtre et reste ouverte : la refermer
       // pendant que l'article est dehors serait un contresens sur le produit.
@@ -1118,8 +1119,6 @@
     }
 
     function updateRacket(scn, q) {
-      scn.group.position.set(-5 * scn.xf, lerp(-8, 6, ease(q)), -4.5)
-
       // Le geste : armé, frappe, accompagnement. La frappe est au milieu de la
       // fenêtre, et c'est là que le volant change de sens.
       var swing = q < 0.5 ? ease(q / 0.5) : 1 - ease((q - 0.5) / 0.5) * 0.45
@@ -1171,7 +1170,6 @@
     }
 
     function updatePetanque(scn, q) {
-      scn.group.position.set(-5.2 * scn.xf, lerp(-9, 5, ease(q)), -5)
       scn.group.rotation.x = -0.34
 
       // Les trois boules partent décalées : elles arrivent l'une après l'autre,
@@ -1188,16 +1186,104 @@
       }
     }
 
-    // La fenêtre de chaque scène, en fraction de la page. Elles ne se
-    // chevauchent pas : deux scènes à l'écran en même temps, et le décor
-    // redevient du bruit.
+    /**
+     * Les cinq scènes, posées en enfilade.
+     *
+     * Elles ne montent plus dans le cadre l'une après l'autre : elles sont
+     * plantées à des profondeurs croissantes le long de -Z, et c'est la caméra
+     * qui les traverse au fil du défilement. Un couloir, pas un tapis roulant.
+     *
+     * `ox`/`oy` sont l'écart latéral et la hauteur de la scène dans le couloir.
+     * `ox = 0` veut dire : plein axe, la caméra passe dedans — c'est le cas de
+     * la borne, dont on traverse la porte ouverte.
+     *
+     * `from`/`to` et `stationZ` ne sont pas écrits ici : ils sont calculés au
+     * démarrage à partir de la position réelle des sections de texte de la
+     * page (cf. assignStations). C'est ce qui « cale » l'animation sur le
+     * contenu au lieu de la caler sur un pourcentage deviné, et ça marche sur
+     * n'importe laquelle des vingt pages du site.
+     */
     var SCENE_DEFS = [
-      { key: 'kiosk', from: 0.04, to: 0.24, make: makeKiosk, update: updateKiosk },
-      { key: 'hoop', from: 0.27, to: 0.5, make: makeHoop, update: updateHoop },
-      { key: 'court', from: 0.5, to: 0.71, make: makeCourt, update: updateCourt },
-      { key: 'racket', from: 0.72, to: 0.86, make: makeRacket, update: updateRacket },
-      { key: 'petanque', from: 0.87, to: 0.99, make: makePetanque, update: updatePetanque },
+      { key: 'kiosk',    ox: 0,    oy: -0.6, make: makeKiosk,    update: updateKiosk },
+      { key: 'hoop',     ox: 4.2,  oy: 0.6,  make: makeHoop,     update: updateHoop },
+      { key: 'court',    ox: 0,    oy: -5.4, make: makeCourt,    update: updateCourt },
+      { key: 'racket',   ox: -4.4, oy: 0.4,  make: makeRacket,   update: updateRacket },
+      { key: 'petanque', ox: 3.0,  oy: -4.6, make: makePetanque, update: updatePetanque },
     ]
+
+    // Le vol de la caméra, en unités monde. Elle part à z = 16 et descend de
+    // FLIGHT_LEN sur la hauteur de la page. Toutes les stations sont posées
+    // sur cette droite : une scène « à la station p » est simplement à
+    // l'endroit où la caméra sera quand le défilement vaudra p.
+    var FLIGHT_Z0 = 16
+    var FLIGHT_LEN = 210
+
+    // La fenêtre d'une scène, en fraction de page, avant et après sa station.
+    // WIN_BEFORE * FLIGHT_LEN (≈ 46 unités) est calé sur la distance de
+    // brouillard : la scène apparaît en émergeant du brouillard, jamais en
+    // apparaissant d'un coup dans le vide.
+    var WIN_BEFORE = 0.22
+    var WIN_AFTER = 0.05
+
+    // La chorégraphie interne (le tir, la frappe, la mène) ne démarre qu'au
+    // tiers de la fenêtre. Le premier tiers est l'approche : l'objet sort du
+    // brouillard, on a le temps de le reconnaître avant qu'il se passe quelque
+    // chose. Sans ce décalage l'action se joue à trente unités, dans la purée
+    // de pois, et on ne voit rien.
+    var ACTION_FROM = 0.34
+
+    function actionQ(q) {
+      return clamp01((q - ACTION_FROM) / (1 - ACTION_FROM))
+    }
+
+    /**
+     * Place les stations sur les sections de texte de la page.
+     *
+     * On mesure le centre de chaque section, on le convertit en fraction de
+     * défilement, et on répartit les scènes sur les sections disponibles. Une
+     * scène arrive donc pile quand le lecteur est au milieu d'un bloc de
+     * texte — le décor et le propos avancent ensemble.
+     *
+     * Repli sur un espacement régulier si la page n'a pas assez de sections
+     * (les pages légales, par exemple) : mieux vaut un rythme approximatif
+     * qu'une cascade qui ne se déclenche pas.
+     */
+    function assignStations() {
+      var max = document.documentElement.scrollHeight - window.innerHeight
+      if (max <= 0 || !scenes.length) return
+      lastDocHeight = document.documentElement.scrollHeight
+
+      var marks = []
+      try {
+        var nodes = document.querySelectorAll('[data-cascade-beat], main section, main > article')
+        for (var i = 0; i < nodes.length; i++) {
+          var r = nodes[i].getBoundingClientRect()
+          var centre = r.top + window.scrollY + r.height / 2
+          var f = (centre - window.innerHeight / 2) / max
+          if (f > 0.03 && f < 0.97) marks.push(f)
+        }
+      } catch (e) {}
+      marks.sort(function (a, b) { return a - b })
+
+      for (var k = 0; k < scenes.length; k++) {
+        var at
+        if (marks.length >= scenes.length) {
+          // Réparties sur toute la hauteur : la première scène sur la première
+          // section, la dernière sur la dernière, les autres au prorata.
+          var idx = Math.round((k / (scenes.length - 1 || 1)) * (marks.length - 1))
+          at = marks[idx]
+        } else {
+          at = 0.10 + (k / Math.max(scenes.length - 1, 1)) * 0.82
+        }
+        var scn = scenes[k]
+        scn.at = at
+        scn.from = at - WIN_BEFORE
+        scn.to = at + WIN_AFTER
+        // La station est posée là où la caméra sera à cet instant du
+        // défilement : c'est ce qui garantit la traversée, et pas un survol.
+        scn.stationZ = FLIGHT_Z0 - at * FLIGHT_LEN
+      }
+    }
 
     /**
      * Ce que la caméra fait pendant chaque scène.
@@ -1224,20 +1310,20 @@
       // Le casier vient de loin vers nous : la caméra recule pour lui laisser la
       // place d'arriver, et plonge vers le bas, d'où il monte. C'est le seul
       // plan où elle cède du terrain — partout ailleurs elle va au-devant.
-      kiosk:    { x: 0,    y: -1.4, z: 3.0,  lookX: 0,    lookY: -1.8, fov: 1.05, roll: 0 },
+      kiosk:    { x: 0,    y: -0.2, z: 0,    lookX: 0,    lookY: -0.5, fov: 1.02, roll: 0 },
       // Le panier est à droite : on se penche franchement de son côté, on avance
       // et on resserre. Avancer en resserrant est le vieux truc qui fait qu'un
       // rapprochement se sent au lieu de se constater.
-      hoop:     { x: 3.6,  y: 1.0,  z: -4.4, lookX: 4.8,  lookY: 0.8,  fov: 0.84, roll: -0.014 },
+      hoop:     { x: 2.2,  y: 0.8,  z: 0,    lookX: 3.6,  lookY: 0.7,  fov: 0.88, roll: -0.012 },
       // Le terrain est large : on prend de la hauteur et on ouvre le champ, le
       // seul moment du site où le décor respire au lieu de se refermer.
-      court:    { x: 2.3,  y: 3.0,  z: 1.6,  lookX: 3.4,  lookY: 0.4,  fov: 1.14, roll: 0.010 },
+      court:    { x: 0.6,  y: 2.4,  z: 0,    lookX: -0.6, lookY: -1.2, fov: 1.10, roll: 0.009 },
       // La raquette frappe à gauche : contre-champ, et le plan le plus serré de
       // la page — c'est l'instant le plus violent des cinq.
-      racket:   { x: -4.0, y: 0.6,  z: -5.0, lookX: -5.2, lookY: 0.6,  fov: 0.78, roll: 0.018 },
+      racket:   { x: -2.4, y: 0.5,  z: 0,    lookX: -3.8, lookY: 0.5,  fov: 0.84, roll: 0.015 },
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
       // vers le bas.
-      petanque: { x: -2.9, y: -2.2, z: -2.8, lookX: -4.2, lookY: -2.4, fov: 0.92, roll: -0.012 },
+      petanque: { x: 1.8,  y: -1.4, z: 0,    lookX: 2.8,  lookY: -2.0, fov: 0.94, roll: -0.010 },
     }
 
     /**
@@ -1503,8 +1589,17 @@
       var count = narrow ? 2 : 4
 
       scene = new THREE.Scene()
+      // Les objets d'ambiance vivent dans un groupe qui suit la caméra en
+      // profondeur. Sans lui ils resteraient plantés à z ≈ -10 pendant que la
+      // caméra s'enfonce de deux cents unités : le couloir se viderait dès la
+      // deuxième scène.
+      ambient = new THREE.Group()
       fogColor = new THREE.Color(p.fog)
-      scene.fog = new THREE.Fog(p.fog, 14, 52)
+      // Le brouillard n'est plus un fond : c'est le volet. Une scène naît à
+      // 48 unités et se dégage à 12 — soit exactement la fenêtre pendant
+      // laquelle la caméra l'approche. On ne voit jamais un objet apparaître,
+      // on le voit émerger.
+      scene.fog = new THREE.Fog(p.fog, 12, 48)
 
       camera = new THREE.PerspectiveCamera(
         narrow ? 58 : 46,
@@ -1527,6 +1622,7 @@
       cam.look.y = 0
       cam.roll = 0
 
+      scene.add(ambient)
       scene.add(new THREE.AmbientLight(0xffffff, p.ambient))
       var key = new THREE.DirectionalLight(p.key, p.keyIntensity)
       key.position.set(-6, 9, 8)
@@ -1586,7 +1682,7 @@
             z: (((i * 17) % 5) - 2) * 0.0005,
           },
         })
-        scene.add(obj)
+        ambient.add(obj)
       }
 
       // Les scènes. Sur téléphone on garde le panier et le terrain — ce sont
@@ -1640,6 +1736,8 @@
         // reste correct, simplement plus mat.
       }
 
+      assignStations()
+
       fx = buildFx(narrow)
       // Marqueur de version. Sans lui, impossible de savoir si ce qu'on regarde
       // est bien le code qu'on vient d'écrire — un onglet gardé ouvert ou le
@@ -1649,6 +1747,18 @@
           '[cascade] ' + CASCADE_BUILD +
           ' · post-traitement ' + (fx ? 'actif' : 'coupé') +
           ' · ' + (narrow ? 'mobile' : 'desktop'),
+        )
+        // Les stations, telles qu'elles ont réellement été calculées sur cette
+        // page. Sans ce relevé, un rythme qui tombe mal ne se distingue pas
+        // d'une scène cassée : là on voit tout de suite si la station est au
+        // mauvais endroit ou si c'est l'animation qui ne joue pas.
+        console.info(
+          '[cascade] stations · ' +
+          scenes.map(function (s) {
+            return s.def.key + ' @' + s.at.toFixed(3) +
+              ' [' + s.from.toFixed(2) + '→' + s.to.toFixed(2) + ']' +
+              ' z=' + s.stationZ.toFixed(0)
+          }).join('  |  '),
         )
       } catch (e) {}
       window.__slCascade = {
@@ -1670,16 +1780,19 @@
     function playScenes(progress) {
       for (var i = 0; i < scenes.length; i++) {
         var scn = scenes[i]
-        var def = scn.def
-        var q = (progress - def.from) / (def.to - def.from)
+        if (scn.from === undefined) continue
+        var q = (progress - scn.from) / (scn.to - scn.from)
         // Hors fenêtre, la scène sort du rendu : c'est ce qui permet d'en avoir
-        // trois sans que la page coûte trois fois plus cher.
+        // cinq sans que la page coûte cinq fois plus cher.
         if (q < -0.02 || q > 1.02) {
           scn.group.visible = false
           continue
         }
         scn.group.visible = true
-        def.update(scn, clamp01(q))
+        // La scène est plantée à sa station. Elle ne bouge plus : c'est le
+        // point fixe autour duquel la caméra travaille.
+        scn.group.position.set(scn.def.ox * scn.xf, scn.def.oy, scn.stationZ)
+        scn.def.update(scn, actionQ(clamp01(q)))
       }
     }
 
@@ -1702,10 +1815,14 @@
       var tx = 0, ty = 0, tz = 0, lx = 0, ly = 0, roll = 0, fovMul = 1, total = 0
 
       for (var i = 0; i < scenes.length; i++) {
-        var def = scenes[i].def
-        var beat = CAMERA_BEATS[def.key]
+        var scn = scenes[i]
+        if (scn.from === undefined) continue
+        var beat = CAMERA_BEATS[scn.def.key]
         if (!beat) continue
-        var w = beatWeight((progress - def.from) / (def.to - def.from))
+        // Le plan est pondéré sur le q d'action, pas sur le q brut : la caméra
+        // prend parti au moment où il se passe quelque chose, pas pendant
+        // l'approche où l'objet est encore dans le brouillard.
+        var w = beatWeight(actionQ(clamp01((progress - scn.from) / (scn.to - scn.from))))
         if (w <= 0) continue
         // Sur téléphone le champ est deux fois plus étroit : un déport de deux
         // unités y sort la scène du cadre au lieu de la souligner.
@@ -1720,8 +1837,11 @@
         total += w
       }
 
-      // Le travelling de fond. Il avance toujours, plan de scène ou pas.
-      var dolly = 15.2 - progress * 5.4
+      // Le vol. La caméra ne recule plus de cinq unités sur toute la page :
+      // elle traverse deux cents unités de couloir, et chaque station est
+      // posée sur son chemin. C'est ce qui transforme cinq vignettes en une
+      // enfilade — on entre dans la borne, on ressort sur le terrain.
+      var dolly = FLIGHT_Z0 - progress * FLIGHT_LEN
       var breathe = reduced ? 0 : Math.sin(now * 0.00021) * 0.35
       var sway = reduced ? 0 : Math.sin(now * 0.00013) * 0.5
 
@@ -1780,6 +1900,9 @@
 
       playScenes(progress)
       frameCamera(progress, now)
+      // Le couloir d'ambiance suit la caméra : il est là pour donner une
+      // vitesse, pas pour être un lieu.
+      if (ambient) ambient.position.z = camera.position.z - 11
     }
 
     function frame(now) {
@@ -1850,6 +1973,7 @@
       renderer.dispose()
       host.innerHTML = ''
       objects = []
+      ambient = null
       scenes = []
       build()
       start()
