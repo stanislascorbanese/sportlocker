@@ -91,7 +91,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · enfilade'
+    var CASCADE_BUILD = '2026-09-11 · plans de drone'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -107,7 +107,7 @@
     var cam = {
       baseFov: 46,
       pos: { x: 0, y: 0, z: 15.2 },
-      look: { x: 0, y: 0 },
+      look: { x: 0, y: 0, z: -20 },
       roll: 0,
       fov: 46,
       // Position du curseur, ramenée dans [-1, 1]. Le parallaxe à la souris ne
@@ -1067,9 +1067,11 @@
 
     function updateKiosk(scn, q) {
       var t = ease(q)
-      // La borne est plein axe : la caméra entre par la porte ouverte. Elle
-      // se met de face pendant l'approche, sinon on traverserait une paroi.
-      scn.group.rotation.y = lerp(-0.55, 0, t)
+      // La borne est plein axe : la caméra entre par la porte ouverte. Elle est
+      // de face aux six dixièmes du plan, pas à la fin — la caméra arrive à la
+      // fin, et un meuble encore de trois quarts à cet instant se traverserait
+      // par la tôle.
+      scn.group.rotation.y = lerp(-0.55, 0, ease(clamp01(q / 0.6)))
 
       // La porte s'ouvre au tiers de la fenêtre et reste ouverte : la refermer
       // pendant que l'article est dehors serait un contresens sur le produit.
@@ -1211,29 +1213,107 @@
       { key: 'petanque', ox: 3.0,  oy: -4.6, make: makePetanque, update: updatePetanque },
     ]
 
-    // Le vol de la caméra, en unités monde. Elle part à z = 16 et descend de
-    // FLIGHT_LEN sur la hauteur de la page. Toutes les stations sont posées
-    // sur cette droite : une scène « à la station p » est simplement à
-    // l'endroit où la caméra sera quand le défilement vaudra p.
-    var FLIGHT_Z0 = 16
-    var FLIGHT_LEN = 210
+    /**
+     * Le vol de la caméra est un montage, pas un travelling uniforme.
+     *
+     * Une caméra qui avance à vitesse constante donne exactement ce qu'on
+     * avait : chaque objet traverse le champ en trois secondes et rien ne se
+     * regarde. Un plan de drone fait l'inverse — il se pose sur son sujet, y
+     * reste le temps qu'il se passe quelque chose, puis file vers le suivant.
+     *
+     * La vitesse est donc alternée : lente pendant le plan (24 unités sur 12 %
+     * de la page), rapide pendant la liaison (40 unités sur 8 %). Deux fois et
+     * demie plus rapide en transit — c'est ce rapport qui fait qu'un plan se
+     * sent comme un plan.
+     */
+    var FLIGHT_Z0 = 18
+    var STATION_APPROACH = 18   // où le drone prend son plan, devant la station
+    var STATION_EXIT = 6        // de combien il la dépasse en repartant
+    var STATION_TRANSIT = 40    // distance parcourue entre deux plans
+    var STATION_STEP = STATION_APPROACH + STATION_EXIT + STATION_TRANSIT
 
-    // La fenêtre d'une scène, en fraction de page, avant et après sa station.
-    // WIN_BEFORE * FLIGHT_LEN (≈ 46 unités) est calé sur la distance de
-    // brouillard : la scène apparaît en émergeant du brouillard, jamais en
-    // apparaissant d'un coup dans le vide.
-    var WIN_BEFORE = 0.22
-    var WIN_AFTER = 0.05
+    // Le plan tenu, en fraction de page, autour de la station.
+    var HOLD_BEFORE = 0.09
+    var HOLD_AFTER = 0.03
+    // Le recouvrement de deux plans. C'est lui, et lui seul, qui enchaîne :
+    // pendant la liaison les deux poids se croisent, et le regard de la caméra
+    // glisse du sujet qu'on quitte à celui qui arrive au lieu de sauter.
+    var HOLD_EDGE = 0.06
+    // Écart minimal entre deux stations : en dessous, la liaison n'a plus la
+    // place d'exister et les deux plans se marchent dessus.
+    var MIN_GAP = 0.17
 
-    // La chorégraphie interne (le tir, la frappe, la mène) ne démarre qu'au
-    // tiers de la fenêtre. Le premier tiers est l'approche : l'objet sort du
-    // brouillard, on a le temps de le reconnaître avant qu'il se passe quelque
-    // chose. Sans ce décalage l'action se joue à trente unités, dans la purée
-    // de pois, et on ne voit rien.
-    var ACTION_FROM = 0.34
+    // La fenêtre de rendu d'une scène, plus large que son plan : elle doit
+    // exister avant qu'on la regarde, pour émerger du brouillard.
+    var WIN_BEFORE = 0.20
+    var WIN_AFTER = 0.08
+
+    // La chorégraphie interne (le tir, la frappe, la mène) est calée sur le
+    // plan tenu, pas sur la fenêtre de rendu : elle se joue pendant qu'on
+    // regarde, jamais pendant l'approche où l'objet est encore dans le
+    // brouillard.
+    var ACTION_FROM = 0.42
+    var ACTION_TO = 0.88
 
     function actionQ(q) {
-      return clamp01((q - ACTION_FROM) / (1 - ACTION_FROM))
+      return clamp01((q - ACTION_FROM) / (ACTION_TO - ACTION_FROM))
+    }
+
+    function smooth(u) {
+      return u * u * (3 - 2 * u)
+    }
+
+    /**
+     * Le poids d'un plan à un instant du défilement : un plateau à 1 pendant
+     * le plan tenu, des flancs en smoothstep de part et d'autre.
+     *
+     * Le plateau est le point : une cloche (ce qu'il y avait avant) ne tient
+     * jamais son cadrage, elle ne fait que passer par lui. Et comme
+     * smoothstep(u) + smoothstep(1-u) = 1 exactement, deux flancs qui se
+     * croisent somment toujours à 1 : la liaison est continue par
+     * construction, sans cas particulier.
+     */
+    function shotWeight(scn, p) {
+      var a = scn.holdFrom - HOLD_EDGE
+      var b = scn.holdFrom
+      var c = scn.holdTo
+      var d = scn.holdTo + HOLD_EDGE
+      if (p <= a || p >= d) return 0
+      if (p < b) return smooth((p - a) / (b - a))
+      if (p <= c) return 1
+      return smooth((d - p) / (d - c))
+    }
+
+    /**
+     * La position de la caméra sur l'axe du couloir, à un instant donné.
+     *
+     * Monotone décroissante par construction : la caméra n'avance jamais à
+     * reculons, quelle que soit la répartition des stations.
+     */
+    function flightZ(p) {
+      var n = scenes.length
+      if (!n) return FLIGHT_Z0
+      var first = scenes[0]
+      if (p <= first.holdFrom) {
+        var u0 = first.holdFrom > 0.0001 ? clamp01(p / first.holdFrom) : 1
+        return lerp(FLIGHT_Z0 + 8, first.stationZ + STATION_APPROACH, smooth(u0))
+      }
+      for (var i = 0; i < n; i++) {
+        var scn = scenes[i]
+        if (p <= scn.holdTo) {
+          var u = clamp01((p - scn.holdFrom) / Math.max(scn.holdTo - scn.holdFrom, 0.0001))
+          return lerp(scn.stationZ + STATION_APPROACH, scn.stationZ - STATION_EXIT, smooth(u))
+        }
+        var nx = scenes[i + 1]
+        if (!nx) break
+        if (p <= nx.holdFrom) {
+          var v = clamp01((p - scn.holdTo) / Math.max(nx.holdFrom - scn.holdTo, 0.0001))
+          return lerp(scn.stationZ - STATION_EXIT, nx.stationZ + STATION_APPROACH, smooth(v))
+        }
+      }
+      var last = scenes[n - 1]
+      var w = clamp01((p - last.holdTo) / Math.max(1 - last.holdTo, 0.0001))
+      return last.stationZ - STATION_EXIT - w * 26
     }
 
     /**
@@ -1265,23 +1345,42 @@
       } catch (e) {}
       marks.sort(function (a, b) { return a - b })
 
-      for (var k = 0; k < scenes.length; k++) {
-        var at
-        if (marks.length >= scenes.length) {
-          // Réparties sur toute la hauteur : la première scène sur la première
-          // section, la dernière sur la dernière, les autres au prorata.
-          var idx = Math.round((k / (scenes.length - 1 || 1)) * (marks.length - 1))
-          at = marks[idx]
-        } else {
-          at = 0.10 + (k / Math.max(scenes.length - 1, 1)) * 0.82
+      // On part d'un rythme régulier — c'est lui qui fait le montage — puis on
+      // aimante chaque plan sur la section de texte la plus proche, sans
+      // jamais descendre sous MIN_GAP. Prendre les sections telles quelles
+      // donnait des écarts de 0,14 à 0,25 : les liaisons courtes n'avaient
+      // plus la place d'exister et deux plans se marchaient dessus.
+      // L'amplitude suit le nombre de plans, elle n'est pas fixe : sur
+      // téléphone il n'y a que deux scènes, et les étaler de 0,10 à 0,90
+      // laissait les deux tiers de la page avec une caméra qui rampe dans le
+      // vide. Trente pour cent de page par plan, centrés, plafonnés à 0,80.
+      var n = scenes.length
+      var span = n > 1 ? Math.min(0.80, (n - 1) * 0.30) : 0
+      var start = Math.max(0.10, (1 - span) / 2)
+      var prev = -1
+      for (var k = 0; k < n; k++) {
+        var ideal = n > 1 ? start + (k / (n - 1)) * span : 0.5
+        var at = ideal
+        var best = 1
+        for (var m = 0; m < marks.length; m++) {
+          var dist = Math.abs(marks[m] - ideal)
+          // Aimantation courte : au-delà, on garde le rythme régulier plutôt
+          // que d'aller chercher une section qui casse la cadence.
+          if (dist < best && dist < 0.07) { best = dist; at = marks[m] }
         }
+        if (prev >= 0 && at - prev < MIN_GAP) at = prev + MIN_GAP
+        prev = at
+
         var scn = scenes[k]
         scn.at = at
         scn.from = at - WIN_BEFORE
         scn.to = at + WIN_AFTER
-        // La station est posée là où la caméra sera à cet instant du
-        // défilement : c'est ce qui garantit la traversée, et pas un survol.
-        scn.stationZ = FLIGHT_Z0 - at * FLIGHT_LEN
+        scn.holdFrom = at - HOLD_BEFORE
+        scn.holdTo = at + HOLD_AFTER
+        // Les stations sont régulièrement espacées dans le couloir, quelle que
+        // soit la répartition des plans dans la page : c'est la vitesse de la
+        // caméra qui s'adapte, pas la géométrie.
+        scn.stationZ = -k * STATION_STEP
       }
     }
 
@@ -1310,7 +1409,12 @@
       // Le casier vient de loin vers nous : la caméra recule pour lui laisser la
       // place d'arriver, et plonge vers le bas, d'où il monte. C'est le seul
       // plan où elle cède du terrain — partout ailleurs elle va au-devant.
-      kiosk:    { x: 0,    y: -0.2, z: 0,    lookX: 0,    lookY: -0.5, fov: 1.02, roll: 0 },
+      // `thread` : ce plan ne regarde pas la borne, il la traverse. La caméra
+      // s'aligne sur le casier ouvert (le n° 3 du gabarit, à y = 0,18 dans le
+      // repère du meuble) et plonge dedans. 0,18 n'est pas un réglage à l'œil :
+      // c'est la cote du casier dans `layout`, et si le gabarit change il faut
+      // la reprendre là.
+      kiosk:    { x: 0,    y: 0.18, z: 0,    lookX: 0,    lookY: 0.18, fov: 1.12, roll: 0, thread: true },
       // Le panier est à droite : on se penche franchement de son côté, on avance
       // et on resserre. Avancer en resserrant est le vieux truc qui fait qu'un
       // rapprochement se sent au lieu de se constater.
@@ -1324,17 +1428,6 @@
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
       // vers le bas.
       petanque: { x: 1.8,  y: -1.4, z: 0,    lookX: 2.8,  lookY: -2.0, fov: 0.94, roll: -0.010 },
-    }
-
-    /**
-     * Le poids d'un plan au fil de sa scène : nul aux extrémités, maximal au
-     * milieu. La puissance resserre la cloche — la caméra reste posée plus
-     * longtemps et bascule plus franchement, au lieu de dériver mollement d'un
-     * bout à l'autre.
-     */
-    function beatWeight(q) {
-      if (q <= 0 || q >= 1) return 0
-      return Math.pow(Math.sin(Math.PI * q), 1.6)
     }
 
     // ─── Mise en place ────────────────────────────────────────────────────────
@@ -1599,7 +1692,7 @@
       // 48 unités et se dégage à 12 — soit exactement la fenêtre pendant
       // laquelle la caméra l'approche. On ne voit jamais un objet apparaître,
       // on le voit émerger.
-      scene.fog = new THREE.Fog(p.fog, 12, 48)
+      scene.fog = new THREE.Fog(p.fog, 14, 62)
 
       camera = new THREE.PerspectiveCamera(
         narrow ? 58 : 46,
@@ -1756,7 +1849,7 @@
           '[cascade] stations · ' +
           scenes.map(function (s) {
             return s.def.key + ' @' + s.at.toFixed(3) +
-              ' [' + s.from.toFixed(2) + '→' + s.to.toFixed(2) + ']' +
+              ' plan[' + s.holdFrom.toFixed(2) + '→' + s.holdTo.toFixed(2) + ']' +
               ' z=' + s.stationZ.toFixed(0)
           }).join('  |  '),
         )
@@ -1812,52 +1905,77 @@
      * chevauchent, la caméra passe de l'une à l'autre en glissant, sans coupure.
      */
     function frameCamera(progress, now) {
-      var tx = 0, ty = 0, tz = 0, lx = 0, ly = 0, roll = 0, fovMul = 1, total = 0
+      // Le cadrage est composé DANS le repère de la scène regardée, pas en
+      // écarts abstraits : on veut « le drone se place à deux unités à droite
+      // du panier et le regarde », pas « la caméra se décale de deux unités ».
+      // Pendant la liaison les deux plans se croisent et tout s'interpole —
+      // position, cible, roulis, focale — d'un sujet à l'autre.
+      var px = 0, py = 0, lx = 0, ly = 0, lz = 0
+      var roll = 0, fovMul = 1, total = 0, thread = 0
 
       for (var i = 0; i < scenes.length; i++) {
         var scn = scenes[i]
-        if (scn.from === undefined) continue
+        if (scn.holdFrom === undefined) continue
         var beat = CAMERA_BEATS[scn.def.key]
         if (!beat) continue
-        // Le plan est pondéré sur le q d'action, pas sur le q brut : la caméra
-        // prend parti au moment où il se passe quelque chose, pas pendant
-        // l'approche où l'objet est encore dans le brouillard.
-        var w = beatWeight(actionQ(clamp01((progress - scn.from) / (scn.to - scn.from))))
+        var w = shotWeight(scn, progress)
         if (w <= 0) continue
         // Sur téléphone le champ est deux fois plus étroit : un déport de deux
         // unités y sort la scène du cadre au lieu de la souligner.
-        var amp = cam.narrow ? 0.45 : 1
-        tx += beat.x * w * amp
-        ty += beat.y * w * amp
-        tz += beat.z * w * amp
-        lx += beat.lookX * w * amp
-        ly += beat.lookY * w * amp
+        // Un plan traversant ne se met pas à l'échelle du cadre : il vise une
+        // ouverture réelle de quelques dizaines de centimètres. Son écart suit
+        // donc l'échelle du modèle, pas l'amplitude de cadrage — sinon on rate
+        // la porte de dix centimètres et on entre dans la tôle.
+        var amp = beat.thread ? scn.group.scale.x : (cam.narrow ? 0.45 : 1)
+        if (beat.thread) thread += w
+        var sx = scn.def.ox * scn.xf
+        var sy = scn.def.oy
+        px += (sx + beat.x * amp) * w
+        py += (sy + beat.y * amp) * w
+        lx += (sx + beat.lookX * amp) * w
+        ly += (sy + beat.lookY * amp) * w
+        lz += scn.stationZ * w
         roll += beat.roll * w
         fovMul += (beat.fov - 1) * w
         total += w
       }
 
-      // Le vol. La caméra ne recule plus de cinq unités sur toute la page :
-      // elle traverse deux cents unités de couloir, et chaque station est
-      // posée sur son chemin. C'est ce qui transforme cinq vignettes en une
-      // enfilade — on entre dans la borne, on ressort sur le terrain.
-      var dolly = FLIGHT_Z0 - progress * FLIGHT_LEN
-      var breathe = reduced ? 0 : Math.sin(now * 0.00021) * 0.35
-      var sway = reduced ? 0 : Math.sin(now * 0.00013) * 0.5
+      var baseZ = flightZ(progress)
 
-      var targetX = tx + sway + (reduced ? 0 : cam.mx * 0.9)
-      var targetY = ty + breathe + (reduced ? 0 : cam.my * 0.55)
-      var targetZ = dolly + tz
+      if (total > 0.0001) {
+        px /= total; py /= total; lx /= total; ly /= total; lz /= total
+      } else {
+        lz = baseZ - 34
+      }
 
-      // Lissage exponentiel. 0,055 par image à 40 im/s met environ une demi-
-      // seconde à rattraper la cible : assez lent pour que le mouvement se voie,
-      // assez rapide pour ne pas traîner derrière le défilement.
-      var k = reduced ? 1 : 0.055
+      // Le regard vise toujours DEVANT la station, jamais la station elle-même :
+      // sinon, à l'instant où la caméra la dépasse, elle se retournerait pour
+      // la regarder et l'image ferait un tête-à-queue. C'était le défaut de
+      // fond de la version précédente, où `lookAt` visait le plan z = 0 : passé
+      // z = 0, la caméra regardait derrière elle et plus rien ne collait.
+      lz = Math.min(lz - 12, baseZ - 8)
+
+      // La respiration, la dérive et le parallaxe à la souris s'effacent quand
+      // la caméra vise une ouverture : une porte fait cinquante centimètres de
+      // large, un parallaxe de quatre-vingt-dix la rate à tous les coups.
+      var free = 1 - clamp01(thread) * 0.92
+      var breathe = reduced ? 0 : Math.sin(now * 0.00021) * 0.35 * free
+      var sway = reduced ? 0 : Math.sin(now * 0.00013) * 0.5 * free
+
+      var targetX = px + sway + (reduced ? 0 : cam.mx * 0.9 * free)
+      var targetY = py + breathe + (reduced ? 0 : cam.my * 0.55 * free)
+
+      // Lissage exponentiel. Plus ferme qu'avant (0,055) : avec des liaisons
+      // deux fois et demie plus rapides que les plans, un amortissement mou
+      // laissait la caméra traîner derrière le défilement et arriver en retard
+      // sur son propre sujet.
+      var k = reduced ? 1 : 0.12
       cam.pos.x += (targetX - cam.pos.x) * k
       cam.pos.y += (targetY - cam.pos.y) * k
-      cam.pos.z += (targetZ - cam.pos.z) * k
+      cam.pos.z += (baseZ - cam.pos.z) * (reduced ? 1 : 0.2)
       cam.look.x += (lx - cam.look.x) * k
       cam.look.y += (ly - cam.look.y) * k
+      cam.look.z += (lz - cam.look.z) * k
       cam.roll += (roll - cam.roll) * k
 
       var targetFov = cam.baseFov * fovMul
@@ -1868,7 +1986,7 @@
       }
 
       camera.position.set(cam.pos.x, cam.pos.y, cam.pos.z)
-      camera.lookAt(cam.look.x, cam.look.y, 0)
+      camera.lookAt(cam.look.x, cam.look.y, Math.min(cam.look.z, cam.pos.z - 4))
       // `lookAt` remet le roulis à zéro : on l'applique après, sinon il est
       // écrasé à chaque image.
       camera.rotation.z += cam.roll
