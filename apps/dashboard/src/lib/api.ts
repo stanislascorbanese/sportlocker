@@ -1349,7 +1349,7 @@ async function safeErrorBody(res: Response): Promise<string> {
 
 // ─── Emprunts vacanciers ────────────────────────────────────────────────────
 //
-// Le modèle camping (septembre 2026). À ne pas confondre avec `reservations`,
+// Le modèle hébergement (septembre 2026). À ne pas confondre avec `reservations`,
 // qui reste le modèle historique avec compte, créneau et prix : un emprunt n'a
 // ni l'un, ni l'autre, ni le troisième. Ce qu'il porte, c'est un nom et un
 // numéro d'emplacement — ce que le saisonnier de l'accueil cherche vraiment.
@@ -1402,7 +1402,7 @@ export async function fetchLoans(filters: LoanFilters = {}): Promise<LoanRow[]> 
 
 /**
  * Marque un emprunt « passé en compte séjour ». SportLocker ne facture rien :
- * cette case dit seulement que le camping s'en est occupé, pour que la ligne
+ * cette case dit seulement que l'établissement s'en est occupé, pour que la ligne
  * cesse de remonter tous les matins.
  */
 export async function markLoanCharged(id: string, charged: boolean): Promise<void> {

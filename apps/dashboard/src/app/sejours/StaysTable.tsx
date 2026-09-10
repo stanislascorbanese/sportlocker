@@ -6,7 +6,7 @@ import { stayStrings } from '../../lib/i18n/stays'
 /**
  * Les séjours en cours et à venir, dans l'ordre d'arrivée.
  *
- * Pas de recherche, pas de tri, pas de pagination : le camping a son PMS pour
+ * Pas de recherche, pas de tri, pas de pagination : l'établissement a son PMS pour
  * ça. Cette liste sert à vérifier d'un coup d'œil que l'import a bien pris —
  * les bons emplacements, les bonnes dates — et à voir qui a du matériel dehors.
  */

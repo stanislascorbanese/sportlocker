@@ -19,7 +19,7 @@ import { unreturnedStrings } from '../../lib/i18n/unreturned'
  * Martin ». L'écran mène donc avec ça, pas avec l'article ni avec la borne.
  *
  * La case « passé en compte » ne facture rien et n'envoie rien : SportLocker ne
- * connaît aucun tarif. Elle dit seulement que le camping s'en est occupé, pour
+ * connaît aucun tarif. Elle dit seulement que l'établissement s'en est occupé, pour
  * que la ligne cesse de remonter tous les matins.
  */
 export function UnreturnedTable({ rows, lang }: { rows: LoanRow[]; lang: Lang }) {
@@ -140,8 +140,8 @@ function formatDay(iso: string, lang: Lang): string {
 }
 
 /**
- * Case à cocher optimiste : le camping clique en marchant, souvent sur un
- * réseau de camping capricieux. On bascule l'affichage tout de suite et on
+ * Case à cocher optimiste : l'accueil clique en marchant, souvent sur un
+ * réseau de site touristique capricieux. On bascule l'affichage tout de suite et on
  * revient en arrière si le serveur refuse.
  */
 function ChargeToggle({ row, lang }: { row: LoanRow; lang: Lang }) {

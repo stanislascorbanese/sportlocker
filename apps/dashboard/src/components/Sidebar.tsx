@@ -43,7 +43,7 @@ type Group = { titleKey?: LabelKey; items: Item[] }
 /**
  * La navigation est groupée par fréquence d'usage, pas par nature technique.
  *
- * Un camping a une à quatre bornes. Il ouvre deux écrans tous les jours — quels
+ * Un exploitant a une à quatre bornes. Il ouvre deux écrans tous les jours — quels
  * casiers regarnir, ce qui n'est pas rentré — et le reste au mieux une fois par
  * semaine. Une liste plate de quatorze entrées faisait porter au gérant le
  * travail de retrouver les deux qui comptent.

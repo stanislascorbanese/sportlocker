@@ -3,7 +3,7 @@ import type { Lang } from '../lang'
 /**
  * Dictionnaire de la page « Aujourd'hui » — l'écran d'ouverture du dashboard.
  *
- * C'est la première chose que voit le gérant du camping en arrivant le matin.
+ * C'est la première chose que voit l'exploitant en arrivant le matin.
  * Elle ne pose qu'une question : est-ce qu'il y a quelque chose à faire ?
  * Quand la réponse est non, la page doit le dire en une ligne et s'arrêter là.
  *

@@ -21,9 +21,10 @@ import { fmtRelative, fmtToday } from '../lib/i18n/common'
 import { todayStrings } from '../lib/i18n/today'
 
 /**
- * « Aujourd'hui » — l'écran d'ouverture du dashboard camping.
+ * « Aujourd'hui » — l'écran d'ouverture du dashboard exploitant.
  *
- * Le gérant d'un camping n'exploite pas un parc : il a une à quatre bornes et
+ * Un exploitant — camping, hôtel, village vacances — n'exploite pas un parc :
+ * il a une à quatre bornes et
  * trois minutes le matin. Cette page répond donc à une seule question — y a-t-il
  * quelque chose à faire ? — et se tait quand la réponse est non.
  *
@@ -33,7 +34,7 @@ import { todayStrings } from '../lib/i18n/today'
  * est de l'information, pas du travail, et passe donc après.
  *
  * L'ancienne home affichait huit KPI de parc en permanence, dont la moitié ne
- * concernait pas un camping. Elle reste servie aux super-admins.
+ * concernait pas un hébergeur. Elle reste servie aux super-admins.
  */
 
 /** Un casier est « à regarnir » s'il est libre et qu'aucun article n'y est posé. */

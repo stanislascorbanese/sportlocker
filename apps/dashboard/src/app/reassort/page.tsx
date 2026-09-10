@@ -20,7 +20,7 @@ export const generateMetadata = makeMetadata((lang) => reassortStrings(lang).tit
  * casiers sont vides, et qu'est-ce qu'on y remet.
  *
  * Choix de conception : tout est visible d'un coup, sans filtre ni onglet. Un
- * camping a une à quatre bornes de huit casiers — ça tient dans un écran, et
+ * exploitant a une à quatre bornes de huit casiers — ça tient dans un écran, et
  * cliquer pour découvrir l'information ferait perdre plus de temps que d'en
  * afficher un peu trop.
  */

@@ -7,7 +7,7 @@ const year = new Date().getFullYear()
 
 <footer class="bg-navy-900 border-t border-white/10 pt-16 pb-8">
   <div class="container-x">
-    <div class="grid gap-10 md:grid-cols-[2fr_1fr_1fr_1fr] mb-12">
+    <div class="grid gap-10 md:grid-cols-[2fr_1fr_1fr_1fr_1fr] mb-12">
       <div>
         <a href="/" class="flex items-center gap-2.5 mb-5" aria-label="SportLocker — accueil">
           <Image src={logoMark} alt="" class="w-10 h-10" width={80} height={80} densities={[1, 2]} loading="lazy" />
@@ -33,6 +33,18 @@ const year = new Date().getFullYear()
           <li><a href="/tarifs" class="link-quiet text-sm">Tarifs</a></li>
           <li><a href="/installation-sav" class="link-quiet text-sm">Installation &amp; SAV</a></li>
           <li><a href="/comment-ca-marche" class="link-quiet text-sm">Comment ça marche</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="text-xs font-bold uppercase tracking-[0.06em] text-white mb-4">
+          Pour qui
+        </div>
+        <ul class="flex flex-col gap-2.5 list-none">
+          <li><a href="/" class="link-quiet text-sm">Campings</a></li>
+          <li><a href="/hotels" class="link-quiet text-sm">Hôtels et résidences</a></li>
+          <li><a href="/villages-vacances" class="link-quiet text-sm">Villages vacances</a></li>
+          <li><a href="/bases-de-loisirs" class="link-quiet text-sm">Bases de loisirs</a></li>
         </ul>
       </div>
 

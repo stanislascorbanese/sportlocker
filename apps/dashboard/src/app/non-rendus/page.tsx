@@ -15,7 +15,7 @@ export const generateMetadata = makeMetadata((lang) => unreturnedStrings(lang).t
 /**
  * Ce qui n'est pas revenu.
  *
- * Le camping facture sur le compte séjour, exactement comme pour un vélo : cet
+ * L'établissement facture sur le compte séjour, exactement comme pour un vélo : cet
  * écran ne fait donc rien d'automatique, il donne les trois informations qu'il
  * faut pour le faire à la main — quel emplacement, qui, depuis quand.
  *

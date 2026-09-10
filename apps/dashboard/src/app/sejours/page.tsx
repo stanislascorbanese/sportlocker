@@ -14,13 +14,13 @@ export const dynamic = 'force-dynamic'
 export const generateMetadata = makeMetadata((lang) => stayStrings(lang).title)
 
 /**
- * Les séjours du camping.
+ * Les séjours de l'établissement.
  *
- * C'est la seule donnée que SportLocker demande au camping, et elle vient de
+ * C'est la seule donnée que SportLocker demande à l'établissement, et elle vient de
  * son PMS : le vacancier tape son numéro d'emplacement et son nom à la borne,
  * et il faut bien que quelque chose sache que ce couple existe.
  *
- * L'import passe avant la liste dans la page. Un camping ouvre cet écran pour
+ * L'import passe avant la liste dans la page. Un exploitant ouvre cet écran pour
  * verser son fichier du samedi, pas pour consulter ses arrivées — il les a
  * déjà dans son logiciel.
  */

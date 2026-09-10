@@ -3,7 +3,7 @@ import type { Lang } from '../lang'
 /**
  * Dictionnaire de l'écran « Séjours ».
  *
- * Le vocabulaire suit celui du camping, pas celui de la base : on dit
+ * Le vocabulaire suit celui de l'hébergeur, pas celui de la base : on dit
  * « emplacement » et non « référence de séjour », « arrivée » et « départ »
  * et non « dates ». C'est ce que le saisonnier lit dans son PMS.
  *

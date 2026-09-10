@@ -4,7 +4,7 @@ import type { Lang } from '../lang'
  * Strings de /page.tsx — la vue parc globale servie aux super-admins.
  *
  * Les clés `tenant*` ont été retirées en septembre 2026 avec le composant
- * _TenantHome : le gérant de camping voit désormais « Aujourd'hui »
+ * _TenantHome : l'exploitant voit désormais « Aujourd'hui »
  * (lib/i18n/today.ts), qui ne parle plus de commune ni de parc.
  */
 

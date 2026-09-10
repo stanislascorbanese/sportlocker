@@ -1,0 +1,103 @@
+---
+import Base from '@/layouts/Base.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import { AUTRES_SEGMENTS, SEGMENT_META } from '@/data/site'
+
+/**
+ * Pour qui.
+ *
+ * Le produit ne demande rien de propre au camping : une réception, un logiciel
+ * de réservation, une référence de séjour, du 230 V. Cette page le dit, et
+ * envoie chaque public vers sa page.
+ *
+ * Le camping garde la première place et pointe vers l'accueil : c'est là qu'on
+ * a la preuve, la géographie et les chiffres. Les trois autres sont servis
+ * après, pas en dessous.
+ */
+
+const camping = SEGMENT_META.camping
+const autres = AUTRES_SEGMENTS.map((s) => SEGMENT_META[s])
+
+const prerequis = [
+  'Une réception, ou au moins quelqu’un qui enregistre les arrivées.',
+  'Un logiciel de réservation d’où sortir un export CSV.',
+  'Une référence par client — numéro d’emplacement, de chambre, de dossier.',
+  'Une prise 230 V à moins de vingt mètres du point de pose.',
+]
+---
+
+<Base
+  title="Pour qui — campings, hôtels, villages vacances, bases de loisirs"
+  description="La borne SportLocker s’installe partout où il y a une réception, un logiciel de réservation et une prise 230 V. Campings, hôtels et résidences, villages vacances, bases de loisirs."
+>
+  <section class="section pt-36 sm:pt-40">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Pour qui</span>
+      <h1 class="section-title mt-3 mb-6" data-reveal data-reveal-delay="1">
+        La borne ne sait pas<br /><span class="text-brand-400">où elle est posée.</span>
+      </h1>
+      <p class="section-sub max-w-2xl" data-reveal data-reveal-delay="2">
+        Elle demande quatre choses, et aucune n’est propre au camping. Si vous les avez, elle
+        fonctionne chez vous exactement comme ailleurs.
+      </p>
+
+      <ul class="mt-10 grid gap-3 sm:grid-cols-2" data-reveal data-reveal-delay="3">
+        {prerequis.map((r) => (
+          <li class="card-dark p-5 text-[0.95rem] leading-relaxed">{r}</li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Les publics</span>
+      <h2 class="section-title mt-3 mb-10" data-reveal data-reveal-delay="1">
+        Ce que chacun vient chercher.
+      </h2>
+
+      <a href="/" class="card-dark block p-7 no-underline transition-colors hover:bg-white/[0.06]" data-reveal data-reveal-delay="1">
+        <div class="flex items-baseline justify-between gap-4 flex-wrap">
+          <h3 class="font-semibold text-xl">{camping.label}</h3>
+          <span class="text-meta uppercase tracking-wide text-brand-400">Notre priorité</span>
+        </div>
+        <p class="mt-2 text-[0.95rem] leading-relaxed opacity-80">{camping.argument}</p>
+        <p class="mt-3 text-sm font-medium text-brand-400">Voir l’offre →</p>
+      </a>
+
+      <div class="mt-5 grid gap-5 md:grid-cols-3">
+        {autres.map((s, i) => (
+          <a
+            href={`/${s.slug}`}
+            class="card-dark block p-6 no-underline transition-colors hover:bg-white/[0.06]"
+            data-reveal
+            data-reveal-delay={String(i + 1)}
+          >
+            <h3 class="font-semibold text-lg">{s.label}</h3>
+            <p class="mt-2 text-[0.95rem] leading-relaxed opacity-80">{s.argument}</p>
+            <p class="mt-3 text-sm font-medium text-brand-400">En savoir plus →</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-x max-w-3xl">
+      <span class="eyebrow" data-reveal>Et les communes ?</span>
+      <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
+        Pas aujourd’hui, et on préfère le dire.
+      </h2>
+      <p class="section-sub" data-reveal data-reveal-delay="2">
+        Sur l’espace public, un opérateur installé propose déjà le même service gratuitement, et la
+        commande publique impose un circuit — régie de recettes, autorisation d’occupation du
+        domaine public — que nous ne savons pas encore tenir. Nous préférons ne pas vous vendre
+        quelque chose que nous ne saurions pas livrer proprement. Si vous êtes une collectivité et
+        que le sujet vous intéresse quand même, écrivez-nous : nous vous dirons franchement où nous
+        en sommes.
+      </p>
+    </div>
+  </section>
+
+  <FinalCta />
+</Base>

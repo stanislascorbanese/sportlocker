@@ -1,19 +1,42 @@
 ---
-// Page retirée en septembre 2026 (pivot campings — voir docs/CDC.md v2).
-// Astro est en sortie statique : pas d'Astro.redirect ici, on sert une page
-// de redirection meta-refresh pour ne pas casser les liens entrants.
-const target = '/campings'
+import SegmentPage from '@/components/SegmentPage.astro'
+
+/**
+ * Hôtels, résidences de tourisme, apparthôtels.
+ *
+ * Ce qui change par rapport au camping : il n'y a pas de grille de classement
+ * qui impose le prêt de matériel. L'argument n'est donc pas réglementaire, il
+ * est commercial — un service de plus, et une réception qu'on ne mobilise pas.
+ */
 ---
-<!doctype html>
-<html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="robots" content="noindex, follow" />
-    <meta http-equiv="refresh" content={`0; url=${target}`} />
-    <link rel="canonical" href={`https://sportlocker.fr${target}`} />
-    <title>Redirection — SportLocker</title>
-  </head>
-  <body>
-    <p>Cette page a été retirée. <a href={target}>Voir l’offre pour les campings</a>.</p>
-  </body>
-</html>
+
+<SegmentPage
+  segment="hotel"
+  titre="Vos clients demandent où jouer."
+  titreAccent="Votre réception répond autre chose."
+  intro="Une borne de huit casiers dans votre cour ou près de votre piscine. Vos clients prennent un ballon, une raquette ou du matériel de plage avec leur numéro de chambre, à toute heure, sans passer par la réception."
+  constat={[
+    'On prête deux raquettes de ping-pong et il en manque une sur deux.',
+    'La réception ferme la nuit, et c’est là que les gens veulent jouer.',
+    'On ne sait jamais ce qui est sorti ni chez qui.',
+    'Le matériel dort dans un placard qu’on finit par oublier.',
+  ]}
+  raisons={[
+    {
+      titre: 'Rien à la réception',
+      detail:
+        'Le client s’identifie avec son numéro de chambre et son nom. Votre personnel n’a ni caution à prendre, ni cahier à tenir, ni matériel à courir après.',
+    },
+    {
+      titre: 'Porté sur la note',
+      detail:
+        'Si vous facturez, la ligne part sur la note de la chambre et se règle au départ, comme le minibar. SportLocker ne touche jamais l’argent de vos clients.',
+    },
+    {
+      titre: 'Ça se voit dans les avis',
+      detail:
+        'Un service disponible à 22 h se raconte. C’est le genre de détail qui remonte dans un commentaire, et un commentaire pèse plus qu’une brochure.',
+    },
+  ]}
+  nuance="Contrairement au camping, aucune grille de classement ne vous impose de proposer du prêt de matériel. L’intérêt ici est commercial, pas réglementaire — et c’est à vous de juger s’il vaut la dépense. On préfère le dire avant le devis."
+/>

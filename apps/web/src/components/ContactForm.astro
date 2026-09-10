@@ -1,15 +1,29 @@
 ---
+import { SEGMENT_META, type TenantSegment } from '@/data/site'
+
 interface Props {
-  /** Conservé pour compatibilité d'appel ; le site n'a plus qu'un segment. */
-  segment?: 'camping'
+  /** Le public de la page qui affiche le formulaire. */
+  segment?: TenantSegment
 }
+const { segment = 'camping' } = Astro.props
+const meta = SEGMENT_META[segment]
+// « Nom du camping » sur une page hôtel donne le sentiment d'un formulaire
+// recyclé — et c'est exactement ce que c'est, si on ne le nomme pas.
+const nomChamp = segment === 'hotel' ? 'Nom de l’hôtel'
+  : segment === 'village' ? 'Nom du village vacances'
+  : segment === 'loisirs' ? 'Nom du site'
+  : 'Nom du camping'
+const exemple = segment === 'hotel' ? 'Hôtel des Dunes'
+  : segment === 'village' ? 'Village vacances des Dunes'
+  : segment === 'loisirs' ? 'Base de loisirs des Dunes'
+  : 'Camping des Dunes'
 const WEB3FORMS_KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY ?? ''
 
 /**
  * Formulaire de contact.
  *
  * Il ne sert pas seulement à récolter une adresse : il qualifie. Trois
- * questions décident si le sujet existe chez ce camping — combien
+ * questions décident si le sujet existe chez cet exploitant — combien
  * d'emplacements, quels terrains, comment ils prêtent aujourd'hui — et une
  * quatrième décide du calendrier commercial.
  *
@@ -25,8 +39,18 @@ const INTENTIONS = [
   { value: 'echange', label: 'Je veux juste en parler', hint: 'Vous raconter comment on fait' },
 ]
 
+// L'unité de taille n'est pas la même d'un public à l'autre : un hôtelier
+// compte des chambres, une base de loisirs des visiteurs par jour. Demander des
+// emplacements à un hôtel, c'est avouer qu'on n'a pas relu son propre formulaire.
+const UNITES = {
+  camping: 'emplacements',
+  hotel: 'chambres',
+  village: 'hébergements',
+  loisirs: 'visiteurs par jour en haute saison',
+} as const
+
 const TAILLES = [
-  { value: '<80', label: 'Moins de 80 emplacements' },
+  { value: '<80', label: 'Moins de 80' },
   { value: '80-150', label: '80 à 150' },
   { value: '150-300', label: '150 à 300' },
   { value: '300+', label: 'Plus de 300' },
@@ -64,7 +88,8 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
 <div class="card-dark p-7 sm:p-10" data-reveal data-reveal-delay="1">
   <form id="contact-form" class="space-y-7">
     <input type="hidden" name="access_key" value={WEB3FORMS_KEY} />
-    <input type="hidden" name="subject" value="SportLocker — demande d’un camping" />
+    <input type="hidden" name="subject" value={`SportLocker — demande · ${meta.label}`} />
+    <input type="hidden" name="segment" value={segment} />
     <input type="hidden" name="from_name" value="SportLocker — site vitrine" />
     <input type="checkbox" name="botcheck" class="hidden" style="display:none" tabindex="-1" autocomplete="off" />
 
@@ -94,9 +119,9 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
     <div class="grid sm:grid-cols-2 gap-5">
       <div>
         <label for="organization" class={legend}>
-          Nom du camping <span class="text-brand-400">*</span>
+          {nomChamp} <span class="text-brand-400">*</span>
         </label>
-        <input required id="organization" name="organization" type="text" class={field} placeholder="Camping des Dunes" />
+        <input required id="organization" name="organization" type="text" class={field} placeholder={exemple} />
       </div>
       <div>
         <label for="locality" class={legend}>
@@ -109,7 +134,7 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
     <!-- QUALIFICATION -->
     <div class="grid sm:grid-cols-2 gap-5">
       <div>
-        <label for="taille" class={legend}>Nombre d’emplacements</label>
+        <label for="taille" class={legend}>Nombre de {UNITES[segment]}</label>
         <select id="taille" name="taille" class={field}>
           {TAILLES.map((opt, i) => <option value={opt.label} selected={i === 2}>{opt.label}</option>)}
         </select>
@@ -159,7 +184,7 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
         <label for="email" class={legend}>
           Email <span class="text-brand-400">*</span>
         </label>
-        <input required id="email" name="email" type="email" class={field} placeholder="contact@camping-des-dunes.fr" />
+        <input required id="email" name="email" type="email" class={field} placeholder="contact@votre-etablissement.fr" />
       </div>
       <div>
         <label for="phone" class={legend}>Téléphone</label>
@@ -269,7 +294,8 @@ const legend = 'block text-xs uppercase tracking-[0.1em] text-white/60 mb-2'
         // on ouvre le client mail avec tout ce qui a été saisi.
         const lignes = [
           ['Demande', data.get('intention')],
-          ['Camping', data.get('organization')],
+          ['Établissement', data.get('organization')],
+          ['Type', data.get('segment')],
           ['Commune', data.get('locality')],
           ['Emplacements', data.get('taille')],
           ['Classement', data.get('classement')],

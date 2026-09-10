@@ -65,8 +65,8 @@ async function loadAll(): Promise<FetchResults> {
 }
 
 export default async function HomePage() {
-  // Dispatch par rôle. Depuis le pivot campings, l'utilisateur normal du
-  // dashboard est un gérant de camping : il voit « Aujourd'hui », une page qui
+  // Dispatch par rôle. Depuis le pivot vers l'hébergement de loisirs, l'utilisateur normal du
+  // dashboard est un exploitant d'hébergement : il voit « Aujourd'hui », une page qui
   // ne montre que ce qu'il y a à faire. La vue parc globale ci-dessous reste
   // servie aux super-admins, qui eux exploitent réellement un parc.
   const user = await getSessionUser()

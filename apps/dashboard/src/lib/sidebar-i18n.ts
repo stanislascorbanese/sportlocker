@@ -22,7 +22,7 @@ type SidebarKey =
 
 const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
   fr: {
-    consoleSubtitle:  'Console camping',
+    consoleSubtitle:  'Console exploitant',
     navHome:          "Aujourd'hui",
     navReassort:      'Réassort',
     navUnreturned:    'Non rendus',
@@ -31,7 +31,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navDistributors:  'Bornes',
     navHealth:        'État des bornes',
     navItems:         'Matériel',
-    navCommunes:      'Campings',
+    navCommunes:      'Établissements',
     navUsers:         'Utilisateurs',
     navReservations:  'Emprunts',
     navMaintenance:   'Maintenance',
@@ -45,7 +45,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     groupReglages:    'Réglages',
     navKiosk:         'Mode accueil',
     kioskHint:        'Plein écran pour la tablette de la réception',
-    oneCommune:       '1 camping',
+    oneCommune:       '1 établissement',
     logout:           'Se déconnecter',
     loggingOut:       'Déconnexion…',
     roleSuperAdmin:   'Super-admin',
@@ -53,7 +53,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     roleOperator:     'Opérateur',
   },
   en: {
-    consoleSubtitle:  'Campsite console',
+    consoleSubtitle:  'Operator console',
     navHome:          'Today',
     navReassort:      'Restocking',
     navUnreturned:    'Not returned',
@@ -62,7 +62,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     navDistributors:  'Kiosks',
     navHealth:        'Kiosk status',
     navItems:         'Gear',
-    navCommunes:      'Campsites',
+    navCommunes:      'Properties',
     navUsers:         'Users',
     navReservations:  'Loans',
     navMaintenance:   'Maintenance',
@@ -76,7 +76,7 @@ const STRINGS: Record<Lang, Record<SidebarKey, string>> = {
     groupReglages:    'Settings',
     navKiosk:         'Front-desk mode',
     kioskHint:        'Full screen for the reception tablet',
-    oneCommune:       '1 campsite',
+    oneCommune:       '1 property',
     logout:           'Sign out',
     loggingOut:       'Signing out…',
     roleSuperAdmin:   'Super-admin',
