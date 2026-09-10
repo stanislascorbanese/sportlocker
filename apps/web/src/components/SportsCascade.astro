@@ -204,16 +204,120 @@
       return document.documentElement.classList.contains('light') ? SPORT_LIGHT : SPORT_DARK
     }
     /** Matériau d'un article : `which` vaut 'body' ou 'trim'. */
+    /**
+     * Les textures, dessinées à l'exécution.
+     *
+     * Il n'y a aucun fichier image dans ce dépôt, et c'est voulu : une carte de
+     * grain en 2048 px pèse deux mégaoctets, et la vitrine doit rester légère
+     * pour un gérant qui la consulte depuis un camping. Un canvas dessiné au
+     * chargement coûte quelques millisecondes de processeur et zéro octet de
+     * réseau.
+     *
+     * Ce qu'on gagne : un ballon cesse d'être une sphère lisse. Le grain du
+     * cuir accroche la lumière rasante, et c'est ce relief-là — pas la
+     * résolution de l'écran — qui fait la différence entre « objet 3D » et
+     * « ballon ».
+     */
+    var TEX = {}
+
+    function noiseCanvas(size, base, amp, grain) {
+      var cv = document.createElement('canvas')
+      cv.width = cv.height = size
+      var ctx = cv.getContext('2d')
+      var img = ctx.createImageData(size, size)
+      var d = img.data
+      for (var i = 0; i < size * size; i++) {
+        // Deux échelles de bruit superposées : la grosse donne les creux du
+        // cuir, la fine le piqué. Une seule échelle donne du sable.
+        var x = i % size, y = (i / size) | 0
+        var coarse = Math.sin(x * 0.35) * Math.sin(y * 0.31) * 0.5 + 0.5
+        var fine = Math.random()
+        var v = base + (coarse - 0.5) * amp + (fine - 0.5) * grain
+        v = Math.max(0, Math.min(1, v)) * 255
+        d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v
+        d[i * 4 + 3] = 255
+      }
+      ctx.putImageData(img, 0, 0)
+      var t = new THREE.CanvasTexture(cv)
+      t.wrapS = t.wrapT = THREE.RepeatWrapping
+      return t
+    }
+
+    function textures() {
+      if (TEX.ready) return TEX
+      // Grain de cuir : creux marqués, piqué fin. C'est la carte de relief des
+      // ballons.
+      TEX.pebble = noiseCanvas(512, 0.5, 0.55, 0.35)
+      TEX.pebble.repeat.set(6, 3)
+      // Feutre de balle de tennis : plus doux, plus uniforme.
+      TEX.felt = noiseCanvas(256, 0.55, 0.2, 0.5)
+      TEX.felt.repeat.set(8, 4)
+      // Métal brossé : brossage horizontal, d'où l'amplitude nulle en vertical.
+      TEX.brushed = noiseCanvas(512, 0.5, 0.05, 0.22)
+      TEX.brushed.repeat.set(1, 14)
+      TEX.ready = true
+      return TEX
+    }
+
+    /**
+     * L'environnement réfléchi.
+     *
+     * C'est ce qui manquait le plus. Sans environnement, `metalness` ne réfléchit
+     * rien et rend gris — d'où des métaux qu'il avait fallu ramener à 0,06 pour
+     * qu'ils ne soient pas noirs. Une boule de pétanque sans reflet n'est pas une
+     * boule de pétanque, c'est une bille grise.
+     *
+     * Plutôt qu'un fichier HDR, on filme un studio minuscule : trois panneaux
+     * lumineux et un sol, que PMREM transforme en carte d'environnement. Quatre
+     * plans suffisent — ce qu'on réfléchit, à cette échelle, ce sont des taches
+     * de lumière, pas un décor lisible.
+     */
+    function buildEnvironment(p) {
+      var env = new THREE.Scene()
+      var box = new THREE.BoxGeometry(1, 1, 1)
+      function panel(color, intensity, sx, sy, sz, x, y, z) {
+        var m = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: color }))
+        m.material.color.multiplyScalar(intensity)
+        m.scale.set(sx, sy, sz)
+        m.position.set(x, y, z)
+        env.add(m)
+      }
+      var dark = sportSet(p) !== SPORT_LIGHT
+      // La boîte englobante donne la teinte générale du reflet : le bleu nuit du
+      // site en sombre, un blanc cassé en clair.
+      panel(dark ? 0x0e1c2b : 0xeef3f7, 1, 40, 40, 40, 0, 0, 0)
+      // Panneau clé, en haut à gauche — c'est lui qu'on verra glisser sur les
+      // sphères quand elles tournent.
+      panel(0xffffff, dark ? 2.4 : 3.2, 12, 6, 1, -9, 9, 6)
+      // Appoint froid à droite, plus faible.
+      panel(0xbfe6d8, dark ? 1.1 : 1.6, 8, 10, 1, 10, 2, -4)
+      // Liseré de marque derrière : c'est ce qui pose le vert dans les reflets
+      // sans avoir à teinter les matériaux eux-mêmes.
+      panel(0x2bc295, dark ? 0.9 : 0.6, 14, 1.4, 1, 2, -7, -8)
+      return env
+    }
+
     function sportMat(p, key, which, opts) {
       var set = sportSet(p)[key]
       var o = opts || {}
-      return new THREE.MeshStandardMaterial({
+      var mat = new THREE.MeshStandardMaterial({
         color: set ? set[which] : p.body,
         roughness: o.roughness === undefined ? 0.68 : o.roughness,
-        metalness: o.metalness === undefined ? 0.06 : o.metalness,
+        // La métallicité peut enfin monter : il y a désormais un environnement à
+        // réfléchir. C'est son absence qui rendait les métaux noirs et obligeait
+        // à les brider à 0,06.
+        metalness: o.metalness === undefined ? 0.12 : o.metalness,
         transparent: !!o.transparent,
         opacity: o.opacity === undefined ? 1 : o.opacity,
       })
+      mat.envMapIntensity = o.envMapIntensity === undefined ? 1 : o.envMapIntensity
+      if (o.bump) {
+        var t = textures()
+        mat.bumpMap = t[o.bump]
+        mat.bumpScale = o.bumpScale === undefined ? 0.015 : o.bumpScale
+        mat.roughnessMap = t[o.bump]
+      }
+      return mat
     }
 
     // ─── Fabriques de géométrie ───────────────────────────────────────────────
@@ -267,7 +371,13 @@
 
     function ballBasket(p) {
       var g = new THREE.Group()
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), sportMat(p, 'basket', 'body')))
+      // 64 x 48 au lieu de 20 x 16 : à contre-jour, la silhouette d'une sphère
+      // basse en facettes se lit comme un polygone, et c'est le premier détail
+      // qui trahit la 3D bon marché.
+      g.add(new THREE.Mesh(
+        new THREE.SphereGeometry(1, 64, 48),
+        sportMat(p, 'basket', 'body', { roughness: 0.82, metalness: 0.02, bump: 'pebble', bumpScale: 0.016 }),
+      ))
       // Les quatre coutures : deux méridiens, deux arcs croisés.
       var seam = new THREE.TorusGeometry(1.002, 0.022, 6, 40)
       var m = sportMat(p, 'basket', 'trim')
@@ -1294,11 +1404,34 @@
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, narrow ? 1.5 : 2))
       renderer.setSize(window.innerWidth, window.innerHeight)
       renderer.setClearColor(0x000000, 0)
+      // Courbe tonale de cinéma. Sans elle, tout ce qui dépasse la valeur 1
+      // s'écrase en aplat : un reflet spéculaire devient une tache blanche au
+      // lieu de rouler sur la surface. ACES est la courbe des films, et c'est
+      // exactement ce qu'on cherche ici.
+      renderer.toneMapping = THREE.ACESFilmicToneMapping
+      renderer.toneMappingExposure = 1.15
+      // Sans encodage sRGB en sortie, les couleurs sont calculées dans un espace
+      // et affichées dans un autre : le décor paraît délavé et les ombres
+      // bouchées. C'est le réglage le plus invisible et le plus déterminant.
+      renderer.outputEncoding = THREE.sRGBEncoding
       host.appendChild(renderer.domElement)
 
       // Poignée de mise au point. Le décor n'a pas d'interface et ne laisse
       // aucune trace dans le DOM : sans ça, la seule façon de savoir pourquoi
       // une scène ne s'affiche pas est de deviner. Coût : une référence.
+      // L'environnement a besoin du renderer : il est donc construit ici et non
+      // dans build(), où le renderer n'existe pas encore.
+      try {
+        var pmrem = new THREE.PMREMGenerator(renderer)
+        var envScene = buildEnvironment(p)
+        var envRT = pmrem.fromScene(envScene, 0.04)
+        scene.environment = envRT.texture
+        pmrem.dispose()
+      } catch (e) {
+        // Un GPU qui refuse PMREM : on garde les lumières directes, le décor
+        // reste correct, simplement plus mat.
+      }
+
       fx = buildFx(narrow)
       window.__slCascade = {
         scene: scene, camera: camera, scenes: scenes, objects: objects,
