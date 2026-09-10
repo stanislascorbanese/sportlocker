@@ -885,7 +885,7 @@
 
       // Bandeau de marque, seul endroit du décor où le vert est franc.
       var band = new THREE.Mesh(
-        new THREE.BoxGeometry(1.84, 0.26, 1.04),
+        new THREE.BoxGeometry(1.86, 0.26, 1.22),
         new THREE.MeshStandardMaterial({
           color: 0x1d9e75, roughness: 0.35, metalness: 0.2,
           emissive: 0x0d5c44, emissiveIntensity: dark ? 0.6 : 0.15,
@@ -919,15 +919,23 @@
       for (var i = 0; i < layout.length; i++) {
         var L = layout[i], w = L[2], h = L[3], cx = cols[L[0]], cy = L[1]
 
-        // Le puits derrière la porte. C'est lui qui fait qu'une porte ouverte
-        // révèle une cavité sombre au lieu d'un trou dans le vide — le détail
-        // qui décide si le meuble a une épaisseur.
+        // Le puits derrière la porte, qui fait qu'une porte ouverte révèle une
+        // cavité et non un trou dans le vide.
+        //
+        // Sa face avant dépasse de 1 cm celle de la caisse. Ce centimètre n'est
+        // pas cosmétique : posées exactement dans le même plan, les deux faces
+        // se disputent chaque pixel — le GPU n'a aucun moyen de les départager
+        // et tranche au hasard, d'où les rayures verticales. En profondeur, deux
+        // surfaces ne doivent jamais être à la même cote.
         var well = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, h - 0.04, 0.38), wellMat)
-        well.position.set(cx, cy, 0.3)
+        well.position.set(cx, cy, 0.32)
         g.add(well)
 
+        // Le pivot avance pour que la porte soit entièrement en avant de la
+        // caisse. Centrée sur z = 0,5, sa moitié arrière traversait le meuble :
+        // rayures à l'arrêt, et une porte qui s'ouvrait en passant au travers.
         var pivot = new THREE.Group()
-        pivot.position.set(cx - w / 2, cy, 0.5)
+        pivot.position.set(cx - w / 2, cy, 0.545)
 
         var panel = new THREE.Mesh(new THREE.BoxGeometry(w - 0.03, h - 0.03, 0.045), doorMat)
         panel.position.x = w / 2
@@ -954,7 +962,7 @@
           emissive: 0x2bc295, emissiveIntensity: dark ? 1.5 : 0.5,
         }),
       )
-      ecran.position.set(0.58, 1.34, 0.515)
+      ecran.position.set(0.58, 1.34, 0.60)
       g.add(ecran)
 
       var out = ballBasket(p)
