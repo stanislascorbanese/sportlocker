@@ -22,7 +22,7 @@ export function LangPicker() {
     <div
       role="group"
       aria-label={t.langPicker}
-      className="flex shrink-0 items-center gap-0.5 rounded-full bg-surface-2 p-0.5"
+      className="flex shrink-0 items-center rounded-full bg-surface-2 p-0.5"
     >
       {LANGS.map((code) => {
         const active = code === lang
@@ -35,7 +35,7 @@ export function LangPicker() {
             aria-pressed={active}
             title={LANG_NAMES[code]}
             className={cn(
-              'grid h-9 min-w-[2.125rem] place-items-center rounded-full px-1.5',
+              'grid h-9 min-w-[1.875rem] place-items-center rounded-full px-1',
               'text-[0.8125rem] font-bold uppercase tracking-wide',
               'transition-colors duration-base',
               active
