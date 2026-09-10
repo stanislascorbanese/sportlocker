@@ -91,7 +91,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · vrai court'
+    var CASCADE_BUILD = '2026-09-11 · la maquette devient la borne'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -125,6 +125,28 @@
     var relayHit = null
     var RELAY_A = null
     var RELAY_B = null
+
+    /**
+     * Le fondu d'ouverture : la maquette du hero devient la borne 3D.
+     *
+     * La maquette SVG est ce que le visiteur voit en arrivant, et c'est elle
+     * qu'on a dessinée avec soin. La borne 3D est ce qui sait s'ouvrir et se
+     * traverser. L'intérêt de les enchaîner, c'est que le premier objet du site
+     * ne soit pas remplacé par un autre mais devienne celui-là.
+     *
+     * Le calage n'est pas écrit en dur : à chaque image on mesure la boîte de
+     * la maquette à l'écran et on pose la borne 3D exactement dessus, en
+     * dépliant la projection de la caméra. C'est ce qui le rend juste à toutes
+     * les largeurs, dans tous les thèmes, et après n'importe quel changement de
+     * mise en page — un calage en pixels serait faux dès la première fenêtre
+     * d'une autre taille.
+     */
+    var heroEl = null
+    var heroFrame = null
+    var INTRO_MATCH = 0.045   // jusqu'où la borne reste collée à la maquette
+    var INTRO_BLEND = 0.10    // et jusqu'où elle rejoint sa station
+    var INTRO_DIST = 9        // à quelle distance de la caméra on la pose
+    var INTRO_V = null
     var scenes = []
     var lastDocHeight = 0
     var running = false
@@ -1071,8 +1093,13 @@
         return m
       }
 
-      var bodyHex = dark ? 0x22394f : 0xb9c8d6
-      var doorHex = dark ? 0x2b4a67 : 0xd6e1ea
+      // La livrée de la maquette SVG du hero, à la couleur près : corps
+      // #111C27, portes #0D1B2A, liseré #1D9E75. Ce n'est pas un choix
+      // esthétique isolé — la maquette se fond dans ce modèle au début du
+      // défilement, et deux objets qui n'ont pas la même couleur ne se fondent
+      // pas l'un dans l'autre, ils se remplacent.
+      var bodyHex = dark ? 0x111c27 : 0xb9c8d6
+      var doorHex = dark ? 0x0d1b2a : 0xd6e1ea
       var wellHex = dark ? 0x060d15 : 0x2b3a47
 
       var caisse = steel(bodyHex)
@@ -1082,7 +1109,9 @@
       // baguettes légèrement plus claires posées sur les angles verticaux en
       // font l'office : elles attrapent la lumière là où une arête vive le
       // ferait, et c'est ce liseré qui détache le meuble du fond.
-      var areteMat = steel(dark ? 0x3d5c78 : 0xdfe9f1, 0.22, 0.8)
+      // Le liseré vert des arêtes : c'est la signature de la maquette, et
+      // c'est ce qui rend la borne reconnaissable en une image.
+      var areteMat = steel(dark ? 0x1d9e75 : 0xdfe9f1, 0.3, 0.35)
       var arete = new THREE.BoxGeometry(0.05, 3.62, 0.05)
       for (var ax = -1; ax <= 1; ax += 2) {
         for (var az = -1; az <= 1; az += 2) {
@@ -1914,6 +1943,11 @@
       relay.visible = false
       RELAY_A = new THREE.Vector3()
       RELAY_B = new THREE.Vector3()
+      INTRO_V = new THREE.Vector3()
+      try {
+        heroEl = document.querySelector('.hero-distributor')
+        heroFrame = document.querySelector('.hero-product-frame')
+      } catch (e) {}
       fogColor = new THREE.Color(p.fog)
       // Le brouillard n'est plus un fond : c'est le volet. Une scène naît à
       // 48 unités et se dégage à 12 — soit exactement la fenêtre pendant
@@ -2093,6 +2127,13 @@
         build: CASCADE_BUILD,
         scene: scene, camera: camera, scenes: scenes, objects: objects,
         fx: function () { return !!fx },
+        hero: function () { return { maquette: !!heroEl, cadre: !!heroFrame } },
+        // Recalcule une image à la position de défilement courante, sans
+        // attendre la boucle. Indispensable pour vérifier la mise en scène
+        // hors de l'onglet actif : `requestAnimationFrame` ne s'exécute pas
+        // dans un onglet masqué, si bien qu'un contrôle automatisé ne lisait
+        // que l'état figé de la dernière image visible.
+        step: function () { layout(performance.now()) },
       }
     }
 
@@ -2280,6 +2321,71 @@
       // Le couloir d'ambiance suit la caméra : il est là pour donner une
       // vitesse, pas pour être un lieu.
       if (ambient) ambient.position.z = camera.position.z - 11
+      placeIntro(progress)
+    }
+
+    /**
+     * Pose la borne 3D sur la maquette du hero, puis la laisse rejoindre sa
+     * station.
+     *
+     * `frac` tient compte du fait que le caisson n'occupe pas toute la boîte du
+     * SVG : 424 unités sur 480 de hauteur de `viewBox`. Sans ce rapport, la
+     * borne 3D serait systématiquement 13 % trop grande au moment du fondu, et
+     * c'est exactement le genre d'écart qui fait qu'un raccord « ne va pas »
+     * sans qu'on sache dire pourquoi.
+     */
+    function placeIntro(progress) {
+      if (!heroEl || !scenes.length) return
+      var scn = scenes[0]
+      if (scn.def.key !== 'kiosk') return
+
+      if (heroFrame) {
+        // La maquette tient jusqu'à la moitié du calage, puis s'éteint. La
+        // borne 3D est déjà exactement dessous : on ne voit pas un objet
+        // remplacer l'autre, on voit le même objet changer de nature.
+        var fade = 1 - clamp01((progress - INTRO_MATCH * 0.45) / (INTRO_MATCH * 0.55))
+        heroFrame.style.opacity = fade >= 0.999 ? '' : String(Math.max(fade, 0))
+      }
+
+      var b = clamp01((progress - INTRO_MATCH) / (INTRO_BLEND - INTRO_MATCH))
+      if (b >= 1) return
+
+      var r = heroEl.getBoundingClientRect()
+      if (r.width < 4 || r.height < 4) return
+
+      camera.updateMatrixWorld()
+      var vh = 2 * INTRO_DIST * Math.tan((camera.fov * Math.PI) / 360)
+      var vw = vh * camera.aspect
+      // Le SVG a un `viewBox` de 260 × 480 et le `preserveAspectRatio` par
+      // défaut : il est donc mis à l'échelle par le plus petit des deux
+      // rapports et centré dans sa boîte, avec des marges vides d'un côté.
+      // Mesurer la boîte plutôt que le dessin donnerait une borne trop grande
+      // dès que les proportions de la boîte s'écartent de 260/480 — c'est-à-
+      // dire à presque toutes les largeurs.
+      var k = Math.min(r.width / 260, r.height / 480)
+      var caissonPx = 424 * k
+      // Le caisson va de y = 24 à y = 448 dans le `viewBox` : son centre est à
+      // 236, quatre unités au-dessus du centre de la boîte.
+      var cx = r.left + r.width / 2
+      var cy = r.top + r.height / 2 + (236 - 240) * k
+
+      var ndcX = (cx / window.innerWidth) * 2 - 1
+      var ndcY = -((cy / window.innerHeight) * 2 - 1)
+
+      INTRO_V.set((ndcX * vw) / 2, (ndcY * vh) / 2, -INTRO_DIST).applyMatrix4(camera.matrixWorld)
+
+      var sc = (vh * (caissonPx / window.innerHeight)) / 3.6
+      var station = cam.narrow ? 0.68 : 1
+      scn.group.position.set(
+        lerp(INTRO_V.x, scn.group.position.x, b),
+        lerp(INTRO_V.y, scn.group.position.y, b),
+        lerp(INTRO_V.z, scn.group.position.z, b),
+      )
+      scn.group.scale.setScalar(lerp(sc, station, b))
+      // De face pendant le calage : la maquette est vue de face, une borne de
+      // trois quarts posée dessus ne se fondrait pas dedans.
+      scn.group.rotation.y = lerp(0, scn.group.rotation.y, b)
+      scn.group.visible = true
     }
 
     function frame(now) {
