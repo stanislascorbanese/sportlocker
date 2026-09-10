@@ -1821,18 +1821,48 @@
       })
     }
 
-    function load() {
-      if (window.THREE) {
-        init()
-        return
-      }
+    /**
+     * Chargement des dépendances.
+     *
+     * three.js est indispensable : sans lui, pas de décor, et on s'arrête là
+     * sans rien afficher — l'atmosphère CSS tient la page toute seule, et un
+     * message d'erreur pour un élément décoratif serait pire que son absence.
+     *
+     * GSAP est facultatif, et c'est délibéré. Il apporte des courbes
+     * d'accélération réglées et une écriture de séquences plus lisible que mes
+     * fractions calculées à la main, mais le décor doit rester debout s'il
+     * n'arrive pas. Chaque endroit qui l'utilise teste sa présence et retombe
+     * sur l'implémentation maison. Une URL de CDN qui change de numéro de
+     * version ne doit pas coûter la page d'accueil.
+     */
+    function loadScript(src, done) {
       var s = document.createElement('script')
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
-      s.onload = init
-      // Échec du CDN : l'atmosphère CSS tient la page toute seule, on ne met
-      // aucun message à l'écran pour un élément purement décoratif.
-      s.onerror = function () {}
+      s.src = src
+      s.onload = function () { done(true) }
+      s.onerror = function () { done(false) }
       document.head.appendChild(s)
+    }
+
+    function load() {
+      var CDN = 'https://cdnjs.cloudflare.com/ajax/libs/'
+      function withThree() {
+        if (window.gsap) return init()
+        // Les deux scripts GSAP en chaîne : ScrollTrigger s'enregistre auprès du
+        // noyau, il lui faut donc le noyau déjà là.
+        loadScript(CDN + 'gsap/3.12.5/gsap.min.js', function (ok) {
+          if (!ok) return init()
+          loadScript(CDN + 'gsap/3.12.5/ScrollTrigger.min.js', function (ok2) {
+            if (ok2 && window.gsap && window.ScrollTrigger) {
+              try { window.gsap.registerPlugin(window.ScrollTrigger) } catch (e) {}
+            }
+            init()
+          })
+        })
+      }
+      if (window.THREE) return withThree()
+      loadScript(CDN + 'three.js/r128/three.min.js', function (ok) {
+        if (ok) withThree()
+      })
     }
 
     // Le décor n'est pas prioritaire : il attend que la page ait fini de se
