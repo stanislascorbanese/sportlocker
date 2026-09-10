@@ -91,6 +91,8 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+    var CASCADE_BUILD = '2026-09-10 · surechantillonnage'
+
     var THREE, renderer, scene, camera, fogColor
 
     /**
@@ -1374,6 +1376,13 @@
       // qui commande ; en mouvement réduit, le grain est précisément le genre de
       // scintillement qu'on nous demande d'éteindre.
       if (narrow || reduced) return null
+      // Interrupteur de diagnostic : ?fx=0 dans l'URL coupe tout le
+      // post-traitement. C'est ce qui permet de trancher en deux captures si un
+      // défaut vient de la chaîne d'effets ou du modèle lui-même — au lieu
+      // d'émettre des hypothèses, ce qui m'a coûté trois corrections inutiles.
+      try {
+        if (new URLSearchParams(location.search).get('fx') === '0') return null
+      } catch (e) {}
       try {
         var w = window.innerWidth, h = window.innerHeight
         var pr = renderer.getPixelRatio()
@@ -1632,7 +1641,18 @@
       }
 
       fx = buildFx(narrow)
+      // Marqueur de version. Sans lui, impossible de savoir si ce qu'on regarde
+      // est bien le code qu'on vient d'écrire — un onglet gardé ouvert ou le
+      // site en production ressemblent exactement à la page de développement.
+      try {
+        console.info(
+          '[cascade] ' + CASCADE_BUILD +
+          ' · post-traitement ' + (fx ? 'actif' : 'coupé') +
+          ' · ' + (narrow ? 'mobile' : 'desktop'),
+        )
+      } catch (e) {}
       window.__slCascade = {
+        build: CASCADE_BUILD,
         scene: scene, camera: camera, scenes: scenes, objects: objects,
         fx: function () { return !!fx },
       }
