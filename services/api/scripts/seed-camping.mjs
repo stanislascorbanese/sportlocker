@@ -23,7 +23,7 @@ import postgres from 'postgres'
 
 const url = process.env.DATABASE_URL
 if (!url) {
-  console.error('[seed-camping] DATABASE_URL not set')
+  console.error('[seed-camping] DATABASE_URL absent.\n  → cp services/api/.env.example services/api/.env, puis remplis-le.\n  → base locale : docker compose up -d (à la racine du dépôt)')
   process.exit(1)
 }
 

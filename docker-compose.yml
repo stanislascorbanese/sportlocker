@@ -1,0 +1,44 @@
+# Les deux services dont l'API a besoin en local.
+#
+#     docker compose up -d
+#     pnpm --filter @sportlocker/api db:migrate
+#     pnpm --filter @sportlocker/api db:seed-camping
+#
+# Les identifiants sont volontairement triviaux : cette base ne sort pas de ta
+# machine et ne contient que du jeu d'essai. Elle correspond au `DATABASE_URL`
+# de `services/api/.env.example`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sportlocker-pg
+    environment:
+      POSTGRES_USER: sportlocker
+      POSTGRES_PASSWORD: sportlocker
+      POSTGRES_DB: sportlocker
+    ports:
+      - '5432:5432'
+    volumes:
+      - sportlocker-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Sans ce contrôle, `docker compose up -d` rend la main avant que
+      # PostgreSQL accepte les connexions, et la migration lancée juste après
+      # échoue pour une raison qui n'a rien à voir avec elle.
+      test: ['CMD-SHELL', 'pg_isready -U sportlocker -d sportlocker']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: sportlocker-redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  sportlocker-pgdata:
