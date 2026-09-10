@@ -105,25 +105,44 @@ export async function openLocker(params: OpenLockerParams): Promise<void> {
     waiters.set(jti, { resolve, timer })
   })
 
-  try {
-    await new Promise<void>((resolve, reject) => {
+  /**
+   * Échec de publication, et rien d'autre.
+   *
+   * En qos 1, `publish` ne rappelle qu'une fois le message remis au broker : si
+   * le broker est injoignable, mqtt.js met en file d'attente et ne rappelle
+   * jamais. Attendre cet accusé *avant* d'attendre la borne laissait donc
+   * `confirmed` rejeter au bout de huit secondes sans personne pour l'attraper,
+   * et une rejection non gérée tue le process — une borne muette faisait tomber
+   * l'API de tous les campings. Les deux attentes courent maintenant ensemble,
+   * et le chronomètre de `confirmed` est le seul de l'opération.
+   */
+  const publishFailed = new Promise<never>((_resolve, reject) => {
+    try {
       client.publish(
         `sportlocker/${distributorId}/cmd/open`,
         JSON.stringify({ token }),
         { qos: 1 },
-        (err) => (err ? reject(err) : resolve()),
+        (err) => {
+          if (err) reject(new LockerStuckError())
+          // Sans erreur il n'y a rien à faire : on attend la borne, pas le broker.
+        },
       )
-    })
-  } catch (err) {
+    } catch {
+      reject(new LockerStuckError())
+    }
+  })
+
+  try {
+    await Promise.race([confirmed, publishFailed])
+  } finally {
+    // Que l'ouverture ait réussi, expiré ou échoué à la publication, ce `jti`
+    // n'attend plus personne.
     const waiter = waiters.get(jti)
     if (waiter) {
       clearTimeout(waiter.timer)
       waiters.delete(jti)
     }
-    throw new LockerStuckError()
   }
-
-  await confirmed
 }
 
 /** Réservé aux tests : vide le registre entre deux cas. */

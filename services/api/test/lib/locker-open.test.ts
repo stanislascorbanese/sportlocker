@@ -30,13 +30,20 @@ beforeAll(async () => {
 
 type PublishCb = (err?: Error | null) => void
 
-/** Client MQTT minimal : retient le dernier message publié. */
-function fakeClient(opts: { failPublish?: boolean } = {}) {
+/**
+ * Client MQTT minimal : retient le dernier message publié.
+ *
+ * `neverAcks` imite le vrai comportement de mqtt.js quand le broker est
+ * injoignable : en qos 1 le message part en file d'attente et le callback n'est
+ * jamais appelé. C'est le cas qui manquait, et qui tuait le process.
+ */
+function fakeClient(opts: { failPublish?: boolean; neverAcks?: boolean } = {}) {
   const published: { topic: string; payload: string }[] = []
   return {
     published,
     publish(topic: string, payload: string, _o: unknown, cb: PublishCb) {
       published.push({ topic, payload })
+      if (opts.neverAcks) return
       cb(opts.failPublish ? new Error('broker down') : null)
     },
   }
@@ -99,6 +106,39 @@ describe('openLocker', () => {
         timeoutMs: 5_000,
       }),
     ).rejects.toBeInstanceOf(LockerStuckError)
+  })
+
+  /**
+   * Régression. Le broker injoignable n'accuse jamais la publication : l'attente
+   * de cet accusé passait *avant* l'attente de la borne, si bien que le délai
+   * de `confirmed` expirait sans personne pour attraper sa rejection — et une
+   * rejection non gérée tue le process. Une seule borne muette faisait donc
+   * tomber l'API de tous les campings.
+   */
+  it('lève locker_stuck, sans rejection non gérée, quand le broker n\'accuse jamais', async () => {
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+
+    try {
+      const client = fakeClient({ neverAcks: true })
+      await expect(
+        openLocker({
+          client: client as never,
+          distributorId: '11111111-1111-4111-8111-111111111111',
+          lockerId: '22222222-2222-4222-8222-222222222222',
+          openingId: '33333333-3333-4333-8333-333333333333',
+          timeoutMs: 50,
+        }),
+      ).rejects.toBeInstanceOf(LockerStuckError)
+
+      // Laisse passer quelques tours de boucle : une rejection non gérée n'est
+      // signalée qu'après le microtask qui aurait pu l'attraper.
+      await new Promise((r) => setTimeout(r, 120))
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
   })
 
   it('considère l\'ouverture faite quand aucun broker n\'est branché', async () => {

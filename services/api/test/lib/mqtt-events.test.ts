@@ -27,7 +27,14 @@ const REPO_ROOT = join(HERE, '..', '..', '..', '..')
 const SCHEMA_PATH = join(REPO_ROOT, 'database', 'schema.sql')
 const MIGRATIONS_DIR = join(REPO_ROOT, 'database', 'migrations')
 
-let pgContainer: StartedPostgreSqlContainer
+/**
+ * `TEST_PG_URL` vise une base déjà lancée plutôt que d'en démarrer une : sur une
+ * machine sans Docker (et donc sans testcontainers), c'est le seul moyen
+ * d'exercer ces handlers. Même échappatoire que les suites kiosque et séjours.
+ */
+const EXTERNAL_PG = process.env.TEST_PG_URL
+
+let pgContainer: StartedPostgreSqlContainer | undefined
 let pgSql: ReturnType<typeof postgres>
 
 const log: FastifyBaseLogger = {
@@ -43,14 +50,16 @@ const log: FastifyBaseLogger = {
 } as unknown as FastifyBaseLogger
 
 beforeAll(async () => {
-  pgContainer = await new PostgreSqlContainer('postgres:16-alpine')
-    .withDatabase('sportlocker_test')
-    .withUsername('test')
-    .withPassword('test')
-    .start()
+  if (!EXTERNAL_PG) {
+    pgContainer = await new PostgreSqlContainer('postgres:16-alpine')
+      .withDatabase('sportlocker_test')
+      .withUsername('test')
+      .withPassword('test')
+      .start()
+  }
 
   process.env.NODE_ENV = 'test'
-  process.env.DATABASE_URL = pgContainer.getConnectionUri()
+  process.env.DATABASE_URL = EXTERNAL_PG ?? pgContainer!.getConnectionUri()
   process.env.REDIS_URL = 'redis://localhost:6379'
   process.env.JWT_SESSION_SECRET = 'a'.repeat(64)
   process.env.JWT_DEVICE_SECRET = 'test-device-secret-32-chars-long-pad'
@@ -66,8 +75,8 @@ beforeAll(async () => {
 }, 60_000)
 
 afterAll(async () => {
-  await pgSql.end()
-  await pgContainer.stop()
+  await pgSql?.end()
+  await pgContainer?.stop()
 }, 30_000)
 
 beforeEach(async () => {
