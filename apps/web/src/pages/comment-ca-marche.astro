@@ -1,313 +1,192 @@
 ---
 import Base from '@/layouts/Base.astro'
+import Hero from '@/components/Hero.astro'
+import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import { SITE } from '@/data/site'
+import { SITE, SPECS } from '@/data/site'
 
-const userSteps = [
+const vacancier = [
   {
     n: '01',
-    title: 'Je trouve',
-    desc: "J'ouvre l'app, je localise le distributeur le plus proche. Les casiers libres s'affichent en temps réel.",
-    tech: 'GPS · stock Redis < 20 ms',
+    title: 'Il scanne le QR code de la borne',
+    desc: 'Une page web s’ouvre dans son navigateur. Rien à télécharger, aucun compte à créer, aucune carte bancaire à saisir.',
   },
   {
     n: '02',
-    title: 'Je réserve',
-    desc: "Je choisis une durée (30 / 60 / 90 / 120 min), je paie en deux taps. Une caution est préautorisée sur ma carte.",
-    tech: 'Apple Pay · Google Pay · caution Stripe',
+    title: 'Il saisit son numéro de séjour et son nom',
+    desc: 'C’est tout ce qu’il faut. Vous avez déjà son identité, son emplacement et sa caution depuis le check-in : on s’appuie dessus au lieu de les redemander.',
   },
   {
     n: '03',
-    title: "J'ouvre",
-    desc: "Je présente mon QR code au lecteur de la borne — même sans réseau. Le casier s'ouvre en moins d'une seconde.",
-    tech: 'JWT HS256 offline · NFC · valable 15 min',
+    title: 'Il choisit un article disponible',
+    desc: 'La page affiche ce qu’il reste dans la borne en temps réel. Un casier, un article.',
   },
   {
     n: '04',
-    title: 'Je rends',
-    desc: "Je remets le matériel dans n'importe quel casier libre du réseau. Un rappel push m'avertit avant la fin du créneau.",
-    tech: 'Rappel push · RFID · multi-points de retour',
+    title: 'Le casier s’ouvre',
+    desc: 'Moins d’une seconde. Le code est vérifié par la borne elle-même, pas par un serveur : ça marche même si la 4G est tombée.',
+  },
+  {
+    n: '05',
+    title: 'Il joue, puis il rend',
+    desc: 'Il repose l’article dans un casier libre et referme la porte. Un capteur enregistre le retour, sans intervention de personne.',
   },
 ]
 
-
-const onboarding = [
+const accueil = [
   {
     n: '01',
-    title: 'Devis & cadrage',
-    duration: '1 semaine',
-    desc: "Vous nous envoyez votre demande. On vous rappelle sous 24h pour qualifier le besoin : nombre de distributeurs, sports, emplacements, budget.",
-    deliverables: ['Devis détaillé sous 48h', 'Configuration recommandée', 'Plan de financement (subventions incluses si éligible)'],
+    title: 'Un seul écran',
+    desc: 'Quels casiers sont vides, ce qu’il faut y remettre. C’est la seule chose que votre saisonnier a besoin de savoir.',
   },
   {
     n: '02',
-    title: 'Visite technique',
-    duration: '1 à 2 semaines',
-    desc: "On vient sur place repérer les emplacements : alimentation 230V, couverture 4G, ancrage au sol, signalétique. Validation avec votre service technique.",
-    deliverables: ["Plan d'implantation", 'Devis travaux annexes éventuels', 'Convention signée'],
+    title: 'La liste des non-rendus',
+    desc: 'Avec le nom du client et son emplacement. Vous facturez sur le compte séjour comme pour un vélo.',
   },
   {
     n: '03',
-    title: 'Installation',
-    duration: '2 à 3 semaines',
-    desc: "On fabrique, on livre, on pose. Le matériel sportif est chargé dans les casiers. Votre tenant est configuré dans le dashboard. Formation de la personne référente.",
-    deliverables: ['Distributeurs en service', 'Formation admin (1h)', 'Documentation opérationnelle'],
-  },
-  {
-    n: '04',
-    title: 'Lancement & suivi',
-    duration: 'Continu',
-    desc: "Communication usagers (affichage + push), suivi 30/60/90 jours, ajustement du matériel selon l'usage. Hotline N2 disponible 7j/7.",
-    deliverables: ['Bilan trimestriel', 'Renouvellement matériel inclus', 'Support technique illimité'],
+    title: 'Une alerte si la borne décroche',
+    desc: 'Perte de connexion, porte restée ouverte, casier bloqué : nous le voyons avant vous et nous intervenons à distance quand c’est possible.',
   },
 ]
 
-const inclus = [
-  { icon: '🔒', title: 'Distributeur antivandal', desc: 'Acier inox 2 mm, IP54, -10°C à +60°C, conçu pour 10 ans en extérieur.' },
-  { icon: '⚽', title: 'Matériel sportif chargé', desc: 'Ballons, raquettes, frisbees, cordes. Adapté à votre site, renouvellement inclus.' },
-  { icon: '📡', title: 'Connectivité 4G + cache', desc: 'Carte SIM M2M incluse. Fonctionnement garanti 24h hors-ligne.' },
-  { icon: '🛠️', title: 'Maintenance N1 + N2', desc: 'Vous gérez les petits incidents. On gère le reste à distance ou en intervention.' },
-  { icon: '📊', title: 'Dashboard temps réel', desc: "Stats d'usage, alertes maintenance, force-cancel réservations abusives." },
-  { icon: '🆙', title: 'Mises à jour OTA', desc: 'Firmware mis à jour à distance via Balena. Aucune intervention sur site.' },
+const technique = [
+  { label: 'Casiers', value: SPECS[0]?.valeur ?? '8 casiers individuels' },
+  { label: 'Alimentation', value: 'Prise 230 V standard, onduleur de secours intégré' },
+  { label: 'Connexion', value: '4G intégrée — aucun raccordement réseau à prévoir' },
+  { label: 'Ouverture', value: 'Code signé vérifié localement, fonctionne hors ligne' },
+  { label: 'Retour', value: 'Capteur de fermeture de porte sur chaque casier' },
+  { label: 'Installation', value: 'Une demi-journée, aucun génie civil' },
+  { label: 'Mises à jour', value: 'À distance, hors saison de préférence' },
+  { label: 'Emplacement', value: 'Près du terrain multisports ou de l’espace aquatique, à l’abri si possible' },
+]
+
+const jsonLd = [
+  {
+    '@type': 'HowTo',
+    name: 'Emprunter du matériel sportif dans une borne SportLocker',
+    description:
+      'Le parcours d’un client qui emprunte un ballon ou une raquette dans la borne de son lieu de séjour.',
+    step: vacancier.map((s, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      name: s.title,
+      text: s.desc,
+    })),
+  },
+  {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Accueil', item: SITE.url + '/' },
+      { '@type': 'ListItem', position: 2, name: 'Comment ça marche', item: SITE.url + '/comment-ca-marche' },
+    ],
+  },
 ]
 ---
 
 <Base
-  title="Comment ça marche — SportLocker en libre-service"
-  description="L'usager emprunte en 30 secondes. Vous mettez en service en 4 à 6 semaines. Matériel, maintenance et support : tout est inclus."
+  title="Comment ça marche"
+  description="Le parcours complet : le vacancier scanne, saisit son numéro de séjour, le casier s’ouvre. Côté exploitant, un écran de réassort et la liste des articles non rendus. Prise 230 V, 4G intégrée, aucun génie civil."
+  extraJsonLd={jsonLd}
 >
+  <Hero
+    tag="Le fonctionnement, en détail"
+    title="Trois gestes pour le vacancier,"
+    highlight="un écran pour votre accueil."
+    desc="Pas d’application à installer, pas de compte à créer, pas de carte bancaire. Le numéro de séjour suffit — vous l’avez déjà."
+    primary={{ href: '/contact#formulaire', label: 'En parler 15 minutes' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+  />
 
-  <!-- HERO -->
-  <section class="segment-hero">
-    <div class="segment-hero-bg" aria-hidden="true"></div>
-    <div class="container-x relative z-10">
-      <div class="max-w-[48rem]">
-        <div class="hero-appear mb-6" style="animation-delay:0s">
-          <span class="tag tag-brand">Comment ça marche</span>
-        </div>
-        <h1 class="segment-hero-title hero-appear" style="animation-delay:0.1s">
-          Le sport en libre-service<br/>
-          <span class="text-brand-400">Vous ne gérez rien.</span>
-        </h1>
-        <p class="segment-hero-sub hero-appear" style="animation-delay:0.25s">
-          L'usager emprunte en 30 secondes depuis son téléphone.
-          Vous mettez en service en 4 à 6 semaines. Matériel, maintenance et support : tout est inclus.
-        </p>
-        <div class="flex gap-3 flex-wrap hero-appear" style="animation-delay:0.35s">
-          <a href="/contact#formulaire" class="btn btn-primary">Demander un devis →</a>
-          <a href="/tarifs" class="btn btn-outline">Voir les tarifs</a>
-        </div>
-        <div class="segment-metrics hero-appear" style="animation-delay:0.5s">
-          <div>
-            <div class="segment-metric-n">30<span class="text-brand-400">s</span></div>
-            <div class="segment-metric-l">pour emprunter<br/>du matériel</div>
-          </div>
-          <div>
-            <div class="segment-metric-n">4–6<span class="text-brand-400">sem</span></div>
-            <div class="segment-metric-l">de la commande<br/>à la mise en service</div>
-          </div>
-          <div>
-            <div class="segment-metric-n">24<span class="text-brand-400">h</span></div>
-            <div class="segment-metric-l">disponible même<br/>sans réseau</div>
-          </div>
-          <div>
-            <div class="segment-metric-n">0</div>
-            <div class="segment-metric-l">personnel<br/>à mobiliser</div>
-          </div>
-        </div>
+  <!-- PARCOURS VACANCIER -->
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <div class="text-center mb-14">
+        <span class="eyebrow" data-reveal>Côté vacancier</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Trente secondes,<br/>de la borne au terrain.
+        </h2>
       </div>
+      <ol class="space-y-4">
+        {vacancier.map((s, i) => (
+          <li class="card-dark p-6 flex gap-5" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="font-extrabold text-2xl text-brand-400 leading-none w-10 shrink-0">{s.n}</div>
+            <div>
+              <div class="font-bold text-white mb-1.5">{s.title}</div>
+              <div class="text-sm text-white/60 font-light leading-relaxed">{s.desc}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   </section>
 
-  <!-- CÔTÉ USAGER — 4 étapes -->
-  <section class="section-alt">
-    <div class="container-x">
+  <!-- PARCOURS ACCUEIL -->
+  <section class="section">
+    <div class="container-x max-w-4xl">
       <div class="text-center mb-14">
-        <span class="eyebrow" data-reveal>Côté usager</span>
-        <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
-          Du téléphone au casier ouvert.
+        <span class="eyebrow" data-reveal>Côté accueil</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Dix minutes de formation,<br/>et c’est réglé.
+        </h2>
+      </div>
+      <ol class="space-y-4">
+        {accueil.map((s, i) => (
+          <li class="card-dark p-6 flex gap-5" data-reveal data-reveal-delay={String(i + 1)}>
+            <div class="font-extrabold text-2xl text-brand-400 leading-none w-10 shrink-0">{s.n}</div>
+            <div>
+              <div class="font-bold text-white mb-1.5">{s.title}</div>
+              <div class="text-sm text-white/60 font-light leading-relaxed">{s.desc}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <!-- BORNE 3D -->
+  <section id="distributeur-3d" class="section-alt">
+    <div class="container-x">
+      <div class="text-center mb-10 max-w-3xl mx-auto">
+        <span class="eyebrow" data-reveal>La borne</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Faites-la tourner.
         </h2>
         <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          4 gestes, 30 secondes — sans badge, sans agent, sans guichet.
+          Ouvrez les portes, survolez les étiquettes. Le rendu correspond à la borne en cours
+          d’assemblage ; les dimensions définitives seront figées après le prototype.
         </p>
       </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {userSteps.map((s, i) => (
-          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 4) + 1)}>
-            <div class="font-mono text-4xl font-bold text-brand-500/20 mb-4 leading-none">{s.n}</div>
-            <h3 class="font-bold text-lg mb-3" style="color:var(--text-0)">{s.title}</h3>
-            <p class="text-sm leading-relaxed font-light mb-5" style="color:var(--text-1)">{s.desc}</p>
-            <div class="text-[0.7rem] font-mono text-brand-400/70 border-t pt-3" style="border-color:var(--border)">{s.tech}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <!-- LA BORNE 3D -->
-  <section class="section">
-    <div class="container-x">
-      <div class="mb-10 max-w-3xl">
-        <span class="tag tag-brand mb-4 inline-block" data-reveal>Côté terrain</span>
-        <h2 class="section-title" data-reveal data-reveal-delay="1">
-          La borne installée<br class="hidden sm:block" /> sur vos sites.
-        </h2>
-        <p class="section-sub mt-4" data-reveal data-reveal-delay="2">
-          Manipulez-la : faites-la pivoter, ouvrez les portes, lisez les statuts en temps réel —
-          libre, réservé, emprunté, maintenance. Coque acier antivandale IP54, conçue pour rester dehors toute l'année.
-        </p>
-      </div>
-      <div data-reveal data-reveal-delay="3">
+      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
         <LockerDistributor3D />
       </div>
     </div>
   </section>
 
-  <!-- CÔTÉ VOUS — onboarding 4 étapes -->
-  <section class="section-alt" id="installation">
-    <div class="container-x">
-      <div class="grid lg:grid-cols-[1fr_1.6fr] gap-16 items-start">
-        <div class="lg:sticky lg:top-32">
-          <span class="eyebrow" data-reveal>Côté établissement</span>
-          <h2 class="section-title mt-3 mb-5" data-reveal data-reveal-delay="1">
-            De la demande<br/>à la mise en service<br/>en 4 à 6 semaines.
-          </h2>
-          <p class="section-sub mb-8 font-light" data-reveal data-reveal-delay="2">
-            Un parcours clé en main. Vous ne gérez ni l'achat de matériel, ni la maintenance, ni le support N2.
-          </p>
-          <a href="/contact#formulaire" class="btn btn-primary" data-reveal data-reveal-delay="3">
-            Demander un devis →
-          </a>
-        </div>
-        <ol class="space-y-4">
-          {onboarding.map((step, i) => (
-            <li class="card-dark p-7 sm:p-8" data-reveal data-reveal-delay={String((i % 3) + 1)}>
-              <div class="flex items-start justify-between mb-5">
-                <div class="font-mono font-bold text-4xl text-brand-500/25 leading-none">{step.n}</div>
-                <span class="tag tag-white text-[0.65rem]">{step.duration}</span>
-              </div>
-              <h3 class="font-bold text-lg mb-3" style="color:var(--text-0)">{step.title}</h3>
-              <p class="text-sm leading-relaxed font-light mb-5" style="color:var(--text-1)">{step.desc}</p>
-              <div class="text-[0.65rem] uppercase tracking-widest mb-3" style="color:var(--text-1)">Livrables</div>
-              <ul class="space-y-2">
-                {step.deliverables.map(d => (
-                  <li class="flex items-start gap-2.5 text-sm" style="color:var(--text-1)">
-                    <span class="text-brand-400 mt-0.5 shrink-0">✓</span>
-                    <span class="font-light">{d}</span>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </div>
-  </section>
-
-  <!-- TOUT EST INCLUS -->
+  <!-- FICHE TECHNIQUE -->
   <section class="section">
-    <div class="container-x">
-      <div class="text-center mb-14">
-        <span class="eyebrow" data-reveal>Tout est inclus</span>
-        <h2 class="section-title mt-3 mx-auto" data-reveal data-reveal-delay="1">
-          Aucun coût caché, aucune surprise.
-        </h2>
-        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Une mensualité. Matériel, maintenance, support N2 et OTA — tout.
-        </p>
+    <div class="container-x max-w-4xl">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>Ce qu’il faut prévoir</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Fiche technique</h2>
       </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {inclus.map((f, i) => (
-          <div class="card-dark p-7" data-reveal data-reveal-delay={String((i % 3) + 1)}>
-            <div class="w-11 h-11 rounded-xl bg-brand-500/10 border border-brand-500/20 grid place-items-center text-xl mb-5">
-              {f.icon}
-            </div>
-            <h3 class="font-bold text-base mb-2" style="color:var(--text-0)">{f.title}</h3>
-            <p class="text-sm leading-relaxed font-light" style="color:var(--text-1)">{f.desc}</p>
+      <div class="grid sm:grid-cols-2 gap-4">
+        {technique.map((t, i) => (
+          <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
+            <div class="text-xs uppercase tracking-[0.12em] text-brand-400 mb-2">{t.label}</div>
+            <div class="text-sm text-white/70 font-light leading-relaxed">{t.value}</div>
           </div>
         ))}
       </div>
     </div>
   </section>
 
-  <!-- CTA FINALE VERTE -->
-  <section class="cta-finale">
-    <div class="cta-finale-blob" aria-hidden="true"></div>
-    <div class="container-x relative z-10 text-center">
-      <p class="eyebrow mb-4 text-white/60" data-reveal>Prêt à équiper vos terrains ?</p>
-      <h2 class="cta-finale-title" data-reveal data-reveal-delay="1">
-        15 minutes pour voir<br/>si SportLocker vous correspond.
-      </h2>
-      <p class="cta-finale-sub" data-reveal data-reveal-delay="2">
-        Un appel de découverte, un devis sous 48h. Aucun engagement.
-      </p>
-      <div class="flex items-center justify-center gap-4 flex-wrap" data-reveal data-reveal-delay="3">
-        <a href="/contact#formulaire" class="btn btn-white text-lg px-9 py-4">Demander un devis gratuit →</a>
-        <a href={`mailto:${SITE.email}`} class="cta-finale-link">ou {SITE.email}</a>
-      </div>
-    </div>
-  </section>
-
+  <FinalCta
+    title="On vient voir où la poser."
+    sub="Une demi-heure sur site suffit pour savoir si ça marche chez vous, et à quel endroit."
+    primary={{ href: '/contact#formulaire', label: 'Demander une visite' }}
+    secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
+    fine="Devis sous 48 h ouvrées · Visite offerte en Vendée, Loire-Atlantique et Charente-Maritime"
+  />
 </Base>
-
-<style>
-  .segment-hero {
-    min-height: 80vh;
-    display: flex;
-    align-items: center;
-    padding-top: 8rem;
-    padding-bottom: 5rem;
-    position: relative;
-    overflow: hidden;
-    background-color: var(--bg-0);
-  }
-  .segment-hero-bg {
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 70% 60% at 70% 40%, rgba(29,158,117,0.11) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 50% at 10% 80%, rgba(43,194,149,0.06) 0%, transparent 60%);
-    pointer-events: none;
-  }
-  .segment-hero-title {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-weight: 800;
-    font-size: clamp(2.6rem, 5vw, 4.2rem);
-    line-height: 1.08;
-    letter-spacing: -0.02em;
-    color: var(--text-0);
-    margin-bottom: 1.25rem;
-  }
-  .segment-hero-sub {
-    font-size: 1.1rem;
-    color: var(--text-1);
-    line-height: 1.8;
-    max-width: 40rem;
-    margin-bottom: 2rem;
-    font-weight: 300;
-  }
-  .segment-metrics {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem 2rem;
-    margin-top: 3rem;
-    padding-top: 2rem;
-    border-top: 1px solid var(--border);
-    max-width: 36rem;
-  }
-  @media (min-width: 640px) {
-    .segment-metrics { grid-template-columns: repeat(4, 1fr); }
-  }
-  .segment-metric-n {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-weight: 800;
-    font-size: 1.8rem;
-    line-height: 1;
-    color: var(--text-0);
-  }
-  .segment-metric-l {
-    font-size: 0.72rem;
-    color: var(--text-1);
-    margin-top: 0.3rem;
-    line-height: 1.5;
-  }
-</style>

@@ -1,0 +1,55 @@
+/* SportLocker — jetons de couleur partagés.
+ *
+ * Un seul jeu de noms sémantiques, deux valeurs : clair par défaut, sombre
+ * quand la classe `dark` est posée sur <html>. Les composants n'écrivent
+ * jamais une couleur en dur : ils utilisent `bg-surface`, `text-ink`,
+ * `border-line`, `bg-brand`… et le basculement se fait tout seul.
+ *
+ * Les valeurs sont des triplets RGB sans virgule pour que Tailwind puisse y
+ * appliquer une opacité (`bg-brand/10`).
+ *
+ * Contrastes vérifiés (WCAG AA, texte normal ≥ 4.5:1) :
+ *   clair  — ink/bg 15.8:1 · ink-muted/bg 5.2:1 · brand/surface 5.3:1
+ *   sombre — ink/bg 15.1:1 · ink-muted/bg 6.9:1 · brand/bg 8.2:1
+ */
+
+:root {
+  --sl-bg: 246 248 247;
+  --sl-surface: 255 255 255;
+  --sl-surface-2: 238 242 240;
+  --sl-line: 221 228 225;
+  --sl-ink: 15 26 22;
+  --sl-ink-muted: 91 107 100;
+  --sl-brand: 21 122 91;
+  --sl-brand-strong: 15 92 69;
+  --sl-brand-soft: 226 242 236;
+  --sl-on-brand: 255 255 255;
+  --sl-danger: 176 42 42;
+  --sl-danger-soft: 253 232 232;
+  --sl-warn: 146 90 8;
+  --sl-warn-soft: 253 243 224;
+
+  --sl-radius-card: 1rem;
+  --sl-radius-sheet: 1.25rem;
+
+  color-scheme: light;
+}
+
+.dark {
+  --sl-bg: 13 27 42;
+  --sl-surface: 20 36 52;
+  --sl-surface-2: 27 46 64;
+  --sl-line: 38 57 76;
+  --sl-ink: 242 246 248;
+  --sl-ink-muted: 147 166 180;
+  --sl-brand: 43 194 149;
+  --sl-brand-strong: 29 158 117;
+  --sl-brand-soft: 18 52 47;
+  --sl-on-brand: 6 33 26;
+  --sl-danger: 248 113 113;
+  --sl-danger-soft: 60 24 24;
+  --sl-warn: 245 190 90;
+  --sl-warn-soft: 58 44 18;
+
+  color-scheme: dark;
+}

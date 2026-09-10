@@ -1,0 +1,95 @@
+---
+import Base from '@/layouts/Base.astro'
+import ContactForm from '@/components/ContactForm.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import { SEGMENT_META, buildSegmentSchemas, type TenantSegment } from '@/data/site'
+
+/**
+ * La page d'un public autre que le camping.
+ *
+ * Une seule page pour les trois, parce que ce qu'on vend est rigoureusement le
+ * même objet : la borne ne sait pas si elle est dans un camping ou dans la cour
+ * d'un hôtel. Ce qui change, c'est ce que l'exploitant vient chercher, et c'est
+ * exactement ce que la page reçoit en propriétés.
+ *
+ * Trois copies auraient divergé au premier changement de prix — c'est ce qui
+ * était arrivé en mai avec les trois segments de l'époque, qui annonçaient
+ * chacun un modèle économique différent.
+ */
+
+interface Props {
+  segment: TenantSegment
+  /** Le titre de la page. Deux lignes : le contexte, puis la promesse. */
+  titre: string
+  titreAccent: string
+  intro: string
+  /** Ce que ce public vit aujourd'hui, dans ses mots. */
+  constat: string[]
+  /** Les trois raisons qui lui parlent, à lui. */
+  raisons: { titre: string; detail: string }[]
+  /** La différence honnête avec le camping, s'il y en a une. */
+  nuance?: string | undefined
+}
+
+const { segment, titre, titreAccent, intro, constat, raisons, nuance } = Astro.props
+const meta = SEGMENT_META[segment]
+---
+
+<Base
+  title={`${meta.serviceName.replace('Borne de prêt de matériel sportif pour ', 'Prêt de matériel sportif — ')}`}
+  description={intro}
+  extraJsonLd={buildSegmentSchemas(segment)}
+>
+  <section class="section pt-36 sm:pt-40">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>{meta.label}</span>
+      <h1 class="section-title mt-3 mb-6" data-reveal data-reveal-delay="1">
+        {titre}<br /><span class="text-brand-400">{titreAccent}</span>
+      </h1>
+      <p class="section-sub max-w-2xl" data-reveal data-reveal-delay="2">{intro}</p>
+    </div>
+  </section>
+
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Aujourd’hui</span>
+      <h2 class="section-title mt-3 mb-8" data-reveal data-reveal-delay="1">
+        Ce qu’on nous décrit.
+      </h2>
+      <ul class="grid gap-3 sm:grid-cols-2" data-reveal data-reveal-delay="2">
+        {constat.map((c) => (
+          <li class="card-dark p-5 text-[0.95rem] leading-relaxed">« {c} »</li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Ce que ça change</span>
+      <h2 class="section-title mt-3 mb-10" data-reveal data-reveal-delay="1">{meta.argument}</h2>
+      <div class="grid gap-5 md:grid-cols-3">
+        {raisons.map((r, i) => (
+          <div class="card-dark p-6" data-reveal data-reveal-delay={String(i + 1)}>
+            <h3 class="font-semibold text-lg mb-2">{r.titre}</h3>
+            <p class="text-[0.95rem] leading-relaxed opacity-80">{r.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      {nuance && (
+        <p class="mt-8 text-sm opacity-70 max-w-2xl" data-reveal>
+          <strong class="opacity-100">À savoir :</strong> {nuance}
+        </p>
+      )}
+    </div>
+  </section>
+
+  <section class="section-alt" id="formulaire">
+    <div class="container-x">
+      <ContactForm segment={segment} />
+    </div>
+  </section>
+
+  <FinalCta />
+</Base>

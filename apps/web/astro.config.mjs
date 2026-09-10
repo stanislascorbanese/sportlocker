@@ -8,7 +8,13 @@ import sitemap from '@astrojs/sitemap'
 // l'ancien sitemap.xml manuel — qui dérivait à chaque ajout de page.
 // /contact est en noindex → exclu aussi (sinon présent dans le sitemap mais
 // non indexable = signal contradictoire).
-const SITEMAP_EXCLUDE = ['/cgu', '/cgv', '/mentions-legales', '/confidentialite', '/contact']
+const SITEMAP_EXCLUDE = [
+  '/cgu', '/cgv', '/mentions-legales', '/confidentialite', '/contact',
+  // Pages conservées en redirection meta-refresh pour ne pas casser les liens
+  // entrants, donc hors sitemap. `/hotels` en est sortie : c'est redevenu une
+  // vraie page en septembre 2026, avec la réouverture des publics privés.
+  '/mairies', '/couverture', '/communes', '/faq', '/campings',
+]
 
 export default defineConfig({
   site: 'https://sportlocker.fr',

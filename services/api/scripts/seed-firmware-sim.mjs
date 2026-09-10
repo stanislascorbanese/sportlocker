@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// `.env` n'est lu que par ce qui l'importe : ce script tourne hors de
+// l'application, donc sans cette ligne il ne voit aucune variable.
+import 'dotenv/config'
+
 /**
  * Seed dédié à la démo firmware-sim (Phase 4).
  *

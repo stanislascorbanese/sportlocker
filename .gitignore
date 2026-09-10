@@ -59,3 +59,10 @@ whsec_*
 
 # Misc
 *.local
+
+# Fichiers déposés par l'app Claude quand un résultat est livré dans la
+# conversation. Ce sont des sorties, pas des sources.
+Claude outputs/
+_sync*.tgz
+_s[wd0-9]*.tgz
+*.tgz

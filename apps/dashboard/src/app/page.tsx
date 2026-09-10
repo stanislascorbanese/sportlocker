@@ -19,7 +19,7 @@ import { getLang } from '../lib/lang-server'
 import { commonStrings, fmtRelative, fmtToday } from '../lib/i18n/common'
 import { homeStrings } from '../lib/i18n/home'
 import { makeMetadata } from '../lib/i18n/metadata'
-import { TenantHome } from './_TenantHome'
+import { TodayHome } from './_TodayHome'
 
 export const dynamic = 'force-dynamic'
 export const generateMetadata = makeMetadata((lang) => homeStrings(lang).metaTitle)
@@ -65,12 +65,13 @@ async function loadAll(): Promise<FetchResults> {
 }
 
 export default async function HomePage() {
-  // Dispatch role-based : un admin tenant (role=admin avec communeId) voit
-  // une home dédiée centrée sur sa commune. Un super_admin garde la vue
-  // parc globale ci-dessous.
+  // Dispatch par rôle. Depuis le pivot vers l'hébergement de loisirs, l'utilisateur normal du
+  // dashboard est un exploitant d'hébergement : il voit « Aujourd'hui », une page qui
+  // ne montre que ce qu'il y a à faire. La vue parc globale ci-dessous reste
+  // servie aux super-admins, qui eux exploitent réellement un parc.
   const user = await getSessionUser()
-  if (user?.role === 'admin' && user.communeId) {
-    return <TenantHome communeId={user.communeId} />
+  if (user?.role !== 'super_admin') {
+    return <TodayHome />
   }
 
   const lang = await getLang()

@@ -17,14 +17,16 @@
     "@tanstack/react-query": "^5.101.2",
     "firebase": "^12.15.0",
     "lucide-react": "^1.23.0",
-    "next": "^15.3.0",
+    "next": "^15.5.25",
     "pdfkit": "^0.19.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "swr": "^2.4.2",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "@sportlocker/config": "workspace:*"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^26.1.0",

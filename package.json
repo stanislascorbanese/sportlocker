@@ -21,7 +21,7 @@
     "prettier":         "^3.9.4"
   },
   "pnpm": {
-    "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9).",
+    "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9). La forme `paquet@plage` cible une ligne de version précise : le sélecteur est comparé à la plage que déclare le dépendant, pas à la version résolue, d'où `@>=4` plutôt que `@4` : brace-expansion et fast-uri vivent en plusieurs majeures dans l'arbre, et forcer une seule version pour toutes casserait les paquets qui dépendent de l'ancienne API.",
     "overrides": {
       "@xmldom/xmldom": ">=0.8.13",
       "fast-jwt":       ">=6.2.4",
@@ -34,8 +34,10 @@
       "ws":             ">=8.21.0",
       "form-data":      ">=4.0.6",
       "protobufjs":     ">=7.6.3",
-      "@grpc/grpc-js@1.14.3": "1.14.4"
+      "@grpc/grpc-js@1.14.3": "1.14.4",
+      "js-yaml":        "4.1.1"
     },
+    "//js-yaml": "Version figée, pas un plancher. C'est **4.2.0** qui a retiré l'export par défaut du build ESM ; 4.1.1 exporte encore `jsYaml as default`, et @astrojs/markdown-remark fait `import yaml from 'js-yaml'`. Dès 4.2.0, `astro check` ne démarre plus. 4.1.1 est la dernière version utilisable, d'où l'épingle exacte plutôt qu'une plage — vérifié en dépaquetant 4.1.1, 4.2.0, 4.3.0 et 4.3.2. Les trois advisories DoS de la 4.1 restent donc ouvertes — elles portent sur du YAML malveillant, et ici js-yaml ne lit que le frontmatter du dépôt au build. À lever quand Astro aura migré vers les imports nommés.",
     "//audit": "Les GHSAs non couvertes par les overrides ci-dessus sont filtrées dans .github/workflows/security.yml (pnpm 9 n'applique pas pnpm.auditConfig.ignoreCves). Voir docs/SECURITY.md §9."
   }
 }

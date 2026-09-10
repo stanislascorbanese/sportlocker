@@ -17,6 +17,7 @@ WORKDIR /repo
 # Manifests racine + workspaces (cache Docker layer si pas de changement)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json turbo.json ./
 COPY apps/web/package.json ./apps/web/
+COPY packages/config/package.json ./packages/config/
 
 # Install scoped sur @sportlocker/web.
 # --ignore-scripts : évite de déclencher les postinstalls d'autres workspaces
@@ -26,7 +27,9 @@ COPY apps/web/package.json ./apps/web/
 RUN corepack prepare pnpm@9.0.0 --activate \
   && pnpm install --filter @sportlocker/web... --frozen-lockfile --ignore-scripts --prod=false
 
-# Sources du site
+# Sources du site + preset Tailwind partagé (importé par tailwind.config.mjs
+# et par global.css ; sans lui, le build Astro échoue).
+COPY packages/config ./packages/config
 COPY apps/web ./apps/web
 
 # Build Astro → apps/web/dist

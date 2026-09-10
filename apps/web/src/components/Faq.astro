@@ -9,8 +9,10 @@ interface FaqItem {
 }
 interface Props {
   items: FaqItem[]
+  /** Ancre optionnelle, pour que /faq puisse pointer directement dessus. */
+  id?: string | undefined
 }
-const { items } = Astro.props
+const { items, id } = Astro.props
 
 // Données structurées FAQPage (schema.org) → éligibilité aux résultats
 // enrichis Google. Émis automatiquement pour chaque page qui rend <Faq/>.
@@ -28,7 +30,7 @@ const faqJsonLd = {
 }
 ---
 
-<div class="flex flex-col gap-3 max-w-3xl mx-auto">
+<div id={id} class="flex flex-col gap-3 max-w-3xl mx-auto" style={id ? "scroll-margin-top: 6rem" : undefined}>
   {items.map((item) => (
     <details
       data-reveal
