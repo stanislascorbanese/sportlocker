@@ -1,5 +1,8 @@
+'use client'
+
 import { ItemGlyph } from './ItemGlyph'
 import type { ItemKind } from '@/lib/contract'
+import { useLang } from '@/lib/i18n'
 
 /**
  * L'écran qui compte.
@@ -20,10 +23,14 @@ export function LockerReveal({
   itemLabel?: string | undefined
   kind?: ItemKind | undefined
 }) {
+  const { t } = useLang()
+
   return (
     <div className="animate-scale-in rounded-sheet bg-brand px-6 py-10 text-center text-brand-on">
       <p className="text-[1.0625rem] font-semibold opacity-90">{title}</p>
-      <p className="mt-2 text-eyebrow font-bold uppercase tracking-[0.16em] opacity-75">Casier</p>
+      <p className="mt-2 text-eyebrow font-bold uppercase tracking-[0.16em] opacity-75">
+        {t.lockerWord}
+      </p>
       <p className="font-display text-locker font-bold tabular-nums">{lockerNumber}</p>
       {itemLabel && kind ? (
         <p className="mt-2 inline-flex items-center gap-2 text-[1.0625rem] font-semibold opacity-90">

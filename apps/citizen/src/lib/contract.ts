@@ -7,12 +7,14 @@
  * serveur ; c'est ce qui a remplacé les deux définitions parallèles qui
  * dérivaient à chaque évolution de route.
  *
- * Ce qui reste local, c'est ce qui ne regarde que l'app : les libellés
- * français des erreurs, et le type d'erreur qui les porte. Le serveur ne
- * renvoie que des codes.
+ * Ce qui reste local, c'est le type d'erreur qui porte le code renvoyé par le
+ * serveur — celui-ci n'envoie jamais de phrase, seulement un code, que l'écran
+ * traduit dans la langue du vacancier.
  *
  * Implémentation serveur : docs/API-VACANCIER.md
  */
+import { fr } from './i18n/fr'
+
 export {
   AvailableItem,
   Identity,
@@ -36,23 +38,24 @@ export class ApiError extends Error {
   }
 }
 
-/** Messages affichés à la place d'un code d'erreur serveur. */
-export const ERROR_MESSAGES: Record<string, string> = {
-  stay_not_found:
-    "Ce numéro de séjour n'est pas reconnu. Vérifiez-le sur votre contrat, ou passez à l'accueil.",
-  kiosk_not_found: "Cette borne n'est pas reconnue. Vérifiez le code inscrit dessus.",
-  item_unavailable: "Ce matériel vient d'être emprunté par quelqu'un d'autre.",
-  loan_already_active: 'Vous avez déjà un article emprunté. Rendez-le pour en prendre un autre.',
-  loan_not_found: 'Cet emprunt est déjà clôturé.',
-  locker_stuck: "Le casier n'a pas répondu. Prévenez l'accueil, on s'en occupe.",
-  no_free_locker: "Tous les casiers sont occupés. Prévenez l'accueil.",
-  network: 'Pas de connexion. Approchez-vous de la borne et réessayez.',
-}
+/**
+ * Messages de repli, en français.
+ *
+ * Ils ne sont plus la source affichée : l'écran traduit à partir du code porté
+ * par l'ApiError, dans la langue choisie par le vacancier. Ce qui reste ici sert
+ * au `message` de l'exception — donc aux journaux, à Sentry, et à tout code qui
+ * lirait `err.message` sans passer par le contexte de langue.
+ *
+ * La table est importée du dictionnaire français plutôt que recopiée : les deux
+ * listes avaient déjà divergé une fois, et un code traduit d'un côté mais pas de
+ * l'autre est invisible tant qu'un vacancier ne tombe pas dessus.
+ */
+export const ERROR_MESSAGES: Record<string, string> = fr.errors
 
 /** Libellé affichable pour un code d'erreur, connu ou non. */
 export function messageFor(
   code: string,
-  fallback = "Quelque chose n'a pas marché. Réessayez.",
+  fallback = fr.errorFallback,
 ): string {
   return ERROR_MESSAGES[code] ?? fallback
 }

@@ -6,7 +6,8 @@ import { Note, Spinner, TopBar } from '@/components/Chrome'
 import { ItemGlyph } from '@/components/ItemGlyph'
 import { LockerReveal } from '@/components/LockerReveal'
 import { api } from '@/lib/api'
-import { ApiError, type Loan } from '@/lib/contract'
+import { type Loan } from '@/lib/contract'
+import { useLang } from '@/lib/i18n'
 import { forgetLoan, getLoanId } from '@/lib/session'
 
 /**
@@ -20,10 +21,14 @@ import { forgetLoan, getLoanId } from '@/lib/session'
 type Step = 'loading' | 'active' | 'returning' | 'returned' | 'none'
 
 export function LoanView() {
+  const { t, itemLabel, errorText } = useLang()
+
   const [step, setStep] = useState<Step>('loading')
   const [loan, setLoan] = useState<Loan | null>(null)
   const [dropLocker, setDropLocker] = useState<number | null>(null)
-  const [error, setError] = useState('')
+  const [failure, setFailure] = useState<unknown>(null)
+
+  const error = failure === null ? '' : errorText(failure)
 
   useEffect(() => {
     const id = getLoanId()
@@ -55,14 +60,14 @@ export function LoanView() {
   const giveBack = useCallback(async () => {
     if (!loan) return
     setStep('returning')
-    setError('')
+    setFailure(null)
     try {
       const result = await api.returnLoan(loan.id)
       setDropLocker(result.lockerNumber)
       forgetLoan()
       setStep('returned')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Réessayez.')
+      setFailure(err)
       setStep('active')
     }
   }, [loan])
@@ -71,7 +76,7 @@ export function LoanView() {
     return (
       <main className="screen">
         <TopBar />
-        <Spinner label="Chargement…" />
+        <Spinner label={t.loan.loading} />
       </main>
     )
   }
@@ -81,12 +86,10 @@ export function LoanView() {
       <main className="screen">
         <TopBar />
         <div className="flex flex-1 flex-col justify-center gap-6 text-center">
-          <h1 className="font-display text-display-md font-bold">Aucun emprunt en cours</h1>
-          <p className="text-ink-muted">
-            Scannez le QR code de la borne pour prendre du matériel.
-          </p>
+          <h1 className="font-display text-display-md font-bold">{t.loan.noneTitle}</h1>
+          <p className="text-ink-muted">{t.loan.noneHint}</p>
           <Link href="/" className="btn-secondary">
-            Saisir le code de la borne
+            {t.loan.noneCta}
           </Link>
         </div>
       </main>
@@ -98,12 +101,10 @@ export function LoanView() {
       <main className="screen">
         <TopBar />
         <div className="flex flex-1 flex-col justify-center gap-7">
-          <LockerReveal lockerNumber={dropLocker} title="Déposez ici" />
-          <p className="text-center text-ink-muted">
-            Rangez le matériel dans le casier et refermez bien la porte. C’est tout, merci&nbsp;!
-          </p>
+          <LockerReveal lockerNumber={dropLocker} title={t.loan.returnedTitle} />
+          <p className="text-center text-ink-muted">{t.loan.returnedHint}</p>
           <Link href="/" className="btn-secondary">
-            Terminé
+            {t.loan.done}
           </Link>
         </div>
       </main>
@@ -120,11 +121,13 @@ export function LoanView() {
             <ItemGlyph kind={loan.kind} className="h-14 w-14 shrink-0 text-brand" />
             <div className="min-w-0">
               <p className="text-eyebrow font-bold uppercase tracking-[0.12em] text-ink-muted">
-                Emprunté
+                {t.loan.borrowedEyebrow}
               </p>
-              <p className="truncate text-[1.125rem] font-bold">{loan.itemLabel}</p>
+              <p className="truncate text-[1.125rem] font-bold">
+                {itemLabel(loan.kind, loan.itemLabel)}
+              </p>
               <p className="text-meta text-ink-muted">
-                Borne {loan.serial} · casier {loan.lockerNumber}
+                {t.loan.where(loan.serial, loan.lockerNumber)}
               </p>
             </div>
           </div>
@@ -138,13 +141,10 @@ export function LoanView() {
           className="btn-primary"
           disabled={step === 'returning'}
         >
-          {step === 'returning' ? 'Ouverture d’un casier…' : 'Rendre l’article'}
+          {step === 'returning' ? t.loan.giveBackBusy : t.loan.giveBack}
         </button>
 
-        <Note>
-          Rendez-vous devant la borne avant d’appuyer : un casier va s’ouvrir pour que vous y
-          déposiez le matériel.
-        </Note>
+        <Note>{t.loan.beforePress}</Note>
       </div>
     </main>
   )

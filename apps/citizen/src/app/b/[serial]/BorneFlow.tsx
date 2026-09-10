@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowRight, RotateCcw } from 'lucide-react'
-import { Note, Spinner, TopBar } from '@/components/Chrome'
+import { Note, Spinner, StockPill, TopBar } from '@/components/Chrome'
 import { ItemGlyph } from '@/components/ItemGlyph'
 import { LockerReveal } from '@/components/LockerReveal'
 import { api } from '@/lib/api'
-import { ApiError, type AvailableItem, type Kiosk, type Loan } from '@/lib/contract'
+import { type AvailableItem, type Kiosk, type Loan } from '@/lib/contract'
+import { useLang } from '@/lib/i18n'
 import { getStay, saveLoanId, saveStay } from '@/lib/session'
 import { cn } from '@/lib/cn'
 
@@ -17,21 +18,29 @@ import { cn } from '@/lib/cn'
  * Un seul écran à la fois, une seule action possible sur chacun : le vacancier
  * est debout devant une borne, souvent avec un enfant qui tire sur son bras.
  * Tout ce qui ressemble à un menu, un onglet ou un réglage a été écarté.
+ *
+ * Les erreurs sont gardées sous forme de code, pas de phrase : le vacancier
+ * peut changer de langue au milieu du parcours, et un message figé au moment du
+ * throw resterait dans la langue précédente.
  */
 
 type Step = 'loading' | 'identify' | 'choose' | 'opening' | 'opened' | 'blocked' | 'dead'
 
 export function BorneFlow({ serial }: { serial: string }) {
+  const { t, itemLabel, errorText } = useLang()
+
   const [step, setStep] = useState<Step>('loading')
   const [kiosk, setKiosk] = useState<Kiosk | null>(null)
   const [stayId, setStayId] = useState<string | null>(null)
   const [guestName, setGuestName] = useState('')
   const [loan, setLoan] = useState<Loan | null>(null)
-  const [error, setError] = useState('')
+  const [failure, setFailure] = useState<unknown>(null)
 
   const [stayRef, setStayRef] = useState('')
   const [lastName, setLastName] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const error = failure === null ? '' : errorText(failure)
 
   useEffect(() => {
     let cancelled = false
@@ -51,7 +60,7 @@ export function BorneFlow({ serial }: { serial: string }) {
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setError(err instanceof ApiError ? err.message : "Cette borne n'a pas répondu.")
+        setFailure(err)
         setStep('dead')
       })
     return () => {
@@ -63,7 +72,7 @@ export function BorneFlow({ serial }: { serial: string }) {
     async (event: React.FormEvent) => {
       event.preventDefault()
       setBusy(true)
-      setError('')
+      setFailure(null)
       try {
         const identity = await api.identify(serial, stayRef.trim(), lastName.trim())
         setStayId(identity.stayId)
@@ -78,7 +87,7 @@ export function BorneFlow({ serial }: { serial: string }) {
           setStep('choose')
         }
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Réessayez.')
+        setFailure(err)
       } finally {
         setBusy(false)
       }
@@ -90,25 +99,32 @@ export function BorneFlow({ serial }: { serial: string }) {
     async (item: AvailableItem) => {
       if (!stayId) return
       setStep('opening')
-      setError('')
+      setFailure(null)
       try {
         const created = await api.borrow(serial, stayId, item.itemTypeId)
         setLoan(created)
         saveLoanId(created.id)
         setStep('opened')
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Réessayez.')
+        setFailure(err)
         setStep('choose')
       }
     },
     [serial, stayId],
   )
 
+  /* Le total en rayon, affiché sous le titre du choix : il dit d'un coup d'œil
+   * si la borne vaut le déplacement, avant qu'on ait lu la moindre tuile. */
+  const inStock = useMemo(
+    () => (kiosk ? kiosk.items.reduce((sum, item) => sum + item.available, 0) : 0),
+    [kiosk],
+  )
+
   if (step === 'loading') {
     return (
       <main className="screen">
         <TopBar />
-        <Spinner label="Connexion à la borne…" />
+        <Spinner label={t.kiosk.connecting} />
       </main>
     )
   }
@@ -118,10 +134,10 @@ export function BorneFlow({ serial }: { serial: string }) {
       <main className="screen">
         <TopBar />
         <div className="flex flex-1 flex-col justify-center gap-6">
-          <h1 className="font-display text-display-md font-bold">Borne injoignable</h1>
-          <Note tone="error">{error}</Note>
+          <h1 className="font-display text-display-md font-bold">{t.kiosk.deadTitle}</h1>
+          <Note tone="error">{error || t.kiosk.deadFallback}</Note>
           <button type="button" onClick={() => location.reload()} className="btn-secondary">
-            <RotateCcw size={18} aria-hidden /> Réessayer
+            <RotateCcw size={18} aria-hidden /> {t.kiosk.retry}
           </button>
         </div>
       </main>
@@ -136,35 +152,36 @@ export function BorneFlow({ serial }: { serial: string }) {
         <div className="flex flex-1 flex-col justify-center gap-8">
           <div>
             <h1 className="font-display text-display-md font-bold leading-tight">
-              Bonjour&nbsp;! Vous séjournez ici&nbsp;?
+              {t.identify.title}
             </h1>
-            <p className="mt-3 text-ink-muted">
-              Votre numéro d’emplacement et votre nom suffisent. Aucun compte, aucune carte
-              bancaire.
-            </p>
+            <p className="mt-3 text-ink-muted">{t.identify.hint}</p>
           </div>
 
           <form onSubmit={identify} className="flex flex-col gap-5">
             <div>
               <label htmlFor="stayRef" className="label">
-                Numéro d’emplacement
+                {t.identify.stayRefLabel}
               </label>
               <input
                 id="stayRef"
                 value={stayRef}
                 onChange={(event) => setStayRef(event.target.value)}
                 className="field"
-                inputMode="numeric"
+                inputMode="text"
                 autoComplete="off"
+                aria-describedby="stayRefHelp"
                 placeholder="214"
                 enterKeyHint="next"
                 required
               />
+              <p id="stayRefHelp" className="mt-1.5 text-meta text-ink-muted">
+                {t.identify.stayRefHelp}
+              </p>
             </div>
 
             <div>
               <label htmlFor="lastName" className="label">
-                Nom de famille
+                {t.identify.lastNameLabel}
               </label>
               <input
                 id="lastName"
@@ -182,14 +199,11 @@ export function BorneFlow({ serial }: { serial: string }) {
             {error ? <Note tone="error">{error}</Note> : null}
 
             <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'Vérification…' : 'Continuer'}
+              {busy ? t.identify.submitBusy : t.identify.submit}
               {busy ? null : <ArrowRight size={20} aria-hidden />}
             </button>
 
-            <p className="text-center text-meta text-ink-muted">
-              Ces informations servent uniquement à savoir à qui prêter le matériel. Elles
-              restent chez votre hébergeur.
-            </p>
+            <p className="text-center text-meta text-ink-muted">{t.identify.privacy}</p>
           </form>
         </div>
       ) : null}
@@ -198,11 +212,14 @@ export function BorneFlow({ serial }: { serial: string }) {
         <div className="flex flex-1 flex-col gap-6">
           <div>
             <h1 className="font-display text-display-md font-bold leading-tight">
-              Qu’est-ce qui vous ferait plaisir&nbsp;?
+              {t.choose.title}
             </h1>
-            {guestName ? (
-              <p className="mt-2 text-ink-muted">Bonjour {guestName}.</p>
-            ) : null}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              {guestName ? (
+                <p className="text-ink-muted">{t.choose.greeting(guestName)}</p>
+              ) : null}
+              <StockPill count={inStock} label={t.choose.stock(inStock)} />
+            </div>
           </div>
 
           {error ? <Note tone="error">{error}</Note> : null}
@@ -224,26 +241,26 @@ export function BorneFlow({ serial }: { serial: string }) {
                     )}
                   >
                     <ItemGlyph kind={item.kind} className="h-12 w-12 text-brand" />
-                    <span className="text-[0.9375rem] font-bold leading-snug">{item.label}</span>
-                    <span className="text-meta text-ink-muted">
-                      {out ? 'Tout est sorti' : `${item.available} disponible${item.available > 1 ? 's' : ''}`}
+                    <span className="text-[0.9375rem] font-bold leading-snug">
+                      {itemLabel(item.kind, item.label)}
                     </span>
+                    <StockPill
+                      count={item.available}
+                      label={out ? t.choose.soldOut : t.choose.available(item.available)}
+                    />
                   </button>
                 </li>
               )
             })}
           </ul>
 
-          <p className="mt-auto pt-4 text-center text-meta text-ink-muted">
-            Un article à la fois. Rapportez-le quand vous avez fini, un autre vacancier
-            l’attend peut-être.
-          </p>
+          <p className="mt-auto pt-4 text-center text-meta text-ink-muted">{t.choose.footer}</p>
         </div>
       ) : null}
 
       {step === 'opening' ? (
         <div className="flex flex-1 flex-col justify-center">
-          <Spinner label="Ouverture du casier…" />
+          <Spinner label={t.kiosk.opening} />
         </div>
       ) : null}
 
@@ -251,15 +268,13 @@ export function BorneFlow({ serial }: { serial: string }) {
         <div className="flex flex-1 flex-col justify-center gap-7">
           <LockerReveal
             lockerNumber={loan.lockerNumber}
-            title="C’est ouvert"
-            itemLabel={loan.itemLabel}
+            title={t.opened.title}
+            itemLabel={itemLabel(loan.kind, loan.itemLabel)}
             kind={loan.kind}
           />
-          <p className="text-center text-ink-muted">
-            Prenez le matériel et refermez la porte. Bon match&nbsp;!
-          </p>
+          <p className="text-center text-ink-muted">{t.opened.instruction}</p>
           <Link href="/emprunt" className="btn-secondary">
-            J’ai pris, voir mon emprunt
+            {t.opened.seeLoan}
           </Link>
         </div>
       ) : null}
@@ -268,14 +283,12 @@ export function BorneFlow({ serial }: { serial: string }) {
         <div className="flex flex-1 flex-col justify-center gap-7">
           <div>
             <h1 className="font-display text-display-md font-bold leading-tight">
-              Vous avez déjà&nbsp;: {loan.itemLabel}
+              {t.blocked.title} {itemLabel(loan.kind, loan.itemLabel)}
             </h1>
-            <p className="mt-3 text-ink-muted">
-              Un article à la fois. Rendez celui-ci pour en prendre un autre.
-            </p>
+            <p className="mt-3 text-ink-muted">{t.blocked.hint}</p>
           </div>
           <Link href="/emprunt" className="btn-primary">
-            Rendre l’article
+            {t.blocked.cta}
           </Link>
         </div>
       ) : null}

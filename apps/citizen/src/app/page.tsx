@@ -4,6 +4,7 @@ import type { Route } from 'next'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { TopBar, Note } from '@/components/Chrome'
+import { useLang } from '@/lib/i18n'
 import { getLoanId } from '@/lib/session'
 
 /**
@@ -15,6 +16,7 @@ import { getLoanId } from '@/lib/session'
  */
 export default function Home() {
   const router = useRouter()
+  const { t } = useLang()
   const [code, setCode] = useState('')
   const [loanId, setLoanId] = useState<string | null>(null)
 
@@ -29,13 +31,11 @@ export default function Home() {
       <div className="flex flex-1 flex-col justify-center gap-8">
         <div>
           <h1 className="font-display text-display-md font-bold leading-tight">
-            Quel est le code
+            {t.home.title}
             <br />
-            de la borne&nbsp;?
+            {t.home.titleAccent}
           </h1>
-          <p className="mt-3 text-ink-muted">
-            Il est imprimé sous le QR code, en haut de la borne. Il ressemble à SL-001.
-          </p>
+          <p className="mt-3 text-ink-muted">{t.home.hint}</p>
         </div>
 
         <form
@@ -50,7 +50,7 @@ export default function Home() {
         >
           <div>
             <label htmlFor="serial" className="label">
-              Code de la borne
+              {t.home.fieldLabel}
             </label>
             <input
               id="serial"
@@ -66,15 +66,15 @@ export default function Home() {
             />
           </div>
           <button type="submit" className="btn-primary" disabled={!code.trim()}>
-            Continuer
+            {t.home.submit}
           </button>
         </form>
 
         {loanId ? (
           <Note>
-            Vous avez un article emprunté.{' '}
+            {t.home.hasLoan}{' '}
             <a href="/emprunt" className="font-bold text-brand underline">
-              Le rendre
+              {t.home.hasLoanLink}
             </a>
           </Note>
         ) : null}
