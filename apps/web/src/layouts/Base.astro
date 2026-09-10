@@ -1,6 +1,7 @@
 ---
 import '@/styles/global.css'
 import Nav from '@/components/Nav.astro'
+import SportsCascade from '@/components/SportsCascade.astro'
 import Footer from '@/components/Footer.astro'
 import { SITE } from '@/data/site'
 
@@ -162,6 +163,10 @@ const pageJsonLd = extraJsonLd.map((schema) => ({
   </head>
   <body>
     <a href="#main" class="skip-link">Aller au contenu</a>
+    {/* Décor, avant tout le reste dans le flux mais en z-index négatif : il doit
+        être dans le DOM au premier rendu pour ne pas faire sauter la page quand
+        il apparaît, et derrière tout pour ne jamais gêner la lecture. */}
+    <SportsCascade />
     <Nav />
     <main id="main">
       <slot />

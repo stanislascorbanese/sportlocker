@@ -1,0 +1,530 @@
+---
+/**
+ * Cascade de matériel sportif en arrière-plan de toute la page.
+ *
+ * Un flux continu d'objets — ballons, raquettes, frisbee, boules, mölkky —
+ * traverse l'écran du haut vers le bas, et c'est le défilement qui l'entraîne.
+ * Scroller fait descendre la cascade ; à l'arrêt elle continue de dériver
+ * lentement, sinon la page a l'air figée.
+ *
+ * Deux décisions qui expliquent le reste du fichier :
+ *
+ *   - la géométrie est construite dans le code, pas chargée. Un ballon est une
+ *     sphère, une raquette un tore et un cylindre. Aucun modèle à télécharger,
+ *     rien à versionner, et le tout pèse quelques milliers de triangles. Un
+ *     décor de fond ne justifie pas 2 Mo de glTF ;
+ *
+ *   - les objets sont des silhouettes, pas des produits. Matériaux sombres,
+ *     liseré vert sur les arêtes, brouillard qui les avale en profondeur. Ils
+ *     passent *derrière* le contenu, et tout ce qui attire l'œil ici le vole au
+ *     texte. C'est un décor, et ça doit rester un décor.
+ *
+ * Le canevas est fixe en `z-index: -2` : au-dessus de l'atmosphère, sous le
+ * voile des sections alternées. Voir « Atmosphère de page » dans global.css.
+ */
+---
+
+<div id="sl-cascade" aria-hidden="true"></div>
+
+<style>
+  #sl-cascade {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    /* Monte en douceur quand le rendu démarre : sans ça les objets
+       apparaissent d'un bloc au premier frame. */
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+  #sl-cascade.is-ready {
+    opacity: var(--cascade-opacity, 0.5);
+  }
+
+  /* Le couloir central.
+   *
+   * Le contenu est centré ; laisser la cascade passer à pleine force derrière
+   * une colonne de texte donnait exactement ce qu'il ne faut pas — un ballon en
+   * travers d'un titre. Le masque garde le décor à pleine intensité dans les
+   * marges et l'efface presque au milieu, là où on lit.
+   *
+   * Sur téléphone la colonne de texte occupe toute la largeur : il n'y a pas de
+   * marge où reléguer quoi que ce soit, donc pas de masque et une intensité
+   * simplement plus basse. */
+  @media (min-width: 768px) {
+    #sl-cascade {
+      -webkit-mask-image: linear-gradient(
+        to right,
+        #000 0%, #000 15%,
+        rgba(0, 0, 0, 0.3) 34%, rgba(0, 0, 0, 0.3) 66%,
+        #000 85%, #000 100%
+      );
+      mask-image: linear-gradient(
+        to right,
+        #000 0%, #000 15%,
+        rgba(0, 0, 0, 0.12) 34%, rgba(0, 0, 0, 0.12) 66%,
+        #000 85%, #000 100%
+      );
+    }
+  }
+  #sl-cascade canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>
+
+<script is:inline>
+  ;(function () {
+    var host = document.getElementById('sl-cascade')
+    if (!host) return
+
+    // WebGL absent (vieux navigateur, GPU sur liste noire, rendu logiciel
+    // désactivé) : l'atmosphère CSS suffit, on ne force rien.
+    try {
+      var probe = document.createElement('canvas')
+      if (!probe.getContext('webgl') && !probe.getContext('experimental-webgl')) return
+    } catch (e) {
+      return
+    }
+
+    var reduced =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    var THREE, renderer, scene, camera, fogColor
+    var objects = []
+    var running = false
+    var lastFrame = 0
+
+    // Hauteur du couloir vertical dans lequel les objets bouclent. Un objet qui
+    // sort par le bas est remis en haut : la boucle est invisible tant que le
+    // couloir dépasse largement la hauteur vue par la caméra.
+    var LANE = 26
+
+    function palette() {
+      var light = document.documentElement.classList.contains('light')
+      // L'accent n'est pas le vert de marque : à pleine saturation, un plot vert
+      // devient l'élément le plus lumineux de la page et vole la vedette au
+      // titre. C'est un vert désaturé, à peine plus clair que le corps.
+      return light
+        ? {
+            fog: 0xf3f6f9,
+            body: 0xb4c6d6,
+            accent: 0x86c2ae,
+            metal: 0xc2cfda,
+            key: 0xffffff,
+            keyIntensity: 0.8,
+            rim: 0x9fd6c2,
+            rimIntensity: 0.45,
+            ambient: 0.72,
+          }
+        : {
+            fog: 0x0d1b2a,
+            body: 0x24405a,
+            accent: 0x2f8f70,
+            metal: 0x33506a,
+            key: 0x9ccfbd,
+            keyIntensity: 0.75,
+            rim: 0x2bc295,
+            rimIntensity: 1.2,
+            ambient: 0.34,
+          }
+    }
+
+    // ─── Fabriques de géométrie ───────────────────────────────────────────────
+    //
+    // Chaque fabrique renvoie un Group. On vise la silhouette reconnaissable au
+    // premier coup d'œil, pas la fidélité : à cette taille et sous ce
+    // brouillard, un ballon de basket se lit à ses coutures, une raquette à son
+    // tamis et son manche.
+
+    function matBody(p) {
+      return new THREE.MeshStandardMaterial({
+        color: p.body,
+        roughness: 0.72,
+        metalness: 0.06,
+      })
+    }
+    function matAccent(p) {
+      return new THREE.MeshStandardMaterial({
+        color: p.accent,
+        roughness: 0.45,
+        metalness: 0.15,
+      })
+    }
+    function matMetal(p) {
+      return new THREE.MeshStandardMaterial({
+        color: p.metal,
+        // Trop métallique, la boule de pétanque ne réfléchit rien dans une scène
+        // aussi peu éclairée et se lit comme un trou noir.
+        roughness: 0.42,
+        metalness: 0.5,
+      })
+    }
+
+    function ballFoot(p) {
+      var g = new THREE.Group()
+      // Icosaèdre plutôt que sphère lisse : les facettes rappellent les
+      // panneaux d'un ballon de foot et accrochent la lumière.
+      g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), matBody(p)))
+      var patch = new THREE.Mesh(new THREE.IcosahedronGeometry(1.005, 1), matAccent(p))
+      patch.material = patch.material.clone()
+      patch.material.wireframe = true
+      patch.material.transparent = true
+      patch.material.opacity = 0.5
+      g.add(patch)
+      return g
+    }
+
+    function ballBasket(p) {
+      var g = new THREE.Group()
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), matBody(p)))
+      // Les quatre coutures : deux méridiens, deux arcs croisés.
+      var seam = new THREE.TorusGeometry(1.002, 0.022, 6, 40)
+      var m = matAccent(p)
+      var s1 = new THREE.Mesh(seam, m)
+      var s2 = new THREE.Mesh(seam, m)
+      s2.rotation.y = Math.PI / 2
+      var s3 = new THREE.Mesh(seam, m)
+      s3.rotation.x = Math.PI / 2
+      g.add(s1, s2, s3)
+      return g
+    }
+
+    function ballVolley(p) {
+      var g = new THREE.Group()
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), matBody(p)))
+      // Trois bandes parallèles par face : la signature d'un ballon de volley.
+      var band = new THREE.TorusGeometry(1.003, 0.018, 6, 40)
+      for (var i = -1; i <= 1; i++) {
+        var b = new THREE.Mesh(band, matAccent(p))
+        b.rotation.x = Math.PI / 2
+        b.position.y = i * 0.38
+        b.scale.setScalar(Math.cos((i * 0.38 * Math.PI) / 2.6))
+        g.add(b)
+      }
+      return g
+    }
+
+    function boule(p) {
+      // Boule de pétanque : petite, métallique, striée.
+      var g = new THREE.Group()
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.62, 18, 14), matMetal(p)))
+      var ring = new THREE.TorusGeometry(0.622, 0.012, 5, 32)
+      for (var i = -2; i <= 2; i++) {
+        var r = new THREE.Mesh(ring, matMetal(p))
+        r.rotation.x = Math.PI / 2
+        r.position.y = i * 0.17
+        r.scale.setScalar(Math.cos((i * 0.17 * Math.PI) / 1.7))
+        g.add(r)
+      }
+      return g
+    }
+
+    function frisbee(p) {
+      var g = new THREE.Group()
+      var disc = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.0, 0.14, 28), matBody(p))
+      g.add(disc)
+      var lip = new THREE.Mesh(new THREE.TorusGeometry(1.14, 0.05, 6, 32), matAccent(p))
+      lip.rotation.x = Math.PI / 2
+      lip.position.y = -0.06
+      g.add(lip)
+      return g
+    }
+
+    function racket(p) {
+      // Raquette de badminton : tamis ovale, manche long. C'est la silhouette la
+      // plus identifiable du lot, et c'est aussi l'article qui dimensionne la
+      // borne (68 cm) — autant qu'elle passe à l'écran.
+      var g = new THREE.Group()
+      var head = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.055, 8, 36), matBody(p))
+      head.scale.set(1, 1.25, 1)
+      head.position.y = 0.85
+      g.add(head)
+
+      // Cordage : deux jeux de fils fins, juste assez pour qu'on le devine.
+      var stringMat = matAccent(p)
+      stringMat = stringMat.clone()
+      stringMat.transparent = true
+      stringMat.opacity = 0.35
+      for (var i = -2; i <= 2; i++) {
+        var v = new THREE.Mesh(new THREE.BoxGeometry(0.012, 1.45, 0.012), stringMat)
+        v.position.set(i * 0.2, 0.85, 0)
+        g.add(v)
+        var h = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.012, 0.012), stringMat)
+        h.position.set(0, 0.85 + i * 0.26, 0)
+        g.add(h)
+      }
+
+      var throat = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.5, 10), matBody(p))
+      throat.position.y = 0.12
+      g.add(throat)
+      var grip = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.075, 0.8, 12), matAccent(p))
+      grip.position.y = -0.5
+      g.add(grip)
+      return g
+    }
+
+    function paddle(p) {
+      // Raquette de plage / ping-pong : palette ronde et manche court.
+      var g = new THREE.Group()
+      var face = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.08, 26), matBody(p))
+      face.rotation.x = Math.PI / 2
+      face.position.y = 0.45
+      g.add(face)
+      var edge = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 6, 30), matAccent(p))
+      edge.position.y = 0.45
+      g.add(edge)
+      var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.62, 12), matAccent(p))
+      handle.position.y = -0.24
+      g.add(handle)
+      return g
+    }
+
+    function molkky(p) {
+      // Quille de mölkky : cylindre de bois à sommet biseauté.
+      var g = new THREE.Group()
+      var body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.5, 14), matBody(p))
+      g.add(body)
+      var tip = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.28, 0.42, 14), matAccent(p))
+      tip.position.y = 0.96
+      g.add(tip)
+      return g
+    }
+
+    function cone(p) {
+      // Plot de terrain : la seule forme plate du lot, utile pour varier les
+      // silhouettes quand plusieurs sphères se suivent.
+      var g = new THREE.Group()
+      g.add(new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.0, 16), matAccent(p)))
+      var base = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.07, 1.0), matBody(p))
+      base.position.y = -0.5
+      g.add(base)
+      return g
+    }
+
+    var FACTORIES = [
+      ballFoot,
+      racket,
+      ballBasket,
+      frisbee,
+      ballVolley,
+      molkky,
+      paddle,
+      boule,
+      cone,
+    ]
+
+    // ─── Mise en place ────────────────────────────────────────────────────────
+
+    function build() {
+      var p = palette()
+      var narrow = window.innerWidth < 768
+      // Moins d'objets sur téléphone : même densité apparente sur un écran trois
+      // fois plus étroit, et une charge GPU qui reste honnête sur batterie.
+      var count = narrow ? 7 : 15
+
+      scene = new THREE.Scene()
+      fogColor = new THREE.Color(p.fog)
+      scene.fog = new THREE.Fog(p.fog, 9, 27)
+
+      camera = new THREE.PerspectiveCamera(
+        narrow ? 58 : 46,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        80,
+      )
+      camera.position.set(0, 0, 14)
+
+      scene.add(new THREE.AmbientLight(0xffffff, p.ambient))
+      var key = new THREE.DirectionalLight(p.key, p.keyIntensity)
+      key.position.set(-6, 9, 8)
+      scene.add(key)
+      // La lumière d'appoint vient de derrière : c'est elle qui pose le liseré
+      // vert sur les arêtes et détache les objets du fond.
+      var rim = new THREE.DirectionalLight(p.rim, p.rimIntensity)
+      rim.position.set(7, -4, -6)
+      scene.add(rim)
+
+      // Sur téléphone le champ visible est bien plus étroit qu'il n'y paraît :
+      // à 5,2 la moitié des objets tombait hors cadre et la cascade
+      // disparaissait presque.
+      var spreadX = narrow ? 3 : 11
+      for (var i = 0; i < count; i++) {
+        var obj = FACTORIES[i % FACTORIES.length](p)
+
+        // Répartition sur trois plans de profondeur. Les objets du fond sont
+        // plus petits et plus avalés par le brouillard : c'est ce qui donne le
+        // volume, plus que le nombre d'objets.
+        // Trois plans, tous repoussés vers le fond : au premier essai les objets
+        // du plan avant arrivaient à la taille d'une carte du contenu.
+        var depth = [-9.5, -5.5, -2][i % 3]
+        var scale = (depth < -8 ? 0.68 : depth < -4 ? 0.85 : 1.0) * (narrow ? 0.72 : 1)
+
+        obj.scale.setScalar(scale)
+        obj.position.set(
+          // Décalé de façon irrégulière : une répartition régulière se lit
+          // immédiatement comme une grille.
+          (((i * 2.39) % 2) - 1) * spreadX + (i % 2 ? 0.8 : -0.8),
+          -LANE / 2 + ((i + 0.5) / count) * LANE,
+          depth,
+        )
+        obj.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI)
+
+        objects.push({
+          group: obj,
+          baseY: obj.position.y,
+          // Vitesse propre légère : tous les objets ne tombent pas du même pas,
+          // sinon la cascade ressemble à un tapis roulant.
+          rate: 0.85 + ((i * 37) % 30) / 100,
+          spin: {
+            x: (((i * 13) % 7) - 3) * 0.0006,
+            y: (((i * 29) % 9) - 4) * 0.0008,
+            z: (((i * 17) % 5) - 2) * 0.0005,
+          },
+        })
+        scene.add(obj)
+      }
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !narrow })
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, narrow ? 1.5 : 2))
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      renderer.setClearColor(0x000000, 0)
+      host.appendChild(renderer.domElement)
+    }
+
+    // ─── Boucle ───────────────────────────────────────────────────────────────
+
+    function scrollProgress() {
+      var doc = document.documentElement
+      var max = doc.scrollHeight - window.innerHeight
+      if (max <= 0) return 0
+      return Math.min(Math.max(window.scrollY / max, 0), 1)
+    }
+
+    function layout(now) {
+      // Le défilement entraîne la cascade, la dérive l'anime à l'arrêt. Le
+      // facteur 2,4 veut dire : la page entière fait passer un peu plus de deux
+      // couloirs d'objets. En dessous, l'effet ne se remarque pas ; au-dessus,
+      // ça file et ça donne le tournis.
+      var travel = scrollProgress() * LANE * 2.4 + (reduced ? 0 : now * 0.00035)
+
+      for (var i = 0; i < objects.length; i++) {
+        var o = objects[i]
+        var y = o.baseY - travel * o.rate
+        // Boucle sur le couloir : modulo ramené dans [-LANE/2, LANE/2].
+        y = ((((y + LANE / 2) % LANE) + LANE) % LANE) - LANE / 2
+        o.group.position.y = y
+        if (!reduced) {
+          o.group.rotation.x += o.spin.x * 16
+          o.group.rotation.y += o.spin.y * 16
+          o.group.rotation.z += o.spin.z * 16
+        }
+      }
+    }
+
+    function frame(now) {
+      if (!running) return
+      // ~40 images par seconde : au-delà, on dépense de la batterie pour un
+      // décor que personne ne regarde fixement.
+      if (now - lastFrame > 24) {
+        lastFrame = now
+        layout(now)
+        renderer.render(scene, camera)
+      }
+      requestAnimationFrame(frame)
+    }
+
+    function start() {
+      if (running) return
+      running = true
+      lastFrame = 0
+      requestAnimationFrame(frame)
+    }
+
+    function stop() {
+      running = false
+    }
+
+    function onResize() {
+      if (!renderer) return
+      camera.aspect = window.innerWidth / window.innerHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(window.innerWidth, window.innerHeight)
+    }
+
+    /** Le bouton clair/sombre change la palette : on reconstruit la scène. */
+    function rebuild() {
+      if (!renderer) return
+      stop()
+      scene.traverse(function (n) {
+        if (n.geometry) n.geometry.dispose()
+        if (n.material) {
+          if (Array.isArray(n.material)) n.material.forEach(function (m) { m.dispose() })
+          else n.material.dispose()
+        }
+      })
+      renderer.dispose()
+      host.innerHTML = ''
+      objects = []
+      build()
+      start()
+    }
+
+    function init() {
+      THREE = window.THREE
+      if (!THREE) return
+      build()
+      layout(performance.now())
+      renderer.render(scene, camera)
+      host.classList.add('is-ready')
+
+      // En mouvement réduit, une seule image composée : le décor garde sa
+      // richesse, sans rien qui bouge.
+      if (reduced) {
+        window.addEventListener(
+          'scroll',
+          function () {
+            layout(performance.now())
+            renderer.render(scene, camera)
+          },
+          { passive: true },
+        )
+      } else {
+        start()
+      }
+
+      window.addEventListener('resize', onResize, { passive: true })
+      // Onglet en arrière-plan : rien à dessiner.
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stop()
+        else if (!reduced) start()
+      })
+      document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+        // Après le basculement de classe sur <html>, pas avant.
+        btn.addEventListener('click', function () {
+          setTimeout(rebuild, 0)
+        })
+      })
+    }
+
+    function load() {
+      if (window.THREE) {
+        init()
+        return
+      }
+      var s = document.createElement('script')
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
+      s.onload = init
+      // Échec du CDN : l'atmosphère CSS tient la page toute seule, on ne met
+      // aucun message à l'écran pour un élément purement décoratif.
+      s.onerror = function () {}
+      document.head.appendChild(s)
+    }
+
+    // Le décor n'est pas prioritaire : il attend que la page ait fini de se
+    // charger, pour ne pas disputer la bande passante aux polices et aux images.
+    if (document.readyState === 'complete') setTimeout(load, 200)
+    else window.addEventListener('load', function () { setTimeout(load, 200) })
+  })()
+</script>
