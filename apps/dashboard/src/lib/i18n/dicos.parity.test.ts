@@ -28,6 +28,7 @@ import { reportsStrings } from './reports'
 import { reservationsStrings } from './reservations'
 import { statsStrings } from './stats'
 import { todayStrings } from './today'
+import { stayStrings } from './stays'
 import { unreturnedStrings } from './unreturned'
 import { superAdminStrings } from './super-admin'
 import { usersStrings } from './users'
@@ -49,6 +50,7 @@ const DICOS = {
   stats:        statsStrings,
   today:        todayStrings,
   superAdmin:   superAdminStrings,
+  stays:        stayStrings,
   unreturned:   unreturnedStrings,
   users:        usersStrings,
 } as const

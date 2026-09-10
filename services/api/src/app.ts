@@ -42,6 +42,7 @@ import { adminLiveRoutes } from './routes/admin-live.js'
 import { devRoutes } from './routes/dev.js'
 import { kioskRoutes } from './routes/kiosk.js'
 import { adminStayRoutes } from './routes/admin-stays.js'
+import { adminLoanRoutes } from './routes/admin-loans.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -163,6 +164,7 @@ export async function buildApp() {
   await app.register(adminStripeConnectRoutes, { prefix: '/v1/admin/stripe-connect' })
   await app.register(adminLiveRoutes,         { prefix: '/v1/admin/live' })
   await app.register(adminStayRoutes,          { prefix: '/v1/admin/stays' })
+  await app.register(adminLoanRoutes,          { prefix: '/v1/admin/loans' })
   await app.register(webhooksStripeRoutes,    { prefix: '/v1/webhooks' })
 
   // Routes de dev/simulation — register UNIQUEMENT hors production.

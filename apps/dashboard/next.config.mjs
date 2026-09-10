@@ -4,7 +4,13 @@ import { withSentryConfig } from '@sentry/nextjs/config'
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@sportlocker/types'],
-  experimental: { typedRoutes: true },
+  experimental: {
+    typedRoutes: true,
+    // L'import des séjours fait traverser le CSV par une server action, et Next
+    // plafonne leur corps à 1 Mo par défaut. L'API en accepte 4 : sans ce
+    // réglage, un gros export serait refusé ici, avant même d'arriver à l'API.
+    serverActions: { bodySizeLimit: '5mb' },
+  },
   // packages/types utilise la convention ESM TS (`./locker.js` qui pointe en
   // réalité vers `./locker.ts`). tsc le résout via `moduleResolution: Bundler`,
   // webpack a besoin d'un coup de pouce explicite — sinon "Can't resolve

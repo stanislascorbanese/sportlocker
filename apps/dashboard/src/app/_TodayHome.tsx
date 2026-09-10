@@ -5,12 +5,12 @@ import type { LucideIcon } from 'lucide-react'
 import {
   fetchDistributor,
   fetchDistributors,
-  fetchReservations,
-  fetchReservationsDaily,
+  fetchLoans,
+  fetchLoansDaily,
   type DailyPoint,
   type Distributor,
   type DistributorDetail,
-  type Reservation,
+  type LoanRow,
 } from '../lib/api'
 import { RefreshButton } from '../components/RefreshButton'
 import { Sparkline } from '../components/Sparkline'
@@ -42,21 +42,17 @@ function countToRefill(board: DistributorDetail): number {
 }
 
 /**
- * Même règle que l'écran « Non rendus » : on additionne ce que l'API marque en
- * retard et ce qui est sorti depuis plus de quatre heures. Le second cas est
- * celui qui arrive vraiment — un vacancier qui garde le ballon l'après-midi
- * n'est pas encore « en retard » au sens du système.
+ * Le seuil de l'écran « Non rendus ». En dessous de quatre heures, un vacancier
+ * qui garde le ballon l'après-midi n'a rien fait d'anormal : le faire remonter
+ * ici tous les matins finirait par rendre la page inutile.
  */
-function hoursSince(iso: string | null): number {
-  if (!iso) return 0
-  return (Date.now() - new Date(iso).getTime()) / 3_600_000
-}
+const SEUIL_HEURES = 4
 
 type Snapshot = {
   distributors: Distributor[]
   boards: DistributorDetail[]
-  unreturned: Reservation[]
-  activeCount: number
+  unreturned: LoanRow[]
+  outCount: number
   dailySeries: DailyPoint[]
   hadError: boolean
 }
@@ -74,22 +70,21 @@ async function load(): Promise<Snapshot> {
 
   const distributors = await safe(fetchDistributors(), [] as Distributor[])
 
-  const [boards, overdue, active, dailySeries] = await Promise.all([
+  const [boards, open, dailySeries] = await Promise.all([
     Promise.all(distributors.map((d) => safe(fetchDistributor(d.id), null))).then(
       (list) => list.filter((b): b is DistributorDetail => b !== null),
     ),
-    safe(fetchReservations({ status: 'overdue', limit: 100 }).then((p) => p.items), []),
-    safe(fetchReservations({ status: 'active', limit: 100 }).then((p) => p.items), []),
-    safe(fetchReservationsDaily(7), [] as DailyPoint[]),
+    safe(fetchLoans({ status: 'open', limit: 200 }), [] as LoanRow[]),
+    safe(fetchLoansDaily(7), [] as DailyPoint[]),
   ])
-
-  const longOut = active.filter((r) => hoursSince(r.openedAt) >= 4)
 
   return {
     distributors,
     boards,
-    unreturned: [...overdue, ...longOut],
-    activeCount: active.length,
+    // L'API calcule déjà la durée : les deux écrans sont ainsi d'accord sur
+    // « depuis quand », sans dépendre de l'horloge du poste de l'accueil.
+    unreturned: open.filter((l) => l.hoursOut >= SEUIL_HEURES),
+    outCount: open.length,
     dailySeries,
     hadError,
   }
@@ -312,7 +307,7 @@ export async function TodayHome() {
             <div>
               <dt className="text-meta text-gray-500 dark:text-white/40">{t.loansOut}</dt>
               <dd className="font-display text-2xl font-bold tabular-nums text-navy-900 dark:text-white">
-                {data.activeCount}
+                {data.outCount}
               </dd>
             </div>
             <div>

@@ -21,7 +21,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
-import { Identity, Kiosk, Loan, ReturnResult, type ItemKind } from '@sportlocker/types'
+import { Identity, Kiosk, Loan, ReturnResult } from '@sportlocker/types'
 
 import { db } from '../db/client.js'
 import {
@@ -33,6 +33,7 @@ import {
   stays,
 } from '../db/schema.js'
 import { signDeviceToken, verifyDeviceToken } from '../lib/jwt-device.js'
+import { kindOf, normalizeName } from '../lib/item-kind.js'
 import { LockerStuckError, openLocker } from '../lib/locker-open.js'
 
 /** Durée de vie du `stayId` : le temps de choisir un ballon, pas davantage. */
@@ -42,43 +43,6 @@ const STAY_TOKEN_TTL_SEC = 30 * 60
  * Pictogramme affiché par l'app. Il ne pilote que le dessin, jamais une règle
  * métier : un type inconnu tombe sur `autre` et reste empruntable.
  */
-type Kind = ItemKind
-
-/**
- * Déduit le pictogramme d'un type d'article. On regarde le slug puis le nom,
- * parce qu'un catalogue rempli par un camping contient autant « ballon-foot »
- * que « Ballon de football ».
- */
-export function kindOf(slug: string, name: string): Kind {
-  const h = `${slug} ${name}`
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-  if (/basket/.test(h)) return 'basket'
-  if (/volley/.test(h)) return 'volley'
-  if (/raquette|badminton|tennis|ping/.test(h)) return 'raquette'
-  if (/frisbee|disque/.test(h)) return 'disque'
-  if (/plot|cone|plots/.test(h)) return 'plot'
-  if (/corde/.test(h)) return 'corde'
-  if (/boule|petanque|molkky|molky/.test(h)) return 'boule'
-  if (/ballon|football|foot|hand|rugby/.test(h)) return 'ballon'
-  return 'autre'
-}
-
-/**
- * Comparaison de nom de famille : insensible à la casse, aux accents, aux
- * espaces et aux traits d'union. « de la Fontaine », « DE LA FONTAINE » et
- * « delafontaine » doivent passer — un vacancier qui tape son propre nom sur
- * un téléphone au soleil ne doit pas être renvoyé pour une apostrophe.
- */
-export function normalizeName(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\s'\u2019-]/g, '')
-}
 
 const err = <T extends string>(code: T) => z.object({ error: z.literal(code) })
 

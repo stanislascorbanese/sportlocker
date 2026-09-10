@@ -1346,3 +1346,156 @@ async function safeErrorBody(res: Response): Promise<string> {
     return res.statusText
   }
 }
+
+// ─── Emprunts vacanciers ────────────────────────────────────────────────────
+//
+// Le modèle camping (septembre 2026). À ne pas confondre avec `reservations`,
+// qui reste le modèle historique avec compte, créneau et prix : un emprunt n'a
+// ni l'un, ni l'autre, ni le troisième. Ce qu'il porte, c'est un nom et un
+// numéro d'emplacement — ce que le saisonnier de l'accueil cherche vraiment.
+
+export const LoanRow = z.object({
+  id: z.string().uuid(),
+  borrowedAt: z.string(),
+  returnedAt: z.string().nullable(),
+  chargedAt: z.string().nullable(),
+  /** Heures écoulées depuis la sortie, calculées côté serveur. */
+  hoursOut: z.number(),
+  stay: z.object({
+    id: z.string().uuid(),
+    stayRef: z.string(),
+    lastName: z.string(),
+    firstName: z.string().nullable(),
+    departsOn: z.string(),
+  }),
+  item: z.object({ label: z.string(), kind: z.string() }),
+  distributor: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    serialNumber: z.string(),
+  }),
+  lockerNumber: z.number().int(),
+})
+
+export type LoanRow = z.infer<typeof LoanRow>
+
+export type LoanFilters = {
+  status?: 'open' | 'returned' | 'all'
+  minHoursOut?: number
+  limit?: number
+}
+
+export async function fetchLoans(filters: LoanFilters = {}): Promise<LoanRow[]> {
+  const qs = new URLSearchParams()
+  if (filters.status) qs.set('status', filters.status)
+  if (filters.minHoursOut !== undefined) qs.set('minHoursOut', String(filters.minHoursOut))
+  if (filters.limit !== undefined) qs.set('limit', String(filters.limit))
+
+  const res = await fetch(`${API_URL}/v1/admin/loans?${qs.toString()}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['loans'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return z.array(LoanRow).parse(await res.json())
+}
+
+/**
+ * Marque un emprunt « passé en compte séjour ». SportLocker ne facture rien :
+ * cette case dit seulement que le camping s'en est occupé, pour que la ligne
+ * cesse de remonter tous les matins.
+ */
+export async function markLoanCharged(id: string, charged: boolean): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/admin/loans/${id}/charge`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ charged }),
+  })
+  if (!res.ok) await throwApiError(res)
+}
+
+export async function fetchLoansDaily(days = 7): Promise<DailyPoint[]> {
+  const res = await fetch(`${API_URL}/v1/admin/loans/daily?days=${days}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['loans'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return z.array(DailyPoint).parse(await res.json())
+}
+
+// ─── Séjours ────────────────────────────────────────────────────────────────
+
+export const StayRow = z.object({
+  id: z.string().uuid(),
+  stayRef: z.string(),
+  lastName: z.string(),
+  firstName: z.string().nullable(),
+  arrivesOn: z.string(),
+  departsOn: z.string(),
+  hasOpenLoan: z.boolean(),
+})
+
+export type StayRow = z.infer<typeof StayRow>
+
+export const StayRejectedRow = z.object({
+  line: z.number().int(),
+  reason: z.string(),
+  raw: z.string(),
+})
+
+export const StayImportPreview = z.object({
+  rows: z.array(z.object({
+    stayRef: z.string(),
+    lastName: z.string(),
+    firstName: z.string().nullable(),
+    arrivesOn: z.string(),
+    departsOn: z.string(),
+  })),
+  rejected: z.array(StayRejectedRow),
+  mapping: z.record(z.string(), z.string()),
+  ignoredColumns: z.array(z.string()),
+  separator: z.string(),
+  totalRows: z.number().int(),
+})
+
+export type StayImportPreview = z.infer<typeof StayImportPreview>
+
+export const StayImportResult = z.object({
+  batchId: z.string().uuid(),
+  inserted: z.number().int(),
+  updated: z.number().int(),
+  rejected: z.array(StayRejectedRow),
+})
+
+export type StayImportResult = z.infer<typeof StayImportResult>
+
+export async function fetchStays(limit = 200): Promise<StayRow[]> {
+  const res = await fetch(`${API_URL}/v1/admin/stays?limit=${limit}`, {
+    headers: { ...(await authHeaders()) },
+    cache: 'no-store',
+    next: { tags: ['stays'] },
+  })
+  if (!res.ok) await throwApiError(res)
+  return z.array(StayRow).parse(await res.json())
+}
+
+export async function previewStaysCsv(csv: string): Promise<StayImportPreview> {
+  const res = await fetch(`${API_URL}/v1/admin/stays/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ csv }),
+  })
+  if (!res.ok) await throwApiError(res)
+  return StayImportPreview.parse(await res.json())
+}
+
+export async function importStaysCsv(csv: string): Promise<StayImportResult> {
+  const res = await fetch(`${API_URL}/v1/admin/stays/import`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ csv }),
+  })
+  if (!res.ok) await throwApiError(res)
+  return StayImportResult.parse(await res.json())
+}

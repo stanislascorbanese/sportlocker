@@ -57,6 +57,7 @@ const GROUPS: Group[] = [
       { href: '/',           labelKey: 'navHome',       icon: Home },
       { href: '/reassort',   labelKey: 'navReassort',   icon: PackageOpen },
       { href: '/non-rendus', labelKey: 'navUnreturned', icon: AlertTriangle },
+      { href: '/sejours',    labelKey: 'navStays',      icon: Users },
     ],
   },
   {
