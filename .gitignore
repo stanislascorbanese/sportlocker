@@ -66,3 +66,13 @@ Claude outputs/
 _sync*.tgz
 _s[wd0-9]*.tgz
 *.tgz
+
+# Clés de compte de service Google / Firebase.
+#
+# Aucune n'a jamais été commitée, et ce motif est là pour que ça reste vrai : le
+# jour où quelqu'un dépose un fichier de clé à la racine pour « juste tester »,
+# git refusera de le voir. Le nom généré par Google suit toujours la forme
+# <projet>-firebase-adminsdk-<hash>.json.
+*-firebase-adminsdk-*.json
+*-serviceaccount*.json
+service-account*.json
