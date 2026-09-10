@@ -750,7 +750,7 @@ html.light .hero-blob-1 {
   --grain-opacity: 0.05;
   /* Intensité de la cascade 3D. En clair, les objets se détachent bien plus du
      fond qu'en sombre : la même valeur donnerait un décor criard. */
-  --cascade-opacity: 0.9;
+  --cascade-opacity: 1;
 }
 
 html.light {
@@ -758,7 +758,20 @@ html.light {
   --glow-brand: rgba(43, 194, 149, 0.14);
   --glow-cool: rgba(148, 187, 214, 0.2);
   --grain-opacity: 0.035;
-  --cascade-opacity: 0.45;
+  --cascade-opacity: 0.6;
+}
+
+/* Sur téléphone il n'y a pas de marge où reléguer le décor : le masque ne
+   s'applique pas, et une scène passe forcément derrière le texte. C'est
+   l'intensité qui fait le travail à sa place — on descend franchement, et le
+   matériel redevient une présence plutôt qu'un sujet. */
+@media (max-width: 767px) {
+  :root {
+    --cascade-opacity: 0.5;
+  }
+  html.light {
+    --cascade-opacity: 0.3;
+  }
 }
 
 body::before {

@@ -55,15 +55,15 @@
     #sl-cascade {
       -webkit-mask-image: linear-gradient(
         to right,
-        #000 0%, #000 15%,
-        rgba(0, 0, 0, 0.3) 34%, rgba(0, 0, 0, 0.3) 66%,
-        #000 85%, #000 100%
+        #000 0%, #000 22%,
+        rgba(0, 0, 0, 0.35) 40%, rgba(0, 0, 0, 0.35) 60%,
+        #000 78%, #000 100%
       );
       mask-image: linear-gradient(
         to right,
-        #000 0%, #000 15%,
-        rgba(0, 0, 0, 0.12) 34%, rgba(0, 0, 0, 0.12) 66%,
-        #000 85%, #000 100%
+        #000 0%, #000 22%,
+        rgba(0, 0, 0, 0.35) 40%, rgba(0, 0, 0, 0.35) 60%,
+        #000 78%, #000 100%
       );
     }
   }
@@ -93,6 +93,7 @@
 
     var THREE, renderer, scene, camera, fogColor
     var objects = []
+    var scenes = []
     var running = false
     var lastFrame = 0
 
@@ -117,17 +118,28 @@
             rim: 0x9fd6c2,
             rimIntensity: 0.45,
             ambient: 0.72,
+            // Le tracé au sol et l'arceau : les deux seuls éléments qui ont le
+            // droit d'être un peu plus francs que le reste du décor, parce
+            // qu'ils portent la lecture des scènes.
+            line: 0x7ba3bd,
+            hoop: 0xd98f4a,
+            panel: 0xdde6ee,
+            ballGlow: 0x6b3a12,
           }
         : {
             fog: 0x0d1b2a,
             body: 0x24405a,
             accent: 0x2f8f70,
             metal: 0x33506a,
-            key: 0x9ccfbd,
-            keyIntensity: 0.75,
+            key: 0xd6ece3,
+            keyIntensity: 0.85,
             rim: 0x2bc295,
             rimIntensity: 1.2,
             ambient: 0.34,
+            line: 0x5d93b5,
+            hoop: 0xe58a38,
+            panel: 0x35566f,
+            ballGlow: 0x7a3c10,
           }
     }
 
@@ -155,10 +167,11 @@
     function matMetal(p) {
       return new THREE.MeshStandardMaterial({
         color: p.metal,
-        // Trop métallique, la boule de pétanque ne réfléchit rien dans une scène
-        // aussi peu éclairée et se lit comme un trou noir.
+        // Même raison que l'arceau : sans carte d'environnement, un matériau
+        // métallique n'a rien à réfléchir et rend noir. Une boule de pétanque
+        // reste mate ici, et c'est le liseré qui lui donne son éclat.
         roughness: 0.42,
-        metalness: 0.5,
+        metalness: 0.12,
       })
     }
 
@@ -315,6 +328,321 @@
       cone,
     ]
 
+    // ─── Scènes ───────────────────────────────────────────────────────────────
+    //
+    // Le flux d'objets habille la page, mais il ne raconte rien. Les scènes,
+    // elles, sont des moments : un terrain qui passe dessous, un ballon qui
+    // monte et retombe dans l'arceau, des boules qui roulent et s'arrêtent.
+    //
+    // Chacune possède une fenêtre de défilement. Dans sa fenêtre, elle se joue
+    // en fonction de la position exacte dans la page ; en dehors, elle est
+    // masquée et ne coûte plus rien à dessiner. Piloter par le scroll plutôt
+    // que par une horloge a trois vertus : la scène est réversible — on remonte,
+    // le ballon ressort de l'arceau —, elle ne se joue jamais hors champ, et
+    // deux visiteurs qui défilent à la même hauteur voient la même image.
+
+    function clamp01(v) {
+      return v < 0 ? 0 : v > 1 ? 1 : v
+    }
+    function lerp(a, b, t) {
+      return a + (b - a) * t
+    }
+    /** Adoucit les extrémités : une scène qui démarre pile à zéro saccade. */
+    function ease(t) {
+      return t * t * (3 - 2 * t)
+    }
+
+    function lineMaterial(p, opacity) {
+      return new THREE.LineBasicMaterial({
+        color: p.line,
+        transparent: true,
+        opacity: opacity,
+      })
+    }
+
+    /** Construit un LineSegments à partir d'une liste plate de sommets. */
+    function segments(points, material) {
+      var g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+      return new THREE.LineSegments(g, material)
+    }
+
+    /** Pousse les segments d'un cercle (ou d'un arc) dans le plan XZ. */
+    function pushArc(out, cx, cz, r, from, to, steps, y) {
+      for (var i = 0; i < steps; i++) {
+        var a0 = from + ((to - from) * i) / steps
+        var a1 = from + ((to - from) * (i + 1)) / steps
+        out.push(cx + Math.cos(a0) * r, y, cz + Math.sin(a0) * r)
+        out.push(cx + Math.cos(a1) * r, y, cz + Math.sin(a1) * r)
+      }
+    }
+    function pushRect(out, x0, z0, x1, z1, y) {
+      out.push(x0, y, z0, x1, y, z0)
+      out.push(x1, y, z0, x1, y, z1)
+      out.push(x1, y, z1, x0, y, z1)
+      out.push(x0, y, z1, x0, y, z0)
+    }
+
+    // ─── Le terrain ───────────────────────────────────────────────────────────
+    //
+    // Un city-stade vu de haut, qui se rapproche pendant qu'on lit. Il n'y a
+    // pas de sol dans le reste du décor : les objets flottent dans le vide, et
+    // c'est ce qui les empêchait de donner une échelle. Une ligne peinte au sol
+    // suffit à dire « on est dehors, sur un terrain », et à poser le bas du
+    // cadre.
+
+    function makeCourt(p) {
+      var g = new THREE.Group()
+      var pts = []
+      var W = 13
+      var D = 8.5
+
+      pushRect(pts, -W, -D, W, D, 0)
+      pts.push(0, 0, -D, 0, 0, D) // ligne médiane
+      pushArc(pts, 0, 0, 2.1, 0, Math.PI * 2, 36, 0)
+
+      // Les deux raquettes, et l'arc de lancer franc au bout de chacune.
+      pushRect(pts, -W, -2.6, -W + 4.2, 2.6, 0)
+      pushRect(pts, W - 4.2, -2.6, W, 2.6, 0)
+      pushArc(pts, -W + 4.2, 0, 2.1, -Math.PI / 2, Math.PI / 2, 18, 0)
+      pushArc(pts, W - 4.2, 0, 2.1, Math.PI / 2, (Math.PI * 3) / 2, 18, 0)
+
+      g.add(segments(pts, lineMaterial(p, 0.72)))
+
+      // Une dalle à peine teintée sous les lignes : sans elle le tracé flotte
+      // dans le noir et se lit comme un schéma, pas comme un sol.
+      var slab = new THREE.Mesh(
+        new THREE.PlaneGeometry(W * 2 + 1.4, D * 2 + 1.4),
+        new THREE.MeshBasicMaterial({
+          color: p.line,
+          transparent: true,
+          opacity: 0.09,
+          depthWrite: false,
+        }),
+      )
+      slab.rotation.x = -Math.PI / 2
+      slab.position.y = -0.02
+      g.add(slab)
+
+      return { group: g }
+    }
+
+    function updateCourt(scn, q) {
+      var t = ease(q)
+      // Vient de loin, passe sous le cadre. L'inclinaison s'ouvre en même temps
+      // que la distance tombe : de loin on voit le tracé presque à plat, de
+      // près on le voit en fuite, ce qui accentie l'impression de survol.
+      scn.group.position.set(0, lerp(-10, -5.6, t), lerp(-26, 1, t))
+      scn.group.rotation.x = lerp(-0.18, 0.06, t)
+      scn.group.rotation.z = 0.04
+    }
+
+    // ─── Le panier ────────────────────────────────────────────────────────────
+    //
+    // La scène qu'on retient. Le ballon monte de la gauche, décrit son arc,
+    // tombe dans l'arceau et fait gonfler le filet au passage — c'est ce
+    // gonflement qui vend le tir, bien plus que la trajectoire.
+
+    var NET_STRANDS = 14
+    var NET_RINGS = [0, -0.38, -0.74, -1.02]
+    var NET_RADII = [0.72, 0.62, 0.48, 0.34]
+
+    function netPoints() {
+      var pts = []
+      var i, k, a
+      // Brins verticaux.
+      for (i = 0; i < NET_STRANDS; i++) {
+        a = (i / NET_STRANDS) * Math.PI * 2
+        for (k = 0; k < NET_RINGS.length - 1; k++) {
+          pts.push(Math.cos(a) * NET_RADII[k], NET_RINGS[k], Math.sin(a) * NET_RADII[k])
+          pts.push(Math.cos(a) * NET_RADII[k + 1], NET_RINGS[k + 1], Math.sin(a) * NET_RADII[k + 1])
+        }
+      }
+      // Deux cerclages horizontaux : sans eux on lit des franges, pas un filet.
+      for (k = 1; k < NET_RINGS.length; k++) {
+        for (i = 0; i < NET_STRANDS; i++) {
+          var a0 = (i / NET_STRANDS) * Math.PI * 2
+          var a1 = ((i + 1) / NET_STRANDS) * Math.PI * 2
+          pts.push(Math.cos(a0) * NET_RADII[k], NET_RINGS[k], Math.sin(a0) * NET_RADII[k])
+          pts.push(Math.cos(a1) * NET_RADII[k], NET_RINGS[k], Math.sin(a1) * NET_RADII[k])
+        }
+      }
+      return pts
+    }
+
+    function makeHoop(p) {
+      var g = new THREE.Group()
+
+      var panel = new THREE.Mesh(
+        new THREE.BoxGeometry(3.1, 2.05, 0.07),
+        new THREE.MeshStandardMaterial({
+          color: p.panel,
+          roughness: 0.6,
+          metalness: 0.04,
+          transparent: true,
+          opacity: 0.82,
+        }),
+      )
+      panel.position.set(0, 0.75, -0.85)
+      g.add(panel)
+
+      // Le petit rectangle peint au centre du panneau : c'est lui qui fait
+      // reconnaître un panneau de basket au premier coup d'œil.
+      var markPts = []
+      pushRect(markPts, -0.6, -0.42, 0.6, 0.42, 0)
+      var mark = segments(markPts, lineMaterial(p, 0.85))
+      mark.rotation.x = Math.PI / 2
+      mark.position.set(0, 0.62, -0.8)
+      g.add(mark)
+
+      var ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.72, 0.055, 8, 30),
+        new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.45, metalness: 0.1 }),
+      )
+      ring.rotation.x = Math.PI / 2
+      g.add(ring)
+
+      // La potence qui relie l'arceau au panneau.
+      var arm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.09, 0.42),
+        new THREE.MeshStandardMaterial({ color: p.hoop, roughness: 0.5, metalness: 0.1 }),
+      )
+      arm.position.set(0, 0, -0.62)
+      g.add(arm)
+
+      var base = netPoints()
+      var net = segments(base.slice(), lineMaterial(p, 0.85))
+      g.add(net)
+
+      // Le ballon du tir n'est pas de la couleur du décor : c'est lui qu'on
+      // doit suivre des yeux d'un bout à l'autre de la scène. En bleu nuit
+      // comme le reste, la trajectoire ne se lisait pas du tout — on voyait un
+      // panier, pas un tir. Il reprend donc l'orange de l'arceau, avec des
+      // coutures sombres.
+      var ballPalette = {}
+      for (var key in p) ballPalette[key] = p[key]
+      ballPalette.body = p.hoop
+      ballPalette.accent = 0x2e1a0b
+      var ball = ballBasket(ballPalette)
+      ball.scale.setScalar(0.44)
+      // Une pointe d'émission sur le cuir, et lui seul : c'est le seul objet
+      // de la page qui doit tenir sa couleur quelle que soit la lumière, parce
+      // que c'est lui qu'on suit des yeux. Les coutures restent mates, sinon la
+      // balle devient une lampe.
+      ball.children[0].material = ball.children[0].material.clone()
+      ball.children[0].material.emissive = new THREE.Color(p.ballGlow)
+      ball.children[0].material.emissiveIntensity = 0.6
+      g.add(ball)
+
+      return { group: g, net: net, netBase: base.slice(), ball: ball }
+    }
+
+    function updateHoop(scn, q) {
+      // Le panier lui-même monte doucement dans le cadre pendant sa fenêtre :
+      // sans ce déplacement il resterait planté au même endroit pendant un
+      // écran et demi, et l'œil le prendrait pour un élément d'interface.
+      scn.group.position.set(5.2 * scn.xf, lerp(-7.5, 6, ease(q)), -3.4)
+      scn.group.rotation.y = lerp(0.55, 0.1, ease(q))
+
+      var ball = scn.ball
+      if (q < 0.55) {
+        // Montée : une parabole, plus un décalage latéral qui amène le ballon
+        // depuis le hors-champ gauche.
+        var t = clamp01(q / 0.55)
+        ball.position.set(
+          lerp(-7.5, 0, t),
+          lerp(-5.2, 0.95, t) + Math.sin(Math.PI * t) * 4.4,
+          lerp(2.6, 0, t),
+        )
+      } else if (q < 0.76) {
+        // Traversée de l'arceau.
+        var t2 = (q - 0.55) / 0.21
+        ball.position.set(0, lerp(0.95, -1.7, t2), 0)
+      } else {
+        // Chute au sol, hors cadre.
+        var t3 = (q - 0.76) / 0.24
+        ball.position.set(lerp(0, 0.9, t3), lerp(-1.7, -8, t3), lerp(0, 1.2, t3))
+      }
+      ball.rotation.x += 0.004
+      ball.rotation.z = q * 6
+
+      // Gonflement du filet, centré sur le moment où le ballon le traverse.
+      var swell = clamp01(1 - Math.abs((q - 0.63) / 0.16))
+      swell = swell * swell * (3 - 2 * swell)
+      var attr = scn.net.geometry.attributes.position
+      var arr = attr.array
+      var base = scn.netBase
+      for (var i = 0; i < arr.length; i += 3) {
+        var y = base[i + 1]
+        // Le haut du filet est accroché à l'arceau : il ne bouge pas. Plus on
+        // descend, plus il se déforme.
+        var w = clamp01(-y / 1.2)
+        var k = 1 + swell * 0.55 * w
+        arr[i] = base[i] * k
+        arr[i + 1] = y - swell * 0.3 * w
+        arr[i + 2] = base[i + 2] * k
+      }
+      attr.needsUpdate = true
+    }
+
+    // ─── La pétanque ──────────────────────────────────────────────────────────
+    //
+    // Deux boules qui roulent vers le cochonnet et s'arrêtent. C'est la scène
+    // la plus calme, et elle est en bas de page à dessein : on n'ouvre pas sur
+    // de la pétanque, on ferme dessus.
+
+    function makePetanque(p) {
+      var g = new THREE.Group()
+
+      var pts = []
+      pushArc(pts, 0, 0, 3.4, 0, Math.PI * 2, 40, 0)
+      pushArc(pts, 0, 0, 0.9, 0, Math.PI * 2, 24, 0)
+      g.add(segments(pts, lineMaterial(p, 0.55)))
+
+      var jack = new THREE.Mesh(
+        new THREE.SphereGeometry(0.17, 12, 10),
+        new THREE.MeshStandardMaterial({ color: p.accent, roughness: 0.7 }),
+      )
+      jack.position.y = 0.17
+      g.add(jack)
+
+      var balls = []
+      for (var i = 0; i < 3; i++) {
+        var b = boule(p)
+        b.scale.setScalar(0.62)
+        g.add(b)
+        balls.push(b)
+      }
+      return { group: g, balls: balls }
+    }
+
+    function updatePetanque(scn, q) {
+      scn.group.position.set(-5.2 * scn.xf, lerp(-9, 5, ease(q)), -5)
+      scn.group.rotation.x = -0.34
+
+      // Les trois boules partent décalées : elles arrivent l'une après l'autre,
+      // comme une vraie mène.
+      for (var i = 0; i < scn.balls.length; i++) {
+        var t = clamp01((q - i * 0.16) / 0.5)
+        var e = ease(t)
+        var b = scn.balls[i]
+        var target = [[-0.75, 0.5], [0.85, -0.35], [0.25, 0.95]][i]
+        b.position.set(lerp(-9, target[0], e), 0.38, lerp(3.2 + i, target[1], e))
+        // La rotation suit la distance parcourue : une boule qui glisse sans
+        // tourner se voit tout de suite.
+        b.rotation.z = -(b.position.x + 9) * 1.5
+      }
+    }
+
+    // La fenêtre de chaque scène, en fraction de la page. Elles ne se
+    // chevauchent pas : deux scènes à l'écran en même temps, et le décor
+    // redevient du bruit.
+    var SCENE_DEFS = [
+      { key: 'hoop', from: 0.08, to: 0.34, make: makeHoop, update: updateHoop },
+      { key: 'court', from: 0.4, to: 0.72, make: makeCourt, update: updateCourt },
+      { key: 'petanque', from: 0.78, to: 0.99, make: makePetanque, update: updatePetanque },
+    ]
+
     // ─── Mise en place ────────────────────────────────────────────────────────
 
     function build() {
@@ -326,13 +654,13 @@
 
       scene = new THREE.Scene()
       fogColor = new THREE.Color(p.fog)
-      scene.fog = new THREE.Fog(p.fog, 9, 27)
+      scene.fog = new THREE.Fog(p.fog, 14, 52)
 
       camera = new THREE.PerspectiveCamera(
         narrow ? 58 : 46,
         window.innerWidth / window.innerHeight,
         0.1,
-        80,
+        110,
       )
       camera.position.set(0, 0, 14)
 
@@ -386,11 +714,35 @@
         scene.add(obj)
       }
 
+      // Les scènes. Sur téléphone on garde le panier et le terrain — ce sont
+      // eux qui portent le propos — et on laisse tomber la pétanque, qui est la
+      // plus décorative des trois.
+      for (var j = 0; j < SCENE_DEFS.length; j++) {
+        var def = SCENE_DEFS[j]
+        if (narrow && def.key === 'petanque') continue
+        var built = def.make(p)
+        built.def = def
+        built.group.scale.setScalar(narrow ? 0.68 : 1)
+        // Réduire la taille ne suffit pas : sur téléphone le champ visible est
+        // deux fois plus étroit, et une scène posée à x = 5 tombe entièrement
+        // hors cadre. Les mises à jour multiplient donc leur écart au centre
+        // par ce facteur.
+        built.xf = narrow ? 0.45 : 1
+        built.group.visible = false
+        scene.add(built.group)
+        scenes.push(built)
+      }
+
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !narrow })
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, narrow ? 1.5 : 2))
       renderer.setSize(window.innerWidth, window.innerHeight)
       renderer.setClearColor(0x000000, 0)
       host.appendChild(renderer.domElement)
+
+      // Poignée de mise au point. Le décor n'a pas d'interface et ne laisse
+      // aucune trace dans le DOM : sans ça, la seule façon de savoir pourquoi
+      // une scène ne s'affiche pas est de deviner. Coût : une référence.
+      window.__slCascade = { scene: scene, camera: camera, scenes: scenes, objects: objects }
     }
 
     // ─── Boucle ───────────────────────────────────────────────────────────────
@@ -402,12 +754,32 @@
       return Math.min(Math.max(window.scrollY / max, 0), 1)
     }
 
+    function playScenes(progress) {
+      for (var i = 0; i < scenes.length; i++) {
+        var scn = scenes[i]
+        var def = scn.def
+        var q = (progress - def.from) / (def.to - def.from)
+        // Hors fenêtre, la scène sort du rendu : c'est ce qui permet d'en avoir
+        // trois sans que la page coûte trois fois plus cher.
+        if (q < -0.02 || q > 1.02) {
+          scn.group.visible = false
+          continue
+        }
+        scn.group.visible = true
+        def.update(scn, clamp01(q))
+      }
+    }
+
     function layout(now) {
       // Le défilement entraîne la cascade, la dérive l'anime à l'arrêt. Le
       // facteur 2,4 veut dire : la page entière fait passer un peu plus de deux
       // couloirs d'objets. En dessous, l'effet ne se remarque pas ; au-dessus,
       // ça file et ça donne le tournis.
-      var travel = scrollProgress() * LANE * 2.4 + (reduced ? 0 : now * 0.00035)
+      // Une seule lecture du défilement par image : `scrollHeight` force un
+      // recalcul de mise en page, et le payer deux fois par image se sent sur
+      // une page longue.
+      var progress = scrollProgress()
+      var travel = progress * LANE * 2.4 + (reduced ? 0 : now * 0.00035)
 
       for (var i = 0; i < objects.length; i++) {
         var o = objects[i]
@@ -421,6 +793,8 @@
           o.group.rotation.z += o.spin.z * 16
         }
       }
+
+      playScenes(progress)
     }
 
     function frame(now) {
@@ -467,6 +841,7 @@
       renderer.dispose()
       host.innerHTML = ''
       objects = []
+      scenes = []
       build()
       start()
     }
