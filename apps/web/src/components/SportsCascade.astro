@@ -197,7 +197,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · zénith au sortir de la porte'
+    var CASCADE_BUILD = '2026-09-11 · la coupe dans la case'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -273,6 +273,12 @@
     // La hauteur de la caméra, en monde, relevée à chaque image. Le court s'en
     // sert pour ne se montrer qu'une fois qu'on est au-dessus de lui.
     var CAM_Y = 0
+    // Le défilement de l'image précédente, pour savoir si on vient de franchir
+    // la coupe. −1 tant qu'il n'y a pas eu d'image.
+    var P_PREC = -1
+    // Le raccord final a-t-il eu lieu ? Une fois la borne du décor posée sur la
+    // borne interactive, elle n'a plus rien à faire là.
+    var RACCORD_FAIT = false
     var scenes = []
     var lastDocHeight = 0
     var running = false
@@ -1988,17 +1994,22 @@
         // donnait la paroi verte illisible, ce n'était pas la traversée mais le
         // fait de s'y attarder — la fenêtre du plan tenait encore trois
         // centièmes de page une fois à l'intérieur.
-        exitDist: 1.6,
-        // Un flanc de sortie COURT, au contraire : trois centièmes et demi.
+        // La caméra s'arrête SOIXANTE CENTIMÈTRES DEVANT la case ouverte.
         //
-        // C'est sur ce flanc que se joue la montée de vingt mètres, et elle doit
-        // se jouer dans le noir — entre la porte franchie et le court qui
-        // s'allume. Étalée sur dix centièmes, elle laissait au contraire voir le
-        // court pendant toute l'ascension, en enfilade, depuis une hauteur
-        // d'homme : exactement l'angle inférieur qu'on ne veut pas. Le poids de
-        // la borne retombe donc vite, celui du court monte vite, et le verrou de
-        // hauteur (voir `updateTerrain`) s'assure que rien ne s'affiche avant.
-        edgeOut: 0.035,
+        // À 1,6 elle finissait au-delà du meuble, dans le vide, et il restait
+        // deux centièmes de page de noir avant que le court n'ait le droit
+        // d'exister. Passée à l'intérieur (0,05), c'était pire : les parois ne
+        // reçoivent aucune lumière, et le dernier centième et demi de
+        // l'approche virait au noir complet.
+        //
+        // À soixante centimètres, la case ouverte occupe les trois quarts de la
+        // hauteur de l'image : un rectangle de néon bien net, sombre en son
+        // milieu. C'est la dernière image de la borne, et c'est elle qui
+        // couvre la coupe — un cadre plein, pas un écran noir.
+        exitDist: -0.6,
+        // Quatre MILLIÈMES de flanc de sortie : ce n'est plus une transition,
+        // c'est une coupe. Voir `COUPE` dans `frameCamera`.
+        edgeOut: 0.004,
         // Pas de relais après la borne. La balle qui reliait les deux scènes
         // attirait le regard pendant la liaison, puis le rendait d'un coup au
         // court : c'est ce va-et-vient qu'on voyait — on suit la balle, on
@@ -2018,7 +2029,13 @@
         // l'avant pendant toute l'approche de la borne : elle était déjà
         // vingt-cinq unités au-delà du casier au moment où celui-ci se posait
         // sur sa station. On ne traversait pas la borne, on l'avait doublée.
-        holdBefore: 0.19, holdAfter: 0.17, edgeIn: 0.03,
+        // L'approche du court commence à l'instant même où la borne finit la
+        // sienne : vingt-et-un centièmes d'avance de plan, quatre millièmes de
+        // flanc, et un `placeAvant` réduit à la même valeur. Les trois vont
+        // ensemble — `placeAvant` est ce qui colle la station du court à celle
+        // de la borne, et sans lui le plan aurait beau commencer tôt, il
+        // commencerait trois centièmes trop tard.
+        holdBefore: 0.21, holdAfter: 0.17, edgeIn: 0.004,
         // Le court reste rendu bien après son plan : le ballon de basket
         // s'immobilise devant le terrain de pétanque et doit y rester visible
         // pendant qu'on avance dessus.
@@ -2038,7 +2055,7 @@
         // de celui du court : un battement, pas un entracte. Il en durait
         // onze, avec une caméra qui n'avait rien à faire pendant ce temps —
         // c'est exactement ça, l'arrêt long.
-        placeAvant: 0.03,
+        placeAvant: 0.004,
         // Entrée : le point de départ de la balle smashée. Sortie : le ballon
         // qui retombe sous l'arceau, dans le repère du panier décalé.
         // Entrée : le départ de la balle smashée. Sortie : le ballon qui
@@ -2585,7 +2602,16 @@
         // la page, et le terrain se devinait dans le brouillard bien avant
         // qu'on soit entré dans la borne.
         if (scn.def.apresPrec && k > 0) {
-          scn.from = Math.max(scn.from, scenes[k - 1].holdTo)
+          // Après la FIN DU FLANC du plan précédent, pas après son plateau :
+          // c'est là que tombe la coupe, et le court ne doit pas se deviner au
+          // loin pendant qu'on est encore devant la borne. Il s'y voyait en
+          // enfilade, minuscule, sur le centième de page qui précède — un
+          // avant-goût pris depuis le sol, exactement le contraire de ce que la
+          // coupe est censée donner.
+          scn.from = Math.max(
+            scn.from,
+            scenes[k - 1].holdTo + (scenes[k - 1].def.edgeOut || HOLD_EDGE),
+          )
         }
         // `winAfter` : une scène peut devoir rester à l'image bien après que
         // son plan soit fini. Le court est le seul dans ce cas — le ballon de
@@ -3573,13 +3599,39 @@
       // pour qu'on ne sente pas de retard. Le lissage n'est plus là pour
       // corriger des cibles qui sautent — elles ne sautent plus — seulement
       // pour absorber le défilement lui-même.
-      var k = reduced ? 1 : 0.14
+      /**
+       * LA COUPE.
+       *
+       * Il y a un endroit, un seul, où la caméra ne doit pas se déplacer mais
+       * SAUTER : l'instant où elle est dans le casier. La tôle remplit le
+       * cadre, on ne voit rien — c'est le seul moment de la page où un
+       * changement de point de vue est invisible. De l'autre côté, on est
+       * vingt mètres au-dessus du court, à la verticale.
+       *
+       * Sans ça il faut bien amener la caméra là-haut par un mouvement, et ce
+       * mouvement ne peut être que du noir (si on cache le court pendant la
+       * montée) ou une enfilade (si on le montre). Les deux ont été essayés.
+       * Une coupe franche, cachée par un objet qui remplit l'écran, est le
+       * procédé le plus vieux du montage et le seul qui réponde à la demande :
+       * on entre dans la case, on est sur le terrain.
+       *
+       * Le seuil est la fin du flanc de sortie de la borne, c'est-à-dire
+       * l'instant où le plan du court a tout son poids. Le franchissement se
+       * détecte dans les DEUX sens : en remontant la page, la coupe joue à
+       * l'envers et on se retrouve dans le casier.
+       */
+      var COUPE = scenes.length ? scenes[0].holdTo + (scenes[0].def.edgeOut || HOLD_EDGE) : -1
+      var saut = COUPE > 0 && P_PREC >= 0 &&
+        ((P_PREC < COUPE) !== (progress < COUPE))
+      P_PREC = progress
+
+      var k = reduced || saut ? 1 : 0.14
       cam.pos.x += (targetX - cam.pos.x) * k
       cam.pos.y += (targetY - cam.pos.y) * k
       // `beat.z` décale la caméra en profondeur par rapport au vol : un plan
       // peut avoir besoin d'être pris de plus près ou de plus loin que le point
       // où le vol se trouve. Sans ce terme, la valeur était lue et jetée.
-      cam.pos.z += (baseZ + pz - cam.pos.z) * (reduced ? 1 : 0.26)
+      cam.pos.z += (baseZ + pz - cam.pos.z) * (reduced || saut ? 1 : 0.26)
       cam.look.x += (lx - cam.look.x) * k
       cam.look.y += (ly - cam.look.y) * k
       cam.look.z += (lz - cam.look.z) * k
@@ -3713,7 +3765,13 @@
       // Le recentrage commence dès le premier défilement — 0,28 au lieu de
       // 0,62. La borne était figée sur sa boîte du hero pendant les deux tiers
       // de sa sortie d'écran : on descendait et il ne se passait rien.
-      var b = smooth(clamp01((t - 0.28) / 0.72))
+      // Le recentrage est FINI aux six dixièmes de la sortie d'écran, pas à la
+      // toute fin. Étalé jusqu'au bout, la borne grossissait pendant qu'elle
+      // se déplaçait encore : au moment où elle remplit le cadre elle était
+      // toujours à droite, et rognée par le bord. Elle arrive maintenant au
+      // centre AVANT de devenir grande, et tout ce qui suit — l'approche, la
+      // porte, la traversée — se joue plein axe.
+      var b = smooth(clamp01((t - 0.04) / 0.26))
       if (b >= 1) return
 
       camera.updateMatrixWorld()
@@ -3819,6 +3877,27 @@
      * et demie trop grand au moment du raccord — l'écart qui fait qu'une
      * superposition « ne va pas » sans qu'on sache dire pourquoi.
      */
+    /**
+     * Rendre un groupe entier translucide, sans toucher au reste.
+     *
+     * L'opacité d'origine de chaque matériau est mémorisée à la première
+     * passe : les vitres et le filet en ont déjà une qui ne vaut pas 1, et les
+     * multiplier par le fondu est la seule façon de ne pas les rendre
+     * subitement opaques en cours de route.
+     */
+    function opaciteGroupe(g, o) {
+      g.traverse(function (n) {
+        var m = n.material
+        if (!m) return
+        if (m.userData.o0 === undefined) {
+          m.userData.o0 = m.opacity === undefined ? 1 : m.opacity
+          m.userData.t0 = !!m.transparent
+        }
+        m.opacity = m.userData.o0 * o
+        m.transparent = o < 0.999 ? true : m.userData.t0
+      })
+    }
+
     function placeSortie(scn, q) {
       if (!borneEl || !INTRO_V) return
       var r = borneEl.getBoundingClientRect()
@@ -3831,6 +3910,31 @@
       // deux choses qu'un pourcentage d'animation ne connaît pas.
       var ecart = Math.abs(r.top + r.height / 2 - window.innerHeight / 2)
       var b = smooth(clamp01(1 - ecart / (window.innerHeight * 0.8)))
+
+      /**
+       * La borne du décor se dissout dans la borne interactive.
+       *
+       * Elle ne s'effaçait pas du tout : `b` mesure la proximité de la section
+       * au centre de l'écran, donc il redescend dès que la section remonte — et
+       * `lerp(position, cible, b)` avec un b qui retombe ne RAMÈNE pas le
+       * meuble, il le laisse où il est. La borne du décor restait donc plantée
+       * derrière la section, en doublon de celle qu'on venait de voir s'y
+       * poser, jusqu'au fondu général de fin de page.
+       *
+       * Elle s'efface sur le dernier quart du rapprochement, c'est-à-dire
+       * pendant que le dézoom finit de la poser sur l'autre : à ce moment-là
+       * position, échelle et rotation sont les mêmes aux pixels près, et le
+       * relais d'une borne à l'autre ne se voit pas. Un verrou, pas un seuil —
+       * une fois le raccord fait, elle ne revient pas.
+       */
+      if (RACCORD_FAIT) { scn.group.visible = false; return }
+      var fondu = clamp01((b - 0.72) / 0.26)
+      if (fondu >= 0.999) {
+        RACCORD_FAIT = true
+        scn.group.visible = false
+        return
+      }
+      opaciteGroupe(scn.group, 1 - fondu)
       if (b <= 0.001) return
 
       camera.updateMatrixWorld()
@@ -3859,6 +3963,11 @@
       }
       if (!scn || scn.holdFrom === undefined) return
 
+      // En remontant la page au-dessus du plan final, le raccord est à refaire.
+      if (progress < scn.holdFrom - 0.02 && RACCORD_FAIT) {
+        RACCORD_FAIT = false
+        opaciteGroupe(scn.group, 1)
+      }
       var q = planQ(scn, progress)
       placeSortie(scn, q)
 
