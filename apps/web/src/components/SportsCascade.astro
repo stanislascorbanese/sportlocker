@@ -34,77 +34,101 @@
   page tant qu'il est masqué.
 -->
 <aside id="sl-final" hidden>
-  <p class="sl-final-titre">La borne, en cinq gestes</p>
-  <ol class="sl-final-liste">
-    <li><button type="button"><span>01</span> Il scanne le QR code</button>
-      <p>Une page s'ouvre dans son navigateur. Rien à télécharger, aucun compte, aucune carte bancaire.</p></li>
-    <li><button type="button"><span>02</span> Il saisit son numéro de séjour</button>
-      <p>Vous avez déjà son identité et sa caution depuis le check-in : on s'appuie dessus au lieu de les redemander.</p></li>
-    <li><button type="button"><span>03</span> Il choisit un article disponible</button>
-      <p>La page affiche ce qu'il reste dans la borne en temps réel. Un casier, un article.</p></li>
-    <li><button type="button"><span>04</span> Le casier s'ouvre</button>
-      <p>Moins d'une seconde. Le code est vérifié par la borne elle-même : ça marche même si la 4G est tombée.</p></li>
-    <li><button type="button"><span>05</span> Il joue, puis il rend</button>
-      <p>Il repose l'article et referme la porte. Un capteur enregistre le retour, sans personne.</p></li>
-  </ol>
+  <!--
+    Deux pavés plutôt qu'un bloc au milieu. Un panneau centré se posait sur la
+    borne qu'on vient de suivre pendant toute la page : on ne voyait plus ni le
+    texte ni l'objet. Répartis à gauche et à droite, ils laissent la colonne
+    centrale libre — et c'est là que la borne finit sa course.
+  -->
+  <div class="sl-final-pave sl-final-gauche">
+    <p class="sl-final-titre">Le vacancier</p>
+    <ol class="sl-final-liste" start="1">
+      <li><button type="button"><span>01</span> Il scanne le QR code</button>
+        <p>Une page s'ouvre dans son navigateur. Rien à télécharger, aucun compte, aucune carte bancaire.</p></li>
+      <li><button type="button"><span>02</span> Il saisit son numéro de séjour</button>
+        <p>Vous avez déjà son identité et sa caution depuis le check-in : on s'appuie dessus au lieu de les redemander.</p></li>
+      <li><button type="button"><span>03</span> Il choisit un article</button>
+        <p>La page affiche ce qu'il reste dans la borne en temps réel. Un casier, un article.</p></li>
+    </ol>
+  </div>
+  <div class="sl-final-pave sl-final-droite">
+    <p class="sl-final-titre">La borne</p>
+    <ol class="sl-final-liste" start="4">
+      <li><button type="button"><span>04</span> Le casier s'ouvre</button>
+        <p>Moins d'une seconde. Le code est vérifié par la borne elle-même : ça marche même si la 4G est tombée.</p></li>
+      <li><button type="button"><span>05</span> Il joue, puis il rend</button>
+        <p>Il repose l'article et referme la porte. Un capteur enregistre le retour, sans personne.</p></li>
+    </ol>
+  </div>
 </aside>
 
 <style>
   /* ─── Le panneau de fin ───────────────────────────────────────────────────
-     Posé en `fixed` et positionné par la cascade sur la projection de la borne.
-     Il n'est ni dans le hero ni dans une section : il appartient au dernier
-     plan, et il disparaît avec lui. */
+     Deux pavés posés en `fixed` de part et d'autre de la borne, positionnés par
+     la cascade sur sa projection. Ils appartiennent au dernier plan et
+     disparaissent avec lui. */
   #sl-final {
     position: fixed;
+    inset: 0;
     z-index: 2;
-    width: min(21rem, 82vw);
-    padding: 1.1rem 1.25rem;
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--bg-0) 88%, transparent);
-    border: 1px solid rgba(45, 194, 149, 0.28);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.4s ease;
   }
-  #sl-final.is-on { pointer-events: auto; }
+  .sl-final-pave {
+    position: absolute;
+    width: min(18.5rem, 40vw);
+    padding: 0.95rem 1.1rem;
+    border-radius: 14px;
+    /* Beaucoup plus transparent qu'avant (0,88) : à ce stade le fond est déjà
+       sombre et le texte porte seul. Le pavé ne sert plus qu'à poser une limite
+       douce autour de lui, pas à masquer ce qu'il y a derrière. */
+    background: color-mix(in srgb, var(--bg-0) 46%, transparent);
+    border: 1px solid rgba(45, 194, 149, 0.2);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+  #sl-final.is-on .sl-final-pave { pointer-events: auto; }
   .sl-final-titre {
-    margin: 0 0 0.7rem;
-    font-size: 0.74rem;
+    margin: 0 0 0.55rem;
+    font-size: 0.72rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #2bc295;
   }
   .sl-final-liste { margin: 0; padding: 0; list-style: none; }
-  .sl-final-liste li + li { margin-top: 0.15rem; }
   .sl-final-liste button {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.55rem;
     width: 100%;
-    padding: 0.42rem 0.2rem;
+    padding: 0.36rem 0.2rem;
     background: none;
     border: 0;
     border-radius: 8px;
     color: var(--text-0);
     font: inherit;
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     text-align: left;
     cursor: pointer;
+    text-shadow: 0 1px 10px var(--bg-0);
   }
   .sl-final-liste button span { color: #2bc295; font-variant-numeric: tabular-nums; }
   .sl-final-liste button:hover,
-  .sl-final-liste button:focus-visible { background: rgba(45, 194, 149, 0.1); }
+  .sl-final-liste button:focus-visible { background: rgba(45, 194, 149, 0.12); }
   .sl-final-liste p {
-    margin: 0 0 0.35rem 2rem;
+    margin: 0 0 0.3rem 1.9rem;
     max-height: 0;
     overflow: hidden;
-    font-size: 0.82rem;
+    font-size: 0.79rem;
     line-height: 1.45;
     color: var(--text-1);
     transition: max-height 0.3s ease, margin 0.3s ease;
   }
-  .sl-final-liste li.is-open p { max-height: 7rem; margin-bottom: 0.55rem; }
+  .sl-final-liste li.is-open p { max-height: 8rem; margin-bottom: 0.5rem; }
 
+  @media (max-width: 900px) {
+    .sl-final-pave { width: min(20rem, 86vw); }
+  }
   @media (prefers-reduced-motion: reduce) {
     #sl-final, .sl-final-liste p { transition: none; }
   }
@@ -173,7 +197,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · partition caméra'
+    var CASCADE_BUILD = '2026-09-11 · plus lent, plus haut'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -936,11 +960,10 @@
       g.add(net)
 
       var ball = new THREE.Mesh(
-        // 22 cm : deux fois la vraie balle, pas six. C'est la traîne qui la
-        // rend lisible de loin, plus le diamètre — une fois la traîne en place,
-        // une grosse balle ne se lit pas mieux, elle se lit comme une planète.
-        // Jaune fluo franc, la couleur d'une balle sous les projecteurs.
-        new THREE.SphereGeometry(0.22, 20, 16),
+        // 13 cm : une balle de tennis en fait 6,7. Deux fois le vrai, c'est le
+        // maximum avant qu'elle cesse d'être une balle pour devenir une lune.
+        // C'est la traîne qui la rend lisible de loin, pas le diamètre.
+        new THREE.SphereGeometry(0.13, 20, 16),
         new THREE.MeshStandardMaterial({
           color: 0xe8ff3a, emissive: 0xd8f000, emissiveIntensity: 1.1, roughness: 0.55,
         }),
@@ -948,7 +971,7 @@
       g.add(ball)
 
       // La traîne de la balle : jaune, dix boules, mélange additif.
-      var trail = makeTrail(0xe8ff3a, 12, 0.2)
+      var trail = makeTrail(0xe8ff3a, 14, 0.12)
       g.add(trail.group)
 
       var impact = new THREE.Mesh(
@@ -1108,13 +1131,20 @@
      */
     function balleAt(q, out) {
       if (q < TERRAIN_BOUNCE) {
+        // Une vraie parabole : la balle avance à vitesse constante et tombe en
+        // t². L'ancienne accélérait AUSSI en horizontal, ce qui donnait une
+        // trajectoire en virgule que l'œil ne reconnaît pas — une balle frappée
+        // garde sa vitesse d'avance, seule la chute s'accélère.
         var t = q / TERRAIN_BOUNCE
-        var f = t * t * 0.34 + t * 0.66
-        return out.set(lerp(-1.6, BOUNCE_X, f), lerp(5.6, 0.22, f * f), lerp(9.5, BOUNCE_Z, f))
+        return out.set(
+          lerp(-1.6, BOUNCE_X, t),
+          5.6 - (5.6 - 0.13) * t * t,
+          lerp(9.5, BOUNCE_Z, t),
+        )
       }
       var u = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
       var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.6, 1))) * (1 - u) * 2.4
-      return out.set(BOUNCE_X, 0.22 + reb, lerp(BOUNCE_Z, -COURT_L - 1, u))
+      return out.set(BOUNCE_X, 0.13 + reb, lerp(BOUNCE_Z, -COURT_L - 1, u))
     }
 
     var TMP3 = null
@@ -1148,9 +1178,13 @@
       // trente TROP BAS : le court est à -3 et le gravier à -1,6, si bien que
       // les rebonds se jouaient sous le terrain suivant. Le sol remonte donc
       // avec lui, de la dalle du court au gravier.
+      // Il s'arrête AVANT le terrain de pétanque, pas dedans : c'est une boule
+      // qui prendra le relais pour nous y emmener. Un ballon de basket qui
+      // finit sa course dans le gravier était une liaison trop littérale — on
+      // ne comprenait plus quel sport on regardait.
       var x4 = lerp(DEPARTS[3][0], 0.3, smooth(t4))
-      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 44, t4 * (2 - t4))
-      var sol = lerp(0.13, 1.53, smooth(clamp01((t4 - 0.3) / 0.45)))
+      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 30, t4 * (2 - t4))
+      var sol = lerp(0.13, 1.1, smooth(clamp01((t4 - 0.3) / 0.45)))
 
       var vol = clamp01(t4 / 0.3)
       if (t4 <= 0.3) {
@@ -1206,7 +1240,10 @@
 
       // Les tirs. Ils ne commencent qu'une fois l'appareil relevé : trois
       // paraboles pendant qu'on regarde ailleurs, personne ne les verrait.
-      var qb = clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.4)) / 0.5)
+      // Les tirs occupent 0,34 de plan au lieu de 0,5 pour trois paraboles :
+      // chacune a maintenant le temps d'être vue. Le quatrième ballon ne part
+      // qu'ensuite, sur ce qui reste.
+      var qb = clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.4)) / 0.34)
       var rim = scn.rim.getWorldPosition(new THREE.Vector3())
       var cible = scn.group.worldToLocal(rim)
       // Les trois tirs partent du côté court, à sept mètres du panneau. Plus
@@ -1687,14 +1724,24 @@
       // Trois boules lancées l'une après l'autre, chacune décélérant vers le
       // cochonnet. La décélération est en 1-(1-t)³ : une boule qui s'arrête net
       // n'a pas de poids, et c'est le poids qui fait la pétanque.
+      // La troisième tire : elle arrive vite, frappe la première et prend sa
+      // place. C'est le geste de la pétanque — celui qu'on commente au bar le
+      // soir — et il ne coûte qu'une cible qui bouge après l'impact.
+      var CARREAU = 0.62          // quand la troisième touche la première
+      var chassee = clamp01((q - CARREAU) / 0.3)
       var CIBLES = [
-        [PET_JACK[0] - 0.5, PET_JACK[1] + 0.55],
+        // La première est chassée : elle part sur le côté après le carreau.
+        [PET_JACK[0] - 0.5 - chassee * 1.9, PET_JACK[1] + 0.55 + chassee * 0.7],
         [PET_JACK[0] + 0.48, PET_JACK[1] + 0.3],
         [PET_JACK[0] - 0.12, PET_JACK[1] - 0.4],
       ]
       for (var i = 0; i < scn.balls.length; i++) {
-        var t = clamp01((q - i * 0.17) / 0.56)
-        var e = 1 - Math.pow(1 - t, 3)
+        // La troisième part plus tard et va plus vite : c'est ce qui fait
+        // qu'on lit un tir et non un troisième placement.
+        var t = i === 2
+          ? clamp01((q - 0.42) / 0.24)
+          : clamp01((q - i * 0.17) / 0.56)
+        var e = i === 2 ? t * (2 - t) : 1 - Math.pow(1 - t, 3)
         var b = scn.balls[i]
         b.visible = t > 0
         var x0 = (i - 1) * 0.55
@@ -1734,7 +1781,10 @@
       // cinquième de la page. Avant, tout se jouait en 12 % et l'œil n'avait
       // pas le temps de suivre — ça se lisait comme un saut plutôt que comme
       // une approche.
-      { key: 'kiosk', ox: 0, oy: -0.6, make: makeKiosk, update: updateKiosk,
+      // `oy` à -1,5 : la borne est plus bas dans le cadre, ce qui laisse de
+      // l'air au-dessus d'elle — et c'est cet air qu'on traverse en montant
+      // juste après.
+      { key: 'kiosk', ox: 0, oy: -1.5, make: makeKiosk, update: updateKiosk,
         holdBefore: 0.13, holdAfter: 0.05,
         // On traverse. La caméra s'arrête 1,6 unité APRÈS la station, donc
         // au-delà du fond du casier : la porte remplit le cadre, on passe
@@ -1779,13 +1829,20 @@
         // Entrée : le départ de la balle smashée. Sortie : le ballon qui
         // retombe sous l'arceau — coordonnées du court, le panier étant tourné
         // d'un quart de tour.
-        // Entrée : le départ de la balle smashée. Sortie : le ballon qui
-        // retombe sous l'arceau, au fond du court.
-        entryAt: [-1.6, 5.6, 9.5], exitAt: [0, 2.4, HOOP_Z + 0.4], relayColor: 0xf0a463 },
+        // Entrée : le départ de la balle smashée. Sortie : là où le ballon de
+        // basket s'immobilise, juste avant le terrain de pétanque — et c'est de
+        // là qu'une BOULE prend le relais et nous emmène jusqu'au cochonnet.
+        // Le relais change de sport en même temps que la scène : c'est lui qui
+        // dit qu'on passe du basket à la pétanque, sans qu'aucun texte n'ait à
+        // le dire.
+        entryAt: [-1.6, 5.6, 9.5], exitAt: [0.3, 1.1, HOOP_Z - 30],
+        relayColor: 0x6d7a87 },
       { key: 'petanque', ox: 0, oy: -1.6, make: makePetanque, update: updatePetanque,
         relayColor: 0x9fb0bf,
         // Le point de lâcher de la première boule, au bout du terrain.
-        entryAt: [-0.55, 0.25, 6.7],
+        // Le point de lâcher de la première boule : c'est là que le relais la
+        // dépose, et la mène commence exactement où il s'arrête.
+        entryAt: [-0.55, 0.115, 6.7],
         exitAt: [PET_JACK[0], 0.115, PET_JACK[1]] },
       // La boucle. On ressort par le casier qu'on avait pris, et la borne
       // s'éloigne : la page finit sur l'objet par lequel elle a commencé, et le
@@ -1819,14 +1876,19 @@
      * sent comme un plan.
      */
     var FLIGHT_Z0 = 18
-    var STATION_APPROACH = 18   // où le drone prend son plan, devant la station
+    // Treize unités d'approche et seize de liaison, au lieu de dix-huit et
+    // trente. La vitesse d'un plan, c'est une distance divisée par une durée :
+    // la durée est bornée par la hauteur de la page, donc le seul levier est la
+    // distance. Tout raccourcir d'un tiers ralentit tout d'un tiers, sans
+    // toucher au découpage.
+    var STATION_APPROACH = 13   // où le drone prend son plan, devant la station
     var STATION_EXIT = 6        // de combien il la dépasse en repartant
     // 30 unités entre deux plans, pas 62. Le blanc entre les scènes ne se
     // mesure pas en distance mais en temps de défilement — et à 62, la scène
     // suivante était à 86 unités, soit 89 % de brouillard : on ne l'apercevait
     // pas du tout pendant l'écran noir. C'est le contraire de ce qu'on veut :
     // le tracé du court doit se deviner AVANT qu'on y arrive.
-    var STATION_TRANSIT = 30    // distance parcourue entre deux plans
+    var STATION_TRANSIT = 16    // distance parcourue entre deux plans
     var STATION_STEP = STATION_APPROACH + STATION_EXIT + STATION_TRANSIT
 
     // Le plan tenu, en fraction de page, autour de la station.
@@ -1839,7 +1901,11 @@
     // bord à bord. Entre deux, il y a maintenant du vide — du brouillard, rien
     // à regarder, le temps de respirer. Un montage sans respiration est une
     // succession, pas un montage.
-    var HOLD_EDGE = 0.018
+    // Cinq centièmes de flanc au lieu de dix-huit millièmes : les plans se
+    // recouvrent franchement, si bien qu'il n'y a plus de portion de page où
+    // la caméra n'a rien à faire. C'est ce qui manquait entre deux sections de
+    // texte — le décor s'y arrêtait au lieu de continuer à respirer.
+    var HOLD_EDGE = 0.05
     // Écart minimal entre deux stations : en dessous, la liaison n'a plus la
     // place d'exister et les deux plans se marchent dessus.
     var MIN_GAP = 0.17
@@ -1942,6 +2008,10 @@
       if (col && relay.userData.col !== col) {
         relay.material.color.setHex(col)
         relay.userData.col = col
+        // Une boule de pétanque fait onze centimètres, une balle de tennis
+        // treize, un ballon de basket vingt-six. Le relais prend la taille de
+        // ce qu'il représente, sinon c'est une bille qui change de couleur.
+        relay.scale.setScalar(col === 0x6d7a87 ? 0.44 : 1)
       }
       relay.visible = true
       return t
@@ -2185,7 +2255,32 @@
       // repère du meuble) et plonge dedans. 0,18 n'est pas un réglage à l'œil :
       // c'est la cote du casier dans `layout`, et si le gabarit change il faut
       // la reprendre là.
-      kiosk:    { x: 0,    y: 0.18, z: 0,    lookX: 0,    lookY: 0.18, fov: 1.12, roll: 0, thread: true },
+      /**
+      * La borne. Plan traversant : la caméra s'aligne sur le casier ouvert et
+      * passe dedans.
+      *
+      * Le dernier quart la fait MONTER. C'est indispensable : sans ça elle
+      * ressort du meuble à hauteur d'homme, et la première image du court est
+      * une vue du dessous — un tracé au ras du sol, exactement le contraire de
+      * la vue au zénith. La montée se fait après la traversée, quand le
+      * meuble est déjà derrière et qu'il n'y a plus rien à cadrer.
+      */
+      kiosk: function (q) {
+        var sort = smooth(clamp01((q - 0.74) / 0.26))
+        return {
+          x: 0,
+          y: lerp(0.18, 17, sort),
+          z: 0,
+          lookX: 0,
+          lookY: lerp(0.18, 4, sort),
+          lookAhead: lerp(6, 2.5, sort),
+          fov: lerp(1.12, 1.06, sort),
+          roll: 0,
+          // Le verrouillage sur la porte se relâche pendant la montée : on ne
+          // vise plus une ouverture de cinquante centimètres une fois passé.
+          thread: sort < 0.5,
+        }
+      },
       // Le panier est à droite : on se penche franchement de son côté, on avance
       // et on resserre. Avancer en resserrant est le vieux truc qui fait qu'un
       // rapprochement se sent au lieu de se constater.
@@ -3131,7 +3226,10 @@
       // Le recentrage est lissé lui aussi : en linéaire, la borne démarrait et
       // s'arrêtait net sur son déplacement latéral, et ce démarrage sec se
       // lisait comme un mouvement de trop.
-      var b = smooth(clamp01((t - 0.62) / 0.38))
+      // Le recentrage commence dès le premier défilement — 0,28 au lieu de
+      // 0,62. La borne était figée sur sa boîte du hero pendant les deux tiers
+      // de sa sortie d'écran : on descendait et il ne se passait rien.
+      var b = smooth(clamp01((t - 0.28) / 0.72))
       if (b >= 1) return
 
       camera.updateMatrixWorld()
@@ -3279,7 +3377,12 @@
 
       var q = actionQ(clamp01((progress - scn.from) / (scn.to - scn.from)))
       placeSortie(scn, q)
-      var vis = clamp01((q - 0.52) / 0.18) * (1 - clamp01((q - 0.97) / 0.03))
+
+      // Les pavés n'arrivent qu'aux trois quarts du plan, c'est-à-dire APRÈS
+      // que la porte se soit refermée et pendant que le dézoom se termine.
+      // À 0,52 ils apparaissaient pendant la fermeture et on ne voyait plus
+      // rien du geste — c'est le moment qui porte toute la boucle.
+      var vis = clamp01((q - 0.76) / 0.14) * (1 - clamp01((q - 0.985) / 0.015))
       if (vis <= 0.01) {
         if (finalOn) {
           finalEl.hidden = true
@@ -3303,19 +3406,22 @@
       var cx = ((ndc.x + 1) / 2) * window.innerWidth
       var cy = ((1 - ndc.y) / 2) * window.innerHeight
 
-      var r = finalEl.getBoundingClientRect()
-      // À droite de la borne si la place existe, à gauche sinon. En dessous
-      // d'une certaine largeur il n'y a de place nulle part : le panneau se
-      // centre alors sous le meuble.
-      var x = cx + demiLargeur + 28
-      if (x + r.width > window.innerWidth - 16) x = cx - demiLargeur - 28 - r.width
-      if (x < 16) {
-        x = Math.max(16, Math.min(cx - r.width / 2, window.innerWidth - r.width - 16))
-        finalEl.style.top = Math.round(Math.min(cy + demiLargeur * 2.2, window.innerHeight - r.height - 16)) + 'px'
-      } else {
-        finalEl.style.top = Math.round(Math.max(16, Math.min(cy - r.height / 2, window.innerHeight - r.height - 16))) + 'px'
+      // Un pavé de chaque côté de la borne, la colonne centrale laissée libre.
+      var paves = finalEl.querySelectorAll('.sl-final-pave')
+      for (var pi = 0; pi < paves.length; pi++) {
+        var el = paves[pi]
+        var r = el.getBoundingClientRect()
+        var gauche = pi === 0
+        var x = gauche
+          ? cx - demiLargeur - 34 - r.width
+          : cx + demiLargeur + 34
+        // Si la borne est trop près d'un bord, le pavé se replie à l'intérieur
+        // plutôt que de sortir de l'écran.
+        x = Math.max(16, Math.min(x, window.innerWidth - r.width - 16))
+        var y = Math.max(16, Math.min(cy - r.height / 2, window.innerHeight - r.height - 16))
+        el.style.left = Math.round(x) + 'px'
+        el.style.top = Math.round(y) + 'px'
       }
-      finalEl.style.left = Math.round(x) + 'px'
     }
 
     function hideBadges() {
