@@ -884,3 +884,23 @@ footer {
 html {
   overflow-x: clip;
 }
+
+/* ─── Le bloc d'appel à l'action laisse passer le décor ───────────────────────
+ *
+ * Il portait un aplat vert opaque, et c'était le seul bloc de la page où la
+ * cascade s'arrêtait net — juste là où elle doit finir, sur la borne qui se
+ * referme. Le vert devient un voile posé par-dessus : la couleur de marque
+ * reste, la borne se devine derrière.
+ *
+ * Le voile est plus dense en haut qu'en bas pour que le titre garde son fond
+ * franc : c'est lui qui doit accrocher, pas le décor.
+ */
+.bg-cta-gradient {
+  position: relative;
+  background-image: linear-gradient(
+    135deg,
+    rgba(15, 110, 86, 0.88) 0%,
+    rgba(21, 120, 90, 0.78) 50%,
+    rgba(29, 158, 117, 0.68) 100%
+  ) !important;
+}

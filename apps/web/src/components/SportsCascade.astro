@@ -233,6 +233,7 @@
     var badges = []
     var finalEl = null
     var finalOn = false
+    var borneEl = null
     var scenes = []
     var lastDocHeight = 0
     var running = false
@@ -2334,6 +2335,9 @@
         heroFrame = document.querySelector('.hero-product-frame')
         badges = Array.prototype.slice.call(document.querySelectorAll('.hero-badge'))
         finalEl = document.getElementById('sl-final')
+        // La borne interactive de la section « la borne », en fin de page :
+        // c'est sur elle que la cascade vient se refermer.
+        borneEl = document.getElementById('sl5-stage')
         if (finalEl) {
           // Chaque geste s'ouvre au clic. Un panneau qui ne fait que s'afficher
           // est une image ; un panneau qu'on peut ouvrir est un endroit où l'on
@@ -2900,6 +2904,53 @@
      * tôt, il recouvrirait la borne ; posé plus tard, il arriverait après le
      * pied de page.
      */
+    /**
+     * Le raccord final : la borne du décor se pose sur la borne interactive.
+     *
+     * Même principe que l'ouverture, à l'envers. On mesure la boîte de la
+     * section en fin de page et on y amène le meuble 3D, qui s'y superpose
+     * exactement. Comme la section appartient au flux du document et la cascade
+     * vit derrière (z-index négatif), le meuble neon disparaît naturellement
+     * sous le rendu de la section : les deux se confondent, sans fondu à
+     * écrire ni coupe à cacher.
+     *
+     * 0,6 de la hauteur de la boîte : c'est la part qu'occupe réellement la
+     * borne dans son cadre. Viser la boîte entière donnerait un meuble une fois
+     * et demie trop grand au moment du raccord — l'écart qui fait qu'une
+     * superposition « ne va pas » sans qu'on sache dire pourquoi.
+     */
+    function placeSortie(scn, q) {
+      if (!borneEl || !INTRO_V) return
+      var r = borneEl.getBoundingClientRect()
+      if (r.height < 4) return
+
+      // Le raccord se mesure sur la position de la SECTION à l'écran, pas sur
+      // l'avancement du plan. C'est la même leçon qu'à l'ouverture : la
+      // superposition doit être parfaite au moment où la section est centrée,
+      // et cet instant dépend de la hauteur de page et de celle de la fenêtre —
+      // deux choses qu'un pourcentage d'animation ne connaît pas.
+      var ecart = Math.abs(r.top + r.height / 2 - window.innerHeight / 2)
+      var b = smooth(clamp01(1 - ecart / (window.innerHeight * 0.8)))
+      if (b <= 0.001) return
+
+      camera.updateMatrixWorld()
+      var vh = 2 * INTRO_DIST * Math.tan((camera.fov * Math.PI) / 360)
+      var vw = vh * camera.aspect
+      var ndcX = ((r.left + r.width / 2) / window.innerWidth) * 2 - 1
+      var ndcY = -(((r.top + r.height / 2) / window.innerHeight) * 2 - 1)
+      INTRO_V.set((ndcX * vw) / 2, (ndcY * vh) / 2, -INTRO_DIST).applyMatrix4(camera.matrixWorld)
+
+      var sc = (vh * ((r.height * 0.6) / window.innerHeight)) / 3.6
+      scn.group.position.set(
+        lerp(scn.group.position.x, INTRO_V.x, b),
+        lerp(scn.group.position.y, INTRO_V.y, b),
+        lerp(scn.group.position.z, INTRO_V.z, b),
+      )
+      scn.group.scale.setScalar(lerp(scn.group.scale.x, sc, b))
+      scn.group.rotation.y = lerp(scn.group.rotation.y, -0.34, b)
+      scn.group.visible = true
+    }
+
     function placeFinal(progress) {
       if (!finalEl) return
       var scn = null
@@ -2909,6 +2960,7 @@
       if (!scn || scn.holdFrom === undefined) return
 
       var q = actionQ(clamp01((progress - scn.from) / (scn.to - scn.from)))
+      placeSortie(scn, q)
       var vis = clamp01((q - 0.52) / 0.18) * (1 - clamp01((q - 0.97) / 0.03))
       if (vis <= 0.01) {
         if (finalOn) {

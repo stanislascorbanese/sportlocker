@@ -197,30 +197,6 @@ const piliers = [
     </div>
   </section>
 
-  <!-- LA BORNE -->
-  <section class="section-alt">
-    <div class="container-x">
-      <div class="text-center mb-10 max-w-3xl mx-auto">
-        <span class="eyebrow" data-reveal>La borne</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Voilà ce qui arrive<br/><span class="text-brand-400">dans votre camping.</span>
-        </h2>
-        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Faites-la pivoter, ouvrez les portes. Huit casiers, une prise 230 V, une carte SIM.
-          Pas de génie civil, pas de raccordement à votre réseau.
-        </p>
-      </div>
-
-      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
-        <LockerDistributor3D />
-      </div>
-
-      <div class="text-center mt-10">
-        <a href="/la-borne" class="btn btn-outline">Fiche technique et prérequis →</a>
-      </div>
-    </div>
-  </section>
-
   <!-- CE QUI RASSURE -->
   <section class="section">
     <div class="container-x">
@@ -306,6 +282,44 @@ const piliers = [
       </p>
     </div>
   </section>
+
+  <!--
+    LA BORNE — volontairement en fin de page.
+
+    Elle était au milieu, juste après les tarifs. Elle ferme désormais le
+    parcours, et c'est sur elle que la cascade vient se refermer : la borne 3D
+    du décor se pose exactement sur la borne interactive de cette section, se
+    referme, et l'une devient l'autre. Le visiteur finit sur l'objet par lequel
+    il a commencé, et il peut le manipuler.
+
+    Conséquence à assumer : la fiche détaillée du produit arrive après les
+    tarifs et les engagements. C'est le bon ordre pour quelqu'un qui veut
+    savoir combien ça coûte avant de savoir comment c'est fait.
+  -->
+  <!-- LA BORNE -->
+  <section class="section-alt">
+    <div class="container-x">
+      <div class="text-center mb-10 max-w-3xl mx-auto">
+        <span class="eyebrow" data-reveal>La borne</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Voilà ce qui arrive<br/><span class="text-brand-400">dans votre camping.</span>
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Faites-la pivoter, ouvrez les portes. Huit casiers, une prise 230 V, une carte SIM.
+          Pas de génie civil, pas de raccordement à votre réseau.
+        </p>
+      </div>
+
+      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
+        <LockerDistributor3D />
+      </div>
+
+      <div class="text-center mt-10">
+        <a href="/la-borne" class="btn btn-outline">Fiche technique et prérequis →</a>
+      </div>
+    </div>
+  </section>
+
 
   <FinalCta
     title="Trente minutes sur votre site."
