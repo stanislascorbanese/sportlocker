@@ -173,7 +173,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · chronologie'
+    var CASCADE_BUILD = '2026-09-11 · rien avant la porte'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -1030,37 +1030,61 @@
       hoop.add(filet)
 
       hoop.position.set(0, HOOP_Y, HOOP_Z)
-      g.add(hoop)
+
+      // Panneau, arceau, mât et potence dans un seul groupe : il s'allume
+      // seulement au rebond. Un panier visible pendant que la balle de tennis
+      // traverse le court annonce la suite et tue la surprise — et il est de
+      // toute façon hors cadre à ce moment-là, donc son apparition ne coûte
+      // aucun raccord.
+      var panier = new THREE.Group()
+      panier.add(hoop)
+      panier.visible = false
+      g.add(panier)
 
       // Le mât : un poteau derrière le panneau, et une potence.
       var poteauMat = neon(NEON_SOURD, 0.45)
-      var mat = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, HOOP_Y + 0.5, 10), poteauMat)
-      mat.position.set(0, (HOOP_Y + 0.5) / 2, HOOP_Z - 1.0)
-      g.add(mat)
-      var potence = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 1.0), poteauMat)
-      potence.position.set(0, HOOP_Y + 0.4, HOOP_Z - 0.5)
-      g.add(potence)
+      // Le mât monte à la hauteur de l'arceau, et la potence part de son
+      // sommet vers le dos du panneau. Posée plus haut, elle se détachait du
+      // panneau translucide et se lisait comme une plaque qui flotte.
+      var mat = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, HOOP_Y + 0.05, 10), poteauMat)
+      mat.position.set(0, (HOOP_Y + 0.05) / 2, HOOP_Z - 1.05)
+      panier.add(mat)
+      var potence = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 1.05), poteauMat)
+      potence.position.set(0, HOOP_Y, HOOP_Z - 0.55)
+      panier.add(potence)
 
       // Les ballons de basket. Trois tirs, dont un qui rentre.
+      // Les ballons, au néon orange plutôt qu'en cuir : sur un décor entier
+      // dessiné au trait lumineux, un ballon photoréaliste est le seul objet
+      // qui vient d'ailleurs, et c'est exactement ce qu'on voit. Deux coutures
+      // sombres suffisent à dire « basket ».
+      var ORANGE = 0xff7a1a
+      var ballonMat = new THREE.MeshStandardMaterial({
+        color: ORANGE, emissive: 0xff5c00, emissiveIntensity: 0.75, roughness: 0.55, metalness: 0,
+      })
+      var coutureMat = new THREE.MeshBasicMaterial({ color: 0x431a00 })
+
       var balls = []
       var trails = []
       for (var i2 = 0; i2 < 3; i2++) {
-        var bb = ballBasket(p)
-        // `ballBasket` a un rayon de 1 : à 0,38 le ballon faisait 76 cm de
-        // diamètre et ne serait jamais passé dans un arceau de 45. 0,13 le
-        // ramène à 26 cm — un ballon de taille 7 fait 24.
-        bb.scale.setScalar(0.13)
+        var bb = new THREE.Group()
+        bb.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 20), ballonMat))
+        for (var c3 = 0; c3 < 2; c3++) {
+          var cout = new THREE.Mesh(new THREE.TorusGeometry(0.131, 0.006, 5, 34), coutureMat)
+          cout.rotation.x = c3 === 0 ? Math.PI / 2 : 0
+          bb.add(cout)
+        }
         bb.visible = false
         g.add(bb)
         balls.push(bb)
-        var tb = makeTrail(0xff8a33, 10, 0.11)
+        var tb = makeTrail(0xff7a1a, 11, 0.1)
         tb.group.visible = false
         g.add(tb.group)
         trails.push(tb)
       }
 
       return {
-        group: g, ball: ball, impact: impact, hoop: hoop,
+        group: g, ball: ball, impact: impact, hoop: hoop, panier: panier,
         balls: balls, rim: ring, trail: trail, trails: trails,
       }
     }
@@ -1106,6 +1130,9 @@
       }
       scn.ball.rotation.x += 0.35
 
+      // Le panier n'apparaît qu'au rebond, hors cadre, et ne repart plus.
+      scn.panier.visible = q > TERRAIN_BOUNCE - 0.04
+
       // Les tirs. Ils ne commencent qu'une fois l'appareil relevé : trois
       // paraboles pendant qu'on regarde ailleurs, personne ne les verrait.
       var qb = clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.4)) / 0.5)
@@ -1135,19 +1162,33 @@
             lerp(d[2], cible.z, lent),
           )
         }
-        // Le deuxième tir rentre ; les deux autres passent à côté.
+        // Le deuxième tir rentre ; le premier ricoche sur l'arceau ; le
+        // troisième repart en cloche vers la gauche — c'est celui qui file
+        // vers le terrain de pétanque, et qui donne au plan suivant une raison
+        // d'exister plutôt que d'arriver.
         var t3 = (qi - 0.72) / 0.28
-        var dedans = i === 1
+        if (i === 1) {
+          return out.set(cible.x, cible.y - t3 * t3 * 3.2, cible.z + 0.1 * t3)
+        }
+        if (i === 0) {
+          // Ricochet : il rebondit sur le cercle puis retombe court.
+          var rico = Math.sin(Math.PI * Math.min(t3 * 1.6, 1)) * 0.7
+          return out.set(cible.x - 1.5 * t3, cible.y + rico - t3 * t3 * 2.6, cible.z + 2.4 * t3)
+        }
+        // Le long renvoi vers la pétanque.
         return out.set(
-          cible.x + (dedans ? 0 : (i === 0 ? -0.55 : 0.6)) * t3,
-          cible.y - t3 * t3 * 3.2,
-          cible.z + (dedans ? 0.1 : 0.5) * t3,
+          cible.x - 7.5 * t3,
+          cible.y + Math.sin(Math.PI * Math.min(t3, 1)) * 2.2 - t3 * t3 * 1.8,
+          cible.z + 9 * t3,
         )
       }
       for (var i = 0; i < scn.balls.length; i++) {
         var ball = scn.balls[i]
         var qi = clamp01((qb - i * 0.2) / 0.6)
-        var vu = qi > 0 && qi < 1
+        // Ils restent visibles jusqu'au bout de leur course : un ballon qui
+        // s'éteint en plein vol, c'est le genre de détail qu'on ne sait pas
+        // nommer mais qui fait que l'image ne tient pas.
+        var vu = qi > 0 && qi < 0.999
         ball.visible = vu
         scn.trails[i].group.visible = vu
         if (!vu) continue
@@ -1537,9 +1578,12 @@
         // caméra continue d'avancer sur l'arceau au lieu de repartir. Le
         // mouvement ne doit jamais s'arrêter avant la coupe.
         holdBefore: 0.19, holdAfter: 0.13, edgeIn: 0.13,
-        // Rendu dès le tout début de la page : le court doit s'apercevoir au
-        // loin pendant qu'on regarde encore la borne.
-        winBefore: 0.40,
+        // Le court n'apparaît qu'APRÈS l'ouverture de la porte. La porte finit
+        // de s'ouvrir vers 4 % de la page ; sa fenêtre de rendu démarre juste
+        // après. Le voir avant, même minuscule et noyé de brouillard, vend la
+        // mèche : la découverte doit être la récompense de l'ouverture, pas un
+        // décor qui traînait déjà là.
+        winBefore: 0.35,
         // Entrée : le point de départ de la balle smashée. Sortie : le ballon
         // qui retombe sous l'arceau, dans le repère du panier décalé.
         // Entrée : le départ de la balle smashée. Sortie : le ballon qui
@@ -1990,13 +2034,14 @@
         return {
           x: lerp(0.4, PET_JACK[0], appro),
           // On entre à dix-huit centimètres du sol, c'est-à-dire DANS le rondin
-          // du bout : on le traverse. Puis on remonte à quarante centimètres.
-          // C'est le seul plan du site pris à hauteur d'objet plutôt qu'à
-          // hauteur d'homme, et c'est ce qui rend une boule impressionnante.
-          y: lerp(0.18, 0.4, smooth(clamp01((q - 0.12) / 0.3))),
+          // du bout : on le traverse. Puis on prend de la hauteur — 1,3 m, le
+          // regard d'un joueur debout plutôt que celui d'une boule. À quarante
+          // centimètres on suivait bien, mais on ne voyait plus le terrain
+          // autour, et une mène sans terrain n'est que trois billes.
+          y: lerp(0.18, 1.3, smooth(clamp01((q - 0.12) / 0.35))),
           z: 0,
           lookX: lerp(0.2, PET_JACK[0], appro),
-          lookY: lerp(0.35, 0.12, appro),
+          lookY: lerp(0.5, 0.2, appro),
           lookAhead: lerp(9, 5, appro),
           fov: lerp(1.06, 0.9, appro),
           roll: -0.008,
