@@ -197,7 +197,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · plus lent, plus haut'
+    var CASCADE_BUILD = '2026-09-11 · un seul mouvement'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -229,6 +229,14 @@
     var ambient = null
     var relay = null
     var relayHit = null
+    // Le dernier cadrage non nul. Entre deux plans il n'y a, par construction,
+    // aucune scène à regarder : les poids valent zéro et la somme pondérée
+    // retombait alors sur l'origine du monde — x 0, y 0. La caméra quittait
+    // donc le côté du terrain de pétanque (x 1,5), passait par l'axe, puis
+    // repartait chercher la borne décalée (x 2,3) : deux mètres de glissement
+    // latéral pour aller voir du vide. On garde le cadrage qu'on avait ; seule
+    // la profondeur continue d'avancer.
+    var lastCadrage = null
     var RELAY_A = null
     var RELAY_B = null
 
@@ -912,6 +920,14 @@
     var BOUNCE_Z = -7.2    // où la balle retombe, dans le carré de service adverse
     var BOUNCE_X = 0.5
 
+    // Le plan du court, en trois nombres : d'où il part en profondeur, et les
+    // deux hauteurs entre lesquelles la caméra descend sans jamais remonter.
+    // Vingt unités d'approche ne sont pas un réglage à l'œil : c'est la
+    // distance à laquelle un court de 23,77 m tient dans un champ de 46°.
+    var TERRAIN_Z0 = 20
+    var TERRAIN_Y0 = 24
+    var TERRAIN_Y1 = 5
+
     var TERRAIN_BOUNCE = 0.46
     var TERRAIN_TILT = 0.18
 
@@ -1183,7 +1199,15 @@
       // finit sa course dans le gravier était une liaison trop littérale — on
       // ne comprenait plus quel sport on regardait.
       var x4 = lerp(DEPARTS[3][0], 0.3, smooth(t4))
-      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 30, t4 * (2 - t4))
+      // Huit unités derrière l'arceau, pas trente. Le commentaire ci-dessus
+      // disait « il s'arrête avant le terrain de pétanque » et le nombre disait
+      // le contraire : −45,3 dans le repère du court, c'est −80,3 en monde, et
+      // le gravier commence à −62,5. Le ballon traversait donc le terrain
+      // suivant de part en part avant de s'arrêter derrière. Il s'immobilise
+      // maintenant à −58,3, quatre mètres devant le premier rondin — et, comme
+      // la caméra finit son plan à −41, il roule à dix-sept unités devant elle
+      // au lieu de disparaître à trente-neuf dans le brouillard.
+      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 8, t4 * (2 - t4))
       var sol = lerp(0.13, 1.1, smooth(clamp01((t4 - 0.3) / 0.45)))
 
       var vol = clamp01(t4 / 0.3)
@@ -1584,8 +1608,13 @@
      * la caméra recule. Dans l'autre ordre, on s'éloigne d'une porte encore
      * ouverte et le geste passe inaperçu.
      */
-    var SORTIE_ARRET = 0.3
-    var SORTIE_RECUL = 0.62
+    // Le recul ne part qu'aux sept dixièmes du plan. Avec une approche longue,
+    // la caméra n'a fini de se rapprocher qu'à ce moment-là ; un dézoom qui
+    // commence avant l'arrivée annule l'arrivée — on recule d'un mètre pour
+    // chaque mètre gagné, et la borne cesse de grossir sans que rien ne bouge
+    // à l'image.
+    var SORTIE_ARRET = 0.34
+    var SORTIE_RECUL = 0.70
 
     function updateSortie(scn, q) {
       scn.group.rotation.y = lerp(-0.3, -0.34, ease(clamp01(q / 0.5)))
@@ -1611,15 +1640,22 @@
       // de face aux six dixièmes du plan, pas à la fin — la caméra arrive à la
       // fin, et un meuble encore de trois quarts à cet instant se traverserait
       // par la tôle.
-      scn.group.rotation.y = lerp(-0.55, 0, ease(clamp01(q / 0.6)))
+      // Tout est calé sur l'instant de la traversée, pas sur des fractions de
+      // plan écrites à la main : de face aux deux tiers du chemin, porte grande
+      // ouverte au même moment, raquette dehors juste après. Si le découpage de
+      // la page bouge, ces trois gestes restent à leur place l'un par rapport à
+      // l'autre et par rapport au passage.
+      var T = qTraversee(scn)
+      scn.group.rotation.y = lerp(-0.55, 0, ease(clamp01(q / (T * 0.68))))
 
       // La porte s'ouvre au tiers de la fenêtre et reste ouverte : la refermer
       // pendant que l'article est dehors serait un contresens sur le produit.
-      var open = clamp01((q - 0.3) / 0.25)
+      var open = clamp01((q - T * 0.32) / Math.max(T * 0.36, 0.0001))
       scn.doors[scn.openIndex].rotation.y = -ease(open) * 1.9
 
       // L'article sort du casier puis flotte devant, comme s'il était pris.
-      var e = ease(clamp01((q - 0.42) / 0.4))
+      // La raquette est dehors, prise et tenue, au moment où l'on plonge.
+      var e = ease(clamp01((q - T * 0.48) / Math.max(T * 0.44, 0.0001)))
       scn.out.visible = e > 0.01
       scn.out.position.set(lerp(0, 1.3, e), 0.18 - e * 0.5, lerp(0.2, 1.5, e))
       scn.out.rotation.y += 0.01
@@ -1785,7 +1821,14 @@
       // l'air au-dessus d'elle — et c'est cet air qu'on traverse en montant
       // juste après.
       { key: 'kiosk', ox: 0, oy: -1.5, make: makeKiosk, update: updateKiosk,
-        holdBefore: 0.13, holdAfter: 0.05,
+        // Deux centièmes de queue, pas cinq. `apresPrec` interdit au court
+        // d'exister avant la fin de ce plan : tant qu'il durait jusqu'à 0,103,
+        // la caméra passait la porte vers 0,06 puis avançait quatre centièmes
+        // de page — un plein écran de défilement — dans le noir absolu, avec
+        // un court qui n'avait pas le droit d'apparaître. La queue raccourcie
+        // ouvre la fenêtre du terrain à l'instant où l'on ressort : le tracé
+        // s'allume pendant qu'on tombe dessus.
+        holdBefore: 0.13, holdAfter: 0.02,
         // On traverse. La caméra s'arrête 1,6 unité APRÈS la station, donc
         // au-delà du fond du casier : la porte remplit le cadre, on passe
         // dedans, et la scène est retirée du rendu dans la foulée. Ce qui
@@ -1793,6 +1836,13 @@
         // fait de s'y attarder — la fenêtre du plan tenait encore trois
         // centièmes de page une fois à l'intérieur.
         exitDist: 1.6,
+        // Un flanc de sortie deux fois plus long que la norme. Tout ce qui
+        // suit la traversée — la montée de vingt mètres jusqu'au zénith du
+        // court — se joue sur ce flanc, et sur lui seul : le plan tenu, lui,
+        // s'arrête à l'instant où la caméra franchit la porte. À cinq
+        // centièmes, vingt mètres d'ascension tenaient dans un demi-écran de
+        // défilement ; à dix, on a le temps de voir le sol s'éloigner.
+        edgeOut: 0.10,
         // Pas de relais après la borne. La balle qui reliait les deux scènes
         // attirait le regard pendant la liaison, puis le rendait d'un coup au
         // court : c'est ce va-et-vient qu'on voyait — on suit la balle, on
@@ -1813,6 +1863,11 @@
         // vingt-cinq unités au-delà du casier au moment où celui-ci se posait
         // sur sa station. On ne traversait pas la borne, on l'avait doublée.
         holdBefore: 0.19, holdAfter: 0.17, edgeIn: 0.03,
+        // Le vol prend son plan vingt unités devant la station, pas treize :
+        // c'est de là, et de là seulement, que le court entier tient dans le
+        // cadre. Et comme le plan part de la même valeur, la caméra n'a aucun
+        // raccord à rattraper quand le poids monte.
+        approachDist: TERRAIN_Z0,
         // Le court n'existe pas tant qu'on n'a pas traversé la borne. Le voir
         // avant, même minuscule et noyé de brouillard, vend la mèche : la
         // découverte doit être la récompense du passage, pas un décor qui
@@ -1835,7 +1890,7 @@
         // Le relais change de sport en même temps que la scène : c'est lui qui
         // dit qu'on passe du basket à la pétanque, sans qu'aucun texte n'ait à
         // le dire.
-        entryAt: [-1.6, 5.6, 9.5], exitAt: [0.3, 1.1, HOOP_Z - 30],
+        entryAt: [-1.6, 5.6, 9.5], exitAt: [0.3, 1.1, HOOP_Z - 8],
         relayColor: 0x6d7a87 },
       { key: 'petanque', ox: 0, oy: -1.6, make: makePetanque, update: updatePetanque,
         relayColor: 0x9fb0bf,
@@ -1843,6 +1898,13 @@
         // Le point de lâcher de la première boule : c'est là que le relais la
         // dépose, et la mène commence exactement où il s'arrête.
         entryAt: [-0.55, 0.115, 6.7],
+        // La caméra s'arrête DEUX UNITÉS AVANT la station, donc six mètres et
+        // demi avant le cochonnet : on regarde les boules se ranger, on ne leur
+        // passe pas dessus. En allant jusqu'à la sortie normale (six unités
+        // au-delà), elle finissait à quarante centimètres du sol contre le
+        // rondin du fond, qui remplissait alors la moitié du cadre — une barre
+        // lumineuse dont personne ne pouvait dire ce qu'elle était.
+        exitDist: -2,
         exitAt: [PET_JACK[0], 0.115, PET_JACK[1]] },
       // La boucle. On ressort par le casier qu'on avait pris, et la borne
       // s'éloigne : la page finit sur l'objet par lequel elle a commencé, et le
@@ -1850,7 +1912,14 @@
       // liste. C'est la seule scène où la caméra recule.
       // Décalée sur le côté : c'est ce qui permet de la DÉCOUVRIR en pivotant
       // après la mène, au lieu de la voir arriver de face depuis le début.
-      { key: 'sortie', ox: 2.6, oy: -0.6, make: makeKiosk, update: updateSortie,
+      // `entryAt` est la cote du casier ouvert dans le gabarit (`layout`), celle
+      // que visait déjà le plan traversant de l'ouverture : la boule de pétanque
+      // rentre donc exactement là où l'on avait pris la raquette, et la porte se
+      // referme sur elle. C'est ça, la boucle — pas seulement un meuble qu'on
+      // revoit. Sans cible, le relais visait le repli « douze unités devant la
+      // station », soit un point en l'air à côté du casier.
+      { key: 'sortie', ox: 1.8, oy: -0.6, make: makeKiosk, update: updateSortie,
+        entryAt: [0, 0.18, 0.6],
         // On l'aperçoit tard : sa fenêtre de rendu ne s'ouvre que juste avant
         // son plan. Avec le brouillard porté à 120 unités, elle se devinait
         // deux sections trop tôt, et la fin n'avait plus rien à révéler.
@@ -1858,7 +1927,14 @@
         // La caméra s'arrête à deux mètres de la porte et n'avance plus : c'est
         // `exitDist: -2` qui le dit. Tout ce qui suit — la fermeture puis le
         // dézoom — se joue sans qu'elle se rapproche davantage.
-        holdBefore: 0.09, holdAfter: 0.09, exitDist: -2, approachDist: 6,
+        // Un plan long et une approche courte : la caméra entre dans ce plan à
+        // dix unités de la borne et met un quart de page à en parcourir huit.
+        // C'est ce qui manquait au dernier tiers du site — entre la fin de la
+        // pétanque et le début de ce plan, huit centièmes de page n'avaient
+        // strictement rien à montrer, et c'est précisément là que tombe
+        // « Trois campings pilotes recherchés ». Le plan commence maintenant
+        // juste après le précédent, et la borne grossit lentement, de face.
+        holdBefore: 0.16, holdAfter: 0.09, exitDist: -2, approachDist: 10,
         noRelay: true },
     ]
 
@@ -1915,15 +1991,47 @@
     var WIN_BEFORE = 0.20
     var WIN_AFTER = 0.08
 
-    // La chorégraphie interne (le tir, la frappe, la mène) est calée sur le
-    // plan tenu, pas sur la fenêtre de rendu : elle se joue pendant qu'on
-    // regarde, jamais pendant l'approche où l'objet est encore dans le
-    // brouillard.
-    var ACTION_FROM = 0.42
-    var ACTION_TO = 0.88
+    /**
+     * Le temps d'une scène, mesuré sur SON PLAN.
+     *
+     * C'était la cause du « on reste fixe sur le terrain de tennis ».
+     *
+     * Il y avait deux horloges. Le POIDS d'un plan se calcule sur le plan tenu
+     * (`holdFrom` → `holdTo`, plus les flancs) ; sa chorégraphie, elle, se
+     * calculait sur la fenêtre de RENDU, bien plus large, dont on ne gardait
+     * que la tranche 0,42 → 0,88. Pour le court, les deux ne coïncidaient pas
+     * du tout : le plan tenait de 0,13 à 0,49 de la page, l'action n'allait que
+     * de 0,28 à 0,48. Entre 0,13 et 0,28 — dix-sept centièmes de page, près
+     * d'un écran et demi de défilement — le plan avait tout son poids et son
+     * temps valait zéro. La caméra était posée, pleine hauteur, sur une image
+     * qui ne bougeait plus. C'est exactement l'impression décrite, et aucun
+     * réglage de trajectoire ne pouvait la corriger.
+     *
+     * Une seule horloge, donc, et c'est celle du poids : le mouvement commence
+     * quand le plan commence à peser et finit quand il cesse. Bornée à la page
+     * pour les deux plans qui la débordent — la borne d'ouverture commence
+     * au-dessus du haut de page, la borne finale finit sous le bas — sinon leur
+     * geste serait tronqué des deux côtés.
+     */
+    /**
+     * L'instant de la traversée, dans le temps du plan.
+     *
+     * Le vol atteint `exitDist` — le fond du casier — exactement à `holdTo`.
+     * Tout ce que joue la borne doit être fini avant : la porte grande ouverte,
+     * le meuble de face, la raquette dehors. Le déduire du découpage plutôt que
+     * de le régler à l'œil est ce qui permet de retoucher le rythme de la page
+     * sans que la caméra entre dans la tôle.
+     */
+    function qTraversee(scn) {
+      var a = Math.max(scn.holdFrom - (scn.def.edgeIn || HOLD_EDGE), 0)
+      var d = Math.min(scn.holdTo + (scn.def.edgeOut || HOLD_EDGE), 1)
+      return clamp01((scn.holdTo - a) / Math.max(d - a, 0.0001))
+    }
 
-    function actionQ(q) {
-      return clamp01((q - ACTION_FROM) / (ACTION_TO - ACTION_FROM))
+    function planQ(scn, p) {
+      var a = Math.max(scn.holdFrom - (scn.def.edgeIn || HOLD_EDGE), 0)
+      var d = Math.min(scn.holdTo + (scn.def.edgeOut || HOLD_EDGE), 1)
+      return clamp01((p - a) / Math.max(d - a, 0.0001))
     }
 
     function smooth(u) {
@@ -1998,7 +2106,16 @@
         lerp(RELAY_A.x, RELAY_B.x, u),
         // La cloche verticale : une balle qui relie deux points en ligne
         // droite ne ressemble à rien. Une parabole, si.
-        lerp(RELAY_A.y, RELAY_B.y, u) + Math.sin(Math.PI * u) * 2.4,
+        //
+        // Mais sa hauteur doit suivre la LONGUEUR du saut au lieu d'être fixe.
+        // Deux mètres quarante sur trente unités font une trajectoire ; les
+        // mêmes sur dix-huit font une chandelle — et comme le regard suit le
+        // relais, la caméra se retrouvait à viser treize degrés au-dessus de
+        // l'horizon, plein ciel, juste avant de découvrir la borne. Un douzième
+        // de la distance, plafonné : la parabole reste une parabole et le
+        // regard reste sur terre.
+        lerp(RELAY_A.y, RELAY_B.y, u) +
+          Math.sin(Math.PI * u) * Math.min(2.4, Math.abs(RELAY_B.z - RELAY_A.z) * 0.085),
         lerp(RELAY_A.z, RELAY_B.z, u),
       )
       relay.rotation.x += 0.14
@@ -2088,8 +2205,14 @@
         }
       }
       var last = scenes[n - 1]
+      // Quatre unités de queue, lissées — et non vingt-six sèches.
+      //
+      // Le dernier plan tient jusqu'à 0,99 : ces vingt-six unités se jouaient
+      // donc sur le dernier centième de la page, soit un bond de vingt mètres
+      // en trois pixels de molette, exactement à l'instant où la borne finit
+      // son dézoom. La toute dernière image de la page était un saut.
       var w = clamp01((p - last.holdTo) / Math.max(1 - last.holdTo, 0.0001))
-      return last.stationZ - exitOf(last) - w * 26
+      return last.stationZ - exitOf(last) - smooth(w) * 1.5
     }
 
     /**
@@ -2187,7 +2310,12 @@
         // quelle que soit la section de texte la plus proche. L'aimantation sur
         // le contenu est un confort, pas une loi — et ici elle repoussait le
         // court d'un huitième de page après la borne, ce qui laissait un trou.
-        if (prev >= 0 && scenes[k].def.placeAvant) {
+        // Jamais sur la DERNIÈRE scène : le plafond sert à coller un plan au
+        // précédent, ce qui n'a de sens que s'il en reste après. Appliqué au
+        // dernier, il ramenait toute la cascade dans la première moitié de la
+        // page et laissait le reste vide — c'est ce qui se passait sur
+        // téléphone quand il n'y avait que deux scènes.
+        if (prev >= 0 && scenes[k].def.placeAvant && k < n - 1) {
           // Le plafond est le BLANC voulu entre les deux plans : fin du plan
           // précédent + début de celui-ci + l'intervalle demandé. Le calculer à
           // partir de `besoin` ne servait à rien — `besoin` contient déjà une
@@ -2265,111 +2393,112 @@
       * la vue au zénith. La montée se fait après la traversée, quand le
       * meuble est déjà derrière et qu'il n'y a plus rien à cadrer.
       */
-      kiosk: function (q) {
-        var sort = smooth(clamp01((q - 0.74) / 0.26))
+      kiosk: function (q, scn) {
+        // La montée occupe exactement ce qui reste du plan après la traversée.
+        // Ce seuil était un réglage à l'œil qu'il fallait reprendre à chaque
+        // fois qu'on touchait au découpage ; il se déduit maintenant du plan.
+        var T = qTraversee(scn)
+        var sort = smooth(clamp01((q - T) / Math.max(1 - T, 0.0001)))
         return {
           x: 0,
-          y: lerp(0.18, 17, sort),
+          // Dix-neuf, et pas vingt-et-un : le plan du court démarre à
+          // vingt-et-un en monde, et une borne qui montait plus haut que ça
+          // faisait remonter la caméra d'un mètre pendant le recouvrement avant
+          // de la faire redescendre. Un mètre, c'est peu — mais c'est un
+          // aller-retour, et c'était le seul qui restait dans la première
+          // moitié de la page.
+          y: lerp(0.18, 19, sort),
           z: 0,
           lookX: 0,
-          lookY: lerp(0.18, 4, sort),
-          lookAhead: lerp(6, 2.5, sort),
+          // Le regard va chercher le court AVANT que le court ne prenne la
+          // main. Pendant le recouvrement, le point visé est la moyenne pondérée
+          // des deux plans : la borne visait deux unités et demie devant sa
+          // station, le court trente-cinq de plus — à mi-croisement le regard
+          // tombait donc dans le brouillard, entre les deux, presque à la
+          // verticale. C'est ce qui faisait pivoter et rogner le court pendant
+          // les trois centièmes de page où il arrive. En portant la visée de la
+          // borne à vingt-deux unités, les deux plans regardent à peu près au
+          // même endroit et le croisement ne se voit plus.
+          lookY: lerp(0.18, 2.0, sort),
+          lookAhead: lerp(6, 22, sort),
           fov: lerp(1.12, 1.06, sort),
           roll: 0,
-          // Le verrouillage sur la porte se relâche pendant la montée : on ne
-          // vise plus une ouverture de cinquante centimètres une fois passé.
-          thread: sort < 0.5,
+          // Le verrouillage sur la porte se relâche DÈS la traversée : on ne
+          // vise plus une ouverture de cinquante centimètres une fois passé —
+          // et surtout, tant qu'il tient, l'écart de cadrage est mis à
+          // l'échelle du meuble, ce qui écraserait la montée à quelques
+          // centimètres.
+          thread: q < T + 0.02,
         }
       },
       // Le panier est à droite : on se penche franchement de son côté, on avance
       // et on resserre. Avancer en resserrant est le vieux truc qui fait qu'un
       // rapprochement se sent au lieu de se constater.
       hoop:     { x: 2.2,  y: 0.8,  z: 0,    lookX: 3.6,  lookY: 0.7,  fov: 0.88, roll: -0.012 },
-      // Le terrain est large : on prend de la hauteur et on ouvre le champ, le
-      // seul moment du site où le décor respire au lieu de se refermer.
       /**
-      * Le terrain est le seul plan écrit comme une fonction du temps : c'est un
-      * mouvement d'appareil, pas un cadrage. Vue du dessus qui suit la balle,
-      * puis descente au ras du court et relevé sur le panier — le tout raccordé
-      * sur l'impact au sol.
-      *
-      * `lookAhead` est la distance à laquelle la caméra vise devant elle. Trois
-      * unités pendant la vue du dessus : c'est ce qui plonge le regard vers le
-      * sol au lieu de le laisser filer à l'horizon. Quatorze pendant la
-      * contre-plongée, pour aller chercher l'arceau au fond.
-      */
-      /**
-       * Le terrain, en quatre temps.
+       * Le terrain, en UN SEUL geste.
        *
-       *   1. la DESCENTE     q 0 → 0,30   de 26 m à 9 m, au zénith, le tracé
-       *                                   entier dans le cadre, la balle
-       *                                   presque immobile dans l'image.
-       *   2. le SUIVI À PLAT q 0,30 → 0,46 la hauteur ne change plus, on
-       *                                   accompagne la balle.
-       *   3. le PIVOT        q 0,46 → 0,64 la caméra NE BOUGE PAS : seul le
-       *                                   regard quitte le sol pour l'arceau.
-       *   4. l'APPROCHE      q 0,64 → 0,78 elle descend derrière le panier, en
-       *                                   contre-plongée, pendant les tirs.
-       *   5. le TRAVELLING   q 0,78 → 1    elle part de côté avec le ballon qui
-       *                                   s'en va, un peu au-dessus des rebonds.
+       * La version précédente était découpée en cinq temps — descente, suivi à
+       * plat, pivot sur place, approche du panier, travelling latéral. Chacun
+       * était juste, et l'ensemble était faux : entre deux temps la caméra
+       * changeait d'avis. Elle descendait puis TENAIT sa hauteur (c'est le « on
+       * reste fixe »), revenait au centre du court avant de partir sept mètres
+       * sur le côté, et surtout filait trente unités derrière le ballon qui
+       * s'échappe — soit dix unités AU-DELÀ de la station suivante, qu'il
+       * fallait ensuite remonter à reculons. Voilà les allers-retours.
        *
-       * Séparer la descente du suivi et le pivot du déplacement est ce qui rend
-       * chaque geste lisible : une caméra qui descend, suit, tourne et
-       * s'approche en même temps ne fait aucun des quatre.
+       * Ici il n'y a plus de temps, seulement trois courbes monotones :
+       *
+       *   z      +20 → −6     un avant continu de vingt-six unités ;
+       *   y       24 →  5     une descente continue de dix-neuf ;
+       *   regard   0 → −25    qui glisse du centre du court à l'arceau, puis
+       *                       dix mètres au-delà où le ballon s'en va.
+       *
+       * Les sujets ne sont plus cherchés par la caméra : ils entrent dans le
+       * cadre parce qu'elle descend vers eux. La frappe est devant elle quand
+       * elle est haute, le rebond quand elle est à mi-hauteur, l'arceau quand
+       * elle est basse. C'est le mouvement qui fait le montage, pas la coupe.
+       *
+       * Pourquoi vingt unités d'approche et vingt-quatre de hauteur : un court
+       * mesure 23,77 m de long et le champ vertical en fait 46°. Depuis
+       * (z 20, y 24) la ligne de fond proche est à 71° sous l'horizon et la
+       * ligne opposée à 37° — trente-quatre degrés d'écart, le court entier
+       * tient dans le cadre avec de la marge. Depuis l'ancienne position
+       * (z 13, y 9), la ligne proche tombait à 87° : hors champ. Le court
+       * était coupé, et c'est très exactement ce qu'on voyait.
        */
       terrain: function (q) {
-        if (!TMP3) TMP3 = new THREE.Vector3()
-        if (!TMP4) TMP4 = new THREE.Vector3()
-        var bz = balleAt(q, TMP3).z
-
-        var desc = smooth(clamp01((q - 0.04) / 0.26))          // 1 : la descente
-        var tilt = smooth(clamp01((q - TERRAIN_BOUNCE) / TERRAIN_TILT))  // 3 : le pivot
-        var appro = smooth(clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT)) / 0.14)) // 4
-
-        var qb4 = clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.4)) / 0.5)
-        var q4 = clamp01((qb4 - 0.3) / 0.68)
-        var suivi = smooth(clamp01((q4 - 0.08) / 0.22))         // 5 : le travelling
-        ballonQuiPart(q4, TMP4)
-
-        // Le suivi de la balle se resserre quand la descente est finie : tant
-        // qu'on est haut, la laisser dériver donne le sens du mouvement ; une
-        // fois près, on la garde.
-        var bx = lerp(-1.6, BOUNCE_X, clamp01(q / TERRAIN_BOUNCE))
-        var prise = lerp(0.25, 0.8, desc)
-
-        // Hauteur : 26 → 9 pendant la descente, puis FIXE jusqu'au pivot. La
-        // caméra ne redescend qu'à l'approche du panier, et pas pendant que
-        // l'œil est occupé ailleurs.
-        var y = lerp(26, 9, desc)
-        y = lerp(y, 2.1, appro)
-        y = lerp(y, TMP4.y + 2.6, suivi)
+        // Une seule progression pour tout le plan. Ni smoothstep pur — qui
+        // s'arrête aux deux bouts, et un plan qui s'arrête est un plan figé —
+        // ni linéaire, qui démarre et finit par un à-coup. Quinze pour cent de
+        // linéaire sous la courbe suffisent à garder de la vitesse partout.
+        var av = 0.15 * q + 0.85 * smooth(q)
 
         return {
-          // Le travelling latéral : la caméra se place à sept mètres sur le
-          // côté de la trajectoire et l'accompagne. De dos on ne voyait pas les
-          // rebonds ; de profil on les compte.
-          x: lerp(lerp(bx * prise, 0, tilt), TMP4.x + 7, suivi),
-          y: y,
+          // Une dérive latérale de deux mètres six sur tout le plan : assez
+          // pour que le tracé tourne lentement sous nous — c'est ce qui donne
+          // le volume — trop peu pour se lire comme un déplacement. L'ancien
+          // écart de sept mètres, lui, se lisait.
+          x: lerp(-1.3, 1.3, av),
+          y: lerp(TERRAIN_Y0, TERRAIN_Y1, av),
           z: 0,
-          lookX: lerp(lerp(bx, 0, tilt), TMP4.x, suivi),
-          lookY: lerp(lerp(0.3, HOOP_Y + 0.2, tilt), TMP4.y + 0.2, suivi),
-          // Pendant le pivot, la profondeur ne bouge pas : c'est ce qui fait
-          // qu'on tourne sur place au lieu de se déplacer.
-          zStation: lerp(
-            lerp(
-              lerp(STATION_APPROACH, bz + lerp(7, 3.4, desc), smooth(clamp01(q / 0.25))),
-              HOOP_Z + 12,
-              appro,
-            ),
-            TMP4.z,
-            suivi,
-          ),
-          // Presque la verticale pendant la descente et le suivi — le court à
-          // plat, la vue du moodboard. Puis le regard porte loin pour aller
-          // chercher l'arceau, et revient court pour le travelling.
-          lookAhead: lerp(lerp(lerp(30, 1.6, smooth(clamp01(q / 0.2))), 13, tilt), 5, suivi),
-          fov: lerp(lerp(1.06, 0.92, tilt), 1.04, suivi),
-          roll: lerp(lerp(0.004, -0.01, tilt), 0.008, suivi),
+          lookX: lerp(-0.4, 0.5, av),
+          // Le point visé remonte du sol vers l'arceau : deux mètres sur vingt-
+          // cinq de distance, soit quatre degrés. Ce n'est pas lui qui cadre le
+          // panier — c'est la caméra qui descend à sa hauteur.
+          lookY: lerp(0.3, 2.4, av),
+          // La profondeur absolue, du point d'approche au point de sortie du
+          // vol. Les deux bouts sont ceux que `flightZ` calcule de son côté
+          // (`approachDist` et `STATION_EXIT`) : le plan ne tire donc jamais la
+          // caméra là où le vol ne l'emmenait pas, et le raccord est nul par
+          // construction à l'entrée comme à la sortie.
+          zStation: lerp(TERRAIN_Z0, -STATION_EXIT, av),
+          // `lookAhead` se compte depuis la station : la valeur EST la
+          // profondeur visée, au signe près. Zéro, c'est le centre du court ;
+          // 15,3, l'arceau ; 25, le gravier vers lequel le ballon roule.
+          lookAhead: lerp(0, 25, av),
+          fov: lerp(1.02, 0.9, av),
+          roll: lerp(0.006, -0.008, av),
         }
       },
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
@@ -2400,10 +2529,15 @@
         return {
           x: 0,
           y: 0.18,
-          // Le dézoom part de zéro — la caméra est déjà à deux mètres, posée
-          // par `exitDist` — et recule jusqu'à vingt-deux unités, la distance
-          // où la borne fait la taille de celle de la section.
-          z: lerp(0, 22, e),
+          // Le dézoom part d'un mètre six EN AVANT du vol, et non de zéro.
+          //
+          // `exitDist: -2` dit où le vol s'arrête, mais il ne l'atteint qu'à la
+          // toute fin du plan tenu — alors que le recul, lui, démarre aux sept
+          // dixièmes. La caméra ne s'approchait donc jamais à plus de quatre
+          // mètres de la borne : elle repartait avant d'être arrivée, et la
+          // fameuse « vue fixe à deux mètres » n'existait dans aucune image.
+          // Ce décalage la pose à deux mètres pile au moment de l'arrêt.
+          z: lerp(-0.6, 22, e),
           lookX: 0,
           lookY: lerp(0.18, -0.1, e),
           lookAhead: 6,
@@ -2427,18 +2561,30 @@
        * sont trois cailloux.
        */
       petanque: function (q) {
-        var pose = smooth(clamp01(q / 0.28))
+        // La descente tenait sur le premier quart du plan : passé q 0,28 la
+        // hauteur ne changeait plus et la caméra glissait douze centièmes de
+        // page à altitude constante. Encore un plan qui se figeait. Elle
+        // descend maintenant d'un bout à l'autre, du même mouvement que le
+        // court : la page entière est une seule descente, de vingt mètres
+        // au-dessus du tennis à quarante centimètres du gravier.
+        var pose = 0.15 * q + 0.85 * smooth(q)
         var avance = smooth(clamp01((q - 0.2) / 0.62))
         // La découverte de la borne : sur le dernier cinquième, le regard
         // quitte le cochonnet et pivote vers le côté, là où elle attend.
         var tourne = smooth(clamp01((q - 0.8) / 0.2))
         return {
-          x: lerp(lerp(0.4, PET_JACK[0], avance), 1.6, tourne),
-          y: lerp(4.2, 0.4, pose),
+          x: lerp(lerp(0.4, PET_JACK[0], avance), 1.2, tourne),
+          y: lerp(3.4, 0.42, pose),
           z: 0,
-          lookX: lerp(lerp(0.2, PET_JACK[0], avance), 5.2, tourne),
-          lookY: lerp(lerp(1.4, 0.2, pose), 0.9, tourne),
-          lookAhead: lerp(lerp(10, 5, pose), 8, tourne),
+          lookX: lerp(lerp(0.2, PET_JACK[0], avance), 3.6, tourne),
+          lookY: lerp(lerp(1.4, 0.2, pose), 1.4, tourne),
+          // Vingt-quatre unités pendant le pivot, pas huit. `lookAhead` se
+          // compte depuis la station : à huit, le point visé tombait DERRIÈRE
+          // la caméra, le garde-fou le ramenait à quatre mètres devant elle, et
+          // le regard partait quinze degrés vers le ciel. On cherchait la borne
+          // en l'air. À vingt-quatre, on la cherche là où elle est : au loin,
+          // dans l'axe, à peine sur le côté.
+          lookAhead: lerp(lerp(10, 5, pose), 24, tourne),
           fov: lerp(1.06, 0.9, avance),
           roll: -0.008,
         }
@@ -2862,26 +3008,27 @@
         ambient.add(obj)
       }
 
-      // Les scènes. Sur téléphone on garde le panier et le terrain — ce sont
-      // eux qui portent le propos — et on laisse tomber la pétanque, qui est la
-      // plus décorative des trois.
+      // Les quatre scènes, sur téléphone comme sur écran.
+      //
+      // Il n'y en avait que deux sur téléphone, par prudence — et le résultat
+      // était que la cascade s'arrêtait net à la moitié de la page : plus de
+      // pétanque, plus de borne finale, plus de dézoom, et cinq écrans de
+      // défilement sur un fond vide. Le coût par image, lui, ne dépend pas du
+      // nombre de scènes construites mais du nombre de scènes VISIBLES, et
+      // `playScenes` en sort deux au plus du rendu à tout instant. Ce qu'on
+      // économisait, c'était donc une construction, une fois — au prix de la
+      // moitié du site.
       for (var j = 0; j < SCENE_DEFS.length; j++) {
         var def = SCENE_DEFS[j]
-        // Sur téléphone, deux scènes : la borne (le produit) et le terrain
-        // (celle qui porte le récit). La pétanque, la plus décorative des
-        // trois, saute.
-        //
-        // Le filtre nomme les clés à garder : quand `hoop` a fusionné dans
-        // `terrain`, il ne restait plus qu'une scène sur téléphone et personne
-        // ne l'aurait vu sans le relevé des stations dans la console.
-        if (narrow && def.key !== 'kiosk' && def.key !== 'terrain') continue
         var built = def.make(p)
         built.def = def
         built.group.scale.setScalar(narrow ? 0.68 : 1)
         // Réduire la taille ne suffit pas : sur téléphone le champ visible est
         // deux fois plus étroit, et une scène posée à x = 5 tombe entièrement
         // hors cadre. Les mises à jour multiplient donc leur écart au centre
-        // par ce facteur.
+        // par ce facteur. Attention : c'est un facteur de POSITION DE STATION,
+        // pas de cadrage — voir `amp` dans `frameCamera`, qui suit l'échelle du
+        // modèle et non celle-ci.
         built.xf = narrow ? 0.45 : 1
         built.group.visible = false
         scene.add(built.group)
@@ -2983,7 +3130,7 @@
         // La scène est plantée à sa station. Elle ne bouge plus : c'est le
         // point fixe autour duquel la caméra travaille.
         scn.group.position.set(scn.def.ox * scn.xf, scn.def.oy, scn.stationZ)
-        scn.def.update(scn, actionQ(clamp01(q)))
+        scn.def.update(scn, planQ(scn, progress))
       }
     }
 
@@ -3021,7 +3168,7 @@
         // Un plan peut être une fonction du temps : il est alors recalculé à
         // chaque image sur le q d'action de sa propre scène.
         var beat = typeof spec === 'function'
-          ? spec(actionQ(clamp01((progress - scn.from) / (scn.to - scn.from))))
+          ? spec(planQ(scn, progress), scn)
           : spec
         // Sur téléphone le champ est deux fois plus étroit : un déport de deux
         // unités y sort la scène du cadre au lieu de la souligner.
@@ -3029,7 +3176,17 @@
         // ouverture réelle de quelques dizaines de centimètres. Son écart suit
         // donc l'échelle du modèle, pas l'amplitude de cadrage — sinon on rate
         // la porte de dix centimètres et on entre dans la tôle.
-        var amp = beat.thread ? scn.group.scale.x : (cam.narrow ? 0.45 : 1)
+        // L'échelle du cadrage est celle du MODÈLE, toujours — plus le 0,45
+        // des écarts de station.
+        //
+        // Ce 0,45 datait d'une époque où un plan était un petit écart au repos
+        // (« deux unités à droite du panier »). Depuis que les plans sont des
+        // positions dans le repère de la scène, il divisait par deux la hauteur
+        // de vol : sur téléphone, le court était pris à sept mètres au lieu de
+        // vingt-et-un, c'est-à-dire coupé — exactement le défaut corrigé sur
+        // écran. À l'échelle du modèle (0,68), le cadrage du téléphone est
+        // celui de l'écran, au champ près.
+        var amp = scn.group.scale.x
         if (beat.thread) thread += w
         var sx = scn.def.ox * scn.xf
         var sy = scn.def.oy
@@ -3070,6 +3227,13 @@
 
       if (total > 0.0001) {
         px /= total; py /= total; pz /= total; lx /= total; ly /= total; lz /= total; ahead /= total
+        lastCadrage = { px: px, py: py, lx: lx, ly: ly, roll: roll, fovMul: fovMul }
+      } else if (lastCadrage) {
+        px = lastCadrage.px; py = lastCadrage.py
+        lx = lastCadrage.lx; ly = lastCadrage.ly
+        roll = lastCadrage.roll; fovMul = lastCadrage.fovMul
+        lz = baseZ - 34
+        ahead = 12
       } else {
         lz = baseZ - 34
         ahead = 12
@@ -3102,11 +3266,19 @@
       // la caméra vise une ouverture : une porte fait cinquante centimètres de
       // large, un parallaxe de quatre-vingt-dix la rate à tous les coups.
       var free = 1 - clamp01(thread) * 0.92
-      var breathe = reduced ? 0 : Math.sin(now * 0.00021) * 0.35 * free
-      var sway = reduced ? 0 : Math.sin(now * 0.00013) * 0.5 * free
+      // La respiration est une amplitude EN MÈTRES, pas en degrés : un demi-
+      // mètre de dérive latérale se sent comme une respiration à trente mètres
+      // du sujet et comme un chalutier à trois. Sur le plan final, la caméra
+      // s'arrête à trois mètres de la borne — et la borne, large de deux
+      // mètres, sortait du cadre par la droite puis par la gauche au rythme du
+      // sinus. On la met donc à l'échelle de la distance au sujet.
+      var dSujet = Math.abs((baseZ + pz) - lz)
+      var souple = free * clamp01(dSujet / 14)
+      var breathe = reduced ? 0 : Math.sin(now * 0.00021) * 0.35 * souple
+      var sway = reduced ? 0 : Math.sin(now * 0.00013) * 0.5 * souple
 
-      var targetX = px + sway + (reduced ? 0 : cam.mx * 0.9 * free)
-      var targetY = py + breathe + (reduced ? 0 : cam.my * 0.55 * free)
+      var targetX = px + sway + (reduced ? 0 : cam.mx * 0.9 * souple)
+      var targetY = py + breathe + (reduced ? 0 : cam.my * 0.55 * souple)
 
       // Lissage exponentiel. Plus ferme qu'avant (0,055) : avec des liaisons
       // deux fois et demie plus rapides que les plans, un amortissement mou
@@ -3375,7 +3547,7 @@
       }
       if (!scn || scn.holdFrom === undefined) return
 
-      var q = actionQ(clamp01((progress - scn.from) / (scn.to - scn.from)))
+      var q = planQ(scn, progress)
       placeSortie(scn, q)
 
       // Les pavés n'arrivent qu'aux trois quarts du plan, c'est-à-dire APRÈS

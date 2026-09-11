@@ -145,6 +145,24 @@ const jsonLd = [
     </div>
   </section>
 
+  <!-- FICHE TECHNIQUE -->
+  <section class="section">
+    <div class="container-x max-w-4xl">
+      <div class="text-center mb-12">
+        <span class="eyebrow" data-reveal>Ce qu’il faut prévoir</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Fiche technique</h2>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        {technique.map((t, i) => (
+          <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
+            <div class="text-xs uppercase tracking-[0.12em] text-brand-400 mb-2">{t.label}</div>
+            <div class="text-sm text-white/70 font-light leading-relaxed">{t.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
   <!-- BORNE 3D -->
   <section id="distributeur-3d" class="section-alt">
     <div class="container-x">
@@ -160,24 +178,6 @@ const jsonLd = [
       </div>
       <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
         <LockerDistributor3D />
-      </div>
-    </div>
-  </section>
-
-  <!-- FICHE TECHNIQUE -->
-  <section class="section">
-    <div class="container-x max-w-4xl">
-      <div class="text-center mb-12">
-        <span class="eyebrow" data-reveal>Ce qu’il faut prévoir</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">Fiche technique</h2>
-      </div>
-      <div class="grid sm:grid-cols-2 gap-4">
-        {technique.map((t, i) => (
-          <div class="card-dark p-6" data-reveal data-reveal-delay={String((i % 4) + 1)}>
-            <div class="text-xs uppercase tracking-[0.12em] text-brand-400 mb-2">{t.label}</div>
-            <div class="text-sm text-white/70 font-light leading-relaxed">{t.value}</div>
-          </div>
-        ))}
       </div>
     </div>
   </section>
