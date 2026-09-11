@@ -861,6 +861,40 @@ const labels = [
         this.classList.toggle('btn-primary', autoR);
         this.classList.toggle('btn-outline', !autoR);
       });
+
+      /*
+       * La rotation démarre toute seule la première fois que la borne entre
+       * dans le champ.
+       *
+       * C'est l'aboutissement du décor : la cascade amène sa borne jusqu'ici,
+       * elle se referme, et celle-ci prend le relais en tournant — le visiteur
+       * comprend en une seconde qu'il peut la manipuler, sans avoir à lire la
+       * ligne d'instructions sous les boutons.
+       *
+       * Une seule fois, et jamais après une action de l'utilisateur : quelqu'un
+       * qui a arrêté la rotation ne veut pas qu'elle reparte parce qu'il a
+       * défilé.
+       */
+      var autoDemarre = false;
+      try {
+        var obs = new IntersectionObserver(
+          function (entries) {
+            for (var e = 0; e < entries.length; e++) {
+              if (!entries[e].isIntersecting || autoDemarre) continue;
+              autoDemarre = true;
+              autoR = true;
+              btnRotate.classList.add('btn-primary');
+              btnRotate.classList.remove('btn-outline');
+              obs.disconnect();
+            }
+          },
+          { threshold: 0.55 },
+        );
+        obs.observe(stage);
+        ['pointerdown', 'wheel'].forEach(function (ev) {
+          stage.addEventListener(ev, function () { autoDemarre = true; }, { once: true, passive: true });
+        });
+      } catch (err) {}
       btnLabels.addEventListener('click', function () {
         showLabels = !showLabels;
         overlay.style.display = svg.style.display = showLabels ? '' : 'none';

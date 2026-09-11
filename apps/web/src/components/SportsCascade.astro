@@ -173,7 +173,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · rien avant la porte'
+    var CASCADE_BUILD = '2026-09-11 · la borne de la maquette'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -1067,7 +1067,7 @@
 
       var balls = []
       var trails = []
-      for (var i2 = 0; i2 < 3; i2++) {
+      for (var i2 = 0; i2 < 4; i2++) {
         var bb = new THREE.Group()
         bb.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 20), ballonMat))
         for (var c3 = 0; c3 < 2; c3++) {
@@ -1078,7 +1078,9 @@
         bb.visible = false
         g.add(bb)
         balls.push(bb)
-        var tb = makeTrail(0xff7a1a, 11, 0.1)
+        // Le quatrième porte une traîne plus longue et plus fine : c'est un
+        // trait qui file, pas une comète.
+        var tb = makeTrail(0xff7a1a, i2 === 3 ? 22 : 11, i2 === 3 ? 0.055 : 0.1)
         tb.group.visible = false
         g.add(tb.group)
         trails.push(tb)
@@ -1146,11 +1148,32 @@
         [-2.6, 1.4, HOOP_Z + 7.4],
         [2.3, 1.2, HOOP_Z + 6.6],
         [-0.5, 1.5, HOOP_Z + 8.2],
+        // Le quatrième passe à côté du panneau et ne revient pas : c'est lui
+        // qui emmène le regard vers la pétanque.
+        [1.6, 1.3, HOOP_Z + 9.5],
       ]
       // La trajectoire d'un tir, elle aussi comme fonction pure : la traîne
       // orange du moodboard s'échantillonne dessus.
       function tirAt(i, qi, out) {
         var d = DEPARTS[i]
+        if (i === 3) {
+          // Le raté volontaire : il frôle le bord du panneau, retombe derrière,
+          // et rebondit trois fois en s'amortissant vers le fond — chaque
+          // rebond plus court et plus bas que le précédent, sinon une balle qui
+          // rebondit se lit comme une balle qui saute.
+          var t4 = qi
+          var x4 = lerp(d[0], -3.4, t4)
+          var z4 = lerp(d[2], HOOP_Z - 16, t4)
+          var vol = clamp01(t4 / 0.42)
+          var haut = d[1] + Math.sin(Math.PI * vol) * 3.1
+          if (t4 > 0.42) {
+            // Trois rebonds : période et amplitude décroissantes.
+            var r4 = (t4 - 0.42) / 0.58
+            var amorti = Math.exp(-r4 * 3.4)
+            haut = 0.13 + Math.abs(Math.sin(Math.PI * r4 * 3)) * 1.5 * amorti
+          }
+          return out.set(x4, haut, z4)
+        }
         if (qi < 0.72) {
           var tt = qi / 0.72
           // La hauteur est étirée près du sommet : c'est la suspension, le
@@ -1185,7 +1208,9 @@
       }
       for (var i = 0; i < scn.balls.length; i++) {
         var ball = scn.balls[i]
-        var qi = clamp01((qb - i * 0.2) / 0.6)
+        // Le quatrième part en dernier et vit plus longtemps : ses rebonds
+        // doivent tenir jusqu'à la coupe vers la pétanque.
+        var qi = i === 3 ? clamp01((qb - 0.42) / 0.58) : clamp01((qb - i * 0.2) / 0.6)
         // Ils restent visibles jusqu'au bout de leur course : un ballon qui
         // s'éteint en plein vol, c'est le genre de détail qu'on ne sait pas
         // nommer mais qui fait que l'image ne tient pas.
@@ -1195,7 +1220,8 @@
         if (!vu) continue
         tirAt(i, qi, TMP3)
         ball.position.copy(TMP3)
-        drawTrail(scn.trails[i], qi, 0.02, function (qq, o) { return tirAt(i, qq, o) }, TMP3)
+        drawTrail(scn.trails[i], qi, i === 3 ? 0.012 : 0.02,
+          function (qq, o) { return tirAt(i, qq, o) }, TMP3)
         ball.rotation.z += 0.12
       }
     }
@@ -1288,16 +1314,24 @@
       var poigneeMat = steel(dark ? 0x8fb8cf : 0x7d8fa0, 0.2, 0.9)
 
       var doors = []
+      // Le gabarit de la maquette, à la lettre : en haut deux grandes portes
+      // pour le matériel long et la colonne d'interface à droite ; en bas six
+      // casiers à ballons sur trois colonnes et deux rangées.
+      //
+      // L'ancienne disposition — deux grandes à gauche, six petites réparties
+      // sur les deux autres colonnes — n'était pas celle du dessin, et c'est ce
+      // qui faisait dire que la borne « avait changé ». Elle n'avait pas changé
+      // de style, elle avait changé de plan.
       var cols = [-0.58, 0, 0.58]
       var layout = [
-        [0, 1.02, 0.52, 1.9],
-        [0, -0.62, 0.52, 1.9],
-        [1, 1.06, 0.52, 0.82],
-        [1, 0.18, 0.52, 0.82],
-        [1, -0.7, 0.52, 0.82],
-        [2, 1.06, 0.52, 0.82],
-        [2, 0.18, 0.52, 0.82],
-        [2, -0.7, 0.52, 0.82],
+        [0, 0.95, 0.52, 1.5],
+        [1, 0.95, 0.52, 1.5],
+        [0, -0.45, 0.52, 0.62],
+        [1, -0.45, 0.52, 0.62],
+        [2, -0.45, 0.52, 0.62],
+        [0, -1.15, 0.52, 0.62],
+        [1, -1.15, 0.52, 0.62],
+        [2, -1.15, 0.52, 0.62],
       ]
       for (var i = 0; i < layout.length; i++) {
         var L = layout[i], w = L[2], h = L[3], cx = cols[L[0]], cy = L[1]
@@ -1358,25 +1392,95 @@
         poignee.position.set(w - 0.11, 0, 0.045)
         pivot.add(poignee)
 
+        // La pastille d'état, en haut de chaque porte. Vert pour disponible,
+        // et le casier ouvert porte la coche de la maquette. C'est le détail
+        // qui dit que le meuble est connecté plutôt que juste fermé à clé.
+        var dispo = i !== 3
+        var pastille = new THREE.Mesh(
+          new THREE.SphereGeometry(0.028, 12, 10),
+          new THREE.MeshStandardMaterial({
+            color: dispo ? 0x2bc295 : 0x8fb8cf,
+            emissive: dispo ? 0x2bc295 : 0x6f93ad,
+            emissiveIntensity: dark ? 0.9 : 0.3,
+            roughness: 0.4, metalness: 0,
+          }),
+        )
+        pastille.position.set(w - 0.1, h / 2 - 0.1, 0.07)
+        pivot.add(pastille)
+
         g.add(pivot)
         doors.push(pivot)
       }
 
-      // L'écran de la borne, en haut à droite : la seule surface qui émet.
+      // ── La colonne d'interface, en haut à droite ─────────────────────────
+      //
+      // C'est elle qui fait qu'on reconnaît la borne plutôt qu'un casier de
+      // vestiaire : le bandeau de marque, la plaque QR avec sa mire, et la
+      // plaque signalétique en dessous. Trois rectangles et quatre carrés —
+      // rien de plus — mais sans eux la colonne de droite est un vide.
+      var colonne = new THREE.Group()
+      var fondCol = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 1.48, 0.06),
+        steel(dark ? 0x0a1520 : 0xc9d6e2, 0.6, 0.2),
+      )
+      fondCol.position.set(0, 0, 0.53)
+      colonne.add(fondCol)
+
+      var vertPlein = new THREE.MeshStandardMaterial({
+        color: 0x2bc295, emissive: 0x1d9e75,
+        emissiveIntensity: dark ? 0.7 : 0.25, roughness: 0.4, metalness: 0,
+      })
+
+      // Bandeau de marque.
+      var bandeauCol = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.02), vertPlein)
+      bandeauCol.position.set(0, 0.62, 0.57)
+      colonne.add(bandeauCol)
+
+      // La plaque QR : un cadre et quatre carrés, la mire d'un code.
+      var plaque = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.46, 0.02),
+        steel(dark ? 0x0d1b2a : 0xeef3f7, 0.5, 0.1),
+      )
+      plaque.position.set(0, 0.3, 0.57)
+      colonne.add(plaque)
+      for (var qx = -1; qx <= 1; qx += 2) {
+        for (var qy = -1; qy <= 1; qy += 2) {
+          var mire = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.085, 0.012), vertPlein)
+          mire.position.set(qx * 0.065, 0.3 + qy * 0.065, 0.585)
+          colonne.add(mire)
+        }
+      }
+
+      // La plaque signalétique, trois lignes muettes.
+      for (var li = 0; li < 3; li++) {
+        var ligne = new THREE.Mesh(
+          new THREE.BoxGeometry(0.24 - li * 0.05, 0.025, 0.012),
+          steel(dark ? 0x35485c : 0xa9bccd, 0.7, 0.05),
+        )
+        ligne.position.set(-0.03 + li * 0.02, -0.18 - li * 0.06, 0.575)
+        colonne.add(ligne)
+      }
+
+      colonne.position.set(cols[2], 0.95, 0)
+      g.add(colonne)
+
+      // L'écran de la borne, au sommet : la seule surface qui émet vraiment.
       var ecran = new THREE.Mesh(
-        new THREE.BoxGeometry(0.34, 0.24, 0.02),
+        new THREE.BoxGeometry(0.3, 0.1, 0.02),
         new THREE.MeshStandardMaterial({
           color: 0x0a1f1a, roughness: 0.15, metalness: 0.1,
           emissive: 0x2bc295, emissiveIntensity: dark ? 1.5 : 0.5,
         }),
       )
-      ecran.position.set(0.58, 1.34, 0.60)
+      ecran.position.set(cols[2], 1.58, 0.585)
       g.add(ecran)
 
       var out = ballBasket(p)
       out.scale.setScalar(0.3)
       g.add(out)
 
+      // Le casier 04 : celui du milieu de la première rangée de ballons,
+      // exactement celui que la maquette met en avant avec sa coche verte.
       return { group: g, doors: doors, out: out, openIndex: 3 }
     }
 
@@ -1386,20 +1490,21 @@
      * l'appareil, qui recule.
      */
     function updateSortie(scn, q) {
-      scn.group.rotation.y = lerp(-0.28, -0.06, ease(clamp01(q / 0.55)))
+      scn.group.rotation.y = lerp(-0.3, -0.34, ease(clamp01(q / 0.5)))
 
-      // On repose l'article dans le casier, puis la porte se referme. C'est
-      // l'inverse exact de l'ouverture du début — et c'est ce qui fait boucle :
-      // la page se termine par le geste qui manquait au premier plan.
-      var rentre = ease(clamp01(q / 0.34))
+      // On repose l'article, la porte se referme, et tout est joué au tiers du
+      // plan. Le reste — les deux tiers — est le dézoom, et c'est lui qui
+      // compte : c'est pendant qu'on recule que la borne du décor rejoint celle
+      // de la section et que les deux se confondent.
+      var rentre = ease(clamp01(q / 0.2))
       scn.out.visible = rentre < 0.99
-      scn.out.position.set(lerp(1.5, 0, rentre), lerp(-0.38, 0.18, rentre), lerp(1.7, 0.24, rentre))
+      scn.out.position.set(lerp(1.4, 0, rentre), lerp(-0.34, 0.18, rentre), lerp(1.5, 0.24, rentre))
       scn.out.rotation.y += 0.02
 
       // La porte attend que l'article soit rentré. Une porte qui se ferme sur
       // un ballon encore dehors, c'est le genre de détail qui se remarque sans
       // qu'on sache dire pourquoi l'image est fausse.
-      var ferme = ease(clamp01((q - 0.36) / 0.24))
+      var ferme = ease(clamp01((q - 0.21) / 0.14))
       scn.doors[scn.openIndex].rotation.y = -1.9 * (1 - ferme)
     }
 
@@ -1570,7 +1675,12 @@
         // cadre, et c'est le noir qui prend le relais. Entrer réellement dans
         // le meuble donnait une paroi en gros plan, illisible.
         exitDist: -0.9,
-        exitAt: [0, 0.18, -6], relayColor: 0xd8e64a },
+        // Pas de relais après la borne. La balle qui reliait les deux scènes
+        // attirait le regard pendant la liaison, puis le rendait d'un coup au
+        // court : c'est ce va-et-vient qu'on voyait — on suit la balle, on
+        // remonte sur le terrain, on redescend. Ici la liaison doit être vide :
+        // c'est l'écran noir, et le court doit y apparaître seul.
+        noRelay: true },
       // Le terrain porte deux sports et deux cadrages : il lui faut plus du
       // double du temps d'un plan ordinaire, sinon le relevé sur le panier
       // arrive avant qu'on ait lu la balle.
@@ -1603,7 +1713,11 @@
       // visiteur comprend qu'il a fait un tour complet plutôt que parcouru une
       // liste. C'est la seule scène où la caméra recule.
       { key: 'sortie', ox: 0, oy: -0.6, make: makeKiosk, update: updateSortie,
-        holdBefore: 0.12, holdAfter: 0.05, exitDist: -6 },
+        // Une approche courte : on arrive vite devant la borne fermée, et tout
+        // le plan tient dans le dézoom qui suit. Une longue approche ici
+        // rejouait l'ouverture du début à l'envers, en plus lent.
+        holdBefore: 0.10, holdAfter: 0.06, exitDist: -2, approachDist: 7,
+        noRelay: true },
     ]
 
     /**
@@ -1723,6 +1837,7 @@
 
       var A = scenes[t.i]
       var B = scenes[t.i + 1]
+      if (A.def.noRelay) { relay.visible = false; return null }
       var u = t.u
 
       handoff(A, A.def.exitAt, -10, RELAY_A)
@@ -1791,25 +1906,30 @@
       return scn.def.exitDist === undefined ? STATION_EXIT : scn.def.exitDist
     }
 
+    /** De combien la caméra prend son plan en avant de la station. */
+    function approachOf(scn) {
+      return scn.def.approachDist === undefined ? STATION_APPROACH : scn.def.approachDist
+    }
+
     function flightZ(p) {
       var n = scenes.length
       if (!n) return FLIGHT_Z0
       var first = scenes[0]
       if (p <= first.holdFrom) {
         var u0 = first.holdFrom > 0.0001 ? clamp01(p / first.holdFrom) : 1
-        return lerp(FLIGHT_Z0 + 8, first.stationZ + STATION_APPROACH, smooth(u0))
+        return lerp(FLIGHT_Z0 + 8, first.stationZ + approachOf(first), smooth(u0))
       }
       for (var i = 0; i < n; i++) {
         var scn = scenes[i]
         if (p <= scn.holdTo) {
           var u = clamp01((p - scn.holdFrom) / Math.max(scn.holdTo - scn.holdFrom, 0.0001))
-          return lerp(scn.stationZ + STATION_APPROACH, scn.stationZ - exitOf(scn), smooth(u))
+          return lerp(scn.stationZ + approachOf(scn), scn.stationZ - exitOf(scn), smooth(u))
         }
         var nx = scenes[i + 1]
         if (!nx) break
         if (p <= nx.holdFrom) {
           var v = clamp01((p - scn.holdTo) / Math.max(nx.holdFrom - scn.holdTo, 0.0001))
-          return lerp(scn.stationZ - exitOf(scn), nx.stationZ + STATION_APPROACH, smooth(v))
+          return lerp(scn.stationZ - exitOf(scn), nx.stationZ + approachOf(nx), smooth(v))
         }
       }
       var last = scenes[n - 1]
@@ -2022,7 +2142,10 @@
         return {
           x: 0,
           y: 0.18,
-          z: lerp(-17, 30, e),
+          // Le dézoom : de tout près à vingt-deux unités. Moins loin qu'avant,
+          // parce que c'est la section qui prend le relais et qu'il faut
+          // arriver à SA taille, pas plus petit.
+          z: lerp(-6, 22, e),
           lookX: 0,
           lookY: lerp(0.18, -0.1, e),
           lookAhead: 6,
