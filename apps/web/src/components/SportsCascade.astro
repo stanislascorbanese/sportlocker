@@ -197,7 +197,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · quatre sports et un club de golf'
+    var CASCADE_BUILD = '2026-09-11 · demi-terrain, gerbe et swing'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -279,6 +279,9 @@
     // Le raccord final a-t-il eu lieu ? Une fois la borne du décor posée sur la
     // borne interactive, elle n'a plus rien à faire là.
     var RACCORD_FAIT = false
+    // Le bloc de texte que la balle de golf traverse en ce moment.
+    var BLOC_ALLEGE = null
+    var TMP5 = null
     var scenes = []
     var lastDocHeight = 0
     var running = false
@@ -999,33 +1002,69 @@
      * qu'on a changé de sport avant même que le panneau n'apparaisse.
      */
     function raquetteBasket(g, trait, sourd) {
-      var RW = 2.45                  // demi-largeur
-      var z0 = HOOP_Z + 0.9          // la ligne de fond du demi-terrain
-      var z1 = HOOP_Z + 6.7          // la ligne de lancer franc
-      barre(g, trait, HOOP_X - RW, z0, HOOP_X + RW, z0, 0.035, 0.06)
-      barre(g, trait, HOOP_X - RW, z1, HOOP_X + RW, z1, 0.035, 0.06)
-      barre(g, trait, HOOP_X - RW, z0, HOOP_X - RW, z1, 0.035, 0.06)
-      barre(g, trait, HOOP_X + RW, z0, HOOP_X + RW, z1, 0.035, 0.06)
+      // Un demi-terrain FIBA, aux cotes : 15 m de large, 14 m de long, raquette
+      // de 4,90 × 5,80, cercle de lancer franc de 1,80, arc à trois points de
+      // 6,75 avec ses deux lignes droites, zone restrictive de 1,25 sous
+      // l'arceau, et le demi-cercle central sur la ligne médiane.
+      //
+      // C'est ce dessin-là, et pas un rectangle, qu'on reconnaît : les
+      // proportions d'un terrain de basket sont dans l'œil de tout le monde, et
+      // c'est ce qui fait qu'un tracé au sol raconte un sport au lieu de
+      // décorer. Il occupe les vingt-cinq mètres entre le court de tennis et
+      // l'arceau — le vide qu'il fallait meubler.
+      var DEMI_L = 7.5               // demi-largeur du terrain
+      var LONG = 14                  // profondeur du demi-terrain
+      var RAQ = 2.45                 // demi-largeur de la raquette
+      var zF = HOOP_Z + 0.9          // ligne de fond, sous le panneau
+      var zM = zF + LONG             // ligne médiane
+      var zL = zF + 5.8              // ligne de lancer franc
+      var zP = HOOP_Z + 2.475        // centre de l'arceau, origine de l'arc
 
-      // Le cercle de lancer franc : plein côté extérieur, pointillé côté
-      // raquette, comme sur un vrai terrain.
-      // Moitié avant pleine, moitié arrière en pointillé : c'est le tracé
-      // réglementaire, et c'est aussi ce qui fait lire un cercle plutôt qu'une
-      // ellipse quand on le regarde de très loin et de biais.
-      var pleins = [], tirets = []
-      for (var i = 0; i < 48; i++) {
-        var a0 = (i / 48) * Math.PI * 2
-        var a1 = ((i + 1) / 48) * Math.PI * 2
-        var avant = Math.sin(a0) > 0
-        if (!avant && i % 2) continue
-        var cible = avant ? pleins : tirets
-        cible.push(
-          HOOP_X + Math.cos(a0) * 1.8, 0.035, z1 + Math.sin(a0) * 1.8,
-          HOOP_X + Math.cos(a1) * 1.8, 0.035, z1 + Math.sin(a1) * 1.8,
-        )
+      function ligne(x1, z1, x2, z2, mat, ep) {
+        barre(g, mat, HOOP_X + x1, z1, HOOP_X + x2, z2, 0.035, ep === undefined ? 0.07 : ep)
       }
-      g.add(segments(pleins, trait))
-      g.add(segments(tirets, sourd))
+      // Le pourtour : ligne de fond, deux touches, ligne médiane.
+      ligne(-DEMI_L, zF, DEMI_L, zF, trait)
+      ligne(-DEMI_L, zM, DEMI_L, zM, trait)
+      ligne(-DEMI_L, zF, -DEMI_L, zM, trait)
+      ligne(DEMI_L, zF, DEMI_L, zM, trait)
+      // La raquette et sa ligne de lancer franc.
+      ligne(-RAQ, zF, -RAQ, zL, sourd, 0.05)
+      ligne(RAQ, zF, RAQ, zL, sourd, 0.05)
+      ligne(-RAQ, zL, RAQ, zL, trait, 0.06)
+
+      /** Un arc de cercle en segments, autour d'un centre donné. */
+      function arc(cx, cz, r, a0, a1, n, mat, pointille) {
+        var pts = []
+        for (var i = 0; i < n; i++) {
+          if (pointille && i % 2) continue
+          var t0 = a0 + ((a1 - a0) * i) / n
+          var t1 = a0 + ((a1 - a0) * (i + 1)) / n
+          pts.push(
+            HOOP_X + cx + Math.cos(t0) * r, 0.035, cz + Math.sin(t0) * r,
+            HOOP_X + cx + Math.cos(t1) * r, 0.035, cz + Math.sin(t1) * r,
+          )
+        }
+        if (pts.length) g.add(segments(pts, mat))
+      }
+
+      // Le cercle de lancer franc : plein côté médiane, pointillé côté raquette.
+      arc(0, zL, 1.8, 0, Math.PI, 24, trait)
+      arc(0, zL, 1.8, Math.PI, Math.PI * 2, 24, sourd, true)
+      // Le demi-cercle central, sur la ligne médiane.
+      arc(0, zM, 1.8, Math.PI, Math.PI * 2, 26, sourd)
+      // La zone restrictive sous l'arceau.
+      arc(0, zP, 1.25, 0, Math.PI, 18, sourd, false)
+
+      // L'arc à trois points : 6,75 m de rayon, raccordé à deux lignes droites
+      // parallèles aux touches, à 90 cm du bord. L'angle de raccord se déduit
+      // de la géométrie, il ne s'écrit pas à la main.
+      var X3 = DEMI_L - 0.9
+      var a3 = Math.asin(Math.min(X3 / 6.75, 1))
+      arc(0, zP, 6.75, a3, Math.PI - a3, 40, trait)
+      var z3 = zP + Math.cos(a3) * 6.75
+      ligne(-X3, zF, -X3, z3, trait)
+      ligne(X3, zF, X3, z3, trait)
     }
 
     function makeTerrain(p) {
@@ -1041,8 +1080,13 @@
       // La dalle court du fond du court jusque DERRIÈRE le panier : cinquante-
       // six mètres. Sans elle le panneau flotte au-dessus du vide, et la
       // raquette de basket n'a rien sur quoi être peinte.
-      var dalle = tapis(COURT_W * 2 + 7, 56, 4, 22)
-      dalle.position.z = -13
+      // La dalle doit porter DEUX tracés qui ne partagent pas le même axe : le
+      // court de tennis centré sur zéro, et le demi-terrain de basket centré
+      // sur 3,60. Elle est donc large de vingt-quatre unités et décalée de
+      // deux huit — sinon la ligne de touche droite du basket tombe dans le
+      // vide, ce qui se voit immédiatement.
+      var dalle = tapis(24, 56, 5, 22)
+      dalle.position.set(2.8, -0.01, -13)
       g.add(dalle)
 
       // La raquette de basket, peinte au sol sous le panier. C'est elle qui
@@ -1809,20 +1853,87 @@
       gerbe.position.set(cols[OUVERT[0]], OUVERT[1], 0.42)
       g.add(gerbe)
       var gerbeItems = []
-      for (var gi = 0; gi < 8; gi++) {
+      var GERBE_N = 12
+      for (var gi = 0; gi < GERBE_N; gi++) {
         var obj = FACTORIES[gi % FACTORIES.length](p)
-        obj.scale.setScalar(0.2)
-        var a5 = (gi / 8) * Math.PI * 2 + 0.4
-        // Ils s'écartent largement : à l'instant où la caméra arrive, aucun ne
-        // doit être dans l'axe. On passe ENTRE eux, on ne les percute pas.
-        var r5 = 0.95 + (gi % 3) * 0.5
+        obj.scale.setScalar(0.19)
+        // L'angle n'est pas régulier : douze directions réparties à pas égal
+        // donnent une roue, pas une explosion. Le décalage en racine casse la
+        // régularité sans créer de paquets.
+        var a5 = (gi / GERBE_N) * Math.PI * 2 + Math.sin(gi * 2.4) * 0.38
+        var r5 = 1.15 + ((gi * 7) % 5) * 0.42
         gerbeItems.push({
           mesh: obj,
-          dir: [Math.cos(a5) * r5, Math.sin(a5) * r5 * 0.75, 1.05 + (gi % 4) * 0.55],
+          dir: [Math.cos(a5) * r5, Math.sin(a5) * r5 * 0.8, 1.3 + ((gi * 5) % 6) * 0.5],
           spin: [0.03 + gi * 0.004, 0.05 - gi * 0.003],
-          retard: gi * 0.035,
+          // Un retard très court : ils partent quasiment ensemble. Étalés, on
+          // lit une file ; groupés, une explosion.
+          retard: (gi % 4) * 0.018,
         })
         gerbe.add(obj)
+      }
+
+      /**
+       * Le RETOUR : un objet par casier, au trait lumineux.
+       *
+       * Ce n'est plus une seule case qui aspire tout, ce sont les huit — et
+       * chacune reçoit ce qui lui va : les deux grandes portes du haut prennent
+       * le matériel long, les six casiers à ballons prennent les ballons. C'est
+       * littéralement ce que dit la fiche produit, joué à l'image.
+       *
+       * Et ils sont dessinés au trait, pas en matière : à la fin de la page on
+       * est dans le décor, et huit objets pleins y arrivent d'un autre monde
+       * graphique. Un contour lumineux et un halo à la couleur du sport, c'est
+       * le même langage que le court, la raquette et les rondins.
+       */
+      function objetNeon(long, couleur) {
+        var o = new THREE.Group()
+        var fil = new THREE.MeshBasicMaterial({
+          color: couleur, wireframe: true, transparent: true, opacity: 0.75,
+        })
+        var halo = new THREE.MeshBasicMaterial({
+          color: couleur, transparent: true, opacity: 0.16,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+        })
+        if (long) {
+          // Matériel long : un cadre et un manche — raquette ou club, l'œil
+          // complète.
+          var tete = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.012, 6, 20), fil)
+          o.add(tete)
+          var lueur = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 18), halo)
+          o.add(lueur)
+          var mch = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.02, 0.34, 6), fil)
+          mch.position.y = -0.32
+          o.add(mch)
+        } else {
+          var sph = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), fil)
+          o.add(sph)
+          var gl = new THREE.Mesh(new THREE.SphereGeometry(0.175, 12, 10), halo)
+          o.add(gl)
+        }
+        return o
+      }
+
+      var COULEURS = [0xff7a1a, 0xe8ff3a, 0x3f9ad8, 0x9fb0bf, 0x2bc295, 0xf2f6f8]
+      var retourItems = []
+      for (var ri = 0; ri < layout.length; ri++) {
+        var LR = layout[ri]
+        var estLong = LR[3] > 1
+        var obj2 = objetNeon(estLong, COULEURS[ri % COULEURS.length])
+        obj2.visible = false
+        g.add(obj2)
+        // Ils arrivent de TOUT LE POURTOUR : l'angle suit la position du casier
+        // dans la façade, si bien que celui d'en haut à gauche vient d'en haut
+        // à gauche. Rien ne se croise, et l'aspiration se lit d'un coup d'œil.
+        var ang = Math.atan2(LR[1], cols[LR[0]] - 0.0001) + (ri % 2 ? 0.25 : -0.25)
+        retourItems.push({
+          mesh: obj2,
+          porte: ri,
+          cible: [cols[LR[0]], LR[1], 0.44],
+          dir: [Math.cos(ang) * 4.2, Math.sin(ang) * 3.4, 2.6 + (ri % 3) * 1.4],
+          spin: [0.05 + ri * 0.006, 0.04 - ri * 0.004],
+          retard: (ri % 4) * 0.05,
+        })
       }
 
       // Le casier 04 : celui du milieu de la première rangée de ballons,
@@ -1832,7 +1943,7 @@
       // centimètres plus haut — elle passait au-dessus au lieu d'entrer.
       return {
         group: g, doors: doors, out: null, openIndex: 3,
-        gerbe: gerbe, gerbeItems: gerbeItems,
+        gerbe: gerbe, gerbeItems: gerbeItems, retourItems: retourItems,
         ouvertX: cols[OUVERT[0]], ouvertY: OUVERT[1],
       }
     }
@@ -1865,41 +1976,45 @@
 
     function updateSortie(scn, q) {
       scn.group.rotation.y = lerp(-0.3, -0.34, ease(clamp01(q / 0.5)))
+      // La gerbe d'ouverture appartient à l'autre borne : elle n'a rien à faire
+      // sur celle-ci, qui joue le retour.
+      if (scn.gerbe) scn.gerbe.visible = false
 
       var arret = clamp01((q - SORTIE_ARRET) / (SORTIE_RECUL - SORTIE_ARRET))
 
       /**
-       * Tout le matériel rentre EN MÊME TEMPS, aspiré par la case.
+       * Les HUIT cases aspirent, chacune la sienne.
        *
-       * C'est la gerbe de l'ouverture jouée à l'envers, et ce n'est pas un
-       * effet de symétrie gratuit : la page s'est ouverte sur huit objets qui
-       * jaillissent d'un casier, elle se ferme sur les mêmes huit qui y
-       * rentrent. Entre les deux il y a eu quatre sports. Le ballon unique qui
-       * revenait racontait un emprunt ; la gerbe raconte le service.
+       * Une seule case qui avalait tout racontait un casier ; huit portes qui
+       * se referment chacune sur son objet racontent une borne. Les deux
+       * grandes prennent le matériel long, les six petites les ballons — c'est
+       * la fiche produit, jouée.
        *
-       * Ils convergent de bien plus loin qu'ils n'étaient sortis (facteur 2,6)
-       * et arrivent tous sur la même image : c'est l'aspiration.
+       * Ils arrivent de tout le pourtour du cadre, chacun depuis la direction
+       * de son casier dans la façade, et accélèrent en approchant : la
+       * trajectoire est en (1-t)^1,7, donc lente au loin et happée à la fin.
        */
-      var rentre = clamp01(arret / 0.52)
-      var vide = 1 - rentre * rentre    // ils accélèrent en approchant
-      var items = scn.gerbeItems
-      for (var gj = 0; gj < items.length; gj++) {
-        var it = items[gj]
-        it.mesh.visible = vide > 0.004
+      var retour = scn.retourItems
+      for (var gj = 0; gj < retour.length; gj++) {
+        var it = retour[gj]
+        var e = clamp01((arret - it.retard) / 0.5)
+        var loin = Math.pow(1 - e, 1.7)
+        it.mesh.visible = e > 0.004 && e < 0.995
         it.mesh.position.set(
-          it.dir[0] * vide * 2.6,
-          it.dir[1] * vide * 2.6 + vide * 0.5,
-          it.dir[2] * vide * 2.6,
+          it.cible[0] + it.dir[0] * loin,
+          it.cible[1] + it.dir[1] * loin + loin * 0.6,
+          it.cible[2] + it.dir[2] * loin,
         )
-        it.mesh.rotation.x += it.spin[0] * 1.6
-        it.mesh.rotation.y += it.spin[1] * 1.6
+        it.mesh.rotation.x += it.spin[0]
+        it.mesh.rotation.y += it.spin[1]
+        // Chaque porte se referme sur SON objet, et pas avant qu'il soit entré.
+        var d8 = scn.doors[it.porte]
+        if (d8) d8.rotation.y = -1.9 * (1 - ease(clamp01((e - 0.82) / 0.18)))
       }
-
-      // Puis la porte se referme, sur les deux tiers restants. Une porte qui se
-      // ferme sur un ballon encore dehors, c'est le genre de détail qui se
-      // remarque sans qu'on sache dire pourquoi l'image est fausse.
-      var ferme = ease(clamp01((arret - 0.42) / 0.5))
-      scn.doors[scn.openIndex].rotation.y = -1.9 * (1 - ferme)
+      // Les portes sont pilotées une par une ci-dessus : chacune se referme sur
+      // son objet, jamais avant. Une porte qui se ferme sur un ballon encore
+      // dehors, c'est le genre de détail qui se remarque sans qu'on sache dire
+      // pourquoi l'image est fausse.
     }
 
     function updateKiosk(scn, q) {
@@ -1918,7 +2033,7 @@
 
       // La porte s'ouvre au tiers de la fenêtre et reste ouverte : la refermer
       // pendant que l'article est dehors serait un contresens sur le produit.
-      var open = clamp01((q - T * 0.32) / Math.max(T * 0.36, 0.0001))
+      var open = clamp01((q - T * 0.20) / Math.max(T * 0.30, 0.0001))
       scn.doors[scn.openIndex].rotation.y = -ease(open) * 1.9
 
       // La gerbe. Elle part aux trois quarts du chemin vers la porte et
@@ -1928,7 +2043,12 @@
       var items = scn.gerbeItems
       for (var gj = 0; gj < items.length; gj++) {
         var it = items[gj]
-        var e = clamp01((q - T * 0.62 - it.retard) / Math.max(T * 0.5, 0.0001))
+        // Ils partent À L'INSTANT OÙ LA PORTE S'OUVRE, pas juste avant qu'on
+        // entre. La borne est alors encore entière dans le cadre, à six ou sept
+        // mètres : douze objets qui jaillissent d'un coup s'y lisent comme une
+        // explosion. Partis plus tard, ils étaient déjà énormes et on n'en
+        // voyait que trois.
+        var e = clamp01((q - T * 0.24 - it.retard) / Math.max(T * 0.70, 0.0001))
         var s5 = e * (2 - e)          // sortie franche, puis elle s'étale
         it.mesh.visible = e > 0.005
         it.mesh.position.set(it.dir[0] * s5, it.dir[1] * s5, it.dir[2] * s5)
@@ -2040,8 +2160,17 @@
        * virole, une tête. Trois cylindres suffisent à ce qu'on le reconnaisse ;
        * au-delà, on dessine un objet là où il ne faut qu'un signe.
        */
+      // Le club vit dans un PIVOT incliné : c'est ce qui fait un vrai plan de
+      // swing. Un club qui tourne dans le plan de l'image décrit un arc de
+      // moulin ; incliné de quarante degrés autour de la verticale, il décrit
+      // le plan d'un golfeur, et l'œil le reconnaît immédiatement.
+      var clubPivot = new THREE.Group()
+      clubPivot.rotation.y = -0.70
+      g.add(clubPivot)
       var club = new THREE.Group()
+      clubPivot.add(club)
       var clubMat = neon(NEON, 0.85)
+      clubMat.transparent = true
       var manche = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 1.5, 10), clubMat)
       manche.position.y = 0.78
       club.add(manche)
@@ -2057,7 +2186,6 @@
       semelle.position.set(0.07, 0.0, 0)
       club.add(semelle)
       club.visible = false
-      g.add(club)
 
       // L'éclair d'impact : une sphère additive qui gonfle et s'éteint en trois
       // images. Elle n'éclaire rien — elle CACHE, le temps que le cochonnet
@@ -2073,7 +2201,10 @@
       flash.visible = false
       g.add(flash)
 
-      return { group: g, balls: balls, jack: jack, ombres: ombres, club: club, flash: flash }
+      return {
+        group: g, balls: balls, jack: jack, ombres: ombres,
+        club: club, clubPivot: clubPivot, clubMat: clubMat, flash: flash,
+      }
     }
 
     // La mène, comme fonction pure de q — au même titre que `balleAt`.
@@ -2139,19 +2270,23 @@
        * plus tard et elle serait partie avant le club.
        */
       var qF = qSortiePlan(scn)
-      var arme = ease(clamp01((q - qF * 0.60) / Math.max(qF * 0.30, 0.0001)))
-      var abat = clamp01((q - qF * 0.90) / Math.max(qF * 0.10, 0.0001))
+      // Il SE DESSINE sur place : le manche pousse depuis le sol et le trait
+      // s'allume, au lieu d'entrer par un bord du cadre. C'est le même geste
+      // que le tracé du court qui s'allume à l'arrivée — un objet du décor qui
+      // apparaît, pas un accessoire qu'on apporte.
+      var trace = ease(clamp01((q - qF * 0.62) / Math.max(qF * 0.16, 0.0001)))
+      var arme = ease(clamp01((q - qF * 0.78) / Math.max(qF * 0.14, 0.0001)))
+      var abat = clamp01((q - qF * 0.92) / Math.max(qF * 0.08, 0.0001))
       var suit = ease(clamp01((q - qF) / 0.14))
-      // Il n'entre dans le champ qu'une fois la mène jouée : un club planté au
-      // milieu du cercle pendant que les boules roulent encore raconte deux
-      // choses à la fois, donc aucune.
-      scn.club.visible = q > qF * 0.74 && q < qF + 0.22
+      scn.club.visible = trace > 0.01 && q < qF + 0.22
       if (scn.club.visible) {
-        scn.club.position.set(PET_JACK[0] + 0.02, 0, PET_JACK[1] + 0.3)
+        scn.clubPivot.position.set(PET_JACK[0] + 0.02, 0, PET_JACK[1] + 0.3)
+        scn.club.scale.set(1, trace, 1)
+        scn.clubMat.opacity = trace
         // Armé en arrière, puis abattu — la descente est en t², donc la tête
         // accélère jusqu'au contact au lieu d'arriver à vitesse constante.
         scn.club.rotation.z = q < qF
-          ? lerp(lerp(0.3, -2.35, arme), 0, abat * abat)
+          ? lerp(lerp(0.1, -2.35, arme), 0, abat * abat)
           : lerp(0, 1.75, suit)
       }
       // Le cochonnet existe jusqu'à la frappe. Après, c'est une balle de golf,
@@ -2971,7 +3106,11 @@
           // ferait pivoter la caméra au moment où elle la dépasse.
           lookY: cy,
           lookAhead: 6,
-          fov: 1.12,
+          // Le champ s'ouvre pendant la gerbe puis se resserre en entrant.
+          // 1,30 × 46° font 60° : la borne n'occupe plus que la moitié de la
+          // hauteur au moment où les douze objets partent, et ils ont la place
+          // de s'étaler dans le vide autour d'elle. Resserré à 1,12, on entre.
+          fov: lerp(1.45, 1.12, smooth(clamp01((q - 0.24) / 0.58))),
           roll: 0,
           thread: true,
         }
@@ -3933,6 +4072,25 @@
         ((P_PREC < COUPE) !== (progress < COUPE))
       P_PREC = progress
 
+      /**
+       * Le garde-fou : au-delà de quatorze unités d'écart, on téléporte.
+       *
+       * La coupe se détecte en comparant deux images consécutives — ce qui
+       * suppose qu'il y ait eu une image précédente au bon endroit. Au
+       * chargement direct à mi-page, après un saut de défilement, après un
+       * redimensionnement qui recalcule les stations, ce franchissement n'a
+       * jamais lieu : la caméra rejoint alors le zénith par un glissement de
+       * quarante images, pendant lesquelles on voit le court en enfilade depuis
+       * la hauteur du casier. C'est exactement le défaut constaté en 2000 px de
+       * large, et il n'a rien à voir avec le format — seulement avec la façon
+       * dont on est arrivé là.
+       *
+       * Une caméra ne parcourt jamais quatorze unités entre deux images dans le
+       * cours normal du vol. Quand ça arrive, c'est qu'il y a eu un saut, et la
+       * seule bonne réponse à un saut est une coupe.
+       */
+      if (Math.abs(targetY - cam.pos.y) + Math.abs(baseZ + pz - cam.pos.z) > 14) saut = true
+
       var k = reduced || saut ? 1 : 0.14
       cam.pos.x += (targetX - cam.pos.x) * k
       cam.pos.y += (targetY - cam.pos.y) * k
@@ -4012,6 +4170,7 @@
       CAM_Y = camera.position.y
       playScenes(progress)
       relayHit = placeRelay(progress)
+      allegeTexte()
       frameCamera(progress, now)
       // Le couloir d'ambiance suit la caméra : il est là pour donner une
       // vitesse, pas pour être un lieu.
@@ -4236,7 +4395,14 @@
        * une fois le raccord fait, elle ne revient pas.
        */
       if (RACCORD_FAIT) { scn.group.visible = false; return }
-      var fondu = clamp01((b - 0.72) / 0.26)
+      // Le fondu se mesure en ÉCRANS, pas en fraction de `b`.
+      //
+      // `b` est une courbe de proximité déjà lissée : y découper une tranche
+      // donnait un fondu de quelques centièmes de page, assez court pour qu'on
+      // voie la borne s'éteindre. Ici il court sur la dernière hauteur d'écran
+      // avant la superposition et s'achève exactement dessus — un smoothstep
+      // aux deux bouts, donc ni départ ni arrivée perceptibles.
+      var fondu = smooth(clamp01(1 - ecart / (window.innerHeight * 0.95)))
       if (fondu >= 0.999) {
         RACCORD_FAIT = true
         scn.group.visible = false
@@ -4261,6 +4427,42 @@
       scn.group.scale.setScalar(lerp(scn.group.scale.x, sc, b))
       scn.group.rotation.y = lerp(scn.group.rotation.y, -0.34, b)
       scn.group.visible = true
+    }
+
+    /**
+     * Le bloc de texte s'efface au passage de la balle.
+     *
+     * La balle de golf traverse soixante mètres derrière le contenu de la page,
+     * et sur ces soixante mètres elle passe forcément derrière un pavé de texte
+     * ou deux. On la perdait de vue au milieu de son vol — le seul moment où
+     * elle est le sujet.
+     *
+     * On projette sa position à l'écran, on demande au navigateur quel élément
+     * se trouve sous ce point, et on allège CE bloc-là, le temps du passage.
+     * Pas la section entière : le texte doit rester lisible, c'est une page de
+     * vente avant d'être un décor.
+     */
+    function allegeTexte() {
+      function restaure() {
+        if (BLOC_ALLEGE) {
+          BLOC_ALLEGE.style.opacity = ''
+          BLOC_ALLEGE = null
+        }
+      }
+      if (!relayHit || !relay || !relay.visible || relayHit.w < 0.15) return restaure()
+      if (!TMP5) TMP5 = new THREE.Vector3()
+      camera.updateMatrixWorld()
+      TMP5.copy(relay.position).project(camera)
+      if (TMP5.z > 1) return restaure()
+      var sx = (TMP5.x * 0.5 + 0.5) * window.innerWidth
+      var sy = (-TMP5.y * 0.5 + 0.5) * window.innerHeight
+      if (sx < 0 || sy < 0 || sx > window.innerWidth || sy > window.innerHeight) return restaure()
+      var el = document.elementFromPoint(sx, sy)
+      var bloc = el && el.closest ? el.closest('[data-reveal]') : null
+      if (bloc !== BLOC_ALLEGE) restaure()
+      if (!bloc) return
+      BLOC_ALLEGE = bloc
+      bloc.style.opacity = String(1 - 0.62 * relayHit.w)
     }
 
     function placeFinal(progress) {
