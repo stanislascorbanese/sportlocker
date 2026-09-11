@@ -26,7 +26,89 @@
 
 <div id="sl-cascade" aria-hidden="true"></div>
 
+<!--
+  Le panneau de fin. Il n'apparaît qu'au dernier plan, accroché à la borne qui
+  s'éloigne : les explications du fonctionnement arrivent au moment où l'on
+  vient de voir le geste en entier, pas avant. Il est dans le flux du document
+  (donc lisible par un lecteur d'écran et indexable) mais retiré de la mise en
+  page tant qu'il est masqué.
+-->
+<aside id="sl-final" hidden>
+  <p class="sl-final-titre">La borne, en cinq gestes</p>
+  <ol class="sl-final-liste">
+    <li><button type="button"><span>01</span> Il scanne le QR code</button>
+      <p>Une page s'ouvre dans son navigateur. Rien à télécharger, aucun compte, aucune carte bancaire.</p></li>
+    <li><button type="button"><span>02</span> Il saisit son numéro de séjour</button>
+      <p>Vous avez déjà son identité et sa caution depuis le check-in : on s'appuie dessus au lieu de les redemander.</p></li>
+    <li><button type="button"><span>03</span> Il choisit un article disponible</button>
+      <p>La page affiche ce qu'il reste dans la borne en temps réel. Un casier, un article.</p></li>
+    <li><button type="button"><span>04</span> Le casier s'ouvre</button>
+      <p>Moins d'une seconde. Le code est vérifié par la borne elle-même : ça marche même si la 4G est tombée.</p></li>
+    <li><button type="button"><span>05</span> Il joue, puis il rend</button>
+      <p>Il repose l'article et referme la porte. Un capteur enregistre le retour, sans personne.</p></li>
+  </ol>
+</aside>
+
 <style>
+  /* ─── Le panneau de fin ───────────────────────────────────────────────────
+     Posé en `fixed` et positionné par la cascade sur la projection de la borne.
+     Il n'est ni dans le hero ni dans une section : il appartient au dernier
+     plan, et il disparaît avec lui. */
+  #sl-final {
+    position: fixed;
+    z-index: 2;
+    width: min(21rem, 82vw);
+    padding: 1.1rem 1.25rem;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--bg-0) 88%, transparent);
+    border: 1px solid rgba(45, 194, 149, 0.28);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  #sl-final.is-on { pointer-events: auto; }
+  .sl-final-titre {
+    margin: 0 0 0.7rem;
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #2bc295;
+  }
+  .sl-final-liste { margin: 0; padding: 0; list-style: none; }
+  .sl-final-liste li + li { margin-top: 0.15rem; }
+  .sl-final-liste button {
+    display: flex;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.42rem 0.2rem;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    color: var(--text-0);
+    font: inherit;
+    font-size: 0.9rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .sl-final-liste button span { color: #2bc295; font-variant-numeric: tabular-nums; }
+  .sl-final-liste button:hover,
+  .sl-final-liste button:focus-visible { background: rgba(45, 194, 149, 0.1); }
+  .sl-final-liste p {
+    margin: 0 0 0.35rem 2rem;
+    max-height: 0;
+    overflow: hidden;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-1);
+    transition: max-height 0.3s ease, margin 0.3s ease;
+  }
+  .sl-final-liste li.is-open p { max-height: 7rem; margin-bottom: 0.55rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #sl-final, .sl-final-liste p { transition: none; }
+  }
+
   #sl-cascade {
     position: fixed;
     inset: 0;
@@ -91,7 +173,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · néon'
+    var CASCADE_BUILD = '2026-09-11 · traînes'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -149,6 +231,8 @@
     var INTRO_V = null
     var INTRO_V2 = null
     var badges = []
+    var finalEl = null
+    var finalOn = false
     var scenes = []
     var lastDocHeight = 0
     var running = false
@@ -706,6 +790,48 @@
       return m
     }
 
+    /**
+     * La traîne d'un objet en vol.
+     *
+     * Elle n'est pas construite à partir des images passées mais ÉCHANTILLONNÉE
+     * sur la trajectoire elle-même : on redemande la position à q, q-dq,
+     * q-2dq… C'est la seule méthode qui tienne quand l'animation est pilotée
+     * par le défilement — un historique d'images se déchire dès que le
+     * visiteur saute d'un coup de molette, et se vide complètement à l'arrêt.
+     *
+     * Mélange additif : deux boules de traîne qui se recouvrent s'additionnent
+     * au lieu de se masquer, ce qui donne le noyau brillant du moodboard.
+     */
+    function makeTrail(couleur, n, taille) {
+      var g = new THREE.Group()
+      var pts = []
+      for (var i = 0; i < n; i++) {
+        var f = i / n
+        var m = new THREE.Mesh(
+          new THREE.SphereGeometry(taille * (1 - f * 0.72), 10, 8),
+          new THREE.MeshBasicMaterial({
+            color: couleur, transparent: true, opacity: 0.42 * (1 - f),
+            depthWrite: false, blending: THREE.AdditiveBlending,
+          }),
+        )
+        m.visible = false
+        g.add(m)
+        pts.push(m)
+      }
+      return { group: g, pts: pts }
+    }
+
+    /** Place une traîne le long d'une trajectoire donnée comme fonction de q. */
+    function drawTrail(tr, q, dq, fn, tmp) {
+      for (var i = 0; i < tr.pts.length; i++) {
+        var qq = q - (i + 1) * dq
+        if (qq <= 0) { tr.pts[i].visible = false; continue }
+        fn(qq, tmp)
+        tr.pts[i].visible = true
+        tr.pts[i].position.copy(tmp)
+      }
+    }
+
     /** Le tapis sombre et granuleux sous un tracé. */
     var GRAIN = null
     function grainTexture() {
@@ -814,6 +940,10 @@
       )
       g.add(ball)
 
+      // La traîne de la balle : jaune, dix boules, mélange additif.
+      var trail = makeTrail(0xe8f26a, 10, 0.3)
+      g.add(trail.group)
+
       var impact = new THREE.Mesh(
         new THREE.RingGeometry(0.5, 0.62, 44),
         new THREE.MeshBasicMaterial({
@@ -912,37 +1042,66 @@
 
       // Les ballons de basket. Trois tirs, dont un qui rentre.
       var balls = []
+      var trails = []
       for (var i2 = 0; i2 < 3; i2++) {
         var bb = ballBasket(p)
-        bb.scale.setScalar(0.38)
+        // `ballBasket` a un rayon de 1 : à 0,38 le ballon faisait 76 cm de
+        // diamètre et ne serait jamais passé dans un arceau de 45. 0,13 le
+        // ramène à 26 cm — un ballon de taille 7 fait 24.
+        bb.scale.setScalar(0.13)
         bb.visible = false
         g.add(bb)
         balls.push(bb)
+        var tb = makeTrail(0xf08040, 9, 0.12)
+        tb.group.visible = false
+        g.add(tb.group)
+        trails.push(tb)
       }
 
-      return { group: g, ball: ball, impact: impact, hoop: hoop, balls: balls, rim: ring }
+      return {
+        group: g, ball: ball, impact: impact, hoop: hoop,
+        balls: balls, rim: ring, trail: trail, trails: trails,
+      }
     }
 
-    function updateTerrain(scn, q) {
+    /**
+     * La trajectoire de la balle, comme fonction pure de q.
+     *
+     * Extraite de l'animation pour que la traîne puisse l'échantillonner en
+     * arrière. Tant qu'elle vivait à l'intérieur de `updateTerrain`, la seule
+     * façon de dessiner une traîne aurait été de mémoriser les images passées,
+     * avec les déchirures que ça implique quand on saute au défilement.
+     */
+    function balleAt(q, out) {
       if (q < TERRAIN_BOUNCE) {
-        // La balle part devant nous vers le fond, déjà frappée, et descend en
-        // accélérant : un smash n'a pas de temps mort, il ne fait que tomber
-        // plus vite.
         var t = q / TERRAIN_BOUNCE
         var f = t * t * 0.34 + t * 0.66
-        scn.ball.position.set(lerp(-1.6, BOUNCE_X, f), lerp(5.6, 0.38, f * f), lerp(9.5, BOUNCE_Z, f))
-        scn.ball.visible = true
-        scn.impact.visible = false
-      } else {
-        var u = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
-        var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.6, 1))) * (1 - u) * 2.4
-        scn.ball.position.set(BOUNCE_X, 0.38 + reb, lerp(BOUNCE_Z, -COURT_L - 1, u))
-        scn.ball.visible = u < 0.5
+        return out.set(lerp(-1.6, BOUNCE_X, f), lerp(5.6, 0.38, f * f), lerp(9.5, BOUNCE_Z, f))
+      }
+      var u = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
+      var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.6, 1))) * (1 - u) * 2.4
+      return out.set(BOUNCE_X, 0.38 + reb, lerp(BOUNCE_Z, -COURT_L - 1, u))
+    }
 
-        var iw = clamp01(u / 0.14)
+    var TMP3 = null
+
+    function updateTerrain(scn, q) {
+      if (!TMP3) TMP3 = new THREE.Vector3()
+      balleAt(q, TMP3)
+      scn.ball.position.copy(TMP3)
+      scn.ball.visible = q < TERRAIN_BOUNCE ||
+        (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE) < 0.5
+      scn.trail.group.visible = scn.ball.visible
+      if (scn.ball.visible) drawTrail(scn.trail, q, 0.006, balleAt, TMP3)
+
+      if (q >= TERRAIN_BOUNCE) {
+        var u2 = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
+        var iw = clamp01(u2 / 0.14)
         scn.impact.visible = iw > 0.001 && iw < 1
         scn.impact.scale.setScalar(0.4 + iw * 4.4)
         scn.impact.material.opacity = 0.75 * (1 - iw)
+      } else {
+        scn.impact.visible = false
       }
       scn.ball.rotation.x += 0.35
 
@@ -959,33 +1118,41 @@
         [2.3, 1.2, HOOP_Z + 6.6],
         [-0.5, 1.5, HOOP_Z + 8.2],
       ]
-      for (var i = 0; i < scn.balls.length; i++) {
-        var ball = scn.balls[i]
-        var qi = clamp01((qb - i * 0.2) / 0.6)
-        ball.visible = qi > 0 && qi < 1
-        if (!ball.visible) continue
+      // La trajectoire d'un tir, elle aussi comme fonction pure : la traîne
+      // orange du moodboard s'échantillonne dessus.
+      function tirAt(i, qi, out) {
         var d = DEPARTS[i]
         if (qi < 0.72) {
-          // Montée. La hauteur est étirée près du sommet : c'est la suspension,
-          // le temps que le regard prend pour anticiper le panier.
           var tt = qi / 0.72
+          // La hauteur est étirée près du sommet : c'est la suspension, le
+          // temps que le regard prend pour anticiper le panier.
           var lent = 1 - Math.pow(1 - tt, 2.2)
           var arc = Math.sin(Math.PI * Math.pow(tt, 0.82))
-          ball.position.set(
+          return out.set(
             lerp(d[0], cible.x, lent),
             lerp(d[1], cible.y, lent) + arc * 2.6,
             lerp(d[2], cible.z, lent),
           )
-        } else {
-          // Le deuxième tir rentre ; les deux autres passent à côté.
-          var t3 = (qi - 0.72) / 0.28
-          var dedans = i === 1
-          ball.position.set(
-            cible.x + (dedans ? 0 : (i === 0 ? -0.55 : 0.6)) * t3,
-            cible.y - t3 * t3 * 3.2,
-            cible.z + (dedans ? 0.1 : 0.5) * t3,
-          )
         }
+        // Le deuxième tir rentre ; les deux autres passent à côté.
+        var t3 = (qi - 0.72) / 0.28
+        var dedans = i === 1
+        return out.set(
+          cible.x + (dedans ? 0 : (i === 0 ? -0.55 : 0.6)) * t3,
+          cible.y - t3 * t3 * 3.2,
+          cible.z + (dedans ? 0.1 : 0.5) * t3,
+        )
+      }
+      for (var i = 0; i < scn.balls.length; i++) {
+        var ball = scn.balls[i]
+        var qi = clamp01((qb - i * 0.2) / 0.6)
+        var vu = qi > 0 && qi < 1
+        ball.visible = vu
+        scn.trails[i].group.visible = vu
+        if (!vu) continue
+        tirAt(i, qi, TMP3)
+        ball.position.copy(TMP3)
+        drawTrail(scn.trails[i], qi, 0.02, function (qq, o) { return tirAt(i, qq, o) }, TMP3)
         ball.rotation.z += 0.12
       }
     }
@@ -1176,12 +1343,21 @@
      * l'appareil, qui recule.
      */
     function updateSortie(scn, q) {
-      scn.group.rotation.y = lerp(0, -0.42, ease(q))
-      scn.doors[scn.openIndex].rotation.y = -1.9
-      scn.out.visible = true
-      var e = ease(clamp01((q - 0.1) / 0.5))
-      scn.out.position.set(lerp(1.3, 2.4, e), 0.18 - 0.5 - e * 1.6, lerp(1.5, 2.2, e))
-      scn.out.rotation.y += 0.01
+      scn.group.rotation.y = lerp(-0.28, -0.06, ease(clamp01(q / 0.55)))
+
+      // On repose l'article dans le casier, puis la porte se referme. C'est
+      // l'inverse exact de l'ouverture du début — et c'est ce qui fait boucle :
+      // la page se termine par le geste qui manquait au premier plan.
+      var rentre = ease(clamp01(q / 0.34))
+      scn.out.visible = rentre < 0.99
+      scn.out.position.set(lerp(1.5, 0, rentre), lerp(-0.38, 0.18, rentre), lerp(1.7, 0.24, rentre))
+      scn.out.rotation.y += 0.02
+
+      // La porte attend que l'article soit rentré. Une porte qui se ferme sur
+      // un ballon encore dehors, c'est le genre de détail qui se remarque sans
+      // qu'on sache dire pourquoi l'image est fausse.
+      var ferme = ease(clamp01((q - 0.36) / 0.24))
+      scn.doors[scn.openIndex].rotation.y = -1.9 * (1 - ferme)
     }
 
     function updateKiosk(scn, q) {
@@ -1357,6 +1533,9 @@
       // arrive avant qu'on ait lu la balle.
       { key: 'terrain', ox: 0, oy: -3.0, make: makeTerrain, update: updateTerrain,
         holdBefore: 0.20, holdAfter: 0.06,
+        // Rendu dès le tout début de la page : le court doit s'apercevoir au
+        // loin pendant qu'on regarde encore la borne.
+        winBefore: 0.40,
         // Entrée : le point de départ de la balle smashée. Sortie : le ballon
         // qui retombe sous l'arceau, dans le repère du panier décalé.
         // Entrée : le départ de la balle smashée. Sortie : le ballon qui
@@ -1637,7 +1816,10 @@
       // À deux plans (téléphone), un espacement de 0,34 laisserait la moitié
       // basse de la page vide ; on étire à 0,55. Le premier plan, lui, est
       // calé haut dans tous les cas.
-      var span = n > 2 ? Math.min(0.84, (n - 1) * 0.34) : n > 1 ? 0.55 : 0
+      // L'amplitude s'arrête à 0,82 : le dernier plan est celui qui porte le
+      // panneau explicatif, et il ne doit pas tomber sur l'appel à l'action ni
+      // sur le pied de page. Au-delà, le panneau recouvrait le bouton de devis.
+      var span = n > 2 ? Math.min(0.75, (n - 1) * 0.30) : n > 1 ? 0.55 : 0
       var start = 0.07
       var prev = -1
       for (var k = 0; k < n; k++) {
@@ -1654,11 +1836,15 @@
         // plus de place devant lui, sinon il mord sur le précédent.
         var besoin = Math.max(MIN_GAP, (scenes[k].def.holdBefore || HOLD_BEFORE) + HOLD_AFTER + 0.05)
         if (prev >= 0 && at - prev < besoin) at = prev + besoin
+        // Plafond à 0,74 : au-delà, le dernier plan tombe sur le formulaire de
+        // contact, et le panneau explicatif se posait par-dessus les champs.
+        // Un décor qui gêne la saisie d'un devis n'est plus un décor.
+        at = Math.min(at, 0.74)
         prev = at
 
         var scn = scenes[k]
         scn.at = at
-        scn.from = at - Math.max(WIN_BEFORE, (scn.def.holdBefore || HOLD_BEFORE) + 0.06)
+        scn.from = at - Math.max(scn.def.winBefore || WIN_BEFORE, (scn.def.holdBefore || HOLD_BEFORE) + 0.06)
         scn.to = at + Math.max(WIN_AFTER, (scn.def.holdAfter || HOLD_AFTER) + 0.04)
         scn.holdFrom = at - (scn.def.holdBefore || HOLD_BEFORE)
         scn.holdTo = at + (scn.def.holdAfter || HOLD_AFTER)
@@ -1719,6 +1905,8 @@
       */
       terrain: function (q) {
         var tilt = smooth(clamp01((q - TERRAIN_BOUNCE) / TERRAIN_TILT))
+        if (!TMP3) TMP3 = new THREE.Vector3()
+        var bz = balleAt(q, TMP3).z
         // On suit la balle sur l'axe du court, mais à moitié : suivre au pixel
         // donne une image morte où la balle ne bouge jamais dans le cadre.
         var bx = lerp(-1.6, BOUNCE_X, clamp01(q / TERRAIN_BOUNCE))
@@ -1728,6 +1916,9 @@
           // vers l'arceau, qui est dans le même axe — on ne tourne jamais la
           // tête, on suit une seule ligne du début à la fin.
           x: lerp(bx * 0.45, 0, tilt),
+          // La caméra reste sept mètres derrière la balle pendant la descente,
+          // puis se cale devant le panier.
+          zStation: lerp(bz + 7, HOOP_Z + 9.5, tilt),
           // Vingt-quatre mètres, pas onze : à onze on ne voit qu'un quart de
           // court, et un quart de court ne se lit pas comme un court. À
           // vingt-quatre, le tracé entre en entier dans le cadre.
@@ -1735,7 +1926,10 @@
           z: 0,
           lookX: lerp(bx, 0, tilt),
           lookY: lerp(0.3, HOOP_Y + 0.2, tilt),
-          lookAhead: lerp(3.5, 12, tilt),
+          // 1,5 unité pendant la vue du dessus : le regard tombe presque à la
+          // verticale, le court est à plat face à nous. C'est la vue du
+          // moodboard, et c'est aussi la seule où on lit le tracé entier.
+          lookAhead: lerp(1.5, 12, tilt),
           fov: lerp(1.06, 0.9, tilt),
           roll: lerp(0.004, -0.012, tilt),
         }
@@ -1772,10 +1966,11 @@
         var appro = smooth(clamp01(q / 0.75))
         return {
           x: lerp(0.4, PET_JACK[0], appro),
-          // Quarante centimètres au-dessus du gravier, et on y reste : c'est le
-          // seul plan du site pris à hauteur d'objet plutôt qu'à hauteur
-          // d'homme, et c'est ce qui rend une boule impressionnante.
-          y: 0.4,
+          // On entre à dix-huit centimètres du sol, c'est-à-dire DANS le rondin
+          // du bout : on le traverse. Puis on remonte à quarante centimètres.
+          // C'est le seul plan du site pris à hauteur d'objet plutôt qu'à
+          // hauteur d'homme, et c'est ce qui rend une boule impressionnante.
+          y: lerp(0.18, 0.4, smooth(clamp01((q - 0.12) / 0.3))),
           z: 0,
           lookX: lerp(0.2, PET_JACK[0], appro),
           lookY: lerp(0.35, 0.12, appro),
@@ -2070,6 +2265,23 @@
         heroEl = document.querySelector('.hero-distributor')
         heroFrame = document.querySelector('.hero-product-frame')
         badges = Array.prototype.slice.call(document.querySelectorAll('.hero-badge'))
+        finalEl = document.getElementById('sl-final')
+        if (finalEl) {
+          // Chaque geste s'ouvre au clic. Un panneau qui ne fait que s'afficher
+          // est une image ; un panneau qu'on peut ouvrir est un endroit où l'on
+          // reste, et c'est la dernière chose que voit le visiteur avant le
+          // formulaire.
+          var items = finalEl.querySelectorAll('.sl-final-liste li')
+          for (var fi = 0; fi < items.length; fi++) {
+            (function (li) {
+              li.querySelector('button').addEventListener('click', function () {
+                var ouvert = li.classList.contains('is-open')
+                for (var k = 0; k < items.length; k++) items[k].classList.remove('is-open')
+                if (!ouvert) li.classList.add('is-open')
+              })
+            })(items[fi])
+          }
+        }
         // Les badges sont déplacés à la racine du document.
         //
         // `position: fixed` se cale sur la fenêtre — sauf si un ancêtre porte
@@ -2091,7 +2303,12 @@
       // 48 unités et se dégage à 12 — soit exactement la fenêtre pendant
       // laquelle la caméra l'approche. On ne voit jamais un objet apparaître,
       // on le voit émerger.
-      scene.fog = new THREE.Fog(p.fog, 14, 62)
+      // Le brouillard s'ouvre à 95 unités, soit une station et demie. Depuis
+      // qu'il n'y a plus d'objets d'ambiance, rien ne vient encombrer ce
+      // champ — et on aperçoit le terrain de tennis, à plat et minuscule, dès
+      // le premier écran vide. C'est ce qui donne envie de continuer à
+      // descendre : on voit où on va.
+      scene.fog = new THREE.Fog(p.fog, 14, 95)
 
       camera = new THREE.PerspectiveCamera(
         narrow ? 58 : 46,
@@ -2325,7 +2542,7 @@
       // Pendant la liaison les deux plans se croisent et tout s'interpole —
       // position, cible, roulis, focale — d'un sujet à l'autre.
       var px = 0, py = 0, pz = 0, lx = 0, ly = 0, lz = 0
-      var roll = 0, fovMul = 1, total = 0, thread = 0, ahead = 0
+      var roll = 0, fovMul = 1, total = 0, thread = 0, ahead = 0, absZ = 0, absW = 0
 
       for (var i = 0; i < scenes.length; i++) {
         var scn = scenes[i]
@@ -2358,10 +2575,20 @@
         roll += beat.roll * w
         fovMul += (beat.fov - 1) * w
         ahead += (beat.lookAhead === undefined ? 12 : beat.lookAhead) * w
+        // `zStation` : une profondeur ABSOLUE par rapport à la station, qui
+        // court-circuite le vol. C'est ce qu'il faut pour suivre un objet qui
+        // file : la balle traverse le court en une fraction du plan, bien plus
+        // vite que la caméra ne descend. Sans ça, elle sortait du cadre par le
+        // haut au bout de trois images et on regardait le gravier.
+        if (beat.zStation !== undefined) {
+          absZ += (scn.stationZ + beat.zStation) * w
+          absW += w
+        }
         total += w
       }
 
       var baseZ = flightZ(progress)
+      if (absW > 0.0001) baseZ = lerp(baseZ, absZ / absW, clamp01(absW))
 
       if (total > 0.0001) {
         px /= total; py /= total; pz /= total; lx /= total; ly /= total; lz /= total; ahead /= total
@@ -2464,6 +2691,7 @@
       // vitesse, pas pour être un lieu.
       if (ambient) ambient.position.z = camera.position.z - 11
       placeIntro()
+      placeFinal(progress)
     }
 
     /**
@@ -2589,6 +2817,63 @@
         st.opacity = String(vis)
         st.zIndex = '1'
       }
+    }
+
+    /**
+     * Le panneau de fin, accroché à la borne du dernier plan.
+     *
+     * Il apparaît à mi-parcours du plan, quand la porte vient de se refermer et
+     * que le meuble commence à s'éloigner : à ce moment-là il reste de la place
+     * à côté de lui, et le visiteur vient de voir le geste complet. Posé plus
+     * tôt, il recouvrirait la borne ; posé plus tard, il arriverait après le
+     * pied de page.
+     */
+    function placeFinal(progress) {
+      if (!finalEl) return
+      var scn = null
+      for (var i = 0; i < scenes.length; i++) {
+        if (scenes[i].def.key === 'sortie') scn = scenes[i]
+      }
+      if (!scn || scn.holdFrom === undefined) return
+
+      var q = actionQ(clamp01((progress - scn.from) / (scn.to - scn.from)))
+      var vis = clamp01((q - 0.52) / 0.18) * (1 - clamp01((q - 0.97) / 0.03))
+      if (vis <= 0.01) {
+        if (finalOn) {
+          finalEl.hidden = true
+          finalEl.style.opacity = '0'
+          finalEl.classList.remove('is-on')
+          finalOn = false
+        }
+        return
+      }
+
+      if (!finalOn) { finalEl.hidden = false; finalOn = true }
+      finalEl.classList.add('is-on')
+      finalEl.style.opacity = String(vis)
+
+      scn.group.updateMatrixWorld()
+      var centre = INTRO_V2.set(0, 0, 0).applyMatrix4(scn.group.matrixWorld)
+      var d = camera.position.distanceTo(centre)
+      var vh = 2 * d * Math.tan((camera.fov * Math.PI) / 360)
+      var demiLargeur = ((0.9 * scn.group.scale.x) / vh) * window.innerHeight
+      var ndc = centre.project(camera)
+      var cx = ((ndc.x + 1) / 2) * window.innerWidth
+      var cy = ((1 - ndc.y) / 2) * window.innerHeight
+
+      var r = finalEl.getBoundingClientRect()
+      // À droite de la borne si la place existe, à gauche sinon. En dessous
+      // d'une certaine largeur il n'y a de place nulle part : le panneau se
+      // centre alors sous le meuble.
+      var x = cx + demiLargeur + 28
+      if (x + r.width > window.innerWidth - 16) x = cx - demiLargeur - 28 - r.width
+      if (x < 16) {
+        x = Math.max(16, Math.min(cx - r.width / 2, window.innerWidth - r.width - 16))
+        finalEl.style.top = Math.round(Math.min(cy + demiLargeur * 2.2, window.innerHeight - r.height - 16)) + 'px'
+      } else {
+        finalEl.style.top = Math.round(Math.max(16, Math.min(cy - r.height / 2, window.innerHeight - r.height - 16))) + 'px'
+      }
+      finalEl.style.left = Math.round(x) + 'px'
     }
 
     function hideBadges() {
