@@ -1756,7 +1756,13 @@
         // Un plan long, et surtout une queue longue : après les tirs, la
         // caméra continue d'avancer sur l'arceau au lieu de repartir. Le
         // mouvement ne doit jamais s'arrêter avant la coupe.
-        holdBefore: 0.19, holdAfter: 0.17, edgeIn: 0.13,
+        // Le flanc d'entrée ne doit JAMAIS commencer avant la fin du plan
+        // précédent. À 0,13 il démarrait à 0,00 — c'est-à-dire dès le haut de
+        // la page — et la profondeur absolue du court tirait la caméra vers
+        // l'avant pendant toute l'approche de la borne : elle était déjà
+        // vingt-cinq unités au-delà du casier au moment où celui-ci se posait
+        // sur sa station. On ne traversait pas la borne, on l'avait doublée.
+        holdBefore: 0.19, holdAfter: 0.17, edgeIn: 0.03,
         // Le court n'apparaît qu'APRÈS l'ouverture de la porte. Le voir avant,
         // même minuscule et noyé de brouillard, vend la mèche : la découverte
         // doit être la récompense de l'ouverture.

@@ -900,12 +900,13 @@ html {
   /* Un voile, pas un aplat. À 0,88 le vert restait un mur : la borne qui se
      referme juste au-dessus disparaissait derrière lui, et la fin de
      l'animation tombait dans le vide. À 0,42 on voit le décor à travers, et le
-     vert reste franc parce qu'il est posé sur un fond déjà sombre. */
+     vert reste franc parce qu'il est posé sur un fond déjà sombre. À 0,22 il
+     ne teinte plus que l'air : la borne passe franchement au travers. */
   background-image: linear-gradient(
     135deg,
-    rgba(15, 110, 86, 0.42) 0%,
-    rgba(21, 120, 90, 0.34) 50%,
-    rgba(29, 158, 117, 0.26) 100%
+    rgba(15, 110, 86, 0.22) 0%,
+    rgba(21, 120, 90, 0.16) 50%,
+    rgba(29, 158, 117, 0.11) 100%
   ) !important;
   /* Le flou d'arrière-plan garde le titre lisible sans réopacifier le vert :
      le décor reste visible, mais adouci derrière le texte. Ignoré par les
