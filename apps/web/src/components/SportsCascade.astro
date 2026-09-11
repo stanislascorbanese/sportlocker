@@ -197,7 +197,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · le décor s’éteint à la borne'
+    var CASCADE_BUILD = '2026-09-11 · zénith au sortir de la porte'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -270,6 +270,9 @@
     // la section qui porte la borne interactive.
     var FONDU = null
     var dernierFondu = -1
+    // La hauteur de la caméra, en monde, relevée à chaque image. Le court s'en
+    // sert pour ne se montrer qu'une fois qu'on est au-dessus de lui.
+    var CAM_Y = 0
     var scenes = []
     var lastDocHeight = 0
     var running = false
@@ -919,7 +922,13 @@
     var COURT_W = 5.485    // demi-largeur, le long de X
     var COURT_S = 4.115    // demi-largeur, simple
     var COURT_SERVICE = 6.40
-    var HOOP_Z = -(COURT_L + 3.4)   // derrière la ligne de fond
+    // Sept mètres et demi derrière la ligne de fond, et non trois quatre : le
+    // panier s'éloigne. Entre le court et lui il y a maintenant un vrai
+    // intervalle — c'est ce vide, traversé par la caméra qui descend, qui donne
+    // la profondeur. Une raquette posée au sol à mi-chemin en donne l'échelle :
+    // sans objet familier entre deux grandes formes, l'œil n'a rien pour juger
+    // la distance.
+    var HOOP_Z = -(COURT_L + 7.5)   // derrière la ligne de fond
     // Le panier est DÉCALÉ de trois mètres six sur le côté.
     //
     // À x = 0 il était pile sur l'axe du vol : la caméra, qui continue
@@ -949,6 +958,49 @@
     var TERRAIN_BOUNCE = 0.52
     var TERRAIN_TILT = 0.18
 
+    /**
+     * Une raquette posée à plat sur le sol.
+     *
+     * Elle ne joue rien : elle est là pour l'échelle. Entre la ligne de fond et
+     * le panneau il y a maintenant onze mètres de dalle vide, et une étendue
+     * vide n'a pas de profondeur — c'est un aplat. Un objet dont tout le monde
+     * connaît la taille, posé au milieu, suffit à la lui rendre. C'est aussi
+     * celle qu'on vient de prendre dans le casier : elle raconte, au passage,
+     * que quelqu'un est passé par là.
+     */
+    function raquetteAuSol(x, z, ry) {
+      var r = new THREE.Group()
+      var cadre = neon(NEON, 0.55)
+      // Un peu plus grande que nature (facteur 1,4) : à quinze mètres, une vraie
+      // raquette fait douze pixels et ne dit plus rien de l'échelle.
+      var R = 0.46
+      var tete = new THREE.Mesh(new THREE.TorusGeometry(R, 0.03, 8, 44), cadre)
+      tete.rotation.x = -Math.PI / 2
+      tete.position.y = 0.03
+      r.add(tete)
+      var manche = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.045, 0.86, 8), cadre)
+      manche.rotation.x = Math.PI / 2
+      manche.position.set(0, 0.03, R + 0.4)
+      r.add(manche)
+      var poignee = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.3, 8), neon(NEON_SOURD, 0.4))
+      poignee.rotation.x = Math.PI / 2
+      poignee.position.set(0, 0.03, R + 0.72)
+      r.add(poignee)
+      // Le cordage, tendu dans le disque : chaque brin est coupé à la corde du
+      // cercle, sinon la grille déborde du cadre et ça se voit tout de suite.
+      var brins = []
+      for (var i = -3; i <= 3; i++) {
+        var o = i * (R / 3.6)
+        var demi = Math.sqrt(Math.max(R * R - o * o, 0)) * 0.94
+        brins.push(o, 0.03, -demi, o, 0.03, demi)
+        brins.push(-demi, 0.03, o, demi, 0.03, o)
+      }
+      r.add(segments(brins, neon(NEON_SOURD, 0.3)))
+      r.position.set(x, 0, z)
+      r.rotation.y = ry
+      return r
+    }
+
     function makeTerrain(p) {
       var g = new THREE.Group()
       // Les deux matériaux du tracé sont gardés en main : leur intensité monte
@@ -959,7 +1011,15 @@
       var traitSourd = neon(NEON_SOURD, 0.5)
       var tracés = [trait, traitSourd]
 
-      g.add(tapis(COURT_W * 2 + 5, COURT_L * 2 + 6, 4, 9))
+      // La dalle déborde jusque derrière le panier : sans elle, le panneau
+      // flottait au-dessus du vide dès qu'on l'a éloigné.
+      var dalle = tapis(COURT_W * 2 + 7, COURT_L * 2 + 14, 4, 11)
+      dalle.position.z = -4
+      g.add(dalle)
+
+      // Posée entre la ligne de fond et le panier, légèrement de côté et de
+      // travers — personne ne repose une raquette dans l'axe.
+      g.add(raquetteAuSol(-1.9, -(COURT_L + 3.2), 0.7))
 
       // Le tracé, entièrement en baguettes lumineuses.
       barre(g, trait, -COURT_W, -COURT_L, COURT_W, -COURT_L)
@@ -1155,7 +1215,7 @@
       return {
         group: g, ball: ball, impact: impact, hoop: hoop, panier: panier,
         balls: balls, rim: ring, trail: trail, trails: trails,
-        tracés: tracés, dalle: null,
+        tracés: tracés, dalle: dalle,
       }
     }
 
@@ -1243,7 +1303,7 @@
       // centimètres devant le premier rondin du terrain de pétanque. Il
       // s'arrête là et il y reste — voir `vu` plus bas, et la fenêtre de rendu
       // allongée du court, qui le garde à l'image pendant qu'on avance dessus.
-      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 11, t4 * (2 - t4))
+      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 6.9, t4 * (2 - t4))
       // Le sol remonte de la dalle du court au gravier — et s'arrête à la
       // hauteur d'un ballon POSÉ dessus, pas à celle de son centre enfoncé
       // dedans. Le court est à −3, le gravier à −1,6 : 1,4 dans ce repère,
@@ -1280,9 +1340,29 @@
       // L'allumage du tracé. Il se joue sur le premier huitième du plan, celui
       // qui tombe dans l'écran noir : on voit le court arriver ET s'allumer,
       // au lieu de le voir seulement sortir de la brume.
-      var allume = clamp01(q / 0.12)
+      /**
+       * Le court ne se montre pas avant qu'on soit au-dessus de lui.
+       *
+       * C'était le dernier « angle inférieur » de la page : on sortait de la
+       * porte du casier à hauteur d'homme et la caméra mettait trois centièmes
+       * de page à monter au zénith — trois centièmes pendant lesquels le court
+       * était là, vu en enfilade, ligne de fond écrasée. La première image du
+       * court doit être la vue du dessus, pas la montée vers elle.
+       *
+       * Le seuil est une HAUTEUR, pas un instant : quinze mètres au-dessus de
+       * la dalle pour commencer à exister, vingt-deux pour être pleinement
+       * allumé. Passé le premier quart du plan, la caméra redescend vers le
+       * panier et le verrou se relâche — sans quoi le court s'éteindrait dans
+       * la descente.
+       */
+      var haut = q > 0.22 ? 1 : clamp01(((CAM_Y - scn.def.oy) - 15) / 7)
+      var allume = Math.min(clamp01(q / 0.10), haut)
       scn.tracés[0].emissiveIntensity = 0.12 + 0.68 * allume
       scn.tracés[1].emissiveIntensity = 0.08 + 0.42 * allume
+      if (scn.dalle) {
+        scn.dalle.material.opacity = allume
+        scn.dalle.material.transparent = allume < 0.995
+      }
       balleAt(q, TMP3)
       scn.ball.position.copy(TMP3)
       scn.ball.visible = q < TERRAIN_BOUNCE ||
@@ -1909,13 +1989,16 @@
         // fait de s'y attarder — la fenêtre du plan tenait encore trois
         // centièmes de page une fois à l'intérieur.
         exitDist: 1.6,
-        // Un flanc de sortie deux fois plus long que la norme. Tout ce qui
-        // suit la traversée — la montée de vingt mètres jusqu'au zénith du
-        // court — se joue sur ce flanc, et sur lui seul : le plan tenu, lui,
-        // s'arrête à l'instant où la caméra franchit la porte. À cinq
-        // centièmes, vingt mètres d'ascension tenaient dans un demi-écran de
-        // défilement ; à dix, on a le temps de voir le sol s'éloigner.
-        edgeOut: 0.10,
+        // Un flanc de sortie COURT, au contraire : trois centièmes et demi.
+        //
+        // C'est sur ce flanc que se joue la montée de vingt mètres, et elle doit
+        // se jouer dans le noir — entre la porte franchie et le court qui
+        // s'allume. Étalée sur dix centièmes, elle laissait au contraire voir le
+        // court pendant toute l'ascension, en enfilade, depuis une hauteur
+        // d'homme : exactement l'angle inférieur qu'on ne veut pas. Le poids de
+        // la borne retombe donc vite, celui du court monte vite, et le verrou de
+        // hauteur (voir `updateTerrain`) s'assure que rien ne s'affiche avant.
+        edgeOut: 0.035,
         // Pas de relais après la borne. La balle qui reliait les deux scènes
         // attirait le regard pendant la liaison, puis le rendait d'un coup au
         // court : c'est ce va-et-vient qu'on voyait — on suit la balle, on
@@ -1967,7 +2050,7 @@
         // Le relais change de sport en même temps que la scène : c'est lui qui
         // dit qu'on passe du basket à la pétanque, sans qu'aucun texte n'ait à
         // le dire.
-        entryAt: [-1.6, TERRAIN_SMASH_Y, 9.5], exitAt: [0.3, 1.53, HOOP_Z - 11],
+        entryAt: [-1.6, TERRAIN_SMASH_Y, 9.5], exitAt: [0.3, 1.53, HOOP_Z - 6.9],
         // Plus de balle de liaison vers la pétanque.
         //
         // Elle n'a plus rien à relier : le ballon de basket s'immobilise au
@@ -2746,6 +2829,16 @@
         // descend maintenant d'un bout à l'autre, du même mouvement que le
         // court : la page entière est une seule descente, de vingt mètres
         // au-dessus du tennis à quarante centimètres du gravier.
+        // Le geste du lanceur, et non une descente d'ascenseur.
+        //
+        // La caméra part de six mètres quarante au lieu d'un mètre huit — la vue
+        // du terrain de pétanque est remontée d'autant — prend encore un mètre
+        // sur le premier quart, arrondit, puis retombe en s'accélérant : c'est
+        // la forme d'une boule lancée, branche montante comprise. Elle finit à
+        // un mètre vingt du gravier et non quarante centimètres, assez haut pour
+        // qu'on voie la mène se placer au lieu de raser les cailloux.
+        var cloche = Math.sin(Math.PI * clamp01(q / 0.5)) * 0.9
+        var chute = Math.pow(q, 1.7)
         var pose = 0.15 * q + 0.85 * smooth(q)
         var avance = smooth(clamp01((q - 0.2) / 0.62))
         // La découverte de la borne : sur le dernier cinquième, le regard
@@ -2766,7 +2859,7 @@
 
         return {
           x: lerp(lerp(0.4, PET_JACK[0], avance), 1.2, tourne),
-          y: lerp(3.4, 0.42, pose),
+          y: lerp(6.4, 1.2, chute) + cloche,
           z: 0,
           lookX: lerp(vx, 3.6, tourne),
           lookY: lerp(lerp(1.4, 0.2, pose), 1.4, tourne),
@@ -3556,6 +3649,7 @@
         return
       }
 
+      CAM_Y = camera.position.y
       playScenes(progress)
       relayHit = placeRelay(progress)
       frameCamera(progress, now)
