@@ -173,7 +173,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · la borne de la maquette'
+    var CASCADE_BUILD = '2026-09-11 · fluidité'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -893,8 +893,13 @@
 
     function makeTerrain(p) {
       var g = new THREE.Group()
+      // Les deux matériaux du tracé sont gardés en main : leur intensité monte
+      // pendant qu'on sort du noir, si bien que le court s'allume au lieu
+      // d'être simplement révélé par la distance. C'est plus franc, et ça donne
+      // au premier plan le geste qui lui manquait.
       var trait = neon(NEON, 0.8)
       var traitSourd = neon(NEON_SOURD, 0.5)
+      var tracés = [trait, traitSourd]
 
       g.add(tapis(COURT_W * 2 + 5, COURT_L * 2 + 6, 4, 9))
 
@@ -1089,6 +1094,7 @@
       return {
         group: g, ball: ball, impact: impact, hoop: hoop, panier: panier,
         balls: balls, rim: ring, trail: trail, trails: trails,
+        tracés: tracés, dalle: null,
       }
     }
 
@@ -1112,9 +1118,66 @@
     }
 
     var TMP3 = null
+    var TMP4 = null
+
+    var DEPARTS = [
+      [-2.6, 1.4, HOOP_Z + 7.4],
+      [2.3, 1.2, HOOP_Z + 6.6],
+      [-0.5, 1.5, HOOP_Z + 8.2],
+      // Le quatrième passe à côté du panneau et ne revient pas : c'est lui
+      // qui emmène le regard vers la pétanque.
+      [1.6, 1.3, HOOP_Z + 9.5],
+    ]
+    /**
+     * Le ballon qui s'en va.
+     *
+     * Il frôle le panneau, retombe derrière, puis rebondit cinq fois en
+     * s'amortissant sur toute la distance qui sépare le court du terrain de
+     * pétanque — il finit sa course DANS le gravier, ce qui donne au plan
+     * suivant une raison d'exister plutôt que d'arriver.
+     *
+     * Les rebonds sont calculés par segments et non par un sinus redressé :
+     * un sinus donne des bonds de même durée, alors qu'un vrai ballon rebondit
+     * de plus en plus vite en perdant de moins en moins de hauteur. C'est cette
+     * accélération-là qu'on reconnaît, pas la forme des arcs.
+     */
+    var REBONDS = [1, 0.66, 0.44, 0.29, 0.19]   // hauteurs relatives
+    function ballonQuiPart(t4, out) {
+      // La distance : du panneau jusqu'au milieu du terrain de pétanque.
+      var x4 = lerp(DEPARTS[3][0], -1.2, smooth(t4))
+      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 34, t4 * (2 - t4))
+
+      var vol = clamp01(t4 / 0.3)
+      if (t4 <= 0.3) {
+        return out.set(x4, DEPARTS[3][1] + Math.sin(Math.PI * vol) * 3.4 - vol * vol * 1.1, z4)
+      }
+
+      // Après le premier contact : cinq rebonds, chacun plus court en durée
+      // et en hauteur. La somme des durées vaut 1, donc le dernier finit
+      // exactement à la fin du plan.
+      var r = (t4 - 0.3) / 0.7
+      var durées = [0.34, 0.24, 0.18, 0.13, 0.11]
+      var acc = 0
+      for (var b4 = 0; b4 < durées.length; b4++) {
+        if (r < acc + durées[b4] || b4 === durées.length - 1) {
+          var u4 = clamp01((r - acc) / durées[b4])
+          return out.set(x4, 0.13 + Math.sin(Math.PI * u4) * 2.2 * REBONDS[b4], z4)
+        }
+        acc += durées[b4]
+      }
+      return out.set(x4, 0.13, z4)
+    }
+
 
     function updateTerrain(scn, q) {
       if (!TMP3) TMP3 = new THREE.Vector3()
+
+      // L'allumage du tracé. Il se joue sur le premier huitième du plan, celui
+      // qui tombe dans l'écran noir : on voit le court arriver ET s'allumer,
+      // au lieu de le voir seulement sortir de la brume.
+      var allume = clamp01(q / 0.12)
+      scn.tracés[0].emissiveIntensity = 0.12 + 0.68 * allume
+      scn.tracés[1].emissiveIntensity = 0.08 + 0.42 * allume
       balleAt(q, TMP3)
       scn.ball.position.copy(TMP3)
       scn.ball.visible = q < TERRAIN_BOUNCE ||
@@ -1144,36 +1207,11 @@
       // Les trois tirs partent du côté court, à sept mètres du panneau. Plus
       // loin, la parabole passe au-dessus du cadre et on ne voit qu'un ballon
       // qui disparaît par le haut.
-      var DEPARTS = [
-        [-2.6, 1.4, HOOP_Z + 7.4],
-        [2.3, 1.2, HOOP_Z + 6.6],
-        [-0.5, 1.5, HOOP_Z + 8.2],
-        // Le quatrième passe à côté du panneau et ne revient pas : c'est lui
-        // qui emmène le regard vers la pétanque.
-        [1.6, 1.3, HOOP_Z + 9.5],
-      ]
       // La trajectoire d'un tir, elle aussi comme fonction pure : la traîne
       // orange du moodboard s'échantillonne dessus.
       function tirAt(i, qi, out) {
         var d = DEPARTS[i]
-        if (i === 3) {
-          // Le raté volontaire : il frôle le bord du panneau, retombe derrière,
-          // et rebondit trois fois en s'amortissant vers le fond — chaque
-          // rebond plus court et plus bas que le précédent, sinon une balle qui
-          // rebondit se lit comme une balle qui saute.
-          var t4 = qi
-          var x4 = lerp(d[0], -3.4, t4)
-          var z4 = lerp(d[2], HOOP_Z - 16, t4)
-          var vol = clamp01(t4 / 0.42)
-          var haut = d[1] + Math.sin(Math.PI * vol) * 3.1
-          if (t4 > 0.42) {
-            // Trois rebonds : période et amplitude décroissantes.
-            var r4 = (t4 - 0.42) / 0.58
-            var amorti = Math.exp(-r4 * 3.4)
-            haut = 0.13 + Math.abs(Math.sin(Math.PI * r4 * 3)) * 1.5 * amorti
-          }
-          return out.set(x4, haut, z4)
-        }
+        if (i === 3) return ballonQuiPart(qi, out)
         if (qi < 0.72) {
           var tt = qi / 0.72
           // La hauteur est étirée près du sommet : c'est la suspension, le
@@ -1210,7 +1248,9 @@
         var ball = scn.balls[i]
         // Le quatrième part en dernier et vit plus longtemps : ses rebonds
         // doivent tenir jusqu'à la coupe vers la pétanque.
-        var qi = i === 3 ? clamp01((qb - 0.42) / 0.58) : clamp01((qb - i * 0.2) / 0.6)
+        // Le quatrième part au tiers et occupe tout le reste : ses cinq
+        // rebonds doivent être finis avant la coupe, sinon il s'éteint en l'air.
+        var qi = i === 3 ? clamp01((qb - 0.3) / 0.68) : clamp01((qb - i * 0.2) / 0.6)
         // Ils restent visibles jusqu'au bout de leur course : un ballon qui
         // s'éteint en plein vol, c'est le genre de détail qu'on ne sait pas
         // nommer mais qui fait que l'image ne tient pas.
@@ -1670,7 +1710,12 @@
      * vient de voir, puisque c'est lui qu'on suit vers le suivant.
      */
     var SCENE_DEFS = [
+      // Un plan long : la borne passe de petite à pleine écran sur près d'un
+      // cinquième de la page. Avant, tout se jouait en 12 % et l'œil n'avait
+      // pas le temps de suivre — ça se lisait comme un saut plutôt que comme
+      // une approche.
       { key: 'kiosk', ox: 0, oy: -0.6, make: makeKiosk, update: updateKiosk,
+        holdBefore: 0.13, holdAfter: 0.05,
         // La caméra s'arrête 0,9 unité DEVANT la station : la porte remplit le
         // cadre, et c'est le noir qui prend le relais. Entrer réellement dans
         // le meuble donnait une paroi en gros plan, illisible.
@@ -1688,7 +1733,7 @@
         // Un plan long, et surtout une queue longue : après les tirs, la
         // caméra continue d'avancer sur l'arceau au lieu de repartir. Le
         // mouvement ne doit jamais s'arrêter avant la coupe.
-        holdBefore: 0.19, holdAfter: 0.13, edgeIn: 0.13,
+        holdBefore: 0.19, holdAfter: 0.17, edgeIn: 0.13,
         // Le court n'apparaît qu'APRÈS l'ouverture de la porte. La porte finit
         // de s'ouvrir vers 4 % de la page ; sa fenêtre de rendu démarre juste
         // après. Le voir avant, même minuscule et noyé de brouillard, vend la
@@ -2017,7 +2062,16 @@
         }
         // L'écart minimal n'est pas une constante : un plan long a besoin de
         // plus de place devant lui, sinon il mord sur le précédent.
-        var besoin = Math.max(MIN_GAP, (scenes[k].def.holdBefore || HOLD_BEFORE) + HOLD_AFTER + 0.05)
+        // L'écart nécessaire tient compte de la QUEUE du plan précédent autant
+        // que de l'approche du suivant. En ne regardant que le plan suivant,
+        // allonger une queue faisait mordre un plan sur l'autre sans que rien
+        // ne le signale — le terrain et la pétanque se chevauchaient de sept
+        // centièmes de page.
+        var queuePrec = k > 0 ? (scenes[k - 1].def.holdAfter || HOLD_AFTER) : 0
+        var besoin = Math.max(
+          MIN_GAP,
+          (scenes[k].def.holdBefore || HOLD_BEFORE) + queuePrec + 0.05,
+        )
         if (prev >= 0 && at - prev < besoin) at = prev + besoin
         // Plafond à 0,90 : le tout dernier bloc de la page est l'appel à
         // l'action, et il porte un aplat vert opaque — le décor n'y passe pas,
@@ -2090,7 +2144,16 @@
       terrain: function (q) {
         var tilt = smooth(clamp01((q - TERRAIN_BOUNCE) / TERRAIN_TILT))
         if (!TMP3) TMP3 = new THREE.Vector3()
+        if (!TMP4) TMP4 = new THREE.Vector3()
         var bz = balleAt(q, TMP3).z
+
+        // Le troisième temps : on lâche le panier et on part avec le ballon qui
+        // s'en va, au ras du sol. C'est le seul plan de poursuite du site, et
+        // c'est lui qui relie le basket à la pétanque sans coupure.
+        var qb4 = clamp01((q - (TERRAIN_BOUNCE + TERRAIN_TILT * 0.4)) / 0.5)
+        var q4 = clamp01((qb4 - 0.3) / 0.68)
+        var suivi = smooth(clamp01((q4 - 0.08) / 0.22))
+        ballonQuiPart(q4, TMP4)
         // On suit la balle sur l'axe du court, mais à moitié : suivre au pixel
         // donne une image morte où la balle ne bouge jamais dans le cadre.
         var bx = lerp(-1.6, BOUNCE_X, clamp01(q / TERRAIN_BOUNCE))
@@ -2099,27 +2162,43 @@
           // balle qui file vers le fond. Plan 2 : au ras du sol, regard relevé
           // vers l'arceau, qui est dans le même axe — on ne tourne jamais la
           // tête, on suit une seule ligne du début à la fin.
-          x: lerp(bx * 0.45, 0, tilt),
+          x: lerp(lerp(bx * 0.45, 0, tilt), TMP4.x * 0.55, suivi),
           // La caméra reste sept mètres derrière la balle pendant la descente,
           // puis se cale devant le panier.
-          zStation: lerp(bz + 7, HOOP_Z + 9.5, tilt),
+          //
+          // Le premier quart part de la distance d'approche exacte — 18, la
+          // valeur que le vol a de toute façon à cet instant — avant de
+          // rejoindre la balle. Sans ce départ commun, le plan « prenait la
+          // main » sur la profondeur avec dix unités d'écart, et la caméra
+          // partait les rattraper.
+          zStation: lerp(
+            lerp(
+              lerp(STATION_APPROACH, bz + 7, smooth(clamp01(q / 0.25))),
+              HOOP_Z + 9.5,
+              tilt,
+            ),
+            TMP4.z + 9,
+            suivi,
+          ),
           // Vingt-quatre mètres, pas onze : à onze on ne voit qu'un quart de
           // court, et un quart de court ne se lit pas comme un court. À
           // vingt-quatre, le tracé entre en entier dans le cadre.
-          y: lerp(24, 1.5, tilt),
+          y: lerp(lerp(24, 1.5, tilt), 1.15, suivi),
           z: 0,
-          lookX: lerp(bx, 0, tilt),
-          lookY: lerp(0.3, HOOP_Y + 0.2, tilt),
+          lookX: lerp(lerp(bx, 0, tilt), TMP4.x, suivi),
+          lookY: lerp(lerp(0.3, HOOP_Y + 0.2, tilt), 0.7, suivi),
           // Trois temps. Pendant l'approche, le regard porte loin devant : c'est
           // comme ça qu'on aperçoit le tracé du court dans le brouillard,
           // pendant l'écran noir, avant d'y être. Puis il tombe à 1,5 unité —
           // presque la verticale, le court à plat face à nous, la vue du
           // moodboard. Puis il repart au loin chercher l'arceau.
-          lookAhead: tilt > 0
-            ? lerp(1.5, 12, tilt)
-            : lerp(34, 1.5, smooth(clamp01(q / 0.22))),
-          fov: lerp(1.06, 0.9, tilt),
-          roll: lerp(0.004, -0.012, tilt),
+          lookAhead: lerp(
+            tilt > 0 ? lerp(1.5, 12, tilt) : lerp(34, 1.5, smooth(clamp01(q / 0.22))),
+            6,
+            suivi,
+          ),
+          fov: lerp(lerp(1.06, 0.9, tilt), 1.02, suivi),
+          roll: lerp(lerp(0.004, -0.012, tilt), 0.006, suivi),
         }
       },
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
@@ -2783,7 +2862,18 @@
       }
 
       var baseZ = flightZ(progress)
-      if (absW > 0.0001) baseZ = lerp(baseZ, absZ / absW, clamp01(absW))
+      if (absW > 0.0001) {
+        // Le mélange entre le vol et la profondeur absolue d'un plan passe par
+        // un smoothstep, pas par le poids brut.
+        //
+        // C'est LA cause du « ça se fige puis ça rattrape ». Le poids d'un plan
+        // monte linéairement sur son flanc d'entrée ; mélanger deux cibles très
+        // éloignées avec un coefficient linéaire donne une cible dont la VITESSE
+        // saute au départ et à l'arrivée du flanc. L'amortissement de la caméra
+        // encaisse ce saut en retardant puis en rattrapant — exactement ce
+        // qu'on voyait. Un smoothstep annule les deux discontinuités.
+        baseZ = lerp(baseZ, absZ / absW, smooth(clamp01(absW)))
+      }
 
       if (total > 0.0001) {
         px /= total; py /= total; pz /= total; lx /= total; ly /= total; lz /= total; ahead /= total
@@ -2829,13 +2919,17 @@
       // deux fois et demie plus rapides que les plans, un amortissement mou
       // laissait la caméra traîner derrière le défilement et arriver en retard
       // sur son propre sujet.
-      var k = reduced ? 1 : 0.12
+      // 0,14 : assez lent pour lisser les à-coups de la molette, assez rapide
+      // pour qu'on ne sente pas de retard. Le lissage n'est plus là pour
+      // corriger des cibles qui sautent — elles ne sautent plus — seulement
+      // pour absorber le défilement lui-même.
+      var k = reduced ? 1 : 0.14
       cam.pos.x += (targetX - cam.pos.x) * k
       cam.pos.y += (targetY - cam.pos.y) * k
       // `beat.z` décale la caméra en profondeur par rapport au vol : un plan
       // peut avoir besoin d'être pris de plus près ou de plus loin que le point
       // où le vol se trouve. Sans ce terme, la valeur était lue et jetée.
-      cam.pos.z += (baseZ + pz - cam.pos.z) * (reduced ? 1 : 0.2)
+      cam.pos.z += (baseZ + pz - cam.pos.z) * (reduced ? 1 : 0.26)
       cam.look.x += (lx - cam.look.x) * k
       cam.look.y += (ly - cam.look.y) * k
       cam.look.z += (lz - cam.look.z) * k
@@ -2936,7 +3030,10 @@
       // sortie d'écran : c'est ce cadrage-là — la borne à droite, petite, à
       // côté du texte — qui donne envie de descendre. Rejoindre le centre trop
       // tôt escamote le seul plan où on la voit en entier.
-      var b = clamp01((t - 0.66) / 0.34)
+      // Le recentrage est lissé lui aussi : en linéaire, la borne démarrait et
+      // s'arrêtait net sur son déplacement latéral, et ce démarrage sec se
+      // lisait comme un mouvement de trop.
+      var b = smooth(clamp01((t - 0.62) / 0.38))
       if (b >= 1) return
 
       camera.updateMatrixWorld()
