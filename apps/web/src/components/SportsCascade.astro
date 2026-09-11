@@ -215,7 +215,10 @@
       paddle:  { body: 0xbb8752, trim: 0x2f8f70 },
       frisbee: { body: 0x3f9ad8, trim: 0xdfe8ef },
       molkky:  { body: 0xc19a68, trim: 0x8a663c },
-      boule:   { body: 0x94a2af, trim: 0x6f7e8a },
+      // Assombries : sous la courbe tonale de cinéma et la carte
+      // d'environnement, un gris clair métallique ressort en blanc pur — trois
+      // boules de neige sur du gravier.
+      boule:   { body: 0x6d7a87, trim: 0x49555f },
       cone:    { body: 0xdd6237, trim: 0x22384c },
     }
     var SPORT_LIGHT = {
@@ -1110,8 +1113,13 @@
       // esthétique isolé — la maquette se fond dans ce modèle au début du
       // défilement, et deux objets qui n'ont pas la même couleur ne se fondent
       // pas l'un dans l'autre, ils se remplacent.
-      var bodyHex = dark ? 0x111c27 : 0xb9c8d6
-      var doorHex = dark ? 0x0d1b2a : 0xd6e1ea
+      // Éclaircies par rapport à la maquette SVG (#111C27 / #0D1B2A). Un
+      // aplat qui marche en vectoriel ne marche pas en 3D : là-bas le dessin
+      // porte les contours, ici c'est la lumière, et sur une valeur aussi
+      // basse elle n'a plus rien à éclairer — le meuble devenait une dalle
+      // noire où aucune porte ne se distinguait.
+      var bodyHex = dark ? 0x1b2c3e : 0xb9c8d6
+      var doorHex = dark ? 0x16263a : 0xd6e1ea
       var wellHex = dark ? 0x060d15 : 0x2b3a47
 
       var caisse = steel(bodyHex)
@@ -1191,6 +1199,31 @@
         panel.position.x = w / 2
         pivot.add(panel)
 
+        // Le contour vert de chaque porte. C'est le trait qui fait lire la
+        // maquette d'un coup d'œil : sans lui, huit rectangles de la même
+        // valeur sur un fond de la même valeur ne forment plus une borne mais
+        // un bloc. Quatre baguettes fines plutôt qu'une texture — c'est de la
+        // géométrie, donc ça tient à n'importe quelle distance.
+        var liseréMat = new THREE.MeshStandardMaterial({
+          color: 0x1d9e75, roughness: 0.5, metalness: 0.2,
+          // Émissif discret : le liseré doit se lire, pas briller. À 0,55 la
+          // borne virait au néon sous le halo du post-traitement.
+          emissive: 0x0d4a37, emissiveIntensity: 0.16,
+        })
+        var ew = w - 0.05, eh = h - 0.05
+        var barres = [
+          [ew, 0.022, 0, eh / 2],
+          [ew, 0.022, 0, -eh / 2],
+          [0.022, eh, -ew / 2, 0],
+          [0.022, eh, ew / 2, 0],
+        ]
+        for (var e = 0; e < 4; e++) {
+          var bd = barres[e]
+          var bar = new THREE.Mesh(new THREE.BoxGeometry(bd[0], bd[1], 0.02), liseréMat)
+          bar.position.set(w / 2 + bd[2], bd[3], 0.07)
+          pivot.add(bar)
+        }
+
         // Poignée verticale au bord libre, décollée du panneau : c'est l'objet
         // le plus petit du meuble et celui qui dit le plus qu'il s'ouvre.
         var poignee = new THREE.Mesh(
@@ -1245,69 +1278,167 @@
 
     // ─── La pétanque ──────────────────────────────────────────────────────────
     //
-    // Deux boules qui roulent vers le cochonnet et s'arrêtent. C'est la scène
-    // la plus calme, et elle est en bas de page à dessein : on n'ouvre pas sur
-    // de la pétanque, on ferme dessus.
+    // Le terrain tel qu'on le trouve dans un camping : une bande de gravier
+    // délimitée par des rondins, pas un tracé abstrait. C'est ce qui manquait —
+    // trois boules qui roulaient dans le noir ne ressemblaient à rien, et une
+    // scène qu'on ne reconnaît pas ne peut pas émouvoir.
+    //
+    // Le gravier est dessiné, pas simulé : quelques milliers de points sur un
+    // canvas, répétés. À la distance où on le regarde, une granulométrie juste
+    // et une granulométrie plausible donnent exactement la même image, et la
+    // seconde coûte trois kilo-octets.
+
+    var GRAVEL = null
+
+    function gravelTexture() {
+      if (GRAVEL) return GRAVEL
+      var c = document.createElement('canvas')
+      c.width = 256
+      c.height = 256
+      var x = c.getContext('2d')
+      x.fillStyle = '#57534b'
+      x.fillRect(0, 0, 256, 256)
+      var seed = 7
+      function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
+      for (var i = 0; i < 5200; i++) {
+        var v = 86 + Math.floor(rnd() * 62)
+        var a = 0.25 + rnd() * 0.5
+        x.fillStyle = 'rgba(' + v + ',' + (v - 6) + ',' + (v - 20) + ',' + a.toFixed(2) + ')'
+        var r = 0.6 + rnd() * 1.7
+        x.beginPath()
+        x.arc(rnd() * 256, rnd() * 256, r, 0, Math.PI * 2)
+        x.fill()
+      }
+      GRAVEL = new THREE.CanvasTexture(c)
+      GRAVEL.wrapS = GRAVEL.wrapT = THREE.RepeatWrapping
+      GRAVEL.repeat.set(3, 7)
+      return GRAVEL
+    }
+
+    // Le terrain est orienté DANS l'axe du couloir : sa longueur suit Z, comme
+    // la marche de la caméra. Posé en travers, la caméra le traversait par le
+    // petit côté et n'en voyait qu'une tranche — c'est la même erreur que le
+    // court de tennis avait au départ, dans l'autre sens.
+    //
+    // On lance donc depuis l'arrière, les boules partent devant nous vers le
+    // cochonnet, et on les suit. C'est le seul plan du site où le sujet
+    // s'éloigne au lieu de venir : à hauteur de gravier, ça marche, parce que
+    // le sol défile sous l'objectif et donne la vitesse.
+    var PET_L = 7.5    // demi-longueur (le long de Z)
+    var PET_W = 2.1    // demi-largeur (le long de X)
+    var PET_JACK = [0.3, -4.6]   // cochonnet : x, z
 
     function makePetanque(p) {
       var g = new THREE.Group()
 
-      var pts = []
-      pushArc(pts, 0, 0, 3.4, 0, Math.PI * 2, 40, 0)
-      pushArc(pts, 0, 0, 0.9, 0, Math.PI * 2, 24, 0)
-      g.add(segments(pts, lineMaterial(p, 0.55)))
+      var sol = new THREE.Mesh(
+        new THREE.PlaneGeometry(PET_W * 2, PET_L * 2),
+        new THREE.MeshStandardMaterial({
+          map: gravelTexture(), roughness: 0.96, metalness: 0,
+          // Le gravier est assombri deux fois : dans le dessin et par la
+          // teinte du matériau. Éclairé par le studio et passé dans la courbe
+          // tonale, un gris moyen ressort en blanc — et une dalle blanche de
+          // quinze mètres écrase tout le reste de la page.
+          color: sportSet(p) === SPORT_LIGHT ? 0xf0eee9 : 0x5a626d,
+        }),
+      )
+      sol.rotation.x = -Math.PI / 2
+      g.add(sol)
+
+      // Les rondins. Deux longs, deux courts, posés à plat et légèrement
+      // enfoncés — un rondin qui affleure parfaitement se lit comme une barre.
+      var bois = new THREE.MeshStandardMaterial({
+        // Bois franchement sombre : la courbe tonale du rendu et la carte
+        // d'environnement relèvent tout d'un bon cran, si bien qu'un brun moyen
+        // ressort en pin clair presque doré.
+        color: sportSet(p) === SPORT_LIGHT ? 0x9a7448 : 0x3f3020,
+        roughness: 0.92, metalness: 0.02,
+      })
+      function rondin(len, x, z, ry) {
+        var r = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, len, 12), bois)
+        r.rotation.z = Math.PI / 2
+        r.rotation.y = ry
+        r.position.set(x, 0.09, z)
+        g.add(r)
+      }
+      rondin(PET_L * 2, -PET_W, 0, Math.PI / 2)
+      rondin(PET_L * 2, PET_W, 0, Math.PI / 2)
+      rondin(PET_W * 2, 0, -PET_L, 0)
+      rondin(PET_W * 2, 0, PET_L, 0)
 
       var jack = new THREE.Mesh(
-        new THREE.SphereGeometry(0.17, 12, 10),
-        new THREE.MeshStandardMaterial({ color: p.accent, roughness: 0.7 }),
+        new THREE.SphereGeometry(0.055, 14, 12),
+        new THREE.MeshStandardMaterial({ color: 0xe4b23c, roughness: 0.55, metalness: 0.05 }),
       )
-      jack.position.y = 0.17
+      jack.position.set(PET_JACK[0], 0.055, PET_JACK[1])
       g.add(jack)
+
+      // L'ombre de contact. Il n'y a pas d'ombres portées dans cette scène —
+      // elles coûteraient une passe de rendu entière — mais sans elles les
+      // boules flottent au-dessus du gravier. Une ellipse sombre posée au sol
+      // sous chacune suffit à les plaquer, et c'est une seule facette.
+      var ombreMat = new THREE.MeshBasicMaterial({
+        color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false,
+      })
+      var ombres = []
 
       var balls = []
       for (var i = 0; i < 3; i++) {
+        var o = new THREE.Mesh(new THREE.CircleGeometry(0.13, 20), ombreMat)
+        o.rotation.x = -Math.PI / 2
+        o.position.y = 0.012
+        g.add(o)
+        ombres.push(o)
         var b = boule(p)
-        b.scale.setScalar(0.62)
+        // `boule()` a un rayon de 0,62 unité, hérité de l'époque où l'échelle
+        // était arbitraire. Sur un terrain au mètre, ça donnait des boules de
+        // quatre-vingt-seize centimètres qui remplissaient l'écran. 0,185
+        // ramène à onze centimètres de rayon — une fois et demie le vrai, ce
+        // qu'il faut pour qu'elles se lisent sans paraître fausses.
+        b.scale.setScalar(0.185)
         g.add(b)
         balls.push(b)
       }
-      return { group: g, balls: balls }
+      return { group: g, balls: balls, jack: jack, ombres: ombres }
     }
 
     function updatePetanque(scn, q) {
-      scn.group.rotation.x = -0.34
-
-      // Les trois boules partent décalées : elles arrivent l'une après l'autre,
-      // comme une vraie mène.
+      // Trois boules lancées l'une après l'autre, chacune décélérant vers le
+      // cochonnet. La décélération est en 1-(1-t)³ : une boule qui s'arrête net
+      // n'a pas de poids, et c'est le poids qui fait la pétanque.
+      var CIBLES = [
+        [PET_JACK[0] - 0.5, PET_JACK[1] + 0.55],
+        [PET_JACK[0] + 0.48, PET_JACK[1] + 0.3],
+        [PET_JACK[0] - 0.12, PET_JACK[1] - 0.4],
+      ]
       for (var i = 0; i < scn.balls.length; i++) {
-        var t = clamp01((q - i * 0.16) / 0.5)
-        var e = ease(t)
+        var t = clamp01((q - i * 0.17) / 0.56)
+        var e = 1 - Math.pow(1 - t, 3)
         var b = scn.balls[i]
-        var target = [[-0.75, 0.5], [0.85, -0.35], [0.25, 0.95]][i]
-        b.position.set(lerp(-9, target[0], e), 0.38, lerp(3.2 + i, target[1], e))
+        b.visible = t > 0
+        var x0 = (i - 1) * 0.55
+        var z0 = PET_L - 0.8
+        var x = lerp(x0, CIBLES[i][0], e)
+        var z = lerp(z0, CIBLES[i][1], e)
+        // Un petit saut à l'arrivée sur le gravier, amorti : c'est le seul
+        // détail qui dit que le sol n'est pas une patinoire.
+        var saut = Math.max(0, Math.sin(Math.PI * clamp01((t - 0.06) * 2.4))) * 0.1 * (1 - e)
+        b.position.set(x, 0.115 + saut, z)
+        // L'ombre suit la boule et rétrécit quand elle saute : c'est ce lien-là
+        // qui fait qu'on lit un rebond plutôt qu'un glissement.
+        var om = scn.ombres[i]
+        om.visible = b.visible
+        om.position.set(x, 0.012, z)
+        om.scale.setScalar(1 - Math.min(saut * 3, 0.55))
+        om.material.opacity = 0.3 * (1 - Math.min(saut * 2.6, 0.7))
         // La rotation suit la distance parcourue : une boule qui glisse sans
-        // tourner se voit tout de suite.
-        b.rotation.z = -(b.position.x + 9) * 1.5
+        // tourner se voit immédiatement.
+        // La rotation suit la distance parcourue, qui est maintenant sur Z :
+        // une boule qui glisse sans tourner se voit immédiatement.
+        b.rotation.x = (z0 - z) / 0.115
       }
     }
 
-    /**
-     * Les cinq scènes, posées en enfilade.
-     *
-     * Elles ne montent plus dans le cadre l'une après l'autre : elles sont
-     * plantées à des profondeurs croissantes le long de -Z, et c'est la caméra
-     * qui les traverse au fil du défilement. Un couloir, pas un tapis roulant.
-     *
-     * `ox`/`oy` sont l'écart latéral et la hauteur de la scène dans le couloir.
-     * `ox = 0` veut dire : plein axe, la caméra passe dedans — c'est le cas de
-     * la borne, dont on traverse la porte ouverte.
-     *
-     * `from`/`to` et `stationZ` ne sont pas écrits ici : ils sont calculés au
-     * démarrage à partir de la position réelle des sections de texte de la
-     * page (cf. assignStations). C'est ce qui « cale » l'animation sur le
-     * contenu au lieu de la caler sur un pourcentage deviné, et ça marche sur
-     * n'importe laquelle des vingt pages du site.
-     */
     /**
      * `exitAt` / `entryAt` : où la balle quitte une scène, où elle entre dans
      * la suivante — en coordonnées LOCALES de la scène, converties en monde au
@@ -1342,8 +1473,9 @@
         // retombe sous l'arceau — coordonnées du court, le panier étant tourné
         // d'un quart de tour.
         entryAt: [11.6, 5.2, -1.4], exitAt: [0.9, -0.3, -7.4], relayColor: 0xf0a463 },
-      { key: 'petanque', ox: 3.0, oy: -4.6, make: makePetanque, update: updatePetanque,
-        entryAt: [-9, 0.38, 3.2] },
+      { key: 'petanque', ox: 0, oy: -1.6, make: makePetanque, update: updatePetanque,
+        // Le point de lâcher de la première boule, au bout du terrain.
+        entryAt: [-0.55, 0.25, 6.7] },
     ]
 
     /**
@@ -1711,7 +1843,29 @@
       },
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
       // vers le bas.
-      petanque: { x: 1.8,  y: -1.4, z: 0,    lookX: 2.8,  lookY: -2.0, fov: 0.94, roll: -0.010 },
+      /**
+      * La pétanque se joue au ras du sol, et elle ne se regarde pas de haut :
+      * une vue plongeante sur des boules donne trois points gris sur du gris.
+      * La caméra descend à quarante centimètres du gravier, dans l'axe du
+      * lancer, et laisse les boules venir vers elle. C'est le seul plan du
+      * site pris à hauteur d'objet plutôt qu'à hauteur d'homme.
+      */
+      petanque: function (q) {
+        var appro = smooth(clamp01(q / 0.75))
+        return {
+          x: lerp(0.4, PET_JACK[0], appro),
+          // Quarante centimètres au-dessus du gravier, et on y reste : c'est le
+          // seul plan du site pris à hauteur d'objet plutôt qu'à hauteur
+          // d'homme, et c'est ce qui rend une boule impressionnante.
+          y: 0.4,
+          z: 0,
+          lookX: lerp(0.2, PET_JACK[0], appro),
+          lookY: lerp(0.35, 0.12, appro),
+          lookAhead: lerp(9, 5, appro),
+          fov: lerp(1.06, 0.9, appro),
+          roll: -0.008,
+        }
+      },
     }
 
     // ─── Mise en place ────────────────────────────────────────────────────────
@@ -2370,7 +2524,7 @@
       // Le couloir d'ambiance suit la caméra : il est là pour donner une
       // vitesse, pas pour être un lieu.
       if (ambient) ambient.position.z = camera.position.z - 11
-      placeIntro(progress)
+      placeIntro()
     }
 
     /**
@@ -2383,47 +2537,56 @@
      * c'est exactement le genre d'écart qui fait qu'un raccord « ne va pas »
      * sans qu'on sache dire pourquoi.
      */
-    function placeIntro(progress) {
+    function placeIntro() {
       if (!heroEl || !scenes.length) return
       var scn = scenes[0]
       if (scn.def.key !== 'kiosk') return
 
-      if (heroFrame) {
-        // La maquette tient jusqu'à la moitié du calage, puis s'éteint. La
-        // borne 3D est déjà exactement dessous : on ne voit pas un objet
-        // remplacer l'autre, on voit le même objet changer de nature.
-        var fade = 1 - clamp01((progress - INTRO_MATCH * 0.45) / (INTRO_MATCH * 0.55))
-        heroFrame.style.opacity = fade >= 0.999 ? '' : String(Math.max(fade, 0))
+      var r = heroEl.getBoundingClientRect()
+      var vh2 = window.innerHeight
+      if (r.width < 4 || r.height < 4 || r.bottom < 0) {
+        if (heroFrame) heroFrame.style.opacity = ''
+        return
       }
 
-      var b = clamp01((progress - INTRO_MATCH) / (INTRO_BLEND - INTRO_MATCH))
-      if (b >= 1) return
+      // L'avancement de l'ouverture ne se mesure pas en pourcentage de page
+      // mais en position de la maquette à l'écran. C'est la seule mesure qui
+      // ait un sens ici : le fondu doit être terminé quand la maquette sort du
+      // cadre, et cet instant dépend de la hauteur de la page, de celle de la
+      // fenêtre et de la longueur du hero — trois choses qu'un pourcentage
+      // écrit en dur ne connaît pas. Sur la version précédente, la borne 3D
+      // suivait encore la maquette bien après sa sortie par le haut : d'où un
+      // meuble coincé dans le coin supérieur droit.
+      var centre = r.top + r.height / 2
+      var t = clamp01((vh2 * 0.5 - centre) / (vh2 * 0.62))
 
-      var r = heroEl.getBoundingClientRect()
-      if (r.width < 4 || r.height < 4) return
+      if (heroFrame) {
+        var fade = 1 - clamp01(t / 0.5)
+        heroFrame.style.opacity = fade >= 0.999 ? '' : String(fade)
+      }
+
+      var b = clamp01((t - 0.5) / 0.5)
+      if (b >= 1) return
 
       camera.updateMatrixWorld()
       var vh = 2 * INTRO_DIST * Math.tan((camera.fov * Math.PI) / 360)
       var vw = vh * camera.aspect
-      // Le SVG a un `viewBox` de 260 × 480 et le `preserveAspectRatio` par
-      // défaut : il est donc mis à l'échelle par le plus petit des deux
-      // rapports et centré dans sa boîte, avec des marges vides d'un côté.
-      // Mesurer la boîte plutôt que le dessin donnerait une borne trop grande
-      // dès que les proportions de la boîte s'écartent de 260/480 — c'est-à-
-      // dire à presque toutes les largeurs.
+
+      // Le SVG a un viewBox 260 × 480 et le preserveAspectRatio par défaut : il
+      // est mis à l'échelle par le plus petit des deux rapports et centré, avec
+      // des marges vides. Mesurer la boîte plutôt que le dessin donnerait une
+      // borne trop grande à presque toutes les largeurs.
       var k = Math.min(r.width / 260, r.height / 480)
       var caissonPx = 424 * k
-      // Le caisson va de y = 24 à y = 448 dans le `viewBox` : son centre est à
-      // 236, quatre unités au-dessus du centre de la boîte.
       var cx = r.left + r.width / 2
-      var cy = r.top + r.height / 2 + (236 - 240) * k
+      var cy = centre + (236 - 240) * k
 
       var ndcX = (cx / window.innerWidth) * 2 - 1
-      var ndcY = -((cy / window.innerHeight) * 2 - 1)
+      var ndcY = -((cy / vh2) * 2 - 1)
 
       INTRO_V.set((ndcX * vw) / 2, (ndcY * vh) / 2, -INTRO_DIST).applyMatrix4(camera.matrixWorld)
 
-      var sc = (vh * (caissonPx / window.innerHeight)) / 3.6
+      var sc = (vh * (caissonPx / vh2)) / 3.6
       var station = cam.narrow ? 0.68 : 1
       scn.group.position.set(
         lerp(INTRO_V.x, scn.group.position.x, b),
