@@ -173,7 +173,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · fluidité'
+    var CASCADE_BUILD = '2026-09-11 · on retraverse'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -1143,9 +1143,14 @@
      */
     var REBONDS = [1, 0.66, 0.44, 0.29, 0.19]   // hauteurs relatives
     function ballonQuiPart(t4, out) {
-      // La distance : du panneau jusqu'au milieu du terrain de pétanque.
-      var x4 = lerp(DEPARTS[3][0], -1.2, smooth(t4))
-      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 34, t4 * (2 - t4))
+      // La distance : du panneau jusqu'au CŒUR du terrain de pétanque, pas
+      // jusqu'à son bord. Il finissait cinq mètres court, et surtout un mètre
+      // trente TROP BAS : le court est à -3 et le gravier à -1,6, si bien que
+      // les rebonds se jouaient sous le terrain suivant. Le sol remonte donc
+      // avec lui, de la dalle du court au gravier.
+      var x4 = lerp(DEPARTS[3][0], 0.3, smooth(t4))
+      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 44, t4 * (2 - t4))
+      var sol = lerp(0.13, 1.53, smooth(clamp01((t4 - 0.3) / 0.45)))
 
       var vol = clamp01(t4 / 0.3)
       if (t4 <= 0.3) {
@@ -1161,11 +1166,11 @@
       for (var b4 = 0; b4 < durées.length; b4++) {
         if (r < acc + durées[b4] || b4 === durées.length - 1) {
           var u4 = clamp01((r - acc) / durées[b4])
-          return out.set(x4, 0.13 + Math.sin(Math.PI * u4) * 2.2 * REBONDS[b4], z4)
+          return out.set(x4, sol + Math.sin(Math.PI * u4) * 2.2 * REBONDS[b4], z4)
         }
         acc += durées[b4]
       }
-      return out.set(x4, 0.13, z4)
+      return out.set(x4, sol, z4)
     }
 
 
@@ -1529,22 +1534,37 @@
      * s'éloigne. Rien ne s'anime sinon la rotation — tout le mouvement est dans
      * l'appareil, qui recule.
      */
+    /**
+     * Le plan de sortie, en trois temps nets.
+     *
+     *   0 → 0,30  l'approche. On arrive à deux mètres de la porte ouverte.
+     *   0,30 → 0,62  la vue est fixe. L'article rentre, la porte se referme,
+     *                et c'est le défilement seul qui déroule le geste.
+     *   0,62 → 1  le dézoom, jusqu'à se confondre avec la borne de la section.
+     *
+     * Les trois temps sont écrits ici et dans le plan de caméra avec les mêmes
+     * bornes : c'est ce qui garantit que la porte finit de se fermer AVANT que
+     * la caméra recule. Dans l'autre ordre, on s'éloigne d'une porte encore
+     * ouverte et le geste passe inaperçu.
+     */
+    var SORTIE_ARRET = 0.3
+    var SORTIE_RECUL = 0.62
+
     function updateSortie(scn, q) {
       scn.group.rotation.y = lerp(-0.3, -0.34, ease(clamp01(q / 0.5)))
 
-      // On repose l'article, la porte se referme, et tout est joué au tiers du
-      // plan. Le reste — les deux tiers — est le dézoom, et c'est lui qui
-      // compte : c'est pendant qu'on recule que la borne du décor rejoint celle
-      // de la section et que les deux se confondent.
-      var rentre = ease(clamp01(q / 0.2))
+      var arret = clamp01((q - SORTIE_ARRET) / (SORTIE_RECUL - SORTIE_ARRET))
+
+      // L'article rentre dans le casier pendant le premier tiers de l'arrêt.
+      var rentre = ease(clamp01(arret / 0.4))
       scn.out.visible = rentre < 0.99
       scn.out.position.set(lerp(1.4, 0, rentre), lerp(-0.34, 0.18, rentre), lerp(1.5, 0.24, rentre))
       scn.out.rotation.y += 0.02
 
-      // La porte attend que l'article soit rentré. Une porte qui se ferme sur
-      // un ballon encore dehors, c'est le genre de détail qui se remarque sans
-      // qu'on sache dire pourquoi l'image est fausse.
-      var ferme = ease(clamp01((q - 0.21) / 0.14))
+      // Puis la porte se referme, sur les deux tiers restants. Une porte qui se
+      // ferme sur un ballon encore dehors, c'est le genre de détail qui se
+      // remarque sans qu'on sache dire pourquoi l'image est fausse.
+      var ferme = ease(clamp01((arret - 0.42) / 0.5))
       scn.doors[scn.openIndex].rotation.y = -1.9 * (1 - ferme)
     }
 
@@ -1716,10 +1736,13 @@
       // une approche.
       { key: 'kiosk', ox: 0, oy: -0.6, make: makeKiosk, update: updateKiosk,
         holdBefore: 0.13, holdAfter: 0.05,
-        // La caméra s'arrête 0,9 unité DEVANT la station : la porte remplit le
-        // cadre, et c'est le noir qui prend le relais. Entrer réellement dans
-        // le meuble donnait une paroi en gros plan, illisible.
-        exitDist: -0.9,
+        // On traverse. La caméra s'arrête 1,6 unité APRÈS la station, donc
+        // au-delà du fond du casier : la porte remplit le cadre, on passe
+        // dedans, et la scène est retirée du rendu dans la foulée. Ce qui
+        // donnait la paroi verte illisible, ce n'était pas la traversée mais le
+        // fait de s'y attarder — la fenêtre du plan tenait encore trois
+        // centièmes de page une fois à l'intérieur.
+        exitDist: 1.6,
         // Pas de relais après la borne. La balle qui reliait les deux scènes
         // attirait le regard pendant la liaison, puis le rendait d'un coup au
         // court : c'est ce va-et-vient qu'on voyait — on suit la balle, on
@@ -1734,12 +1757,15 @@
         // caméra continue d'avancer sur l'arceau au lieu de repartir. Le
         // mouvement ne doit jamais s'arrêter avant la coupe.
         holdBefore: 0.19, holdAfter: 0.17, edgeIn: 0.13,
-        // Le court n'apparaît qu'APRÈS l'ouverture de la porte. La porte finit
-        // de s'ouvrir vers 4 % de la page ; sa fenêtre de rendu démarre juste
-        // après. Le voir avant, même minuscule et noyé de brouillard, vend la
-        // mèche : la découverte doit être la récompense de l'ouverture, pas un
-        // décor qui traînait déjà là.
+        // Le court n'apparaît qu'APRÈS l'ouverture de la porte. Le voir avant,
+        // même minuscule et noyé de brouillard, vend la mèche : la découverte
+        // doit être la récompense de l'ouverture.
         winBefore: 0.35,
+        // Trois centièmes de page entre la fin du plan de la borne et le début
+        // de celui du court : un battement, pas un entracte. Il en durait
+        // onze, avec une caméra qui n'avait rien à faire pendant ce temps —
+        // c'est exactement ça, l'arrêt long.
+        placeAvant: 0.03,
         // Entrée : le point de départ de la balle smashée. Sortie : le ballon
         // qui retombe sous l'arceau, dans le repère du panier décalé.
         // Entrée : le départ de la balle smashée. Sortie : le ballon qui
@@ -1758,10 +1784,14 @@
       // visiteur comprend qu'il a fait un tour complet plutôt que parcouru une
       // liste. C'est la seule scène où la caméra recule.
       { key: 'sortie', ox: 0, oy: -0.6, make: makeKiosk, update: updateSortie,
-        // Une approche courte : on arrive vite devant la borne fermée, et tout
-        // le plan tient dans le dézoom qui suit. Une longue approche ici
-        // rejouait l'ouverture du début à l'envers, en plus lent.
-        holdBefore: 0.10, holdAfter: 0.06, exitDist: -2, approachDist: 7,
+        // On l'aperçoit tard : sa fenêtre de rendu ne s'ouvre que juste avant
+        // son plan. Avec le brouillard porté à 120 unités, elle se devinait
+        // deux sections trop tôt, et la fin n'avait plus rien à révéler.
+        winBefore: 0.13,
+        // La caméra s'arrête à deux mètres de la porte et n'avance plus : c'est
+        // `exitDist: -2` qui le dit. Tout ce qui suit — la fermeture puis le
+        // dézoom — se joue sans qu'elle se rapproche davantage.
+        holdBefore: 0.09, holdAfter: 0.09, exitDist: -2, approachDist: 6,
         noRelay: true },
     ]
 
@@ -2073,6 +2103,20 @@
           (scenes[k].def.holdBefore || HOLD_BEFORE) + queuePrec + 0.05,
         )
         if (prev >= 0 && at - prev < besoin) at = prev + besoin
+        // `placeAvant` : un plan peut exiger de suivre le précédent de près,
+        // quelle que soit la section de texte la plus proche. L'aimantation sur
+        // le contenu est un confort, pas une loi — et ici elle repoussait le
+        // court d'un huitième de page après la borne, ce qui laissait un trou.
+        if (prev >= 0 && scenes[k].def.placeAvant) {
+          // Le plafond est le BLANC voulu entre les deux plans : fin du plan
+          // précédent + début de celui-ci + l'intervalle demandé. Le calculer à
+          // partir de `besoin` ne servait à rien — `besoin` contient déjà une
+          // marge, et le plafond tombait au-delà de la position aimantée.
+          at = Math.min(
+            at,
+            prev + queuePrec + (scenes[k].def.holdBefore || HOLD_BEFORE) + scenes[k].def.placeAvant,
+          )
+        }
         // Plafond à 0,90 : le tout dernier bloc de la page est l'appel à
         // l'action, et il porte un aplat vert opaque — le décor n'y passe pas,
         // et le panneau se posait sur le bouton « Voir les tarifs ». Le plan
@@ -2162,7 +2206,9 @@
           // balle qui file vers le fond. Plan 2 : au ras du sol, regard relevé
           // vers l'arceau, qui est dans le même axe — on ne tourne jamais la
           // tête, on suit une seule ligne du début à la fin.
-          x: lerp(lerp(bx * 0.45, 0, tilt), TMP4.x * 0.55, suivi),
+          // Le suivi se resserre à mesure qu'on descend : de 0,45 (la balle
+          // dérive franchement dans le cadre) à 0,8 (elle y reste presque).
+          x: lerp(lerp(bx * lerp(0.45, 0.8, smooth(clamp01((q - 0.1) / 0.34))), 0, tilt), TMP4.x * 0.55, suivi),
           // La caméra reste sept mètres derrière la balle pendant la descente,
           // puis se cale devant le panier.
           //
@@ -2173,17 +2219,18 @@
           // partait les rattraper.
           zStation: lerp(
             lerp(
-              lerp(STATION_APPROACH, bz + 7, smooth(clamp01(q / 0.25))),
+              lerp(STATION_APPROACH, bz + lerp(7, 3.4, smooth(clamp01((q - 0.1) / 0.34))), smooth(clamp01(q / 0.25))),
               HOOP_Z + 9.5,
               tilt,
             ),
             TMP4.z + 9,
             suivi,
           ),
-          // Vingt-quatre mètres, pas onze : à onze on ne voit qu'un quart de
-          // court, et un quart de court ne se lit pas comme un court. À
-          // vingt-quatre, le tracé entre en entier dans le cadre.
-          y: lerp(lerp(24, 1.5, tilt), 1.15, suivi),
+          // On commence large — vingt-quatre mètres, le tracé entier dans le
+          // cadre — puis on DESCEND sur la balle pendant qu'on la suit. Rester
+          // à vingt-quatre jusqu'au rebond donnait un point jaune de trois
+          // pixels dans un grand dessin : on voyait le court, pas le jeu.
+          y: lerp(lerp(lerp(26, 9, smooth(clamp01((q - 0.1) / 0.34))), 1.5, tilt), 1.15, suivi),
           z: 0,
           lookX: lerp(lerp(bx, 0, tilt), TMP4.x, suivi),
           lookY: lerp(lerp(0.3, HOOP_Y + 0.2, tilt), 0.7, suivi),
@@ -2217,14 +2264,18 @@
       * était lu et jeté jusqu'à hier.
       */
       sortie: function (q) {
-        var e = smooth(q)
+        // Rien ne bouge entre l'arrêt et le recul : `e` reste à zéro pendant
+        // toute la fermeture de la porte. C'est la vue fixe demandée — et c'est
+        // aussi ce qui donne son poids au geste, puisque plus rien d'autre ne
+        // se passe dans l'image.
+        var e = smooth(clamp01((q - SORTIE_RECUL) / (1 - SORTIE_RECUL)))
         return {
           x: 0,
           y: 0.18,
-          // Le dézoom : de tout près à vingt-deux unités. Moins loin qu'avant,
-          // parce que c'est la section qui prend le relais et qu'il faut
-          // arriver à SA taille, pas plus petit.
-          z: lerp(-6, 22, e),
+          // Le dézoom part de zéro — la caméra est déjà à deux mètres, posée
+          // par `exitDist` — et recule jusqu'à vingt-deux unités, la distance
+          // où la borne fait la taille de celle de la section.
+          z: lerp(0, 22, e),
           lookX: 0,
           lookY: lerp(0.18, -0.1, e),
           lookAhead: 6,
