@@ -197,7 +197,7 @@
     var reduced =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    var CASCADE_BUILD = '2026-09-11 · la coupe dans la case'
+    var CASCADE_BUILD = '2026-09-11 · quatre sports et un club de golf'
 
     var THREE, renderer, scene, camera, fogColor
 
@@ -934,7 +934,12 @@
     // la profondeur. Une raquette posée au sol à mi-chemin en donne l'échelle :
     // sans objet familier entre deux grandes formes, l'œil n'a rien pour juger
     // la distance.
-    var HOOP_Z = -(COURT_L + 7.5)   // derrière la ligne de fond
+    // Vingt-cinq mètres derrière la ligne de fond. Le panier est alors
+    // totalement hors du champ pendant tout le tennis : il n'existe qu'après,
+    // révélé par le brouillard pendant que la caméra traverse l'intervalle. Ce
+    // vide de vingt-cinq mètres est ce qui rend le raccord possible — et c'est
+    // la raquette de basket, peinte au sol à mi-chemin, qui lui donne l'échelle.
+    var HOOP_Z = -(COURT_L + 25)    // derrière la ligne de fond
     // Le panier est DÉCALÉ de trois mètres six sur le côté.
     //
     // À x = 0 il était pile sur l'axe du vol : la caméra, qui continue
@@ -948,63 +953,79 @@
     var BOUNCE_Z = -7.2    // où la balle retombe, dans le carré de service adverse
     var BOUNCE_X = 0.5
 
-    // Le plan du court, en trois nombres : d'où il part en profondeur, et les
-    // deux hauteurs entre lesquelles la caméra descend sans jamais remonter.
-    // Vingt unités d'approche ne sont pas un réglage à l'œil : c'est la
-    // distance à laquelle un court de 23,77 m tient dans un champ de 46°.
-    var TERRAIN_Z0 = 20
-    var TERRAIN_Y0 = 24
-    var TERRAIN_Y1 = 5
-
     // Le rebond tombe à 0,52 et non 0,46 : la balle a un huitième de plan de
     // plus pour traverser. Et elle part de 3,2 m au lieu de 5,6 — une frappe
     // tendue, pas une chandelle. Les deux vont ensemble : allonger la durée
     // sans baisser le départ aurait donné une balle qui flotte.
     var TERRAIN_SMASH_Y = 3.2
-    var TERRAIN_BOUNCE = 0.52
+    // Les quatre temps du plan du court, en fraction de plan. Ils ne décrivent
+    // plus des cadrages mais des ÉVÉNEMENTS : la balle touche, les tirs
+    // partent, le quatrième ballon s'échappe. La caméra les suit.
+    var TERRAIN_BOUNCE = 0.40      // la balle de tennis touche le sol
+    // La descente vers le panier est FINIE quand les tirs commencent : à cet
+    // instant la caméra est à treize mètres de l'arceau, c'est-à-dire à la
+    // distance où le panneau occupe un dixième de la hauteur d'image. Tirer
+    // pendant qu'elle s'approche encore donnait des paraboles vues de vingt-
+    // trois mètres, minuscules.
+    var TERRAIN_ARRIVEE = 0.52     // la caméra est en place devant le panier
+    var TERRAIN_TIRS = 0.54        // les trois tirs commencent
+    var TERRAIN_ECHAPPEE = 0.72    // le quatrième ballon part vers la pétanque
+    // La fin du PLATEAU, en temps de plan.
+    //
+    // C'est la borne qui compte, et elle m'a coûté un aller-retour : le temps
+    // de plan court sur toute la fenêtre pondérée, flancs compris, alors que le
+    // plan ne COMMANDE la caméra que pendant son plateau. Tout ce qui se joue
+    // après est progressivement repris par la scène suivante — le suivi
+    // rapproché du ballon était écrit entre 0,89 et 1, c'est-à-dire entièrement
+    // dans le flanc de sortie : la caméra ne le jouait jamais et restait figée
+    // à treize mètres de l'arceau pendant un dixième de page. Le flanc de
+    // sortie du court est donc ramené à douze millièmes, ce qui place la fin du
+    // plateau à 0,97 du temps de plan, et tout tient avant.
+    var TERRAIN_FIN = 0.97
     var TERRAIN_TILT = 0.18
 
     /**
-     * Une raquette posée à plat sur le sol.
+     * La raquette de basket, peinte au sol.
      *
-     * Elle ne joue rien : elle est là pour l'échelle. Entre la ligne de fond et
-     * le panneau il y a maintenant onze mètres de dalle vide, et une étendue
-     * vide n'a pas de profondeur — c'est un aplat. Un objet dont tout le monde
-     * connaît la taille, posé au milieu, suffit à la lui rendre. C'est aussi
-     * celle qu'on vient de prendre dans le casier : elle raconte, au passage,
-     * que quelqu'un est passé par là.
+     * Pas une raquette de tennis posée là : LA raquette, celle du basket — le
+     * rectangle sous le panier et son demi-cercle de lancer franc. Cotes FIBA,
+     * 4,90 m de large sur 5,80 de long, tracées au même trait lumineux que le
+     * court de tennis.
+     *
+     * Elle ne sert pas qu'à décorer. Entre la ligne de fond du court et
+     * l'arceau il y a vingt-cinq mètres de dalle nue, et une étendue vide n'a
+     * pas de profondeur : c'est un aplat. Un tracé dont tout le monde connaît
+     * les proportions, posé au milieu, la lui rend — et il dit du même coup
+     * qu'on a changé de sport avant même que le panneau n'apparaisse.
      */
-    function raquetteAuSol(x, z, ry) {
-      var r = new THREE.Group()
-      var cadre = neon(NEON, 0.55)
-      // Un peu plus grande que nature (facteur 1,4) : à quinze mètres, une vraie
-      // raquette fait douze pixels et ne dit plus rien de l'échelle.
-      var R = 0.46
-      var tete = new THREE.Mesh(new THREE.TorusGeometry(R, 0.03, 8, 44), cadre)
-      tete.rotation.x = -Math.PI / 2
-      tete.position.y = 0.03
-      r.add(tete)
-      var manche = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.045, 0.86, 8), cadre)
-      manche.rotation.x = Math.PI / 2
-      manche.position.set(0, 0.03, R + 0.4)
-      r.add(manche)
-      var poignee = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.3, 8), neon(NEON_SOURD, 0.4))
-      poignee.rotation.x = Math.PI / 2
-      poignee.position.set(0, 0.03, R + 0.72)
-      r.add(poignee)
-      // Le cordage, tendu dans le disque : chaque brin est coupé à la corde du
-      // cercle, sinon la grille déborde du cadre et ça se voit tout de suite.
-      var brins = []
-      for (var i = -3; i <= 3; i++) {
-        var o = i * (R / 3.6)
-        var demi = Math.sqrt(Math.max(R * R - o * o, 0)) * 0.94
-        brins.push(o, 0.03, -demi, o, 0.03, demi)
-        brins.push(-demi, 0.03, o, demi, 0.03, o)
+    function raquetteBasket(g, trait, sourd) {
+      var RW = 2.45                  // demi-largeur
+      var z0 = HOOP_Z + 0.9          // la ligne de fond du demi-terrain
+      var z1 = HOOP_Z + 6.7          // la ligne de lancer franc
+      barre(g, trait, HOOP_X - RW, z0, HOOP_X + RW, z0, 0.035, 0.06)
+      barre(g, trait, HOOP_X - RW, z1, HOOP_X + RW, z1, 0.035, 0.06)
+      barre(g, trait, HOOP_X - RW, z0, HOOP_X - RW, z1, 0.035, 0.06)
+      barre(g, trait, HOOP_X + RW, z0, HOOP_X + RW, z1, 0.035, 0.06)
+
+      // Le cercle de lancer franc : plein côté extérieur, pointillé côté
+      // raquette, comme sur un vrai terrain.
+      // Moitié avant pleine, moitié arrière en pointillé : c'est le tracé
+      // réglementaire, et c'est aussi ce qui fait lire un cercle plutôt qu'une
+      // ellipse quand on le regarde de très loin et de biais.
+      var pleins = [], tirets = []
+      for (var i = 0; i < 48; i++) {
+        var a0 = (i / 48) * Math.PI * 2
+        var a1 = ((i + 1) / 48) * Math.PI * 2
+        var avant = Math.sin(a0) > 0
+        if (!avant && i % 2) continue
+        var cible = avant ? pleins : tirets
+        cible.push(
+          HOOP_X + Math.cos(a0) * 1.8, 0.035, z1 + Math.sin(a0) * 1.8,
+          HOOP_X + Math.cos(a1) * 1.8, 0.035, z1 + Math.sin(a1) * 1.8,
+        )
       }
-      r.add(segments(brins, neon(NEON_SOURD, 0.3)))
-      r.position.set(x, 0, z)
-      r.rotation.y = ry
-      return r
+      g.add(segments(pleins, trait))
+      g.add(segments(tirets, sourd))
     }
 
     function makeTerrain(p) {
@@ -1017,15 +1038,16 @@
       var traitSourd = neon(NEON_SOURD, 0.5)
       var tracés = [trait, traitSourd]
 
-      // La dalle déborde jusque derrière le panier : sans elle, le panneau
-      // flottait au-dessus du vide dès qu'on l'a éloigné.
-      var dalle = tapis(COURT_W * 2 + 7, COURT_L * 2 + 14, 4, 11)
-      dalle.position.z = -4
+      // La dalle court du fond du court jusque DERRIÈRE le panier : cinquante-
+      // six mètres. Sans elle le panneau flotte au-dessus du vide, et la
+      // raquette de basket n'a rien sur quoi être peinte.
+      var dalle = tapis(COURT_W * 2 + 7, 56, 4, 22)
+      dalle.position.z = -13
       g.add(dalle)
 
-      // Posée entre la ligne de fond et le panier, légèrement de côté et de
-      // travers — personne ne repose une raquette dans l'axe.
-      g.add(raquetteAuSol(-1.9, -(COURT_L + 3.2), 0.7))
+      // La raquette de basket, peinte au sol sous le panier. C'est elle qui
+      // meuble et mesure l'intervalle entre le court et l'arceau.
+      raquetteBasket(g, trait, traitSourd)
 
       // Le tracé, entièrement en baguettes lumineuses.
       barre(g, trait, -COURT_W, -COURT_L, COURT_W, -COURT_L)
@@ -1071,7 +1093,10 @@
       g.add(ball)
 
       // La traîne de la balle : jaune, dix boules, mélange additif.
-      var trail = makeTrail(0xe8ff3a, 14, 0.12)
+      // Vingt-six points au lieu de quatorze : la traîne devient un trait, et
+      // c'est le trait qui donne la vitesse. Une balle sans traîne à cette
+      // échelle n'est qu'un point qui se téléporte d'une image à l'autre.
+      var trail = makeTrail(0xe8ff3a, 26, 0.14)
       g.add(trail.group)
 
       var impact = new THREE.Mesh(
@@ -1246,9 +1271,13 @@
           lerp(9.5, BOUNCE_Z, t),
         )
       }
+      // Après le rebond elle NE S'ARRÊTE PAS. Elle repart, franchit la ligne de
+      // fond et continue de filer vers le fond du décor : à la fin du plan elle
+      // est à soixante mètres, avalée par le brouillard. Une balle qui
+      // s'immobilise dans le cadre annule la vitesse qu'on vient de construire.
       var u = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
-      var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.6, 1))) * (1 - u) * 2.4
-      return out.set(BOUNCE_X, 0.13 + reb, lerp(BOUNCE_Z, -COURT_L - 1, u))
+      var reb = Math.abs(Math.sin(Math.PI * Math.min(u * 2.2, 1))) * (1 - u * 0.7) * 2.4
+      return out.set(BOUNCE_X + u * 1.6, 0.13 + reb, lerp(BOUNCE_Z, -60, u * (2 - u)))
     }
 
     var TMP3 = null
@@ -1309,7 +1338,9 @@
       // centimètres devant le premier rondin du terrain de pétanque. Il
       // s'arrête là et il y reste — voir `vu` plus bas, et la fenêtre de rendu
       // allongée du court, qui le garde à l'image pendant qu'on avance dessus.
-      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 6.9, t4 * (2 - t4))
+      // Le gravier commence à seize mètres derrière l'arceau : le ballon
+      // s'immobilise un mètre et demi avant, et il y reste.
+      var z4 = lerp(DEPARTS[3][2], HOOP_Z - 16.1, t4 * (2 - t4))
       // Le sol remonte de la dalle du court au gravier — et s'arrête à la
       // hauteur d'un ballon POSÉ dessus, pas à celle de son centre enfoncé
       // dedans. Le court est à −3, le gravier à −1,6 : 1,4 dans ce repère,
@@ -1371,10 +1402,9 @@
       }
       balleAt(q, TMP3)
       scn.ball.position.copy(TMP3)
-      scn.ball.visible = q < TERRAIN_BOUNCE ||
-        (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE) < 0.5
+      scn.ball.visible = q < TERRAIN_TIRS
       scn.trail.group.visible = scn.ball.visible
-      if (scn.ball.visible) drawTrail(scn.trail, q, 0.006, balleAt, TMP3)
+      if (scn.ball.visible) drawTrail(scn.trail, q, 0.009, balleAt, TMP3)
 
       if (q >= TERRAIN_BOUNCE) {
         var u2 = (q - TERRAIN_BOUNCE) / (1 - TERRAIN_BOUNCE)
@@ -1388,7 +1418,10 @@
       scn.ball.rotation.x += 0.35
 
       // Le panier n'apparaît qu'au rebond, hors cadre, et ne repart plus.
-      scn.panier.visible = q > TERRAIN_BOUNCE - 0.04
+      // Le panier n'existe qu'une fois la balle de tennis partie : il est à
+      // vingt-cinq mètres derrière la ligne de fond, donc hors champ pendant
+      // tout le tennis, et il émerge du brouillard pendant la traversée.
+      scn.panier.visible = q > TERRAIN_BOUNCE + 0.06
 
       // Les tirs. Ils ne commencent qu'une fois l'appareil relevé : trois
       // paraboles pendant qu'on regarde ailleurs, personne ne les verrait.
@@ -1401,7 +1434,7 @@
       // descendue à 12,4 m et avancée à z 4, cadre l'arceau à trois degrés
       // au-dessus du centre de l'image. Avant, on tirait pendant qu'elle
       // regardait encore le court ; après, elle serait passée dessous.
-      var qb = clamp01((q - 0.58) / 0.42)
+      var qb = clamp01((q - TERRAIN_TIRS) / (TERRAIN_ECHAPPEE - TERRAIN_TIRS))
       var rim = scn.rim.getWorldPosition(new THREE.Vector3())
       var cible = scn.group.worldToLocal(rim)
       // Les trois tirs partent du côté court, à sept mètres du panneau. Plus
@@ -1450,7 +1483,9 @@
         // doivent tenir jusqu'à la coupe vers la pétanque.
         // Le quatrième part au tiers et occupe tout le reste : ses cinq
         // rebonds doivent être finis avant la coupe, sinon il s'éteint en l'air.
-        var qi = i === 3 ? clamp01((qb - 0.5) / 0.5) : clamp01((qb - i * 0.2) / 0.6)
+        var qi = i === 3
+          ? clamp01((q - TERRAIN_ECHAPPEE) / (TERRAIN_FIN - TERRAIN_ECHAPPEE))
+          : clamp01((qb - i * 0.2) / 0.6)
         // Ils restent visibles jusqu'au bout de leur course : un ballon qui
         // s'éteint en plein vol, c'est le genre de détail qu'on ne sait pas
         // nommer mais qui fait que l'image ne tient pas.
@@ -1553,7 +1588,16 @@
       g.add(socle)
 
       var doorMat = steel(doorHex, 0.34, 0.55)
-      var wellMat = new THREE.MeshStandardMaterial({ color: wellHex, roughness: 0.95, metalness: 0 })
+      // Le puits est visible DES DEUX CÔTÉS.
+      //
+      // Une face simple ne se dessine que vue de l'extérieur : dès que la
+      // caméra entre dans la case, elle regarde le dos des parois, le GPU les
+      // supprime, et on voit à travers le meuble — le terrain de tennis
+      // apparaissait au loin à l'instant précis où l'écran devait être bouché.
+      // Toute la coupe repose sur ces six faces.
+      var wellMat = new THREE.MeshStandardMaterial({
+        color: wellHex, roughness: 0.95, metalness: 0, side: THREE.DoubleSide,
+      })
       var poigneeMat = steel(dark ? 0x8fb8cf : 0x7d8fa0, 0.2, 0.9)
 
       var doors = []
@@ -1590,6 +1634,35 @@
         var well = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, h - 0.04, 0.38), wellMat)
         well.position.set(cx, cy, 0.32)
         g.add(well)
+
+        // Le casier OUVERT reçoit un liseré intérieur : quatre baguettes de
+        // néon dans le sens de la profondeur, plus un cadre au fond. Vu du
+        // dehors ça ne se remarque pas ; vu du dedans — c'est-à-dire pendant la
+        // coupe — c'est un tunnel lumineux qui fait le tour de l'image. Sans
+        // lui, la coupe était couverte par du noir pur, ce qui est efficace
+        // mais ne montre rien.
+        if (i === 3) {
+          var lisMat = new THREE.MeshStandardMaterial({
+            color: 0x2bc295, roughness: 0.4, metalness: 0.1,
+            emissive: 0x2bc295, emissiveIntensity: dark ? 1.4 : 0.5,
+          })
+          var hw = (w - 0.06) / 2, hh = (h - 0.06) / 2
+          for (var lx = -1; lx <= 1; lx += 2) {
+            for (var ly = -1; ly <= 1; ly += 2) {
+              var bag = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.018, 0.36), lisMat)
+              bag.position.set(cx + lx * hw, cy + ly * hh, 0.32)
+              g.add(bag)
+            }
+          }
+          for (var lz = -1; lz <= 1; lz += 2) {
+            var hbar = new THREE.Mesh(new THREE.BoxGeometry(w - 0.05, 0.018, 0.018), lisMat)
+            hbar.position.set(cx, cy + lz * hh, 0.32 + lz * 0.0 - 0.17)
+            g.add(hbar)
+            var vbar = new THREE.Mesh(new THREE.BoxGeometry(0.018, h - 0.05, 0.018), lisMat)
+            vbar.position.set(cx + lz * hw, cy, 0.15)
+            g.add(vbar)
+          }
+        }
 
         // Le pivot avance pour que la porte soit entièrement en avant de la
         // caisse. Centrée sur z = 0,5, sa moitié arrière traversait le meuble :
@@ -1718,13 +1791,50 @@
       ecran.position.set(cols[2], 1.58, 0.585)
       g.add(ecran)
 
-      var out = ballBasket(p)
-      out.scale.setScalar(0.3)
-      g.add(out)
+      /**
+       * La gerbe : tout le matériel qui jaillit de la case ouverte.
+       *
+       * Un seul ballon qui sortait en flottant disait « il y a un ballon
+       * dedans ». Huit objets qui giclent vers l'objectif disent « il y a TOUT
+       * là-dedans », ce qui est exactement le propos de la borne — et ils
+       * arrivent à l'instant où la caméra franchit la porte, si bien qu'on les
+       * traverse au lieu de les regarder.
+       *
+       * Chacun garde sa direction propre, tirée d'un cercle : sans ça les huit
+       * partent en éventail régulier et ça se lit comme un motif, pas comme une
+       * explosion.
+       */
+      var OUVERT = layout[3]
+      var gerbe = new THREE.Group()
+      gerbe.position.set(cols[OUVERT[0]], OUVERT[1], 0.42)
+      g.add(gerbe)
+      var gerbeItems = []
+      for (var gi = 0; gi < 8; gi++) {
+        var obj = FACTORIES[gi % FACTORIES.length](p)
+        obj.scale.setScalar(0.2)
+        var a5 = (gi / 8) * Math.PI * 2 + 0.4
+        // Ils s'écartent largement : à l'instant où la caméra arrive, aucun ne
+        // doit être dans l'axe. On passe ENTRE eux, on ne les percute pas.
+        var r5 = 0.95 + (gi % 3) * 0.5
+        gerbeItems.push({
+          mesh: obj,
+          dir: [Math.cos(a5) * r5, Math.sin(a5) * r5 * 0.75, 1.05 + (gi % 4) * 0.55],
+          spin: [0.03 + gi * 0.004, 0.05 - gi * 0.003],
+          retard: gi * 0.035,
+        })
+        gerbe.add(obj)
+      }
 
       // Le casier 04 : celui du milieu de la première rangée de ballons,
       // exactement celui que la maquette met en avant avec sa coche verte.
-      return { group: g, doors: doors, out: out, openIndex: 3 }
+      // `ouvertY` est sa COTE, et c'est elle que vise le plan traversant : la
+      // caméra visait 0,18 alors que la case est à −0,45, soit soixante-trois
+      // centimètres plus haut — elle passait au-dessus au lieu d'entrer.
+      return {
+        group: g, doors: doors, out: null, openIndex: 3,
+        gerbe: gerbe, gerbeItems: gerbeItems,
+        ouvertX: cols[OUVERT[0]], ouvertY: OUVERT[1],
+      }
     }
 
     /**
@@ -1758,11 +1868,32 @@
 
       var arret = clamp01((q - SORTIE_ARRET) / (SORTIE_RECUL - SORTIE_ARRET))
 
-      // L'article rentre dans le casier pendant le premier tiers de l'arrêt.
-      var rentre = ease(clamp01(arret / 0.4))
-      scn.out.visible = rentre < 0.99
-      scn.out.position.set(lerp(1.4, 0, rentre), lerp(-0.34, 0.18, rentre), lerp(1.5, 0.24, rentre))
-      scn.out.rotation.y += 0.02
+      /**
+       * Tout le matériel rentre EN MÊME TEMPS, aspiré par la case.
+       *
+       * C'est la gerbe de l'ouverture jouée à l'envers, et ce n'est pas un
+       * effet de symétrie gratuit : la page s'est ouverte sur huit objets qui
+       * jaillissent d'un casier, elle se ferme sur les mêmes huit qui y
+       * rentrent. Entre les deux il y a eu quatre sports. Le ballon unique qui
+       * revenait racontait un emprunt ; la gerbe raconte le service.
+       *
+       * Ils convergent de bien plus loin qu'ils n'étaient sortis (facteur 2,6)
+       * et arrivent tous sur la même image : c'est l'aspiration.
+       */
+      var rentre = clamp01(arret / 0.52)
+      var vide = 1 - rentre * rentre    // ils accélèrent en approchant
+      var items = scn.gerbeItems
+      for (var gj = 0; gj < items.length; gj++) {
+        var it = items[gj]
+        it.mesh.visible = vide > 0.004
+        it.mesh.position.set(
+          it.dir[0] * vide * 2.6,
+          it.dir[1] * vide * 2.6 + vide * 0.5,
+          it.dir[2] * vide * 2.6,
+        )
+        it.mesh.rotation.x += it.spin[0] * 1.6
+        it.mesh.rotation.y += it.spin[1] * 1.6
+      }
 
       // Puis la porte se referme, sur les deux tiers restants. Une porte qui se
       // ferme sur un ballon encore dehors, c'est le genre de détail qui se
@@ -1790,13 +1921,20 @@
       var open = clamp01((q - T * 0.32) / Math.max(T * 0.36, 0.0001))
       scn.doors[scn.openIndex].rotation.y = -ease(open) * 1.9
 
-      // L'article sort du casier puis flotte devant, comme s'il était pris.
-      // La raquette est dehors, prise et tenue, au moment où l'on plonge.
-      var e = ease(clamp01((q - T * 0.48) / Math.max(T * 0.44, 0.0001)))
-      scn.out.visible = e > 0.01
-      scn.out.position.set(lerp(0, 1.3, e), 0.18 - e * 0.5, lerp(0.2, 1.5, e))
-      scn.out.rotation.y += 0.01
-      scn.out.rotation.x = e * 2
+      // La gerbe. Elle part aux trois quarts du chemin vers la porte et
+      // continue de s'ouvrir pendant qu'on la traverse : à l'instant de la
+      // coupe les objets sont déjà de part et d'autre de l'objectif, et c'est
+      // ce qui donne la sensation d'être passé au travers.
+      var items = scn.gerbeItems
+      for (var gj = 0; gj < items.length; gj++) {
+        var it = items[gj]
+        var e = clamp01((q - T * 0.62 - it.retard) / Math.max(T * 0.5, 0.0001))
+        var s5 = e * (2 - e)          // sortie franche, puis elle s'étale
+        it.mesh.visible = e > 0.005
+        it.mesh.position.set(it.dir[0] * s5, it.dir[1] * s5, it.dir[2] * s5)
+        it.mesh.rotation.x += it.spin[0]
+        it.mesh.rotation.y += it.spin[1]
+      }
     }
 
     // ─── La pétanque ──────────────────────────────────────────────────────────
@@ -1890,7 +2028,52 @@
         g.add(b)
         balls.push(b)
       }
-      return { group: g, balls: balls, jack: jack, ombres: ombres }
+      /**
+       * Le club de golf, et le flash.
+       *
+       * Le dernier geste de la page : un club au néon entre dans le champ par
+       * la droite, arme, et frappe le cochonnet. Au flash, ce qui repart n'est
+       * plus un cochonnet mais une balle de golf — et c'est elle qui traverse
+       * les soixante mètres qui restent pour rentrer dans le casier.
+       *
+       * Le club est dessiné au trait comme tout le reste : un manche, une
+       * virole, une tête. Trois cylindres suffisent à ce qu'on le reconnaisse ;
+       * au-delà, on dessine un objet là où il ne faut qu'un signe.
+       */
+      var club = new THREE.Group()
+      var clubMat = neon(NEON, 0.85)
+      var manche = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 1.5, 10), clubMat)
+      manche.position.y = 0.78
+      club.add(manche)
+      var grip = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.034, 0.03, 0.3, 10), neon(NEON_SOURD, 0.5),
+      )
+      grip.position.y = 1.42
+      club.add(grip)
+      var tete = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.075), clubMat)
+      tete.position.set(0.07, 0.045, 0)
+      club.add(tete)
+      var semelle = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.02, 0.085), neon(NEON_SOURD, 0.4))
+      semelle.position.set(0.07, 0.0, 0)
+      club.add(semelle)
+      club.visible = false
+      g.add(club)
+
+      // L'éclair d'impact : une sphère additive qui gonfle et s'éteint en trois
+      // images. Elle n'éclaire rien — elle CACHE, le temps que le cochonnet
+      // devienne balle de golf.
+      var flash = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 16, 12),
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff, transparent: true, opacity: 0,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+        }),
+      )
+      flash.position.set(PET_JACK[0], 0.06, PET_JACK[1])
+      flash.visible = false
+      g.add(flash)
+
+      return { group: g, balls: balls, jack: jack, ombres: ombres, club: club, flash: flash }
     }
 
     // La mène, comme fonction pure de q — au même titre que `balleAt`.
@@ -1919,16 +2102,24 @@
     }
 
     function bouleAt(q, i, out) {
-      var chassee = clamp01((q - PET_CARREAU) / 0.3)
+      // Le carreau : la chassée part VITE et LOIN, et elle décélère.
+      // À -1,9 étalé sur trois dixièmes, la boule touchée glissait doucement de
+      // côté ; on voyait un déplacement, pas un choc. Trois mètres deux en
+      // dix-huit centièmes, avec une décélération en 1-(1-t)², c'est une boule
+      // qui part — et c'est le geste qu'on regarde la pétanque pour voir.
+      var tc = clamp01((q - PET_CARREAU) / 0.18)
+      var chassee = 1 - (1 - tc) * (1 - tc)
       var cible = i === 0
-        // La première est chassée : elle part sur le côté après le carreau.
-        ? [PET_JACK[0] - 0.5 - chassee * 1.9, PET_JACK[1] + 0.55 + chassee * 0.7]
+        ? [PET_JACK[0] - 0.5 - chassee * 3.2, PET_JACK[1] + 0.55 + chassee * 1.1]
         : i === 1
           ? [PET_JACK[0] + 0.48, PET_JACK[1] + 0.3]
           : [PET_JACK[0] - 0.12, PET_JACK[1] - 0.4]
       var t = petanqueT(q, i)
       var e = i === PET_TIR ? t * (2 - t) : 1 - Math.pow(1 - t, 3)
       var saut = Math.max(0, Math.sin(Math.PI * clamp01((t - 0.06) * 2.4))) * 0.1 * (1 - e)
+      // La boule chassée décolle au moment du choc : un objet qui part sur le
+      // côté sans jamais quitter le sol se lit comme un glissement.
+      if (i === 0) saut += Math.sin(Math.PI * clamp01(tc * 3)) * 0.16
       return out.set(
         lerp((i - 1) * 0.55, cible[0], e),
         0.115 + saut,
@@ -1938,6 +2129,40 @@
 
     function updatePetanque(scn, q) {
       if (!TMP3) TMP3 = new THREE.Vector3()
+
+      /**
+       * Le golf : le dernier geste.
+       *
+       * Tout est calé sur `qSortiePlan` — l'instant où la scène rend la main et
+       * où la balle de liaison part. La frappe DOIT tomber là : une image plus
+       * tôt et la balle serait déjà partie sans avoir été frappée, une image
+       * plus tard et elle serait partie avant le club.
+       */
+      var qF = qSortiePlan(scn)
+      var arme = ease(clamp01((q - qF * 0.60) / Math.max(qF * 0.30, 0.0001)))
+      var abat = clamp01((q - qF * 0.90) / Math.max(qF * 0.10, 0.0001))
+      var suit = ease(clamp01((q - qF) / 0.14))
+      // Il n'entre dans le champ qu'une fois la mène jouée : un club planté au
+      // milieu du cercle pendant que les boules roulent encore raconte deux
+      // choses à la fois, donc aucune.
+      scn.club.visible = q > qF * 0.74 && q < qF + 0.22
+      if (scn.club.visible) {
+        scn.club.position.set(PET_JACK[0] + 0.02, 0, PET_JACK[1] + 0.3)
+        // Armé en arrière, puis abattu — la descente est en t², donc la tête
+        // accélère jusqu'au contact au lieu d'arriver à vitesse constante.
+        scn.club.rotation.z = q < qF
+          ? lerp(lerp(0.3, -2.35, arme), 0, abat * abat)
+          : lerp(0, 1.75, suit)
+      }
+      // Le cochonnet existe jusqu'à la frappe. Après, c'est une balle de golf,
+      // et elle appartient à la liaison.
+      scn.jack.visible = q < qF
+      var ecl = clamp01((q - qF + 0.02) / 0.07)
+      scn.flash.visible = ecl > 0.001 && ecl < 1
+      if (scn.flash.visible) {
+        scn.flash.scale.setScalar(0.04 + ecl * 0.85)
+        scn.flash.material.opacity = 0.95 * (1 - ecl) * (1 - ecl)
+      }
       for (var i = 0; i < scn.balls.length; i++) {
         var t = petanqueT(q, i)
         var b = scn.balls[i]
@@ -1994,7 +2219,7 @@
         // donnait la paroi verte illisible, ce n'était pas la traversée mais le
         // fait de s'y attarder — la fenêtre du plan tenait encore trois
         // centièmes de page une fois à l'intérieur.
-        // La caméra s'arrête SOIXANTE CENTIMÈTRES DEVANT la case ouverte.
+        // La caméra s'arrête DANS la case ouverte, à z = +0,30.
         //
         // À 1,6 elle finissait au-delà du meuble, dans le vide, et il restait
         // deux centièmes de page de noir avant que le court n'ait le droit
@@ -2002,11 +2227,17 @@
         // reçoivent aucune lumière, et le dernier centième et demi de
         // l'approche virait au noir complet.
         //
-        // À soixante centimètres, la case ouverte occupe les trois quarts de la
-        // hauteur de l'image : un rectangle de néon bien net, sombre en son
-        // milieu. C'est la dernière image de la borne, et c'est elle qui
-        // couvre la coupe — un cadre plein, pas un écran noir.
-        exitDist: -0.6,
+        // Le puits derrière la porte va de z = 0,13 à z = 0,51 : s'arrêter à
+        // 0,30 place l'objectif en plein milieu, à dix-sept centimètres du fond
+        // et vingt-six des parois. À cette distance l'intérieur de la case
+        // déborde largement du cadre de tous les côtés — aucun repère
+        // extérieur, donc aucune façon de percevoir le saut. C'est la
+        // définition même d'une coupe couverte.
+        //
+        // Ça ne marchait pas tant que la caméra visait soixante-trois
+        // centimètres trop haut : elle s'arrêtait devant la tôle pleine entre
+        // deux casiers, et on voyait tout le meuble autour.
+        exitDist: -0.30,
         // Quatre MILLIÈMES de flanc de sortie : ce n'est plus une transition,
         // c'est une coupe. Voir `COUPE` dans `frameCamera`.
         edgeOut: 0.004,
@@ -2035,16 +2266,17 @@
         // ensemble — `placeAvant` est ce qui colle la station du court à celle
         // de la borne, et sans lui le plan aurait beau commencer tôt, il
         // commencerait trois centièmes trop tard.
-        holdBefore: 0.21, holdAfter: 0.17, edgeIn: 0.004,
+        holdBefore: 0.21, holdAfter: 0.24, edgeIn: 0.004, edgeOut: 0.012,
         // Le court reste rendu bien après son plan : le ballon de basket
         // s'immobilise devant le terrain de pétanque et doit y rester visible
         // pendant qu'on avance dessus.
         winAfter: 0.26,
-        // Le vol prend son plan vingt unités devant la station, pas treize :
-        // c'est de là, et de là seulement, que le court entier tient dans le
-        // cadre. Et comme le plan part de la même valeur, la caméra n'a aucun
-        // raccord à rattraper quand le poids monte.
-        approachDist: TERRAIN_Z0,
+        // Quatorze unités devant la station et cinquante au-delà : le plan du
+        // court couvre soixante-quatre unités à lui seul, de la ligne de fond
+        // au bord du gravier. Les deux valeurs sont celles du plan lui-même
+        // (voir `CAMERA_BEATS.terrain`), pour que le vol et le plan ne se
+        // contredisent jamais.
+        approachDist: 14, exitDist: 50,
         // Le court n'existe pas tant qu'on n'a pas traversé la borne. Le voir
         // avant, même minuscule et noyé de brouillard, vend la mèche : la
         // découverte doit être la récompense du passage, pas un décor qui
@@ -2067,7 +2299,7 @@
         // Le relais change de sport en même temps que la scène : c'est lui qui
         // dit qu'on passe du basket à la pétanque, sans qu'aucun texte n'ait à
         // le dire.
-        entryAt: [-1.6, TERRAIN_SMASH_Y, 9.5], exitAt: [0.3, 1.53, HOOP_Z - 6.9],
+        entryAt: [-1.6, TERRAIN_SMASH_Y, 9.5], exitAt: [0.3, 1.53, HOOP_Z - 16.1],
         // Plus de balle de liaison vers la pétanque.
         //
         // Elle n'a plus rien à relier : le ballon de basket s'immobilise au
@@ -2080,10 +2312,16 @@
         noRelay: true,
         relayColor: 0x6d7a87 },
       { key: 'petanque', ox: 0, oy: -1.6, make: makePetanque, update: updatePetanque,
-        relayColor: 0x9fb0bf,
-        // Le point de lâcher de la première boule, au bout du terrain.
-        // Le point de lâcher de la première boule : c'est là que le relais la
-        // dépose, et la mène commence exactement où il s'arrête.
+        // Ce qui part du terrain de pétanque n'est plus une boule : c'est la
+        // balle de golf que le club vient de faire naître du cochonnet.
+        relayColor: 0xf2f6f8,
+        // Le gravier n'entre dans le cadre que JUSTE AVANT que le ballon de
+        // basket ne s'immobilise. Avec la fenêtre par défaut il se devinait dès
+        // le milieu des tirs, une deuxième dalle lumineuse à côté du panier —
+        // on voyait la suite avant d'avoir fini le présent.
+        winBefore: 0.06,
+        // Le point de lâcher de la première boule : c'est là que le ballon de
+        // basket s'arrête, et la mène commence exactement où il s'arrête.
         entryAt: [-0.55, 0.115, 6.7],
         // La caméra s'arrête DEUX UNITÉS AVANT la station, donc six mètres et
         // demi avant le cochonnet : on regarde les boules se ranger, on ne leur
@@ -2091,7 +2329,15 @@
         // au-delà), elle finissait à quarante centimètres du sol contre le
         // rondin du fond, qui remplissait alors la moitié du cadre — une barre
         // lumineuse dont personne ne pouvait dire ce qu'elle était.
-        exitDist: -2,
+        // Le plan du court se termine douze unités devant cette station : la
+        // liaison entre les deux est donc nulle, le ballon de basket s'arrête
+        // au bord du gravier et les boules partent de là. Il n'y a plus de vide
+        // entre le basket et la pétanque, il y a un relais sur place.
+        // Six unités d'approche seulement : le plan du court se termine en
+        // collant au ballon de basket, six mètres avant cette station, et une
+        // approche plus longue aurait laissé la caméra sans rien à faire entre
+        // les deux.
+        approachDist: 6, exitDist: -2,
         exitAt: [PET_JACK[0], 0.115, PET_JACK[1]] },
       // La boucle. On ressort par le casier qu'on avait pris, et la borne
       // s'éloigne : la page finit sur l'objet par lequel elle a commencé, et le
@@ -2153,7 +2399,14 @@
     // pas du tout pendant l'écran noir. C'est le contraire de ce qu'on veut :
     // le tracé du court doit se deviner AVANT qu'on y arrive.
     var STATION_TRANSIT = 16    // distance parcourue entre deux plans
-    var STATION_STEP = STATION_APPROACH + STATION_EXIT + STATION_TRANSIT
+    // Soixante-deux unités entre deux stations, et non trente-cinq.
+    //
+    // Le panier est passé à vingt-cinq mètres derrière la ligne de fond : avec
+    // l'ancien pas, il tombait DERRIÈRE le terrain de pétanque. Les quatre
+    // scènes sont maintenant des lieux séparés qu'on relie en volant, et non
+    // quatre décors empilés dans le même couloir. C'est aussi ce qui donne au
+    // vol final de la balle de golf les cinquante-sept mètres qu'il lui faut.
+    var STATION_STEP = 62
 
     // Le plan tenu, en fraction de page, autour de la station.
     var HOLD_BEFORE = 0.09
@@ -2211,6 +2464,20 @@
      * sans que la caméra entre dans la tôle.
      */
     function qTraversee(scn) {
+      var a = Math.max(scn.holdFrom - (scn.def.edgeIn || HOLD_EDGE), 0)
+      var d = Math.min(scn.holdTo + (scn.def.edgeOut || HOLD_EDGE), 1)
+      return clamp01((scn.holdTo - a) / Math.max(d - a, 0.0001))
+    }
+
+    /**
+     * L'instant où le plan rend la main, dans son propre temps.
+     *
+     * C'est `holdTo` — la fin du plateau — ramenée en fraction de plan. Tout ce
+     * qui doit être FINI quand la scène suivante prend le relais se cale
+     * dessus : la frappe de golf, par exemple, doit tomber exactement là, parce
+     * que c'est à cet instant que la balle de liaison part.
+     */
+    function qSortiePlan(scn) {
       var a = Math.max(scn.holdFrom - (scn.def.edgeIn || HOLD_EDGE), 0)
       var d = Math.min(scn.holdTo + (scn.def.edgeOut || HOLD_EDGE), 1)
       return clamp01((scn.holdTo - a) / Math.max(d - a, 0.0001))
@@ -2312,7 +2579,7 @@
         // de la distance, plafonné : la parabole reste une parabole et le
         // regard reste sur terre.
         lerp(RELAY_A.y, RELAY_B.y, uv) +
-          Math.sin(Math.PI * uv) * Math.min(2.4, Math.abs(RELAY_B.z - RELAY_A.z) * 0.085),
+          Math.sin(Math.PI * uv) * Math.min(4.5, Math.abs(RELAY_B.z - RELAY_A.z) * 0.085),
         lerp(RELAY_A.z, RELAY_B.z, uv),
       )
       relay.rotation.x += 0.14
@@ -2327,7 +2594,7 @@
         // prend la taille de ce qu'il représente — sa sphère en fait vingt-six,
         // d'où les facteurs. Sans ça, la « boule » faisait un demi-mètre : à
         // bout portant, une lune.
-        relay.scale.setScalar(col === 0x6d7a87 ? 0.44 : col === 0x9fb0bf ? 0.30 : 1)
+        relay.scale.setScalar(col === 0x6d7a87 ? 0.44 : col === 0xf2f6f8 ? 0.21 : 0.30)
       }
       relay.visible = true
       return t
@@ -2678,41 +2945,35 @@
       * meuble est déjà derrière et qu'il n'y a plus rien à cadrer.
       */
       kiosk: function (q, scn) {
-        // La montée occupe exactement ce qui reste du plan après la traversée.
-        // Ce seuil était un réglage à l'œil qu'il fallait reprendre à chaque
-        // fois qu'on touchait au découpage ; il se déduit maintenant du plan.
-        var T = qTraversee(scn)
-        var sort = smooth(clamp01((q - T) / Math.max(1 - T, 0.0001)))
+        /**
+         * La caméra vise le CASIER OUVERT, et rien d'autre.
+         *
+         * Elle visait la cote 0,18, avec un commentaire affirmant que c'était
+         * celle du casier dans le gabarit. Ce n'était plus vrai : le casier
+         * ouvert est le n° 04, à −0,45. Soixante-trois centimètres d'écart sur
+         * une ouverture qui en fait soixante-deux de haut — autrement dit elle
+         * passait pile au-dessus, et on traversait l'étagère du dessus au lieu
+         * d'entrer dans la case. La cote est maintenant LUE dans le gabarit au
+         * moment de la construction, pas recopiée ici.
+         *
+         * Plus de montée : c'est la coupe qui emmène la caméra au zénith, et
+         * elle n'a plus à y aller par ses propres moyens.
+         */
+        var cx = scn.ouvertX === undefined ? 0 : scn.ouvertX
+        var cy = scn.ouvertY === undefined ? 0.18 : scn.ouvertY
         return {
-          x: 0,
-          // Dix-neuf, et pas vingt-et-un : le plan du court démarre à
-          // vingt-et-un en monde, et une borne qui montait plus haut que ça
-          // faisait remonter la caméra d'un mètre pendant le recouvrement avant
-          // de la faire redescendre. Un mètre, c'est peu — mais c'est un
-          // aller-retour, et c'était le seul qui restait dans la première
-          // moitié de la page.
-          y: lerp(0.18, 19, sort),
+          x: cx,
+          y: cy,
           z: 0,
-          lookX: 0,
-          // Le regard va chercher le court AVANT que le court ne prenne la
-          // main. Pendant le recouvrement, le point visé est la moyenne pondérée
-          // des deux plans : la borne visait deux unités et demie devant sa
-          // station, le court trente-cinq de plus — à mi-croisement le regard
-          // tombait donc dans le brouillard, entre les deux, presque à la
-          // verticale. C'est ce qui faisait pivoter et rogner le court pendant
-          // les trois centièmes de page où il arrive. En portant la visée de la
-          // borne à vingt-deux unités, les deux plans regardent à peu près au
-          // même endroit et le croisement ne se voit plus.
-          lookY: lerp(0.18, 2.0, sort),
-          lookAhead: lerp(6, 22, sort),
-          fov: lerp(1.12, 1.06, sort),
+          lookX: cx,
+          // Le regard porte SIX UNITÉS au-delà de la station, c'est-à-dire à
+          // travers la case et derrière le meuble. Viser la case elle-même
+          // ferait pivoter la caméra au moment où elle la dépasse.
+          lookY: cy,
+          lookAhead: 6,
+          fov: 1.12,
           roll: 0,
-          // Le verrouillage sur la porte se relâche DÈS la traversée : on ne
-          // vise plus une ouverture de cinquante centimètres une fois passé —
-          // et surtout, tant qu'il tient, l'écart de cadrage est mis à
-          // l'échelle du meuble, ce qui écraserait la montée à quelques
-          // centimètres.
-          thread: q < T + 0.02,
+          thread: true,
         }
       },
       // Le panier est à droite : on se penche franchement de son côté, on avance
@@ -2752,40 +3013,72 @@
        * était coupé, et c'est très exactement ce qu'on voyait.
        */
       terrain: function (q) {
-        // Une seule progression pour tout le plan. Ni smoothstep pur — qui
-        // s'arrête aux deux bouts, et un plan qui s'arrête est un plan figé —
-        // ni linéaire, qui démarre et finit par un à-coup. Quinze pour cent de
-        // linéaire sous la courbe suffisent à garder de la vitesse partout.
-        var av = 0.15 * q + 0.85 * smooth(q)
+        if (!TMP3) TMP3 = new THREE.Vector3()
+        if (!TMP4) TMP4 = new THREE.Vector3()
+
+        /**
+         * Le court, en trois actes — et un seul mouvement continu.
+         *
+         *   1. LE ZÉNITH puis LA POURSUITE. La coupe dépose la caméra à
+         *      vingt-cinq mètres au-dessus de la ligne de fond : d'ici, un
+         *      court de 23,77 m tient entier dans le cadre à 63° de plongée.
+         *      Puis elle plonge DANS LE DOS de la balle et la rattrape — elle
+         *      finit à six mètres derrière elle et sept au-dessus.
+         *   2. LA DESCENTE vers le panier, vingt-cinq mètres plus loin, pendant
+         *      que la balle continue de filer et sort du décor.
+         *   3. LA COLLE : le quatrième ballon s'échappe, et la caméra se met à
+         *      deux mètres derrière lui, à un mètre quarante au-dessus, jusqu'au
+         *      bord du terrain de pétanque.
+         *
+         * Les trois actes s'emboîtent par imbrication de lerps : chaque acte
+         * part exactement d'où le précédent s'est arrêté, donc il n'y a ni
+         * raccord ni discontinuité, et la monotonie en z est garantie par
+         * construction.
+         */
+        balleAt(Math.min(q, TERRAIN_BOUNCE), TMP3)
+        var chasse = smooth(clamp01((q - 0.08) / 0.26))
+        var z1 = lerp(14, TMP3.z + 6.5, chasse)
+        var y1 = lerp(28, TMP3.y + 7.2, chasse)
+        var lx1 = lerp(0, TMP3.x, chasse)
+        var ly1 = lerp(0.3, TMP3.y + 0.2, chasse)
+        var la1 = lerp(0, -TMP3.z, chasse)
+
+        var vers = smooth(clamp01((q - TERRAIN_BOUNCE) / (TERRAIN_ARRIVEE - TERRAIN_BOUNCE)))
+        var z2 = lerp(z1, HOOP_Z + 13, vers)
+        var y2 = lerp(y1, 6.4, vers)
+        var lx2 = lerp(lx1, HOOP_X, vers)
+        var ly2 = lerp(ly1, HOOP_Y - 0.5, vers)
+        var la2 = lerp(la1, -HOOP_Z, vers)
+
+        // Pendant les trois tirs, la caméra ne s'arrête pas : elle continue de
+        // se rapprocher de treize à neuf mètres et de descendre d'un mètre
+        // deux. Quatre mètres sur un dixième de page, c'est imperceptible comme
+        // déplacement et décisif comme sensation — un plan qui tient sa
+        // position pendant huit centièmes de page se lit comme une image fixe,
+        // et c'est le reproche qui revient à chaque fois.
+        var tirsAv = smooth(clamp01((q - TERRAIN_TIRS) / (TERRAIN_ECHAPPEE - TERRAIN_TIRS)))
+        z2 = lerp(z2, HOOP_Z + 9, tirsAv)
+        y2 = lerp(y2, 5.2, tirsAv)
+
+        ballonQuiPart(clamp01((q - TERRAIN_ECHAPPEE) / (TERRAIN_FIN - TERRAIN_ECHAPPEE)), TMP4)
+        var colle = smooth(clamp01((q - TERRAIN_ECHAPPEE - 0.02) / (TERRAIN_FIN - TERRAIN_ECHAPPEE - 0.02)))
+        var z3 = lerp(z2, TMP4.z + 2.4, colle)
+        var y3 = lerp(y2, TMP4.y + 1.5, colle)
 
         return {
-          // Une dérive latérale de deux mètres six sur tout le plan : assez
-          // pour que le tracé tourne lentement sous nous — c'est ce qui donne
-          // le volume — trop peu pour se lire comme un déplacement. L'ancien
-          // écart de sept mètres, lui, se lisait.
-          x: lerp(-1.3, 1.3, av),
-          y: lerp(TERRAIN_Y0, TERRAIN_Y1, av),
+          // Une dérive latérale qui va chercher le panier : le court est
+          // centré au début, l'arceau l'est à la fin.
+          x: lerp(lerp(-1.2, HOOP_X - 1.4, vers), TMP4.x + 0.6, colle),
+          y: y3,
           z: 0,
-          // Le regard glisse vers le panier en même temps que la caméra
-          // descend : au début le court est centré, à la fin l'arceau l'est
-          // presque. Un seul mouvement, là aussi.
-          lookX: lerp(-0.4, 2.4, av),
-          // Le point visé remonte du sol vers l'arceau : deux mètres sur vingt-
-          // cinq de distance, soit quatre degrés. Ce n'est pas lui qui cadre le
-          // panier — c'est la caméra qui descend à sa hauteur.
-          lookY: lerp(0.3, 2.4, av),
-          // La profondeur absolue, du point d'approche au point de sortie du
-          // vol. Les deux bouts sont ceux que `flightZ` calcule de son côté
-          // (`approachDist` et `STATION_EXIT`) : le plan ne tire donc jamais la
-          // caméra là où le vol ne l'emmenait pas, et le raccord est nul par
-          // construction à l'entrée comme à la sortie.
-          zStation: lerp(TERRAIN_Z0, -STATION_EXIT, av),
+          lookX: lerp(lx2, TMP4.x, colle),
+          lookY: lerp(ly2, TMP4.y + 0.3, colle),
+          zStation: z3,
           // `lookAhead` se compte depuis la station : la valeur EST la
-          // profondeur visée, au signe près. Zéro, c'est le centre du court ;
-          // 15,3, l'arceau ; 25, le gravier vers lequel le ballon roule.
-          lookAhead: lerp(0, 25, av),
-          fov: lerp(1.02, 0.9, av),
-          roll: lerp(0.006, -0.008, av),
+          // profondeur visée au signe près.
+          lookAhead: lerp(la2, -TMP4.z, colle),
+          fov: lerp(lerp(1.02, 0.94, vers), 1.06, colle),
+          roll: lerp(lerp(0.006, -0.008, vers), 0.01, colle),
         }
       },
       // La pétanque se joue au sol : on descend au ras du sable et on regarde
@@ -2863,7 +3156,11 @@
         // la forme d'une boule lancée, branche montante comprise. Elle finit à
         // un mètre vingt du gravier et non quarante centimètres, assez haut pour
         // qu'on voie la mène se placer au lieu de raser les cailloux.
-        var cloche = Math.sin(Math.PI * clamp01(q / 0.5)) * 0.9
+        // On arrive maintenant au ras du sol, collé au ballon de basket : la
+        // vue de la pétanque ne peut plus partir de six mètres quarante sans
+        // faire un bond. Elle part de trois mètres vingt, prend encore un mètre
+        // quatre sur le premier quart — l'arrondi du lancer — puis retombe.
+        var cloche = Math.sin(Math.PI * clamp01(q / 0.5)) * 1.4
         var chute = Math.pow(q, 1.7)
         var pose = 0.15 * q + 0.85 * smooth(q)
         var avance = smooth(clamp01((q - 0.2) / 0.62))
@@ -2885,7 +3182,7 @@
 
         return {
           x: lerp(lerp(0.4, PET_JACK[0], avance), 1.2, tourne),
-          y: lerp(6.4, 1.2, chute) + cloche,
+          y: lerp(3.2, 1.2, chute) + cloche,
           z: 0,
           lookX: lerp(vx, 3.6, tourne),
           lookY: lerp(lerp(1.4, 0.2, pose), 1.4, tourne),
@@ -3566,7 +3863,10 @@
       // poids en cloche fait que la bascule et le retour sont progressifs — on
       // ne coupe jamais d'un sujet à l'autre.
       if (relayHit && relay && relay.visible) {
-        var rw = relayHit.w * 0.8
+        // Le regard colle à la balle de golf : c'est elle qui nous emmène à la
+        // borne sur les soixante derniers mètres, et c'est le seul relais de la
+        // page qu'on suit vraiment du départ à l'arrivée.
+        var rw = relayHit.w * 0.92
         lx = lerp(lx, relay.position.x, rw)
         ly = lerp(ly, relay.position.y, rw)
         lz = lerp(lz, relay.position.z, rw)
@@ -3620,7 +3920,15 @@
        * détecte dans les DEUX sens : en remontant la page, la coupe joue à
        * l'envers et on se retrouve dans le casier.
        */
-      var COUPE = scenes.length ? scenes[0].holdTo + (scenes[0].def.edgeOut || HOLD_EDGE) : -1
+      // Le seuil est le MILIEU DU FLANC D'ENTRÉE DU COURT, pas la fin de celui
+      // de la borne. À cet instant précis le poids de la borne est déjà nul et
+      // celui du court vaut un demi : le cadrage cible est donc entièrement
+      // celui du court, et le saut atterrit pile sur le zénith. Calé sur la fin
+      // du flanc de la borne, il atterrissait à mi-chemin entre les deux — une
+      // image bâtarde, casier à moitié quitté, court pas encore arrivé.
+      var COUPE = scenes.length > 1
+        ? scenes[1].holdFrom - (scenes[1].def.edgeIn || HOLD_EDGE) * 0.5
+        : -1
       var saut = COUPE > 0 && P_PREC >= 0 &&
         ((P_PREC < COUPE) !== (progress < COUPE))
       P_PREC = progress
@@ -3970,6 +4278,20 @@
       }
       var q = planQ(scn, progress)
       placeSortie(scn, q)
+
+      // Le panneau de texte disparaît AVEC la borne, pas trente centièmes de
+      // page plus tard avec le fondu général. Les deux pavés se référaient à un
+      // meuble qui n'était déjà plus là : ils restaient posés sur la section
+      // interactive comme des légendes orphelines.
+      if (RACCORD_FAIT) {
+        if (finalOn) {
+          finalEl.hidden = true
+          finalEl.style.opacity = '0'
+          finalEl.classList.remove('is-on')
+          finalOn = false
+        }
+        return
+      }
 
       // Les pavés n'arrivent qu'aux trois quarts du plan, c'est-à-dire APRÈS
       // que la porte se soit refermée et pendant que le dézoom se termine.
