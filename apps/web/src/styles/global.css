@@ -807,6 +807,8 @@ html.light .hero-blob-1 {
      ne couvre qu'une ellipse autour du texte, il peut donc se permettre d'être
      franc là où il agit sans assombrir la page. */
   --wash-text: rgba(13, 27, 42, 0.88);
+  /* Le fond plein des cartes sur téléphone. Voir la règle mobile plus bas. */
+  --card-plein: rgba(15, 30, 46, 0.9);
 }
 
 html.light {
@@ -816,6 +818,7 @@ html.light {
   --grain-opacity: 0.035;
   --cascade-opacity: 0.6;
   --wash-text: rgba(255, 255, 255, 0.9);
+  --card-plein: rgba(255, 255, 255, 0.93);
 }
 
 /* Sur téléphone il n'y a pas de marge où reléguer le décor : le masque ne
@@ -828,6 +831,51 @@ html.light {
   }
   html.light {
     --cascade-opacity: 0.3;
+  }
+
+  /* ─── LE DÉCOR PASSE DERRIÈRE, PAS AU TRAVERS ───────────────────────────
+   *
+   * Le masque qui creuse la colonne centrale ne s'applique qu'au-dessus de
+   * 768 px, faute de marges où reléguer le décor. En dessous, une scène passe
+   * forcément derrière le texte — et le contraste statique ne dit rien du
+   * problème réel : ce ne sont pas les objets qui gênent, ce sont les TRAITS.
+   * Une baguette néon du terrain de pétanque traverse une carte de part en
+   * part, et la phrase qu'elle croise devient illisible sur trois mots.
+   *
+   * Deux règles, et seulement sur téléphone.
+   *
+   * La première donne aux sections impaires le voile que les paires avaient
+   * déjà : sur un écran de 390 px, l'alternance claire/sombre compte moins que
+   * de pouvoir lire un paragraphe. Le hero n'est pas concerné — il porte la
+   * classe `.hero-section`, pas `.section`, et c'est justement là que le décor
+   * doit se voir en entier.
+   *
+   * La seconde rend les cartes opaques. Le `backdrop-filter` les rendait
+   * translucides à dessein ; un flou de quatorze pixels adoucit une forme, il
+   * n'éteint pas une ligne lumineuse. Sur une carte, il y a du texte à lire et
+   * rien à voir derrière.
+   */
+  .section::before {
+    content: '';
+    position: absolute;
+    inset: -1px 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      var(--wash) 12%,
+      var(--wash) 88%,
+      transparent 100%
+    );
+  }
+  .card-dark {
+    background-color: var(--card-plein);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  html.light .card-dark {
+    background-color: var(--card-plein) !important;
   }
 }
 
