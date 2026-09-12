@@ -485,6 +485,215 @@
       return t
     }
 
+    /**
+     * LES TEXTURES DES BALLONS, dessinées au canvas.
+     *
+     * C'est ce qui manquait, et rien d'autre ne pouvait le remplacer. Une
+     * sphère orange avec deux tores noirs autour n'est pas un ballon de
+     * basket : c'est une sphère orange avec deux tores autour. Ce qui fait
+     * qu'on reconnaît un ballon, ce sont ses PANNEAUX — les pentagones noirs du
+     * foot, les huit quartiers du basket, les trois bandes du volley, la
+     * couture blanche en S du tennis, les stries d'une boule d'acier. Aucun de
+     * ces motifs ne se fabrique avec de la géométrie posée autour d'une sphère,
+     * et tous se dessinent en deux dimensions.
+     *
+     * Les cartes sont donc équirectangulaires — la projection que `SphereGeometry`
+     * attend : l'abscisse est la longitude, l'ordonnée la colatitude. Elles sont
+     * construites une fois, mises en cache, et partagées par les quarante objets
+     * et les deux bornes. Quelques centaines de kilo-octets de canvas, aucun
+     * fichier à télécharger.
+     */
+    var TEXS = {}
+
+    function texCanvas(nom, w, h, dessin) {
+      if (TEXS[nom]) return TEXS[nom]
+      var cv = document.createElement('canvas')
+      cv.width = w
+      cv.height = h
+      dessin(cv.getContext('2d'), w, h)
+      var t = new THREE.CanvasTexture(cv)
+      t.wrapS = THREE.RepeatWrapping
+      t.wrapT = THREE.ClampToEdgeWrapping
+      t.anisotropy = 4
+      TEXS[nom] = t
+      return t
+    }
+
+    /**
+     * Le ballon de foot, construit comme un vrai : un icosaèdre TRONQUÉ.
+     *
+     * Douze pentagones noirs, vingt hexagones blancs. On ne les dessine pas, on
+     * les DÉDUIT : les trente-deux centres de faces d'un icosaèdre tronqué sont
+     * exactement les douze sommets et les vingt centres de face d'un icosaèdre,
+     * que three.js sait construire. Chaque pixel de la carte cherche le centre
+     * le plus proche — c'est un diagramme de Voronoï sur la sphère — et prend sa
+     * couleur ; là où les deux plus proches sont à égalité, c'est une couture.
+     *
+     * Résultat : un Telstar juste, avec des panneaux qui se raccordent
+     * proprement aux pôles, ce qu'aucun placage à la main ne donne.
+     */
+    function texFoot() {
+      return texCanvas('foot', 512, 256, function (ctx, W, H) {
+        var ico = new THREE.IcosahedronGeometry(1, 0)
+        var pos = ico.attributes.position
+        var tous = [], pent = []
+        function ajoute(x, y, z, estPent) {
+          for (var k = 0; k < tous.length; k++) {
+            var T = tous[k]
+            if (Math.abs(T[0] - x) < 1e-4 && Math.abs(T[1] - y) < 1e-4 && Math.abs(T[2] - z) < 1e-4) return
+          }
+          tous.push([x, y, z])
+          pent.push(estPent)
+        }
+        for (var i = 0; i < pos.count; i += 3) {
+          var cx = 0, cy = 0, cz = 0
+          for (var j = 0; j < 3; j++) {
+            var x = pos.getX(i + j), y = pos.getY(i + j), z = pos.getZ(i + j)
+            var n = Math.sqrt(x * x + y * y + z * z)
+            ajoute(x / n, y / n, z / n, 1)
+            cx += x; cy += y; cz += z
+          }
+          var nc = Math.sqrt(cx * cx + cy * cy + cz * cz)
+          ajoute(cx / nc, cy / nc, cz / nc, 0)
+        }
+
+        var img = ctx.createImageData(W, H)
+        var d = img.data
+        for (var py = 0; py < H; py++) {
+          var th = ((py + 0.5) / H) * Math.PI
+          var st = Math.sin(th), ct = Math.cos(th)
+          for (var px = 0; px < W; px++) {
+            var ph = ((px + 0.5) / W) * Math.PI * 2
+            var X = st * Math.cos(ph), Y = ct, Z = st * Math.sin(ph)
+            var b1 = -2, b2 = -2, ib = 0
+            for (var k2 = 0; k2 < tous.length; k2++) {
+              var C = tous[k2]
+              var dp = X * C[0] + Y * C[1] + Z * C[2]
+              if (dp > b1) { b2 = b1; b1 = dp; ib = k2 } else if (dp > b2) { b2 = dp }
+            }
+            var ecart = Math.acos(Math.min(b2, 1)) - Math.acos(Math.min(b1, 1))
+            var v = ecart < 0.04 ? 22 : pent[ib] ? 30 : 234
+            var o = (py * W + px) * 4
+            d[o] = d[o + 1] = d[o + 2] = v
+            d[o + 3] = 255
+          }
+        }
+        ctx.putImageData(img, 0, 0)
+      })
+    }
+
+    /** Le ballon de basket : cuir picoté, deux méridiens, l'équateur, deux S. */
+    function texBasket() {
+      return texCanvas('basket', 768, 384, function (ctx, W, H) {
+        // Un orange de cuir, pas un orange de plot : sous le halo du
+        // post-traitement, tout ce qui dépasse de #a8 vire au jaune.
+        ctx.fillStyle = '#a1471a'
+        ctx.fillRect(0, 0, W, H)
+        // Le picot du cuir. Vingt-six mille points, c'est ce qui fait la
+        // différence entre « orange » et « ballon ».
+        for (var i = 0; i < 26000; i++) {
+          ctx.fillStyle = i % 2 ? 'rgba(0,0,0,0.12)' : 'rgba(226,160,110,0.10)'
+          ctx.fillRect(Math.random() * W, Math.random() * H, 2, 2)
+        }
+        ctx.strokeStyle = '#180d06'
+        ctx.lineWidth = H * 0.021
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        ctx.moveTo(1, 0); ctx.lineTo(1, H)
+        ctx.moveTo(W * 0.5, 0); ctx.lineTo(W * 0.5, H)
+        ctx.moveTo(0, H * 0.5); ctx.lineTo(W, H * 0.5)
+        ctx.stroke()
+        // Un grand cercle incliné se déroule en sinusoïde sur une carte
+        // équirectangulaire : les deux coutures courbes sont donc deux sinus.
+        for (var sg = -1; sg <= 1; sg += 2) {
+          ctx.beginPath()
+          for (var x = 0; x <= W; x += 4) {
+            var y = H * (0.5 + sg * 0.27 * Math.sin((x / W) * Math.PI * 2))
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+          }
+          ctx.stroke()
+        }
+      })
+    }
+
+    /** Le volley : six quartiers blanc / bleu / jaune, trois bandes chacun. */
+    function texVolley() {
+      return texCanvas('volley', 512, 256, function (ctx, W, H) {
+        var teintes = ['#f2f5f7', '#1d4ea8', '#f0be24']
+        for (var q = 0; q < 6; q++) {
+          ctx.fillStyle = teintes[q % 3]
+          ctx.fillRect((q / 6) * W, 0, W / 6 + 1, H)
+        }
+        ctx.strokeStyle = 'rgba(18,26,36,0.5)'
+        ctx.lineWidth = H * 0.014
+        for (var q2 = 0; q2 <= 6; q2++) {
+          var x = (q2 / 6) * W
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
+        }
+        ctx.lineWidth = H * 0.009
+        for (var b = 1; b <= 2; b++) {
+          var y = (b / 3) * H
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
+        }
+      })
+    }
+
+    /** La balle de tennis : feutre jaune et la couture blanche en S. */
+    function texTennis() {
+      return texCanvas('tennis', 384, 192, function (ctx, W, H) {
+        ctx.fillStyle = '#cbdc2c'
+        ctx.fillRect(0, 0, W, H)
+        for (var i = 0; i < 9000; i++) {
+          ctx.fillStyle = i % 2 ? 'rgba(255,255,214,0.14)' : 'rgba(118,138,18,0.14)'
+          ctx.fillRect(Math.random() * W, Math.random() * H, 2, 2)
+        }
+        ctx.strokeStyle = '#f7f9f1'
+        ctx.lineWidth = H * 0.055
+        ctx.lineCap = 'round'
+        for (var sg = -1; sg <= 1; sg += 2) {
+          ctx.beginPath()
+          for (var x = 0; x <= W; x += 3) {
+            var y = H * (0.5 + sg * 0.26 * Math.sin((x / W) * Math.PI * 2))
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+          }
+          ctx.stroke()
+        }
+      })
+    }
+
+    /** La boule de pétanque : acier tourné, stries fines. */
+    function texBoule() {
+      return texCanvas('boule', 256, 128, function (ctx, W, H) {
+        var g = ctx.createLinearGradient(0, 0, 0, H)
+        g.addColorStop(0, '#5d6874')
+        g.addColorStop(0.45, '#aeb9c4')
+        g.addColorStop(0.55, '#c3ccd4')
+        g.addColorStop(1, '#5d6874')
+        ctx.fillStyle = g
+        ctx.fillRect(0, 0, W, H)
+        ctx.strokeStyle = 'rgba(28,36,46,0.45)'
+        ctx.lineWidth = 1.3
+        for (var i = 1; i < 30; i++) {
+          var y = (i / 30) * H
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
+        }
+      })
+    }
+
+    /** Le cordage de la raquette : une grille sur fond transparent. */
+    function texCordage() {
+      return texCanvas('cordage', 256, 256, function (ctx, W, H) {
+        ctx.clearRect(0, 0, W, H)
+        ctx.strokeStyle = 'rgba(236,241,245,0.88)'
+        ctx.lineWidth = 2.4
+        for (var i = 1; i < 17; i++) {
+          var p = (i / 17) * W
+          ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, H); ctx.stroke()
+          ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(W, p); ctx.stroke()
+        }
+      })
+    }
+
     function textures() {
       if (TEX.ready) return TEX
       // Grain de cuir : creux marqués, piqué fin. C'est la carte de relief des
@@ -1780,16 +1989,17 @@
         // et tranche au hasard, d'où les rayures verticales. En profondeur, deux
         // surfaces ne doivent jamais être à la même cote.
         var wellGeo = new THREE.BoxGeometry(w - 0.04, h - 0.04, 0.38)
-        if (i === 3) {
+        {
           /**
-           * LA CASE OUVERTE EST UNE CAVITÉ, PAS UNE BOÎTE.
+           * CHAQUE CASE EST UNE CAVITÉ, PAS UNE BOÎTE.
            *
-           * Voilà pourquoi le casier avait toujours l'air vide. Le puits est un
+           * Voilà pourquoi les casiers avaient l'air vides. Le puits est un
            * cube complet : sa face avant, à z = 0,51, se dresse juste derrière
            * la porte et bouche tout. Ce qu'on prenait pour l'intérieur de la
-           * case était en réalité son COUVERCLE, vu de face — et les douze
-           * objets rangés dedans étaient parfaitement dessinés, parfaitement
-           * placés, et parfaitement cachés derrière une plaque.
+           * case était en réalité son COUVERCLE, vu de face — et les objets
+           * rangés dedans étaient parfaitement dessinés, parfaitement placés,
+           * et parfaitement cachés derrière une plaque. Les huit portes
+           * s'ouvrant désormais ensemble, les huit puits sont ouverts.
            *
            * `BoxGeometry` range ses six faces en six groupes d'indices, dans
            * l'ordre +x, −x, +y, −y, +z, −z. On reconstruit l'INDEX sans le
@@ -1975,314 +2185,399 @@
       g.add(ecran)
 
       /**
-       * La gerbe : tout le matériel qui jaillit de la case ouverte.
+       * LA FAÇADE PERCÉE — huit trous, pas un.
        *
-       * Un seul ballon qui sortait en flottant disait « il y a un ballon
-       * dedans ». Huit objets qui giclent vers l'objectif disent « il y a TOUT
-       * là-dedans », ce qui est exactement le propos de la borne — et ils
-       * arrivent à l'instant où la caméra franchit la porte, si bien qu'on les
-       * traverse au lieu de les regarder.
+       * Les huit portes s'ouvrent maintenant ensemble, donc les huit casiers
+       * doivent être de vraies cavités. La face avant du meuble est refaite
+       * bande par bande : on découpe la façade en tranches horizontales sur les
+       * cotes des casiers, et dans chaque tranche on ne pose de tôle que là où
+       * il n'y a pas d'ouverture. Le résultat est exactement la face avant du
+       * cube d'origine, moins huit rectangles — et à travers ces huit
+       * rectangles, on voit ce qu'il y a dedans.
        *
-       * Chacun garde sa direction propre, tirée d'un cercle : sans ça les huit
-       * partent en éventail régulier et ça se lit comme un motif, pas comme une
-       * explosion.
+       * Écrit comme un algorithme et non comme une liste de plaques : le jour
+       * où le gabarit change, la façade suit.
        */
-      /**
-       * Les quatre bandes de la façade : au-dessus, au-dessous, à gauche et à
-       * droite de la case ouverte. Ensemble elles refont exactement la face
-       * avant du meuble, moins l'ouverture — et cette ouverture-là est un vrai
-       * trou, à travers lequel on voit ce qu'il y a dans le casier.
-       */
-      var OUV = layout[3]
-      var FW = (OUV[2] - 0.04) / 2
-      var FH = (OUV[3] - 0.04) / 2
-      var fx0 = cols[OUV[0]], fy0 = OUV[1]
-      var bandes = [
-        [1.8, 1.8 - (fy0 + FH), 0, (fy0 + FH + 1.8) / 2],
-        [1.8, fy0 - FH + 1.8, 0, (fy0 - FH - 1.8) / 2],
-        [fx0 - FW + 0.9, FH * 2, (fx0 - FW - 0.9) / 2, fy0],
-        [0.9 - (fx0 + FW), FH * 2, (fx0 + FW + 0.9) / 2, fy0],
-      ]
-      for (var fb = 0; fb < bandes.length; fb++) {
-        var B = bandes[fb]
-        if (B[0] <= 0.002 || B[1] <= 0.002) continue
-        var bande = new THREE.Mesh(new THREE.PlaneGeometry(B[0], B[1]), caisse)
-        bande.position.set(B[2], B[3], 0.5)
-        g.add(bande)
+      var LARG = 0.9, HAUT = 1.8
+      var coupes = [-HAUT, HAUT]
+      for (var cy2 = 0; cy2 < layout.length; cy2++) {
+        coupes.push(layout[cy2][1] - layout[cy2][3] / 2 + 0.02)
+        coupes.push(layout[cy2][1] + layout[cy2][3] / 2 - 0.02)
+      }
+      coupes.sort(function (a, b) { return a - b })
+      for (var cb = 0; cb < coupes.length - 1; cb++) {
+        var y0 = coupes[cb], y1 = coupes[cb + 1]
+        if (y1 - y0 < 0.004) continue
+        var ym = (y0 + y1) / 2
+        // Les ouvertures présentes à cette hauteur, rangées de gauche à droite.
+        var trous = []
+        for (var tt = 0; tt < layout.length; tt++) {
+          var LT = layout[tt]
+          if (ym > LT[1] - LT[3] / 2 + 0.02 && ym < LT[1] + LT[3] / 2 - 0.02) {
+            trous.push([cols[LT[0]] - LT[2] / 2 + 0.02, cols[LT[0]] + LT[2] / 2 - 0.02])
+          }
+        }
+        trous.sort(function (a, b) { return a[0] - b[0] })
+        var curseur = -LARG
+        for (var tr = 0; tr <= trous.length; tr++) {
+          var bord = tr < trous.length ? trous[tr][0] : LARG
+          if (bord - curseur > 0.004) {
+            var plaque = new THREE.Mesh(
+              new THREE.PlaneGeometry(bord - curseur, y1 - y0), caisse,
+            )
+            plaque.position.set((curseur + bord) / 2, ym, 0.5)
+            g.add(plaque)
+          }
+          if (tr < trous.length) curseur = trous[tr][1]
+        }
       }
 
       /**
-       * LES HUIT SPORTS DE LA BORNE.
+       * LE CONTENU DES HUIT CASES, À L'ÉCHELLE.
        *
-       * Une seule table pour les deux bouts de la page. Ce qui jaillit de la
-       * case à l'ouverture et ce qui rentre dans les casiers à la fin sont les
-       * mêmes objets, au même dessin et à la même couleur : c'est ça qui boucle
-       * la démonstration — on range ce qu'on a sorti, et chacun dans sa case.
+       * C'est la dernière chose qui sonnait faux, et c'était la plus simple :
+       * douze objets identiques, tous à la même taille arbitraire, entassés
+       * dans un seul casier. Un ballon de basket fait vingt-quatre centimètres
+       * et demi. Un casier à ballons en fait cinquante-deux sur soixante-deux.
+       * Donc un casier contient QUATRE ballons de basket, pas douze — et quatre
+       * ballons de vingt-quatre centimètres et demi dans quarante-huit
+       * centimètres utiles, ça se touche. C'est ça, « comprimé dans la boîte » :
+       * ce n'est pas un effet, c'est une conséquence des cotes.
        *
-       * L'ordre suit `layout`, ligne pour ligne : les deux grandes portes du
-       * haut prennent le matériel long, les six casiers à ballons prennent les
-       * ballons. Ce n'est pas un détail d'affichage, c'est la fiche produit.
+       * D'où cette table. Chaque ligne suit `layout` et dit, pour un casier :
+       * le sport, sa couleur, ses dimensions RÉELLES en mètres, en combien
+       * d'exemplaires il est rangé, et selon quelle grille. Le nombre d'objets
+       * passe de douze à une quarantaine — et c'est précisément ce qui donne la
+       * sensation de « plein de sport » qu'on cherchait à obtenir en trichant
+       * sur la taille.
+       *
+       *   grille  [colonnes, rangées, profondeurs]
+       *   pas     l'entraxe dans les trois directions
        */
-      var SPORTS = [
-        { motif: 'raquette', couleur: 0x2bc295 },
-        { motif: 'club', couleur: 0xe8ff3a },
-        { motif: 'foot', couleur: 0xf2f6f8 },
-        { motif: 'basket', couleur: 0xff7a1a },
-        { motif: 'volley', couleur: 0x3f9ad8 },
-        { motif: 'tennis', couleur: 0xd8ff3a },
-        { motif: 'petanque', couleur: 0x9fb0bf },
-        { motif: 'frisbee', couleur: 0x4fd6a8 },
+      var CONTENU = [
+        // Deux grandes portes : le matériel long, debout, rangé en profondeur.
+        { motif: 'raquette', couleur: 0x2bc295, r: 0.125, grille: [1, 1, 3], pas: [0, 0, 0.1], dy: 0.12 },
+        // `dy` : le club mesure 1,13 m et son origine est au poignet, pas au
+        // milieu. Sans ce décalage, sa tête sortait par le bas de la porte.
+        { motif: 'club', couleur: 0xd7dde3, r: 0.09, grille: [2, 1, 1], pas: [0.17, 0, 0], dy: -0.07 },
+        // Six casiers à ballons. Les entraxes sont les diamètres réels : les
+        // ballons se touchent, et rien ne dépasse des bordures.
+        { motif: 'foot', couleur: 0xf2f6f8, r: 0.11, grille: [2, 2, 1], pas: [0.223, 0.223, 0] },
+        { motif: 'basket', couleur: 0xff7a1a, r: 0.1225, grille: [2, 2, 1], pas: [0.233, 0.233, 0] },
+        { motif: 'volley', couleur: 0x3f9ad8, r: 0.105, grille: [2, 2, 1], pas: [0.213, 0.213, 0] },
+        { motif: 'tennis', couleur: 0xd8ff3a, r: 0.034, grille: [4, 3, 1], pas: [0.072, 0.076, 0] },
+        { motif: 'petanque', couleur: 0x9fb0bf, r: 0.037, grille: [3, 2, 1], pas: [0.079, 0.079, 0] },
+        { motif: 'frisbee', couleur: 0xd8452f, r: 0.135, grille: [1, 5, 1], pas: [0, 0.032, 0] },
       ]
 
       /**
-       * Un objet de sport dessiné au trait, avec SON motif.
+       * Un objet de sport EN MATIÈRE, et à sa taille.
        *
-       * Huit icosphères en fil de fer donnaient huit boules identiques : on
-       * voyait « des objets », pas « des sports ». Ici chaque ballon porte le
-       * tracé qui le désigne — les trois grands cercles d'un ballon de foot,
-       * les deux coutures en amande du basket, les six panneaux du volley, les
-       * stries d'une boule de pétanque, la couture unique d'une balle de
-       * tennis. C'est ce tracé, et non la silhouette, qui se lit à trente
-       * centimètres de l'objectif quand douze objets giclent d'un coup.
+       * Le trait lumineux avait un défaut qu'aucun réglage ne corrigeait : de
+       * près, une sphère teintée et auto-éclairée ressemble à une bulle de
+       * savon. Ça marchait très bien pour le décor — un court, une raquette
+       * peinte au sol, des rondins — parce que le décor est loin et qu'on le
+       * lit à sa silhouette. Le contenu d'un casier, lui, se regarde à trente
+       * centimètres : à cette distance, on n'a plus besoin d'un signe, on a
+       * besoin de l'objet.
        *
-       * Tout tient dans une sphère de rayon 0,5 en coordonnées locales : c'est
-       * ce qui permet de les tasser dans une case sans avoir à mesurer.
+       * Tout est donc en matière réelle, avec ses cotes en mètres, sa carte de
+       * panneaux dessinée au canvas (voir `texFoot`, `texBasket`, etc.) et son
+       * grain en relief. Un ballon de foot a ses douze pentagones noirs, le
+       * basket son cuir picoté et ses huit quartiers, le volley ses six
+       * panneaux, la balle de tennis son feutre et sa couture blanche, la boule
+       * son acier strié.
+       *
+       * Une seule concession à l'éclairage : la carte sert AUSSI de carte
+       * d'émission, à faible intensité, le temps de l'enfermement dans le
+       * casier. Un émissif uniforme aurait blanchi les motifs ; un émissif qui
+       * reprend la texture éclaire chaque panneau de sa propre couleur, et le
+       * ballon reste un ballon.
        */
       function objetSport(spec) {
         var o = new THREE.Group()
-        // Le CORPS est plein et sombre, pas en fil de fer.
-        //
-        // Une sphère en fil de fer vue de près, c'est une pelote : les
-        // méridiens du fond se superposent à ceux du devant et le motif
-        // s'annule. Un volume plein teinté de la couleur du sport, avec le
-        // tracé posé DESSUS, donne un ballon — une forme qui a un devant et un
-        // derrière, et une seule couture visible à la fois.
-        // La matière du corps est gardée en main : tant que les objets sont
-        // enfermés dans la case, aucune lampe ne les atteint et douze ballons
-        // sombres dans un puits sombre ne font rien voir du tout. On leur donne
-        // donc leur propre lumière le temps de l'enfermement, et on la coupe
-        // quand ils sortent au grand jour.
-        var corps = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(spec.couleur).multiplyScalar(0.17),
-          roughness: 0.55, metalness: 0.05,
-          emissive: spec.couleur, emissiveIntensity: 0.1,
-          transparent: true, opacity: 1,
-        })
-        var fil = corps
-        var trait = new THREE.MeshBasicMaterial({
-          color: spec.couleur, transparent: true, opacity: 0.92,
-        })
-        var halo = new THREE.MeshBasicMaterial({
-          color: spec.couleur, transparent: true, opacity: 0.13,
-          depthWrite: false, blending: THREE.AdditiveBlending,
-        })
+        var R = spec.r
+        var tx = textures()
 
-        /** Un cercle de section fine, orienté par ses trois angles. */
-        function anneau(r, ep, rx, ry, rz) {
-          var m = new THREE.Mesh(new THREE.TorusGeometry(r, ep, 6, 34), trait)
-          m.rotation.set(rx || 0, ry || 0, rz || 0)
-          o.add(m)
+        function ballon(tex, rough, metal, relief, echelle) {
+          var m = new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness: rough,
+            metalness: metal,
+            emissiveMap: tex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.1,
+            transparent: true,
+            opacity: 1,
+          })
+          if (relief) {
+            m.bumpMap = tx[relief]
+            m.bumpScale = echelle
+          }
+          o.add(new THREE.Mesh(new THREE.SphereGeometry(R, 30, 20), m))
+          o.userData.corps = m
           return m
-        }
-        function sphere(r) {
-          o.add(new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), corps))
-          o.add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.22, 12, 9), halo))
         }
 
         if (spec.motif === 'raquette') {
-          var cad = anneau(0.32, 0.022)
-          cad.scale.set(1, 1.16, 1)
-          var hal = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.075, 6, 18), halo)
-          hal.scale.set(1, 1.16, 1)
-          o.add(hal)
-          // Le cordage. Sans lui le cadre se lit comme un cerceau ; avec, c'est
-          // une raquette même vue de trois quarts et à contre-jour.
-          for (var rc = -1; rc <= 1; rc++) {
-            var vv = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.56, 0.007), trait)
-            vv.position.x = rc * 0.155
-            o.add(vv)
-            var hz = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.007, 0.007), trait)
-            hz.position.y = rc * 0.16
-            o.add(hz)
+          // Une raquette de tennis : cadre graphite, tamis cordé, manche gainé.
+          // Tête de 25 cm de large sur 32 de long, 68 cm hors tout.
+          var cadreMat = new THREE.MeshStandardMaterial({
+            color: 0x1b2530, roughness: 0.35, metalness: 0.55,
+            transparent: true, opacity: 1,
+          })
+          var accMat = new THREE.MeshStandardMaterial({
+            color: spec.couleur, roughness: 0.4, metalness: 0.3,
+            emissive: spec.couleur, emissiveIntensity: 0.15,
+            transparent: true, opacity: 1,
+          })
+          o.userData.corps = cadreMat
+          var cadre = new THREE.Mesh(new THREE.TorusGeometry(R, 0.011, 8, 40), cadreMat)
+          cadre.scale.set(1, 1.28, 1)
+          o.add(cadre)
+          // Le tamis : une grille sur fond transparent, posée dans le plan du
+          // cadre. Vingt-cinq boîtes de section carrée auraient coûté vingt-cinq
+          // fois plus cher pour un résultat plus grossier.
+          var tamis = new THREE.Mesh(
+            new THREE.PlaneGeometry(R * 1.86, R * 2.38),
+            new THREE.MeshBasicMaterial({
+              map: texCordage(), transparent: true, depthWrite: false,
+              side: THREE.DoubleSide, opacity: 0.85,
+            }),
+          )
+          o.add(tamis)
+          // Le cœur : deux bras qui descendent du cadre vers le manche.
+          for (var br = -1; br <= 1; br += 2) {
+            var bras = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.009, 0.011, R * 1.15, 6), cadreMat,
+            )
+            bras.position.set(br * R * 0.28, -R * 1.72, 0)
+            bras.rotation.z = br * 0.24
+            o.add(bras)
           }
-          var mch2 = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.027, 0.44, 7), trait)
-          mch2.position.y = -0.60
-          o.add(mch2)
+          var manche = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.013, 0.014, R * 1.1, 8), cadreMat,
+          )
+          manche.position.y = -R * 2.25
+          o.add(manche)
+          var grip = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.016, 0.0145, R * 1.5, 10), accMat,
+          )
+          grip.position.y = -R * 3.25
+          o.add(grip)
+          var pommeau = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.019, 0.018, 0.018, 10), cadreMat,
+          )
+          pommeau.position.y = -R * 3.95
+          o.add(pommeau)
         } else if (spec.motif === 'club') {
-          var shf = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.017, 0.88, 7), trait)
-          shf.position.y = 0.10
+          // Un driver : 1,15 m, manche acier, tête titane.
+          var acierMat = new THREE.MeshStandardMaterial({
+            color: 0x9aa6b2, roughness: 0.28, metalness: 0.85,
+            transparent: true, opacity: 1,
+          })
+          var teteMat = new THREE.MeshStandardMaterial({
+            color: 0x20272e, roughness: 0.22, metalness: 0.9,
+            transparent: true, opacity: 1,
+          })
+          var gripMat = new THREE.MeshStandardMaterial({
+            color: 0x14181d, roughness: 0.85, metalness: 0.05,
+            transparent: true, opacity: 1,
+          })
+          o.userData.corps = acierMat
+          var shf = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.0055, 0.0085, 0.84, 8), acierMat,
+          )
+          shf.position.y = 0.12
           o.add(shf)
-          var grp2 = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.022, 0.22, 7), trait)
+          var grp2 = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.0155, 0.012, 0.26, 10), gripMat,
+          )
           grp2.position.y = 0.62
           o.add(grp2)
-          var hd = new THREE.Mesh(new THREE.SphereGeometry(0.10, 10, 8), trait)
-          hd.scale.set(1.5, 0.8, 1.05)
-          hd.position.set(0.07, -0.36, 0)
+          var hd = new THREE.Mesh(new THREE.SphereGeometry(0.056, 16, 12), teteMat)
+          hd.scale.set(1.55, 0.8, 1.15)
+          hd.position.set(0.042, -0.325, 0)
           o.add(hd)
-          var hdh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), halo)
-          hdh.position.copy(hd.position)
-          o.add(hdh)
+          var face = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.04, 0.04, 0.006, 16), acierMat,
+          )
+          face.rotation.set(Math.PI / 2, 0, 0.17)
+          face.position.set(0.042, -0.325, 0.062)
+          o.add(face)
         } else if (spec.motif === 'frisbee') {
+          // Un disque de 27 cm en plastique injecté : jupe, plateau, lèvre.
+          var plast = new THREE.MeshStandardMaterial({
+            color: spec.couleur, roughness: 0.32, metalness: 0.06,
+            emissive: spec.couleur, emissiveIntensity: 0.12,
+            side: THREE.DoubleSide, transparent: true, opacity: 1,
+          })
+          o.userData.corps = plast
           var jupe = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.46, 0.36, 0.09, 22, 1, true), fil,
+            new THREE.CylinderGeometry(R, R * 0.8, 0.028, 30, 1, true), plast,
           )
           o.add(jupe)
-          anneau(0.46, 0.016, Math.PI / 2)
-          anneau(0.30, 0.011, Math.PI / 2).position.y = 0.042
-          var fh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.42, 0.02, 16), halo)
-          o.add(fh)
+          var toit = new THREE.Mesh(new THREE.CircleGeometry(R * 0.99, 30), plast)
+          toit.rotation.x = -Math.PI / 2
+          toit.position.y = 0.014
+          o.add(toit)
+          var levre = new THREE.Mesh(
+            new THREE.TorusGeometry(R * 0.99, 0.008, 6, 30), plast,
+          )
+          levre.rotation.x = Math.PI / 2
+          levre.position.y = -0.013
+          o.add(levre)
+          var nervure = new THREE.Mesh(
+            new THREE.TorusGeometry(R * 0.62, 0.004, 5, 26),
+            new THREE.MeshStandardMaterial({
+              color: 0x101820, roughness: 0.5, transparent: true, opacity: 0.7,
+            }),
+          )
+          nervure.rotation.x = Math.PI / 2
+          nervure.position.y = 0.016
+          o.add(nervure)
+        } else if (spec.motif === 'foot') {
+          ballon(texFoot(), 0.52, 0.03, 'pebble', 0.0016)
+        } else if (spec.motif === 'basket') {
+          ballon(texBasket(), 0.88, 0.02, 'pebble', 0.0035)
+        } else if (spec.motif === 'volley') {
+          ballon(texVolley(), 0.44, 0.04, 'pebble', 0.0012)
+        } else if (spec.motif === 'tennis') {
+          ballon(texTennis(), 0.96, 0.0, 'felt', 0.0012)
         } else {
-          var r0 = spec.motif === 'tennis' ? 0.36 : 0.46
-          sphere(r0)
-          var rc0 = r0 * 1.004
-          if (spec.motif === 'foot') {
-            anneau(rc0, 0.015, Math.PI / 2)
-            anneau(rc0, 0.015)
-            anneau(rc0, 0.015, 0, Math.PI / 2)
-          } else if (spec.motif === 'basket') {
-            anneau(rc0, 0.017, Math.PI / 2)
-            anneau(rc0, 0.017)
-            // Les deux coutures latérales : des cercles plus petits, penchés,
-            // décalés vers les flancs. C'est le motif d'un ballon de basket.
-            var cb1 = anneau(r0 * 0.74, 0.015, 0, 0, 0)
-            cb1.position.x = r0 * 0.36
-            cb1.rotation.y = 1.05
-            var cb2 = anneau(r0 * 0.74, 0.015, 0, 0, 0)
-            cb2.position.x = -r0 * 0.36
-            cb2.rotation.y = -1.05
-          } else if (spec.motif === 'volley') {
-            for (var vb = 0; vb < 3; vb++) {
-              anneau(rc0, 0.014, 0, (vb * Math.PI) / 3)
-            }
-          } else if (spec.motif === 'tennis') {
-            var tc1 = anneau(rc0, 0.014)
-            tc1.scale.set(1, 0.58, 1)
-            var tc2 = anneau(rc0, 0.014, 0, Math.PI / 2)
-            tc2.scale.set(1, 0.58, 1)
-          } else {
-            // Pétanque : des méridiens serrés, comme les stries d'une boule.
-            // Leur rayon suit la sphère — un anneau de rayon constant posé en
-            // hauteur dépasserait du ballon, et un trait qui flotte à côté de
-            // son objet est pire que pas de trait du tout.
-            for (var pb = -2; pb <= 2; pb++) {
-              var yy = pb * 0.15
-              var rr = Math.sqrt(Math.max(r0 * r0 - yy * yy, 0.0004))
-              anneau(rr, 0.011, Math.PI / 2).position.y = yy
-            }
-          }
+          ballon(texBoule(), 0.3, 0.78, 'brushed', 0.0006)
         }
-        o.userData.corps = corps
         return o
       }
 
-      var OUVERT = layout[3]
-      var gerbe = new THREE.Group()
-      // Le centre du PUITS, pas la façade : le puits va de z = 0,13 à z = 0,51,
-      // donc son milieu est à 0,32. Posés à 0,42 les objets étaient déjà aux
-      // trois quarts dehors avant d'avoir bougé, et c'est ce qui les faisait
-      // déborder du cadre de la case.
-      gerbe.position.set(cols[OUVERT[0]], OUVERT[1], 0.32)
-      g.add(gerbe)
-      var gerbeItems = []
-      // Douze objets pour huit sports : les quatre premiers reviennent une
-      // seconde fois. En dessous la case a l'air à moitié vide ; au-dessus on
-      // ne distingue plus rien au moment où ça part.
-      var GERBE_N = 12
       /**
-       * LA CASE EST UNE BOÎTE, et rien n'en dépasse avant l'ouverture.
+       * LE RANGEMENT, puis la gerbe, puis le retour — une seule liste.
        *
-       * Douze objets posés au même point et à leur taille pleine, ça ne fait
-       * pas un casier plein : ça fait un tas qui traverse la tôle, et c'est
-       * exactement ce qu'on voyait — des ballons à cheval sur les bordures,
-       * entrechoqués, plus grands que le compartiment qui est censé les
-       * contenir.
-       *
-       * On les range donc VRAIMENT : trois colonnes, quatre rangées, à
-       * l'intérieur des bords, et à une échelle choisie pour que rien ne touche
-       * la paroi. La porte s'ouvre sur une case pleine et serrée ; ils
-       * reprennent leur taille sur place — c'est la détente — puis partent.
-       * L'explosion vient de là, du contraste entre le tassement et le départ,
-       * pas de la vitesse.
+       * `caseItems` sert aux DEUX bouts de la page : c'est elle qui jaillit des
+       * casiers au premier écran et qui y rentre au dernier. Un seul jeu
+       * d'objets, un seul rangement, donc aucun moyen que le début et la fin se
+       * contredisent — la raquette qui sort de la porte du haut à gauche est
+       * exactement celle qui y revient.
        */
-      var CASE_W = OUVERT[2] / 2 - 0.06
-      var CASE_H = OUVERT[3] / 2 - 0.06
-      for (var gi = 0; gi < GERBE_N; gi++) {
-        var spec5 = SPORTS[gi % SPORTS.length]
-        var long5 = spec5.motif === 'raquette' || spec5.motif === 'club'
-        var obj = objetSport(spec5)
-        var cx5 = ((gi % 3) - 1) * (CASE_W * 0.62)
-        var cy5 = (Math.floor(gi / 3) - 1.5) * (CASE_H * 0.44)
-        // La direction de fuite est RADIALE depuis le centre de la case : celui
-        // qui est rangé en haut à gauche part en haut à gauche. Douze
-        // directions réparties à pas égal donnaient une roue ; celles-ci
-        // donnent une gerbe, et chacune est déjà justifiée par le rangement.
-        var a5 = Math.atan2(cy5, cx5 === 0 ? 0.0001 : cx5) + Math.sin(gi * 2.4) * 0.30
-        var r5 = 1.15 + ((gi * 7) % 5) * 0.42
-        // Le matériel long est RANGÉ À PLAT, en travers de la case, et à une
-        // échelle plus petite. Debout et à la taille des ballons, une raquette
-        // de soixante-dix centimètres sortait par le bas d'un casier qui n'en
-        // fait que soixante-deux : très exactement le débordement qu'on
-        // voulait supprimer. Un casier bien rangé, c'est aussi ça — chaque
-        // chose dans le sens où elle tient.
-        if (long5) obj.rotation.z = Math.PI / 2
-        var tasse5 = long5 ? 0.1 : 0.15
-        obj.scale.setScalar(tasse5)
-        gerbeItems.push({
-          mesh: obj,
-          rang: [cx5, cy5, ((gi % 2) - 0.5) * 0.13],
-          dir: [Math.cos(a5) * r5, Math.sin(a5) * r5 * 0.8, 1.3 + ((gi * 5) % 6) * 0.5],
-          spin: [0.03 + gi * 0.004, 0.05 - gi * 0.003],
-          tasse: tasse5,
-          plein: long5 ? 0.17 : 0.22,
-          // Un retard très court : ils partent quasiment ensemble. Étalés, on
-          // lit une file ; groupés, une explosion.
-          retard: (gi % 4) * 0.018,
-        })
-        gerbe.add(obj)
+      /**
+       * L'ALLÉE — soixante-dix mètres de chemin jusqu'à la borne.
+       *
+       * C'était le dernier temps mort de la page, et le plus long : entre le
+       * coup de club et l'arrivée, la balle de golf traverse une soixantaine de
+       * mètres au-dessus de RIEN. Trois écrans de défilement avec, pour tout
+       * spectacle, un point clair au loin et une borne minuscule. Un fond noir
+       * n'a pas de vitesse : sans rien qui passe, une caméra qui file à
+       * soixante mètres et une caméra à l'arrêt donnent exactement la même
+       * image.
+       *
+       * Un chemin de camping, donc : une bande de sol, deux rives lumineuses et
+       * des traverses régulières. Les traverses sont l'essentiel — ce sont
+       * elles qui défilent, et c'est ce défilement qui fait la vitesse. Et ça
+       * raconte quelque chose au passage : la balle rentre à la borne en
+       * suivant l'allée, comme le ferait un vacancier.
+       *
+       * Elle n'est montée que par le plan de sortie : la borne du hero, elle,
+       * n'est posée sur aucun chemin (voir `updateSortie`).
+       */
+      var allee = new THREE.Group()
+      allee.visible = false
+      g.add(allee)
+      var SOL = -1.93                 // le socle de la borne repose dessus
+      var alleeMat = neon(NEON, 0.75)
+      var alleeSourd = neon(NEON_SOURD, 0.4)
+      // Centrée sur la BORNE, pas sur l'axe du groupe : c'est elle qu'on suit,
+      // et un chemin qui passe à côté de son point d'arrivée n'est pas un
+      // chemin, c'est une barrière.
+      var tapisAllee = tapis(8.2, 76, 3, 27)
+      tapisAllee.position.set(0, SOL - 0.01, 29)
+      allee.add(tapisAllee)
+      barre(allee, alleeMat, -3, -8, -3, 67, SOL, 0.075)
+      barre(allee, alleeMat, 3, -8, 3, 67, SOL, 0.075)
+      // Les traverses. Ce sont elles qui défilent, et c'est ce défilement qui
+      // fait la vitesse — les deux rives, parallèles au mouvement, n'en donnent
+      // aucune.
+      for (var tv = 0; tv < 19; tv++) {
+        var zt = 64 - tv * 3.7
+        barre(allee, alleeSourd, -0.85, zt, 0.85, zt, SOL, 0.055)
       }
 
       /**
-       * LE RETOUR : un objet par casier, et chacun le sien.
+       * UNE LAMPE DANS LA BORNE.
        *
-       * Ce n'est plus une seule case qui aspire tout, ce sont les huit — et
-       * chacune reçoit ce qui lui va : les deux grandes portes du haut prennent
-       * le matériel long, les six casiers à ballons prennent les ballons.
-       * C'est littéralement ce que dit la fiche produit, joué à l'image.
+       * Un casier est une cavité orientée vers l'avant : ni la lumière clé, qui
+       * vient d'en haut à gauche, ni le contre-jour, qui vient de derrière, n'y
+       * entrent. Tant que le contenu était dessiné au trait lumineux, ça n'avait
+       * aucune importance — il portait sa propre lumière. En matière réelle,
+       * quarante objets dans huit trous noirs sont quarante silhouettes noires.
        *
-       * Et ce sont les MÊMES objets qu'à l'ouverture, tirés de la même table :
-       * la raquette qui est sortie de la borne au premier écran est celle qui y
-       * rentre au dernier. Une autre série d'objets, même jolie, aurait raconté
-       * deux bornes au lieu d'une.
+       * Une ponctuelle posée devant la façade règle la question, et elle la
+       * règle bien : elle éclaire les cases par l'ouverture, exactement comme le
+       * ferait le jour, et elle accroche le relief du cuir au passage.
+       *
+       * Son intensité et sa portée suivent l'ÉCHELLE du groupe. Three.js mesure
+       * la distance en unités de monde : quand la borne se réduit au dixième
+       * pour se poser sur la section finale, la lampe se retrouverait dix fois
+       * trop loin et cent fois trop faible. Voir `updateKiosk` et `updateSortie`.
        */
-      var retourItems = []
-      for (var ri = 0; ri < layout.length; ri++) {
-        var LR = layout[ri]
-        // LE MÊME SPORT QU'AU DÉBUT, ET DANS LA MÊME CASE. `SPORTS[ri]` est
-        // aussi ce qui sort du casier à l'ouverture : la page se referme
-        // littéralement sur ce qu'elle a ouvert.
-        var obj2 = objetSport(SPORTS[ri])
-        obj2.visible = false
-        g.add(obj2)
-        // Ils arrivent de TOUT LE POURTOUR : l'angle suit la position du casier
-        // dans la façade, si bien que celui d'en haut à gauche vient d'en haut
-        // à gauche. Rien ne se croise, et l'aspiration se lit d'un coup d'œil.
-        var ang = Math.atan2(LR[1] + 0.55, cols[LR[0]] === 0 ? 0.0001 : cols[LR[0]]) +
-          (ri % 2 ? 0.25 : -0.25)
-        // Deux échelles, comme à l'aller : la taille de vol et la taille
-        // TASSÉE, celle qui tient dans la case. Un objet qui arrive à sa taille
-        // de vol et s'arrête dans un casier de cinquante-deux centimètres en
-        // ressort par les quatre côtés.
-        var petit = LR[3] < 1
-        retourItems.push({
-          mesh: obj2,
-          porte: ri,
-          cible: [cols[LR[0]], LR[1], 0.30],
-          vol: petit ? 0.21 : 0.34,
-          tasse: petit ? 0.125 : 0.30,
-          dir: [Math.cos(ang) * 4.2, Math.sin(ang) * 3.4, 2.6 + (ri % 3) * 1.4],
-          spin: [0.05 + ri * 0.006, 0.04 - ri * 0.004],
-          retard: (ri % 4) * 0.05,
-        })
+      // Zéro virgule neuf, pas un virgule six : au-delà, la matière part dans
+      // le halo du post-traitement et un ballon de basket redevient une tache
+      // orange. Une lampe de casier éclaire, elle ne surexpose pas.
+      var lampe = new THREE.PointLight(0xdaeee7, 0.9, 7, 2)
+      lampe.position.set(0, -0.45, 1.5)
+      g.add(lampe)
+
+      var OUVERT = layout[3]
+      var gerbe = new THREE.Group()
+      g.add(gerbe)
+      var caseItems = []
+      for (var ci = 0; ci < layout.length; ci++) {
+        var LC = layout[ci]
+        var spec5 = CONTENU[ci]
+        var GX = spec5.grille[0], GY = spec5.grille[1], GZ = spec5.grille[2]
+        var N = GX * GY * GZ
+        var baseX = cols[LC[0]], baseY = LC[1]
+        for (var k5 = 0; k5 < N; k5++) {
+          var ix = k5 % GX
+          var iy = Math.floor(k5 / GX) % GY
+          var iz = Math.floor(k5 / (GX * GY))
+          var ox5 = (ix - (GX - 1) / 2) * spec5.pas[0]
+          var oy5 = (iy - (GY - 1) / 2) * spec5.pas[1] + (spec5.dy || 0)
+          var oz5 = (iz - (GZ - 1) / 2) * spec5.pas[2]
+          var obj = objetSport(spec5)
+          // Le matériel long est rangé debout : c'est le sens dans lequel il
+          // tient dans une porte d'un mètre cinquante, et le seul qui ne le
+          // fasse pas sortir d'un casier.
+          if (spec5.motif === 'frisbee') obj.rotation.z = 0
+          obj.position.set(baseX + ox5, baseY + oy5, 0.32 + oz5)
+          gerbe.add(obj)
+
+          // La direction de fuite : radiale depuis le CENTRE DU MEUBLE, plus la
+          // petite dérive propre à la place de l'objet dans son casier. Chaque
+          // chose part donc du côté où elle était rangée — l'explosion est
+          // lisible parce qu'elle est déjà expliquée par le rangement.
+          var ang5 = Math.atan2(baseY + oy5 + 0.6, (baseX + ox5) === 0 ? 0.0001 : baseX + ox5)
+          var r5 = 1.0 + ((k5 * 7 + ci * 3) % 5) * 0.34
+          caseItems.push({
+            mesh: obj,
+            porte: ci,
+            rang: [baseX + ox5, baseY + oy5, 0.32 + oz5],
+            dir: [
+              Math.cos(ang5) * r5 + ox5 * 3,
+              Math.sin(ang5) * r5 * 0.85 + oy5 * 3,
+              1.2 + ((k5 * 5 + ci) % 6) * 0.42,
+            ],
+            // D'où il revient à la fin : beaucoup plus loin, tout autour du
+            // cadre, pour qu'on voie l'aspiration se faire.
+            loin: [
+              Math.cos(ang5) * 4.4 + ox5 * 6,
+              Math.sin(ang5) * 3.6 + oy5 * 6,
+              2.4 + ((k5 * 3 + ci) % 5) * 1.3,
+            ],
+            spin: [0.03 + k5 * 0.005, 0.05 - ci * 0.004],
+            retard: ((k5 + ci) % 5) * 0.016,
+            retardFin: ((ci * 2 + k5) % 6) * 0.035,
+          })
+        }
       }
 
       // Le casier 04 : celui du milieu de la première rangée de ballons,
@@ -2292,7 +2587,7 @@
       // centimètres plus haut — elle passait au-dessus au lieu d'entrer.
       return {
         group: g, doors: doors, out: null, openIndex: 3,
-        gerbe: gerbe, gerbeItems: gerbeItems, retourItems: retourItems,
+        gerbe: gerbe, caseItems: caseItems, allee: allee, lampe: lampe,
         ouvertX: cols[OUVERT[0]], ouvertY: OUVERT[1],
       }
     }
@@ -2325,123 +2620,137 @@
 
     function updateSortie(scn, q) {
       scn.group.rotation.y = lerp(-0.3, -0.34, ease(clamp01(q / 0.5)))
-      // La gerbe d'ouverture appartient à l'autre borne : elle n'a rien à faire
-      // sur celle-ci, qui joue le retour.
-      if (scn.gerbe) scn.gerbe.visible = false
+      // L'allée n'appartient qu'à la borne d'arrivée. Sous celle du hero, qui
+      // flotte dans le vide au-dessus d'une page d'accueil, elle n'aurait aucun
+      // sens — et elle traverserait le titre.
+      if (scn.allee) scn.allee.visible = true
+      regleLampe(scn)
 
       var arret = clamp01((q - SORTIE_ARRET) / (SORTIE_RECUL - SORTIE_ARRET))
 
       /**
-       * Les HUIT cases aspirent, chacune la sienne.
+       * LES HUIT CASES ASPIRENT — les mêmes objets, aux mêmes places.
        *
-       * Une seule case qui avalait tout racontait un casier ; huit portes qui
-       * se referment chacune sur son objet racontent une borne. Les deux
-       * grandes prennent le matériel long, les six petites les ballons — c'est
-       * la fiche produit, jouée.
+       * C'est littéralement la gerbe d'ouverture jouée à l'envers : la même
+       * liste, les mêmes quarante objets, les mêmes rangements. Chacun revient
+       * du bord du cadre, depuis la direction de son casier, et reprend
+       * exactement la place qu'il occupait au premier écran. La page se referme
+       * sur ce qu'elle a ouvert, à l'objet près.
        *
-       * Ils arrivent de tout le pourtour du cadre, chacun depuis la direction
-       * de son casier dans la façade, et accélèrent en approchant : la
-       * trajectoire est en (1-t)^1,7, donc lente au loin et happée à la fin.
+       * La trajectoire est en (1−t)^1,7 : lente au loin, happée à la fin. Et
+       * chaque porte attend que TOUT son contenu soit rentré avant de se
+       * refermer — une porte qui se ferme sur un ballon encore dehors, c'est
+       * le genre de détail qui rend une image fausse sans qu'on sache dire
+       * pourquoi.
        */
-      var retour = scn.retourItems
+      var retour = scn.caseItems
+      var fermees = []
+      for (var fz = 0; fz < scn.doors.length; fz++) fermees.push(1)
       for (var gj = 0; gj < retour.length; gj++) {
         var it = retour[gj]
-        var e = clamp01((arret - it.retard) / 0.5)
+        var e = clamp01((arret - it.retardFin) / 0.55)
         var loin = Math.pow(1 - e, 1.7)
-        // Ils restent visibles jusqu'à ce que la porte les recouvre : les
-        // effacer à 0,995 revenait à faire disparaître l'objet juste avant que
-        // la case ne se referme sur lui, c'est-à-dire à annuler le geste.
         it.mesh.visible = e > 0.004
         it.mesh.position.set(
-          it.cible[0] + it.dir[0] * loin,
-          it.cible[1] + it.dir[1] * loin + loin * 0.6,
-          it.cible[2] + it.dir[2] * loin,
+          it.rang[0] + it.loin[0] * loin,
+          it.rang[1] + it.loin[1] * loin + loin * 0.5,
+          it.rang[2] + it.loin[2] * loin,
         )
-        // Et ils se TASSENT en entrant, comme ils étaient tassés au départ. Un
-        // objet qui garde sa taille de vol dépasse des quatre côtés d'un casier
-        // de cinquante-deux centimètres : la borne avait l'air de fermer sa
-        // porte sur un ballon trop gros pour elle.
-        it.mesh.scale.setScalar(lerp(it.vol, it.tasse, ease(clamp01((e - 0.55) / 0.4))))
-        it.mesh.rotation.x += it.spin[0] * (1 - e)
-        it.mesh.rotation.y += it.spin[1] * (1 - e)
-        // Chaque porte se referme sur SON objet, et pas avant qu'il soit entré.
-        var d8 = scn.doors[it.porte]
-        if (d8) d8.rotation.y = -1.9 * (1 - ease(clamp01((e - 0.82) / 0.18)))
+        // Ils cessent de tourner en arrivant : un objet rangé ne tourne pas.
+        it.mesh.rotation.x += it.spin[0] * (1 - e) * (1 - e)
+        it.mesh.rotation.y += it.spin[1] * (1 - e) * (1 - e)
+        if (e < fermees[it.porte]) fermees[it.porte] = e
       }
-      // Les portes sont pilotées une par une ci-dessus : chacune se referme sur
-      // son objet, jamais avant. Une porte qui se ferme sur un ballon encore
-      // dehors, c'est le genre de détail qui se remarque sans qu'on sache dire
-      // pourquoi l'image est fausse.
+      for (var dz = 0; dz < scn.doors.length; dz++) {
+        scn.doors[dz].rotation.y =
+          -1.9 * (1 - ease(clamp01((fermees[dz] - 0.84) / 0.16)))
+      }
+    }
+
+    /**
+     * La lampe de la borne, recalée sur l'échelle du groupe.
+     *
+     * L'atténuation d'une ponctuelle va comme l'inverse du carré de la
+     * distance, et la distance se réduit avec le groupe : à l'échelle s, les
+     * objets reçoivent 1/s² fois trop de lumière. On corrige par s², et la
+     * portée par s. La borne est alors éclairée pareil qu'elle occupe l'écran
+     * entier ou le quart d'une section.
+     */
+    function regleLampe(scn) {
+      if (!scn.lampe) return
+      var s = scn.group.scale.x || 1
+      scn.lampe.intensity = 0.9 * s * s
+      scn.lampe.distance = 7 * s
     }
 
     function updateKiosk(scn, q) {
-      var t = ease(q)
+      regleLampe(scn)
       // La borne est plein axe : la caméra entre par la porte ouverte. Elle est
-      // de face aux six dixièmes du plan, pas à la fin — la caméra arrive à la
+      // de face aux deux tiers du chemin, pas à la fin — la caméra arrive à la
       // fin, et un meuble encore de trois quarts à cet instant se traverserait
       // par la tôle.
-      // Tout est calé sur l'instant de la traversée, pas sur des fractions de
-      // plan écrites à la main : de face aux deux tiers du chemin, porte grande
-      // ouverte au même moment, raquette dehors juste après. Si le découpage de
-      // la page bouge, ces trois gestes restent à leur place l'un par rapport à
-      // l'autre et par rapport au passage.
       var T = qTraversee(scn)
       scn.group.rotation.y = lerp(-0.55, 0, ease(clamp01(q / (T * 0.68))))
 
-      // La porte s'ouvre au tiers de la fenêtre et reste ouverte : la refermer
-      // pendant que l'article est dehors serait un contresens sur le produit.
-      var open = clamp01((q - T * 0.20) / Math.max(T * 0.30, 0.0001))
-      scn.doors[scn.openIndex].rotation.y = -ease(open) * 1.9
+      /**
+       * LES HUIT PORTES S'OUVRENT, en cascade de bas en haut.
+       *
+       * Une seule porte ouverte sur huit disait « un casier a été emprunté ».
+       * Les huit disent « voilà tout ce qu'il y a dedans », ce qui est le
+       * propos de la page — et c'est aussi la seule façon d'avoir une vraie
+       * gerbe maintenant que chaque objet est à sa taille : un casier à ballons
+       * contient quatre ballons, pas douze. Huit casiers en contiennent
+       * quarante.
+       *
+       * Un léger décalage d'une porte à l'autre : ouvertes strictement
+       * ensemble, huit portes font une mécanique ; décalées de deux centièmes,
+       * elles font un mouvement.
+       */
+      for (var d7 = 0; d7 < scn.doors.length; d7++) {
+        var ord = scn.doors.length - 1 - d7
+        var open = clamp01((q - T * (0.14 + ord * 0.018)) / Math.max(T * 0.26, 0.0001))
+        scn.doors[d7].rotation.y = -ease(open) * 1.9
+      }
 
-      // La gerbe. Elle part aux trois quarts du chemin vers la porte et
-      // continue de s'ouvrir pendant qu'on la traverse : à l'instant de la
-      // coupe les objets sont déjà de part et d'autre de l'objectif, et c'est
-      // ce qui donne la sensation d'être passé au travers.
-      var items = scn.gerbeItems
-      for (var gj = 0; gj < items.length; gj++) {
-        var it = items[gj]
-        // Ils partent À L'INSTANT OÙ LA PORTE S'OUVRE, pas juste avant qu'on
-        // entre. La borne est alors encore entière dans le cadre, à six ou sept
-        // mètres : douze objets qui jaillissent d'un coup s'y lisent comme une
-        // explosion. Partis plus tard, ils étaient déjà énormes et on n'en
-        // voyait que trois.
-        // Le départ est calé sur la PORTE, pas sur la traversée : elle s'ouvre
-        // entre T·0,20 et T·0,50, et rien ne peut sortir d'une porte fermée.
-        // À T·0,24 les douze objets giclaient d'une case entrebâillée à sept
-        // mètres — on ne voyait ni la case pleine ni la porte s'ouvrir, juste
-        // des objets qui apparaissaient. À T·0,40, la porte est aux trois
-        // quarts ouverte, la caméra est assez près pour qu'on distingue ce
-        // qu'il y a dedans, et on a eu le temps de voir le casier PLEIN.
-        var e = clamp01((q - T * 0.40 - it.retard) / Math.max(T * 0.52, 0.0001))
-        // DEUX temps, et c'est tout le sujet. D'abord la DÉTENTE : les objets
-        // reprennent leur taille sans bouger d'un millimètre, encore rangés
-        // dans leur case. Ensuite la SORTIE. Le décalage d'un dixième entre les
-        // deux est ce qui donne la libération — on voit la case se gonfler
-        // avant de se vider. Départ et grossissement simultanés donnaient une
-        // simple projection d'objets, ce qui n'est pas la même chose.
-        var det = ease(clamp01(e / 0.30))
-        var d5 = clamp01((e - 0.10) / 0.90)
-        var s5 = d5 * (2 - d5)        // sortie franche, puis elle s'étale
-        // Visibles dès que la porte s'entrouvre : il faut avoir vu la case
-        // PLEINE pour comprendre ce qui se vide.
-        it.mesh.visible = q > T * 0.14
-        // Éclairés de l'intérieur tant qu'ils sont dans la case, rendus à la
-        // lumière du décor une fois dehors.
-        if (it.mesh.userData.corps) {
-          it.mesh.userData.corps.emissiveIntensity = lerp(0.34, 0.1, det)
+      /**
+       * La gerbe. Les objets sont à leur taille et rangés à leur place : le
+       * « comprimé dans la boîte » ne se joue plus par une mise à l'échelle,
+       * il est déjà là, dans les cotes. Quatre ballons de vingt-quatre
+       * centimètres et demi dans quarante-huit centimètres utiles se touchent.
+       * Il ne reste donc qu'à les lâcher.
+       */
+      var items = scn.caseItems
+      for (var gj2 = 0; gj2 < items.length; gj2++) {
+        var it2 = items[gj2]
+        // Le départ est calé sur la PORTE : elle s'ouvre entre T·0,14 et
+        // T·0,40, et rien ne sort d'une porte fermée. À T·0,46 elles sont
+        // toutes grandes ouvertes, la caméra est assez près pour qu'on
+        // distingue ce qu'il y a dedans, et on a eu le temps de voir la borne
+        // PLEINE avant qu'elle ne se vide.
+        var e2 = clamp01((q - T * 0.46 - it2.retard) / Math.max(T * 0.46, 0.0001))
+        var s5 = e2 * (2 - e2)
+        it2.mesh.visible = q > T * 0.08
+        // Éclairés de l'intérieur tant qu'ils sont enfermés dans un puits noir,
+        // rendus à la lumière du décor une fois dehors.
+        // Un appoint d'émission, et rien de plus : la lampe de la borne fait
+        // l'essentiel du travail dans les cases, celle-ci ne sert qu'à ce que
+        // le fond des casiers ne tombe pas dans le noir. Elle passe par la
+        // CARTE de l'objet, donc chaque panneau s'éclaire de sa couleur et le
+        // motif survit — un émissif uniforme aurait blanchi les ballons.
+        if (it2.mesh.userData.corps) {
+          it2.mesh.userData.corps.emissiveIntensity = lerp(0.1, 0.02, ease(clamp01(e2 / 0.3)))
         }
-        it.mesh.position.set(
-          it.rang[0] + it.dir[0] * s5,
-          it.rang[1] + it.dir[1] * s5,
-          it.rang[2] + it.dir[2] * s5,
+        it2.mesh.position.set(
+          it2.rang[0] + it2.dir[0] * s5,
+          it2.rang[1] + it2.dir[1] * s5,
+          it2.rang[2] + it2.dir[2] * s5,
         )
-        it.mesh.scale.setScalar(lerp(it.tasse, it.plein, det))
-        // Ils ne tournent qu'une fois dehors. Une pile d'objets qui pivotent
+        // Ils ne tournent qu'une fois dehors : une pile d'objets qui pivotent
         // dans une case fermée, ce n'est pas de la compression, c'est du
         // désordre — et ça se voit d'autant plus qu'ils se traversent.
         if (s5 > 0.002) {
-          it.mesh.rotation.x += it.spin[0]
-          it.mesh.rotation.y += it.spin[1]
+          it2.mesh.rotation.x += it2.spin[0]
+          it2.mesh.rotation.y += it2.spin[1]
         }
       }
     }
@@ -2998,10 +3307,12 @@
       // station », soit un point en l'air à côté du casier.
       { key: 'sortie', ox: 1.8, oy: -0.6, make: makeKiosk, update: updateSortie,
         entryAt: [0, 0.18, 0.6],
-        // On l'aperçoit tard : sa fenêtre de rendu ne s'ouvre que juste avant
-        // son plan. Avec le brouillard porté à 120 unités, elle se devinait
-        // deux sections trop tôt, et la fin n'avait plus rien à révéler.
-        winBefore: 0.13,
+        // Sa fenêtre s'ouvre un cinquième de page avant son plan — assez tôt
+        // pour que l'allée existe pendant tout le vol de la balle de golf,
+        // c'est-à-dire pendant les trois écrans qui étaient vides. La borne
+        // elle-même ne se vend pas la mèche pour autant : à soixante mètres et
+        // sous un brouillard qui commence à seize, elle n'est qu'une forme.
+        winBefore: 0.2,
         // La caméra s'arrête à deux mètres de la porte et n'avance plus : c'est
         // `exitDist: -2` qui le dit. Tout ce qui suit — la fermeture puis le
         // dézoom — se joue sans qu'elle se rapproche davantage.
