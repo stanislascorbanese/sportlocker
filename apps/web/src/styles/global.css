@@ -584,6 +584,35 @@ html.js [data-reveal].reveal-visible {
 }
 .cta-finale-link:hover { color: #fff; }
 
+/* ─── Le lien dans le texte ───────────────────────────────────────────────────
+ *
+ * Le site n'en avait aucun : quinze liens par page, tous dans la navigation et
+ * le pied, donc exactement le même maillage partout. Un moteur mesure
+ * l'importance d'une page au nombre de liens internes qui la visent ; quand
+ * elles en ont toutes autant, il n'a rien à mesurer. Et un lecteur qui se
+ * demande « oui, mais combien ça coûte ? » au milieu d'un paragraphe ne va pas
+ * chercher la réponse dans le menu.
+ *
+ * Souligné, pas coloré en vert : le vert de marque sert déjà aux accents de
+ * titre et aux boutons. Un troisième emploi de la même couleur ne se lit plus
+ * comme un lien, il se lit comme de l'emphase.
+ */
+.lien-texte {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  transition: text-decoration-color 0.18s, color 0.18s;
+}
+.lien-texte:hover,
+.lien-texte:focus-visible {
+  color: var(--brand-lt);
+  text-decoration-color: currentColor;
+}
+html.light .lien-texte:hover,
+html.light .lien-texte:focus-visible { color: var(--brand-on-light); }
+
 /* ─── Light mode overrides for page backgrounds ──────────────────────────────── */
 html.light .bg-navy-900 { background-color: var(--bg-0) !important; }
 html.light .bg-navy-800 { background-color: var(--bg-1) !important; }

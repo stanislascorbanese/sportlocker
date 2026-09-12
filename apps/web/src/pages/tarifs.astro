@@ -37,7 +37,7 @@ const faq = [
   },
   {
     q: 'Que se passe-t-il si la saison n’est pas concluante ?',
-    a: 'En saison pilote et en location, nous reprenons la borne à la fermeture et vous ne devez rien de plus. En achat, elle vous appartient : vous pouvez arrêter l’abonnement, la borne continue de fonctionner pour le prêt, vous perdez seulement les mises à jour et la maintenance à distance.',
+    a: 'En saison pilote et en location, nous reprenons la borne à la fermeture et vous ne devez rien de plus. En achat, elle vous appartient. Vous pouvez arrêter l’abonnement : la borne continue de fonctionner pour le prêt, vous perdez seulement les mises à jour et la maintenance à distance.',
   },
   {
     q: 'Les prix sont-ils négociables sur plusieurs bornes ?',
@@ -49,7 +49,7 @@ const faq = [
   },
   {
     q: 'Y a-t-il des frais cachés ?',
-    a: 'La carte SIM, l’hébergement, les mises à jour et le remplacement du matériel d’usure sont dans l’abonnement. Restent à votre charge : l’électricité de la borne (environ 30 W), et le remplacement de ce qu’un client casse ou ne rend pas — que vous lui facturez.',
+    a: 'La carte SIM, l’hébergement, les mises à jour et le remplacement du matériel d’usure sont dans l’abonnement. Restent à votre charge l’électricité de la borne, environ 30 W. Et le remplacement de ce qu’un client casse ou ne rend pas — que vous lui facturez.',
   },
 ]
 
@@ -122,6 +122,8 @@ const jsonLd = [
 
       <p class="text-center text-sm text-white/45 font-light mt-10 max-w-2xl mx-auto" data-reveal>
         {REPERE_MARCHE.texte} <span class="text-white/30">({REPERE_MARCHE.source})</span>
+        Nos trois formules comprennent l’installation, la maintenance et le remplacement des
+        pièces d’usure. Le détail est sur la page <a href="/installation-sav" class="lien-texte">installation et SAV</a>.
       </p>
     </div>
   </section>
@@ -135,7 +137,9 @@ const jsonLd = [
           Combien pour votre établissement ?
         </h2>
         <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
-          Déplacez le curseur sur la taille de votre site.
+          Déplacez le curseur sur la taille de votre site. Le calcul vaut pour un camping comme
+          pour un <a href="/pour-qui" class="lien-texte">hôtel ou une base de loisirs</a> : c’est
+          la même <a href="/la-borne" class="lien-texte">borne</a> et le même tarif.
         </p>
       </div>
       <div data-reveal data-reveal-delay="3">
