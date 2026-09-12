@@ -1,7 +1,19 @@
 ---
 import Base from '@/layouts/Base.astro'
 import FinalCta from '@/components/FinalCta.astro'
-import { AUTRES_SEGMENTS, SEGMENT_META } from '@/data/site'
+import { AUTRES_SEGMENTS, SEGMENT_META, SITE, buildFilAriane } from '@/data/site'
+
+// Cette page n'avait ni fil d'Ariane ni type : pour un moteur, c'était une page
+// de plus sans place dans l'arborescence. `CollectionPage` dit ce qu'elle est —
+// une porte d'entrée vers les quatre publics.
+const jsonLd = [
+  {
+    '@type': 'CollectionPage',
+    name: 'Campings, hôtels et bases de loisirs',
+    url: `${SITE.url}/pour-qui`,
+  },
+  buildFilAriane('Pour qui', 'pour-qui'),
+]
 
 /**
  * Pour qui.
@@ -27,14 +39,15 @@ const prerequis = [
 ---
 
 <Base
-  title="Pour qui — campings, hôtels, villages vacances, bases de loisirs"
-  description="La borne SportLocker s’installe partout où il y a une réception, un logiciel de réservation et une prise 230 V. Campings, hôtels et résidences, villages vacances, bases de loisirs."
+  title="Campings, hôtels et bases de loisirs"
+  description="La borne s’installe partout où il y a une réception, un logiciel de réservation et une prise 230 V : campings, hôtels, villages vacances, bases de loisirs."
+  extraJsonLd={jsonLd}
 >
   <section class="section pt-36 sm:pt-40">
     <div class="container-x max-w-4xl">
       <span class="eyebrow" data-reveal>Pour qui</span>
       <h1 class="section-title mt-3 mb-6" data-reveal data-reveal-delay="1">
-        La borne ne sait pas<br /><span class="text-brand-400">où elle est posée.</span>
+        Campings, hôtels, bases de loisirs.<br /><span class="text-brand-400">La borne ne sait pas où elle est posée.</span>
       </h1>
       <p class="section-sub max-w-2xl" data-reveal data-reveal-delay="2">
         Elle demande quatre choses, et aucune n’est propre au camping. Si vous les avez, elle

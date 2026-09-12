@@ -159,6 +159,17 @@ export const SEGMENT_META = {
     pluralLabel: 'Campings et hôtellerie de plein air',
     audienceType: 'Campings et hôtellerie de plein air',
     serviceName: 'Borne de prêt de matériel sportif pour campings',
+    // `titreCourt` sert la balise <title>, `serviceName` le balisage Schema.org.
+    // Les deux ne peuvent pas être la même chaîne : le second doit être explicite
+    // pour un moteur, le premier doit tenir en cinquante-huit caractères une fois
+    // « — SportLocker » ajouté, sous peine d'être tronqué dans les résultats.
+    titreCourt: 'Matériel de sport de camping, libre-service',
+    // La méta-description ne peut pas être l'intro affichée : l'intro est écrite
+    // pour être lue en haut de page, la description pour tenir en cent
+    // cinquante caractères dans un résultat de recherche. Confondues, les trois
+    // pages de segment sortaient entre 168 et 210 caractères — donc tronquées.
+    metaDescription:
+      'Une borne de 8 casiers connectés dans votre camping. Vos clients empruntent ballon ou raquette 24 h/24 avec leur numéro de séjour. Dès 149 € HT/mois.',
     argument: 'Deux critères de la grille Atout France, sans embaucher personne.',
   },
   hotel: {
@@ -167,6 +178,9 @@ export const SEGMENT_META = {
     pluralLabel: 'Hôtels, résidences de tourisme et apparthôtels',
     audienceType: 'Hôtellerie et résidences de tourisme',
     serviceName: 'Borne de prêt de matériel sportif pour hôtels et résidences',
+    titreCourt: 'Matériel de sport pour hôtels et résidences',
+    metaDescription:
+      'Une borne de 8 casiers près de votre piscine. Vos clients prennent ballon, raquette ou matériel de plage avec leur numéro de chambre, à toute heure.',
     argument: 'Un service de plus à la réception, sans une minute de réception en plus.',
   },
   village: {
@@ -175,6 +189,9 @@ export const SEGMENT_META = {
     pluralLabel: 'Villages vacances et centres de séjour',
     audienceType: 'Villages vacances et centres de séjour',
     serviceName: 'Borne de prêt de matériel sportif pour villages vacances',
+    titreCourt: 'Matériel de sport pour villages vacances',
+    metaDescription:
+      'Une borne de 8 casiers près de vos terrains. Les familles prennent le matériel avec leur numéro de séjour, même quand l’animateur est ailleurs.',
     argument: 'De quoi occuper les familles quand l’animateur est ailleurs.',
   },
   loisirs: {
@@ -183,9 +200,118 @@ export const SEGMENT_META = {
     pluralLabel: 'Bases de loisirs et parcs résidentiels',
     audienceType: 'Bases de loisirs et parcs résidentiels de loisirs',
     serviceName: 'Borne de prêt de matériel sportif pour bases de loisirs',
+    titreCourt: 'Matériel de sport pour bases de loisirs',
+    metaDescription:
+      'Une borne de 8 casiers au pied de vos terrains. Vos visiteurs prennent de quoi jouer avec leur réservation, sans local à ouvrir ni personnel dédié.',
     argument: 'Une activité de plus sur le site, sans personnel dédié.',
   },
 } as const
+
+/**
+ * Les trois formules, en Schema.org.
+ *
+ * La page des tarifs portait un fil d'Ariane et rien d'autre : les prix y
+ * étaient écrits en toutes lettres pour le lecteur et invisibles pour un
+ * moteur, alors que l'accueil et les pages de segment, eux, déclaraient déjà un
+ * `AggregateOffer`. C'était à l'envers — la fourchette était balisée partout
+ * sauf là où les trois prix sont détaillés.
+ *
+ * Les montants sont ceux de `produit.json`, pas des copies : le total saison
+ * pour la formule pilote (894 €) et pour la location (2 094 €), et la première
+ * année pour l'achat (4 500 + 790). `valueAddedTaxIncluded: false` dit le HT,
+ * qui est la seule façon honnête de baliser un prix B2B.
+ */
+export function buildOffresSchema(): Record<string, unknown>[] {
+  const offre = (
+    nom: string,
+    slug: string,
+    total: number,
+    detail: string,
+  ): Record<string, unknown> => ({
+    '@type': 'Offer',
+    name: nom,
+    url: `${SITE.url}/tarifs#${slug}`,
+    price: total,
+    priceCurrency: 'EUR',
+    description: detail,
+    availability: 'https://schema.org/PreOrder',
+    priceSpecification: {
+      '@type': 'PriceSpecification',
+      price: total,
+      priceCurrency: 'EUR',
+      valueAddedTaxIncluded: false,
+    },
+    seller: { '@type': 'Organization', name: SITE.name, url: SITE.url },
+  })
+
+  return [
+    {
+      '@type': 'Product',
+      name: 'Borne SportLocker — 8 casiers connectés',
+      description:
+        'Borne de prêt de matériel de sport en libre-service pour campings, hôtels, villages vacances et bases de loisirs. Matériel, maintenance et remplacement des pièces d’usure compris dans les trois formules.',
+      brand: { '@type': 'Brand', name: SITE.name },
+      url: `${SITE.url}/tarifs`,
+      offers: [
+        offre(
+          'Saison pilote 2027',
+          'pilote',
+          894,
+          '149 € HT par mois sur les six mois de la saison, sans investissement.',
+        ),
+        offre(
+          'Achat',
+          'achat',
+          5290,
+          '4 500 € HT la borne installée et garnie, puis 790 € HT par saison.',
+        ),
+        offre(
+          'Location saisonnière',
+          'location',
+          2094,
+          '349 € HT par mois sur six mois, pose au printemps et reprise à l’automne.',
+        ),
+      ],
+    },
+  ]
+}
+
+/**
+ * La fiche technique, en Schema.org.
+ *
+ * Dix lignes de spécifications écrites pour un exploitant qui vérifie si la
+ * borne rentre chez lui — encombrement, alimentation, connexion. Balisées en
+ * `additionalProperty`, elles deviennent lisibles par un moteur sans qu'on ait
+ * à les recopier : la source reste `produit.json`.
+ */
+export function buildBorneSchema(): Record<string, unknown>[] {
+  return [
+    {
+      '@type': 'Product',
+      name: 'Borne SportLocker',
+      description:
+        'Borne de 8 casiers connectés pour le prêt de matériel de sport en libre-service. Prise 230 V, 4G intégrée, aucun génie civil.',
+      brand: { '@type': 'Brand', name: SITE.name },
+      url: `${SITE.url}/la-borne`,
+      additionalProperty: SPECS.map((s) => ({
+        '@type': 'PropertyValue',
+        name: s.poste,
+        value: s.valeur,
+      })),
+    },
+  ]
+}
+
+/** Un fil d'Ariane à deux niveaux, pour les pages qui n'en avaient pas. */
+export function buildFilAriane(nom: string, slug: string): Record<string, unknown> {
+  return {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Accueil', item: SITE.url + '/' },
+      { '@type': 'ListItem', position: 2, name: nom, item: `${SITE.url}/${slug}` },
+    ],
+  }
+}
 
 /** Les segments autres que le camping, pour les listes « pour qui ». */
 export const AUTRES_SEGMENTS: TenantSegment[] = ['hotel', 'village', 'loisirs']

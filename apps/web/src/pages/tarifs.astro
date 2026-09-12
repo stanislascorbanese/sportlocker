@@ -4,7 +4,7 @@ import Hero from '@/components/Hero.astro'
 import Faq from '@/components/Faq.astro'
 import MiniSimulator from '@/components/MiniSimulator.tsx'
 import FinalCta from '@/components/FinalCta.astro'
-import { OFFRES, REPERE_MARCHE, SITE } from '@/data/site'
+import { OFFRES, REPERE_MARCHE, SITE, buildOffresSchema } from '@/data/site'
 
 /**
  * Page tarifs.
@@ -54,6 +54,9 @@ const faq = [
 ]
 
 const jsonLd = [
+  // Les trois formules, avec leurs montants réels. Voir `buildOffresSchema` :
+  // c'est la page des tarifs qui doit porter les prix, pas seulement l'accueil.
+  ...buildOffresSchema(),
   {
     '@type': 'BreadcrumbList',
     itemListElement: [
@@ -66,13 +69,13 @@ const jsonLd = [
 
 <Base
   title="Tarifs — saison pilote, achat, location"
-  description="Saison pilote 149 € HT/mois, achat 4 500 € HT + 790 € HT/saison, location saisonnière 349 € HT/mois. Matériel, maintenance et remplacement compris dans les trois formules."
+  description="Saison pilote 149 € HT/mois, achat 4 500 € HT + 790 €/saison, location 349 € HT/mois. Matériel, maintenance et remplacement compris partout."
   extraJsonLd={jsonLd}
 >
   <Hero
     tag="Tarifs"
-    title="Trois formules,"
-    highlight="et les prix écrits."
+    title="Le prix d’une borne de sport."
+    highlight="Trois formules, et les prix écrits."
     desc="Vous saurez en trente secondes si c’est dans votre budget. Matériel sportif, maintenance et remplacement des pièces d’usure sont compris dans les trois cas."
     primary={{ href: '/contact#formulaire', label: 'Demander un devis' }}
     secondary={{ href: '/la-borne', label: 'Fiche technique' }}

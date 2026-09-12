@@ -3,7 +3,7 @@ import Base from '@/layouts/Base.astro'
 import Hero from '@/components/Hero.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import { DOTATION, HORS_CATALOGUE, SITE, SPECS, recommendBornes } from '@/data/site'
+import { DOTATION, HORS_CATALOGUE, SITE, SPECS, buildBorneSchema, recommendBornes } from '@/data/site'
 
 /**
  * Fiche technique.
@@ -24,6 +24,9 @@ const dimensionnement = [
 ]
 
 const jsonLd = [
+  // La fiche technique elle-même, en `additionalProperty` : dix lignes que le
+  // lecteur vérifie et qu'aucun moteur ne pouvait lire.
+  ...buildBorneSchema(),
   {
     '@type': 'BreadcrumbList',
     itemListElement: [
@@ -36,13 +39,13 @@ const jsonLd = [
 
 <Base
   title="La borne — fiche technique et prérequis"
-  description="Encombrement, alimentation, connexion, fixation, contenu : tout ce qu’il faut vérifier avant d’installer une borne SportLocker. Une prise 230 V et une surface plane suffisent."
+  description="Encombrement, alimentation, connexion, fixation, contenu : tout ce qu’il faut vérifier avant l’installation. Une prise 230 V et un sol plat suffisent."
   extraJsonLd={jsonLd}
 >
   <Hero
     tag="Fiche technique"
-    title="Est-ce que ça rentre"
-    highlight="chez vous ?"
+    title="Une borne de huit casiers."
+    highlight="Est-ce que ça rentre chez vous ?"
     desc="Une prise 230 V, une surface plane, de préférence à l’abri. Pas de génie civil, pas de dalle à couler, aucun raccordement à votre réseau informatique."
     primary={{ href: '/contact#formulaire', label: 'Demander une visite' }}
     secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}

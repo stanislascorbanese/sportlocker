@@ -5582,7 +5582,24 @@
       if (bloc !== BLOC_ALLEGE) restaure()
       if (!bloc) return
       BLOC_ALLEGE = bloc
-      bloc.style.opacity = String(1 - 0.62 * relayHit.w)
+      /**
+       * VINGT-HUIT CENTIÈMES D'ALLÈGEMENT, PAS SOIXANTE-DEUX.
+       *
+       * L'ancienne valeur descendait le bloc jusqu'à 0,38 d'opacité. Mesuré :
+       * le texte courant passait de 7,59:1 à 2,18:1 de contraste, pour un seuil
+       * WCAG AA de 4,5:1 — c'était le seul endroit du site où du texte devenait
+       * illisible, et c'était pour montrer une balle de golf.
+       *
+       * Le plancher est donc à 0,78 : 5,10:1 pour le texte courant et 10,43:1
+       * pour les titres. Pas 0,72, qui donnait 4,53:1 — techniquement au-dessus
+       * du seuil, mais trois centièmes de marge sur une valeur calculée n'est
+       * pas une marge.
+       *
+       * On voit un peu moins la balle à travers la phrase ; on continue de la
+       * voir passer entre les lignes et dans les marges, ce qui était le but.
+       * Une page de vente doit rester lisible pendant sa plus jolie image.
+       */
+      bloc.style.opacity = String(1 - 0.22 * relayHit.w)
     }
 
     function placeFinal(progress) {

@@ -17,8 +17,13 @@
   --brand-lt: #2BC295;
   /* Texte tertiaire (notes de bas de carte, précisions de tarif). Il était
      référencé par .spec-note sans jamais être défini : la note restait blanche
-     en thème clair, donc invisible sur fond blanc. */
-  --text-2: rgba(248, 250, 252, 0.45);
+     en thème clair, donc invisible sur fond blanc.
+
+     0,58 et non 0,45. À 0,45 le ratio tombait à 4,29:1 sur le fond de page et
+     3,94:1 sur une carte, pour un seuil WCAG AA de 4,5:1 — et c'est la couleur
+     de la ligne « + 790 € HT / saison », c'est-à-dire précisément le chiffre
+     qu'un gérant cherche avant de décider. À 0,58 : 6,27:1 et 5,49:1. */
+  --text-2: rgba(248, 250, 252, 0.58);
   /* Vert lisible sur fond clair (ratio ≈ 6,3:1 sur blanc). Le brand-400 du
      thème sombre tombe à 2,3:1 en clair — illisible pour du petit texte. */
   --brand-on-light: #2BC295;
@@ -31,7 +36,9 @@ html.light {
   --text-1: #5E7080;
   --border: rgba(0, 0, 0, 0.09);
   --card-bg: rgba(0, 0, 0, 0.03);
-  --text-2: rgba(28, 40, 51, 0.55);
+  /* Même correction en clair : 0,55 donnait 3,54:1 sur blanc, 0,68 donne
+     5,26:1 — et 5,08:1 sur le gris des cartes. */
+  --text-2: rgba(28, 40, 51, 0.68);
   --brand-on-light: #0F6E56;
 }
 
@@ -604,6 +611,22 @@ html.light [class*="text-white/35"],
 html.light [class*="text-white/40"],
 html.light [class*="text-white/45"],
 html.light [class*="text-white/50"] { color: var(--text-2) !important; }
+/* Plancher de contraste du texte secondaire en SOMBRE.
+ *
+ * Le thème clair ramenait déjà `text-white/35` à `/50` sur `--text-2` ; le
+ * thème sombre, lui, les laissait tels quels — et Tailwind les applique
+ * littéralement. Or sur le fond d'une carte (#1A2E42), /40 donne 3,4:1, /45
+ * 3,94:1 et /50 4,49:1, tous sous le seuil AA de 4,5. Ce sont trente et une
+ * occurrences dans les pages : des précisions, des notes, des légendes —
+ * jamais des titres, donc jamais du « gros texte » qui se contenterait de 3:1.
+ *
+ * 0,55 est le plancher qui passe partout : 5,80:1 sur la page, 5,10:1 sur une
+ * carte. C'est un rehaussement discret, pas un changement de hiérarchie. */
+[class*="text-white/35"],
+[class*="text-white/40"],
+[class*="text-white/45"],
+[class*="text-white/50"] { color: rgba(248, 250, 252, 0.55); }
+
 html.light [class*="border-white/"] { border-color: var(--border) !important; }
 html.light [class*="bg-white/"] { background-color: var(--card-bg) !important; }
 

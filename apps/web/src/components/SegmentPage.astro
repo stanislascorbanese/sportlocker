@@ -36,8 +36,8 @@ const meta = SEGMENT_META[segment]
 ---
 
 <Base
-  title={`${meta.serviceName.replace('Borne de prêt de matériel sportif pour ', 'Prêt de matériel sportif — ')}`}
-  description={intro}
+  title={meta.titreCourt}
+  description={meta.metaDescription}
   extraJsonLd={buildSegmentSchemas(segment)}
 >
   <section class="section pt-36 sm:pt-40">
