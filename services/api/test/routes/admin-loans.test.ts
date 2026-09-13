@@ -62,7 +62,25 @@ async function seedSite(name = 'Camping Test'): Promise<Site> {
 /** Un emprunt complet : séjour, casier, article, ligne de prêt. */
 async function seedLoan(
   site: Site,
-  opts: { ref: string; lastName: string; hoursAgo?: number; returned?: boolean; position?: number } ,
+  opts: {
+    ref: string; lastName: string; hoursAgo?: number; returned?: boolean; position?: number
+    /**
+     * Horodate l'emprunt sur la journée COURANTE DE POSTGRES plutôt que sur
+     * l'horloge de Node moins N heures.
+     *
+     * La route `/daily` construit ses cases avec `CURRENT_DATE`. Un emprunt
+     * posé à « maintenant moins 2 h » tombe donc dans la case de la veille
+     * dès que la suite tourne entre minuit et 2 h du matin — et ces deux
+     * tests échouaient toutes les nuits dans cette fenêtre, sans qu'aucun
+     * code applicatif ait bougé. La bascule est réelle : le 2026-09-13, une
+     * exécution démarrée à 23 h 56 UTC a atteint ces tests après minuit.
+     *
+     * Ancrer la date côté base supprime la fenêtre : `date_trunc('day', now())`
+     * et `CURRENT_DATE` se lisent dans le même fuseau de session, donc la
+     * case visée est toujours la dernière, à n'importe quelle heure.
+     */
+    auJourDeLaBase?: boolean
+  },
 ): Promise<string> {
   const stayId = randomUUID()
   const today = new Date().toISOString().slice(0, 10)
@@ -84,7 +102,9 @@ async function seedLoan(
     VALUES (${itemId}, ${typeId}, ${'rfid-' + itemId.slice(0, 10)})`
 
   const loanId = randomUUID()
-  const borrowedAt = new Date(Date.now() - (opts.hoursAgo ?? 1) * 3_600_000)
+  const borrowedAt = opts.auJourDeLaBase
+    ? pgSql`date_trunc('day', now()) + interval '1 second'`
+    : new Date(Date.now() - (opts.hoursAgo ?? 1) * 3_600_000)
   await pgSql`INSERT INTO loans (id, stay_id, distributor_id, locker_id, item_id, borrowed_at, returned_at)
     VALUES (${loanId}, ${stayId}, ${site.distributorId}, ${lockerId}, ${itemId},
             ${borrowedAt}, ${opts.returned ? new Date() : null})`
@@ -240,7 +260,7 @@ describe('POST /v1/admin/loans/:id/charge', () => {
 describe('GET /v1/admin/loans/daily', () => {
   it('rend une valeur par jour, y compris les jours sans emprunt', async () => {
     const site = await seedSite()
-    await seedLoan(site, { ref: '1', lastName: 'Aujourdhui', hoursAgo: 2 })
+    await seedLoan(site, { ref: '1', lastName: 'Aujourdhui', auJourDeLaBase: true })
 
     const res = await app.inject({
       method: 'GET', url: '/v1/admin/loans/daily?days=7', headers: { authorization: site.auth },
@@ -302,8 +322,8 @@ describe('super-admin', () => {
   it('compte les emprunts de tous les campings dans la courbe', async () => {
     const a = await seedSite('Camping A')
     const b = await seedSite('Camping B')
-    await seedLoan(a, { ref: 'A1', lastName: 'ChezA', hoursAgo: 2 })
-    await seedLoan(b, { ref: 'B1', lastName: 'ChezB', hoursAgo: 2 })
+    await seedLoan(a, { ref: 'A1', lastName: 'ChezA', auJourDeLaBase: true })
+    await seedLoan(b, { ref: 'B1', lastName: 'ChezB', auJourDeLaBase: true })
 
     const res = await app.inject({
       method: 'GET', url: '/v1/admin/loans/daily?days=7',
