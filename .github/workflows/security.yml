@@ -189,12 +189,28 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install pip-audit
-        run: pip install pip-audit
+      # setuptools est fourni par l'image du runner, pas par nos requirements :
+      # la 79.0.1 livree par defaut porte PYSEC-2026-3447, corrigee en 83.0.0.
+      # On le monte ici plutot que de l'epingler dans requirements.txt, ou il
+      # n'a rien a faire — le firmware ne l'importe pas, c'est un outil de build.
+      - name: Install pip-audit (et setuptools a jour)
+        run: pip install -U pip setuptools pip-audit
 
       - name: pip-audit (firmware)
         working-directory: services/firmware
         # --requirement plutôt que --strict pour ne pas bloquer sur les
         # warnings transitifs (deps de deps). On bloque sur les CVE
         # confirmées seulement.
-        run: pip-audit --requirement requirements.txt || pip-audit
+        #
+        # PYSEC-2026-1325 : ecdsa, tire transitivement par
+        # python-jose[cryptography]. **Aucune version corrigee n'existe** en
+        # amont — ce n'est donc pas un bump qu'on repousse, il n'y a rien a
+        # installer. Et le code ne l'atteint jamais : le firmware ne verifie
+        # que des JWT **HS256** (`jwt_verify.py`, JWT_ALGORITHM = "HS256"),
+        # un HMAC. Aucune signature a courbe elliptique n'est produite ni
+        # verifiee sur la borne, donc le chemin de code vulnerable n'est
+        # jamais execute. A retirer si une version corrigee parait, ou le jour
+        # ou le firmware passerait a un algorithme asymetrique (cf. §9 #22).
+        run: |
+          pip-audit --requirement requirements.txt --ignore-vuln PYSEC-2026-1325 \
+            || pip-audit --ignore-vuln PYSEC-2026-1325
