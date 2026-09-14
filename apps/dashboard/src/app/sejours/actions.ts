@@ -32,18 +32,24 @@ function codeOf(err: unknown): string {
   return 'unknown'
 }
 
-export async function previewStaysAction(csv: string): Promise<ActionResult<StayImportPreview>> {
+export async function previewStaysAction(
+  csv: string,
+  communeId?: string,
+): Promise<ActionResult<StayImportPreview>> {
   try {
-    return { ok: true, data: await previewStaysCsv(csv) }
+    return { ok: true, data: await previewStaysCsv(csv, communeId) }
   } catch (err) {
     if (isRedirect(err)) throw err
     return { ok: false, code: codeOf(err) }
   }
 }
 
-export async function importStaysAction(csv: string): Promise<ActionResult<StayImportResult>> {
+export async function importStaysAction(
+  csv: string,
+  communeId?: string,
+): Promise<ActionResult<StayImportResult>> {
   try {
-    const data = await importStaysCsv(csv)
+    const data = await importStaysCsv(csv, communeId)
     revalidateTag('stays')
     return { ok: true, data }
   } catch (err) {

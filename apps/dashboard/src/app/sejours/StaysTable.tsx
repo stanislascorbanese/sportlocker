@@ -10,7 +10,21 @@ import { stayStrings } from '../../lib/i18n/stays'
  * ça. Cette liste sert à vérifier d'un coup d'œil que l'import a bien pris —
  * les bons emplacements, les bonnes dates — et à voir qui a du matériel dehors.
  */
-export function StaysTable({ rows, lang }: { rows: StayRow[]; lang: Lang }) {
+export function StaysTable({
+  rows,
+  lang,
+  montreLEtablissement = false,
+}: {
+  rows: StayRow[]
+  lang: Lang
+  /**
+   * Un super-admin lit les séjours de tous les établissements d'un coup. Sans
+   * cette colonne, deux « emplacement 12 » venus de deux campings différents
+   * seraient indiscernables — et c'est exactement le genre de confusion qui
+   * fait prêter du matériel au mauvais client.
+   */
+  montreLEtablissement?: boolean
+}) {
   const t = stayStrings(lang)
 
   if (rows.length === 0) {
@@ -36,6 +50,7 @@ export function StaysTable({ rows, lang }: { rows: StayRow[]; lang: Lang }) {
               </div>
               <p className="text-meta text-gray-500 dark:text-white/45">
                 {fmtDay(row.arrivesOn, lang)} → {fmtDay(row.departsOn, lang)}
+                {montreLEtablissement && row.communeName ? ` · ${row.communeName}` : ''}
               </p>
             </Card>
           </li>
@@ -48,6 +63,9 @@ export function StaysTable({ rows, lang }: { rows: StayRow[]; lang: Lang }) {
           <thead className="border-b border-gray-200 text-meta uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-white/45">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">{t.colRef}</th>
+              {montreLEtablissement && (
+                <th scope="col" className="px-4 py-3 font-medium">{t.colSite}</th>
+              )}
               <th scope="col" className="px-4 py-3 font-medium">{t.colGuest}</th>
               <th scope="col" className="px-4 py-3 font-medium">{t.colArrives}</th>
               <th scope="col" className="px-4 py-3 font-medium">{t.colDeparts}</th>
@@ -60,6 +78,11 @@ export function StaysTable({ rows, lang }: { rows: StayRow[]; lang: Lang }) {
                 <td className="px-4 py-3 font-semibold tabular-nums text-navy-900 dark:text-white">
                   {row.stayRef}
                 </td>
+                {montreLEtablissement && (
+                  <td className="px-4 py-3 text-gray-600 dark:text-white/55">
+                    {row.communeName ?? '—'}
+                  </td>
+                )}
                 <td className="px-4 py-3 font-medium text-navy-900 dark:text-white">
                   {guestName(row)}
                 </td>

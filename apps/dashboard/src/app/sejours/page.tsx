@@ -1,6 +1,7 @@
 import { Users } from 'lucide-react'
 
-import { fetchStays, type StayRow } from '../../lib/api'
+import { fetchCommunes, fetchStays, type Commune, type StayRow } from '../../lib/api'
+import { getSessionUser } from '../../lib/session-server'
 import { RefreshButton } from '../../components/RefreshButton'
 import { ErrorState, PageHeader } from '../../components/ui'
 import { getLang } from '../../lib/lang-server'
@@ -29,11 +30,23 @@ export default async function StaysPage() {
   const t = stayStrings(lang)
   const c = commonStrings(lang)
 
+  const user = await getSessionUser()
+  /*
+   * Un admin d'établissement est cadré par son jeton : il n'a aucun choix à
+   * faire, et lui montrer un sélecteur à une seule entrée serait du bruit.
+   * Un super-admin, lui, doit désigner l'établissement AVANT d'importer —
+   * verser les arrivées d'un camping dans un autre écrase des séjours et ne
+   * se rattrape pas. La liste, elle, n'écrit rien : il la voit en entier.
+   */
+  const choisitLEtablissement = user?.role !== 'admin'
+
   let rows: StayRow[] = []
+  let communes: Commune[] = []
   let fetchError: string | null = null
 
   try {
     rows = await fetchStays(200)
+    if (choisitLEtablissement) communes = await fetchCommunes()
   } catch (err) {
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
@@ -48,11 +61,13 @@ export default async function StaysPage() {
         actions={<RefreshButton />}
       />
 
-      <StayImport lang={lang} />
+      <StayImport lang={lang} communes={choisitLEtablissement ? communes : null} />
 
       {fetchError ? <ErrorState title={c.apiErrorFallback} message={fetchError} /> : null}
 
-      {!fetchError ? <StaysTable rows={rows} lang={lang} /> : null}
+      {!fetchError ? (
+        <StaysTable rows={rows} lang={lang} montreLEtablissement={choisitLEtablissement} />
+      ) : null}
     </div>
   )
 }

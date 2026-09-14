@@ -19,7 +19,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 
 import { db } from '../db/client.js'
-import { stays } from '../db/schema.js'
+import { communes, stays } from '../db/schema.js'
 import { requireAdminScope } from '../lib/commune-scope.js'
 import { parseStaysCsv } from '../lib/stays-csv.js'
 
@@ -65,6 +65,13 @@ const StayDTO = z.object({
   arrivesOn: z.string(),
   departsOn: z.string(),
   hasOpenLoan: z.boolean(),
+  /**
+   * Le camping du séjour. Sans intérêt pour un admin d'établissement — il n'en
+   * a qu'un — mais indispensable au super-admin, qui lit désormais la liste
+   * sans en désigner aucun : deux « emplacement 12 » dans deux campings
+   * différents seraient autrement indiscernables.
+   */
+  communeName: z.string().nullable(),
 })
 
 const ErrorDTO = z.object({ error: z.string() })
@@ -205,8 +212,23 @@ export async function adminStayRoutes(app: FastifyInstance): Promise<void> {
     const auth = requireAdminScope(req, reply)
     if (!auth.ok) return
 
-    const target = targetCommune(auth.scope, req.query.communeId)
-    if (!target.ok) return reply.code(400).send({ error: target.error })
+    /*
+     * Ici, contrairement à l'import, l'absence de camping désigné n'est pas
+     * une erreur. `targetCommune` est strict parce qu'ÉCRIRE les séjours d'un
+     * camping dans un autre ne se rattrape pas ; lire n'écrit rien, et un
+     * super-admin voit déjà tout sur Rapports et Emprunts. Refuser ici rendait
+     * la page Séjours simplement inutilisable pour ce rôle — aucun sélecteur
+     * n'existait pour fournir le paramètre exigé.
+     *
+     * L'ordre compte : le scope du compte prime toujours sur le paramètre
+     * d'URL, sans quoi un admin de camping lirait les clients du voisin en
+     * changeant une query string.
+     */
+    const filtreCamping = auth.scope
+      ? eq(stays.communeId, auth.scope.communeId)
+      : req.query.communeId
+        ? eq(stays.communeId, req.query.communeId)
+        : undefined
 
     const today = new Date().toISOString().slice(0, 10)
     const rows = await db
@@ -217,13 +239,15 @@ export async function adminStayRoutes(app: FastifyInstance): Promise<void> {
         firstName: stays.firstName,
         arrivesOn: stays.arrivesOn,
         departsOn: stays.departsOn,
+        communeName: communes.name,
         openLoans: sql<number>`(
           SELECT count(*) FROM loans l
           WHERE l.stay_id = ${stays.id} AND l.returned_at IS NULL
         )::int`,
       })
       .from(stays)
-      .where(and(eq(stays.communeId, target.communeId), gte(stays.departsOn, today)))
+      .leftJoin(communes, eq(communes.id, stays.communeId))
+      .where(and(filtreCamping, gte(stays.departsOn, today)))
       .orderBy(asc(stays.arrivesOn), asc(stays.stayRef))
       .limit(req.query.limit)
 
@@ -235,6 +259,7 @@ export async function adminStayRoutes(app: FastifyInstance): Promise<void> {
       arrivesOn: row.arrivesOn,
       departsOn: row.departsOn,
       hasOpenLoan: row.openLoans > 0,
+      communeName: row.communeName,
     }))
   })
 }

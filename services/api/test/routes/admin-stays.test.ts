@@ -274,6 +274,48 @@ describe('super-admin', () => {
     expect(Number(count)).toBe(0)
   })
 
+  /*
+   * La lecture ne suit pas la même règle que l'import, et c'est délibéré.
+   * Exiger un camping pour ÉCRIRE protège d'une erreur irrattrapable ; l'exiger
+   * pour LIRE rendait simplement la page Séjours inutilisable au super-admin,
+   * qui n'avait aucun moyen de fournir le paramètre. Ces deux tests fixent la
+   * frontière, dans les deux sens.
+   */
+  it('sans camping désigné, il lit les séjours de TOUS les campings', async () => {
+    const a = await seedCommune()
+    const b = await seedCommune()
+    await pgSql`INSERT INTO stays (id, commune_id, stay_ref, last_name, arrives_on, departs_on)
+      VALUES (${randomUUID()}, ${a}, 'CHEZ-A', 'Alpha', CURRENT_DATE, CURRENT_DATE + 5)`
+    await pgSql`INSERT INTO stays (id, commune_id, stay_ref, last_name, arrives_on, departs_on)
+      VALUES (${randomUUID()}, ${b}, 'CHEZ-B', 'Bravo', CURRENT_DATE, CURRENT_DATE + 5)`
+
+    const res = await app.inject({
+      method: 'GET', url: '/v1/admin/stays',
+      headers: { authorization: await seedSuperAdmin() },
+    })
+    expect(res.statusCode).toBe(200)
+    const refs = res.json().map((r: { stayRef: string }) => r.stayRef).sort()
+    expect(refs).toEqual(['CHEZ-A', 'CHEZ-B'])
+    // Sans le nom du camping, deux références identiques seraient indiscernables.
+    expect(res.json().every((r: { communeName: string | null }) => r.communeName)).toBe(true)
+  })
+
+  it('un admin de camping ne voit pas le voisin, même en réclamant son identifiant', async () => {
+    const sien = await seedCommune()
+    const voisin = await seedCommune()
+    await pgSql`INSERT INTO stays (id, commune_id, stay_ref, last_name, arrives_on, departs_on)
+      VALUES (${randomUUID()}, ${sien}, 'A-MOI', 'Alpha', CURRENT_DATE, CURRENT_DATE + 5)`
+    await pgSql`INSERT INTO stays (id, commune_id, stay_ref, last_name, arrives_on, departs_on)
+      VALUES (${randomUUID()}, ${voisin}, 'PAS-A-MOI', 'Bravo', CURRENT_DATE, CURRENT_DATE + 5)`
+
+    const res = await app.inject({
+      method: 'GET', url: `/v1/admin/stays?communeId=${voisin}`,
+      headers: { authorization: await seedAdmin(sien) },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().map((r: { stayRef: string }) => r.stayRef)).toEqual(['A-MOI'])
+  })
+
   it('importe dans le camping qu\'il désigne', async () => {
     const cible = await seedCommune()
     const res = await app.inject({
