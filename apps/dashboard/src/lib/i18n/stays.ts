@@ -21,6 +21,8 @@ type Key =
   | 'confirm' | 'importing' | 'cancel'
   | 'doneTitle' | 'doneInserted' | 'doneUpdated' | 'doneRejected' | 'doneAgain'
   | 'colRef' | 'colGuest' | 'colArrives' | 'colDeparts' | 'colStatus'
+  | 'colSite'
+  | 'siteLabel' | 'siteHint' | 'sitePlaceholder' | 'siteRequired'
   | 'statusOut' | 'statusHere'
   | 'listTitle' | 'listEmpty' | 'listEmptyHint'
   | 'errFile' | 'errEmpty' | 'errTooBig' | 'errNoValidRow' | 'errTooManyRows'
@@ -63,12 +65,18 @@ const STRINGS: Record<Lang, Record<Key, string>> = {
     doneAgain:        'Importer un autre fichier',
 
     colRef:           'Emplacement',
+    colSite:          'Établissement',
     colGuest:         'Vacancier',
     colArrives:       'Arrivée',
     colDeparts:       'Départ',
     colStatus:        'Matériel',
     statusOut:        'Un article dehors',
     statusHere:       '—',
+
+    siteLabel:        'Établissement concerné',
+    siteHint:         'Verser un fichier dans le mauvais établissement ne se rattrape pas : les séjours écrasent ceux qui portent le même numéro.',
+    sitePlaceholder:  'Choisissez un établissement…',
+    siteRequired:     'Choisissez d’abord l’établissement concerné.',
 
     listTitle:        'Séjours en cours et à venir',
     listEmpty:        'Aucun séjour enregistré',
@@ -122,12 +130,18 @@ const STRINGS: Record<Lang, Record<Key, string>> = {
     doneAgain:        'Import another file',
 
     colRef:           'Pitch',
+    colSite:          'Site',
     colGuest:         'Guest',
     colArrives:       'Arrival',
     colDeparts:       'Departure',
     colStatus:        'Gear',
     statusOut:        'One item out',
     statusHere:       '—',
+
+    siteLabel:        'Target site',
+    siteHint:         'Importing into the wrong site cannot be undone: stays overwrite any that share the same reference.',
+    sitePlaceholder:  'Pick a site…',
+    siteRequired:     'Pick the target site first.',
 
     listTitle:        'Current and upcoming stays',
     listEmpty:        'No stay on file',

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle2, FileSpreadsheet, UploadCloud } from 'lucide-react'
 
 import { importStaysAction, previewStaysAction } from './actions'
-import type { StayImportPreview, StayImportResult } from '../../lib/api'
+import type { Commune, StayImportPreview, StayImportResult } from '../../lib/api'
 import { Badge, Button, Card } from '../../components/ui'
 import { cn } from '../../lib/cn'
 import type { Lang } from '../../lib/lang'
@@ -35,13 +35,29 @@ type Phase =
  * action : pas de multipart, pas de jeton côté client, et le même chemin de
  * code pour l'aperçu et pour l'import.
  */
-export function StayImport({ lang }: { lang: Lang }) {
+export function StayImport({
+  lang,
+  communes,
+}: {
+  lang: Lang
+  /**
+   * `null` pour un admin d'établissement : son jeton le cadre déjà, l'API
+   * ignore le paramètre, et un menu à une entrée n'est que du bruit.
+   * Une liste pour un super-admin, qui DOIT désigner sa cible — verser les
+   * arrivées d'un camping dans un autre écrase des séjours sans retour.
+   */
+  communes: Commune[] | null
+}) {
   const t = stayStrings(lang)
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [phase, setPhase] = useState<Phase>({ step: 'idle' })
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [communeId, setCommuneId] = useState('')
+
+  const doitChoisir = communes !== null
+  const cible = doitChoisir ? communeId : undefined
 
   function messageFor(code: string): string {
     switch (code) {
@@ -53,6 +69,9 @@ export function StayImport({ lang }: { lang: Lang }) {
 
   async function handleFile(file: File) {
     setError(null)
+    // Vérifié avant de lire le fichier : inutile d'analyser un CSV qu'on ne
+    // saura pas où écrire, et le message doit arriver au moment du dépôt.
+    if (doitChoisir && !communeId) return setError(t.siteRequired)
     if (file.size === 0) return setError(t.errEmpty)
     if (file.size > MAX_BYTES) return setError(t.errTooBig)
 
@@ -65,7 +84,7 @@ export function StayImport({ lang }: { lang: Lang }) {
       return setError(t.errFile)
     }
 
-    const res = await previewStaysAction(csv)
+    const res = await previewStaysAction(csv, cible)
     if (!res.ok) {
       setPhase({ step: 'idle' })
       return setError(messageFor(res.code))
@@ -76,7 +95,7 @@ export function StayImport({ lang }: { lang: Lang }) {
   async function confirm() {
     if (phase.step !== 'preview') return
     setPhase({ ...phase, step: 'importing' })
-    const res = await importStaysAction(phase.csv)
+    const res = await importStaysAction(phase.csv, cible)
     if (!res.ok) {
       setPhase({ ...phase, step: 'preview' })
       return setError(messageFor(res.code))
@@ -106,6 +125,34 @@ export function StayImport({ lang }: { lang: Lang }) {
         >
           {error}
         </p>
+      )}
+
+      {doitChoisir && (phase.step === 'idle' || phase.step === 'reading') && (
+        <div className="space-y-1">
+          <label
+            htmlFor="commune-cible"
+            className="text-meta font-medium uppercase tracking-wide text-gray-500 dark:text-white/45"
+          >
+            {t.siteLabel}
+          </label>
+          <select
+            id="commune-cible"
+            value={communeId}
+            onChange={(e) => {
+              setCommuneId(e.target.value)
+              setError(null)
+            }}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-navy-900 dark:border-white/15 dark:bg-white/5 dark:text-white"
+          >
+            <option value="">{t.sitePlaceholder}</option>
+            {communes?.map((co) => (
+              <option key={co.id} value={co.id}>
+                {co.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-meta text-gray-500 dark:text-white/45">{t.siteHint}</p>
+        </div>
       )}
 
       {(phase.step === 'idle' || phase.step === 'reading') && (

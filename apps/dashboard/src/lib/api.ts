@@ -1434,6 +1434,7 @@ export const StayRow = z.object({
   arrivesOn: z.string(),
   departsOn: z.string(),
   hasOpenLoan: z.boolean(),
+  communeName: z.string().nullable(),
 })
 
 export type StayRow = z.infer<typeof StayRow>
@@ -1470,8 +1471,16 @@ export const StayImportResult = z.object({
 
 export type StayImportResult = z.infer<typeof StayImportResult>
 
-export async function fetchStays(limit = 200): Promise<StayRow[]> {
-  const res = await fetch(`${API_URL}/v1/admin/stays?limit=${limit}`, {
+/**
+ * `communeId` n'a de sens que pour un super-admin, et reste facultatif : sans
+ * lui, il voit les séjours de tous les établissements. Un admin d'établissement
+ * est cadré par son jeton, et l'API ignore ce paramètre pour lui — le passer
+ * ne lui ouvrirait rien.
+ */
+export async function fetchStays(limit = 200, communeId?: string): Promise<StayRow[]> {
+  const qs = new URLSearchParams({ limit: String(limit) })
+  if (communeId) qs.set('communeId', communeId)
+  const res = await fetch(`${API_URL}/v1/admin/stays?${qs.toString()}`, {
     headers: { ...(await authHeaders()) },
     cache: 'no-store',
     next: { tags: ['stays'] },
@@ -1480,21 +1489,21 @@ export async function fetchStays(limit = 200): Promise<StayRow[]> {
   return z.array(StayRow).parse(await res.json())
 }
 
-export async function previewStaysCsv(csv: string): Promise<StayImportPreview> {
+export async function previewStaysCsv(csv: string, communeId?: string): Promise<StayImportPreview> {
   const res = await fetch(`${API_URL}/v1/admin/stays/preview`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify({ csv }),
+    body: JSON.stringify(communeId ? { csv, communeId } : { csv }),
   })
   if (!res.ok) await throwApiError(res)
   return StayImportPreview.parse(await res.json())
 }
 
-export async function importStaysCsv(csv: string): Promise<StayImportResult> {
+export async function importStaysCsv(csv: string, communeId?: string): Promise<StayImportResult> {
   const res = await fetch(`${API_URL}/v1/admin/stays/import`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify({ csv }),
+    body: JSON.stringify(communeId ? { csv, communeId } : { csv }),
   })
   if (!res.ok) await throwApiError(res)
   return StayImportResult.parse(await res.json())
