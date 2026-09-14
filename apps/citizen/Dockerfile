@@ -58,6 +58,15 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_DEMO=$NEXT_PUBLIC_DEMO \
     NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 
+# Compile @sportlocker/types → dist/ AVANT l'app. Les exports du paquet
+# pointent sur ./dist/index.js : sans cette étape, `next build` échoue à
+# résoudre l'import de apps/citizen/src/lib/contract.ts, et Railway continue
+# de servir la dernière image qui a réussi — donc l'ancienne app.
+# `pnpm --filter <app> build` ne construit PAS les dépendances d'espace de
+# travail (contrairement à turbo). apps/dashboard et services/api font déjà
+# cet appel explicite ; apps/citizen l'avait oublié en gagnant la dépendance.
+RUN pnpm --filter @sportlocker/types build
+
 RUN pnpm --filter @sportlocker/citizen build
 
 ENV NODE_ENV=production
