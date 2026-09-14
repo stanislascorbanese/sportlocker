@@ -113,7 +113,35 @@ jobs:
           # jamais à la requête sur une image fournie par un visiteur. Le vecteur
           # de l'advisory — un AVIF hostile passé au pipeline — n'existe pas ici.
           # Levée avec la migration Astro 6/7 + Node 22 (cf. §9 item #18).
-          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7 GHSA-26w7-cxv4-gfx2'
+          # GHSA-83w8-p2f5-377r : @fastify/static (contournement de garde de route
+          # par traversee de chemin). Patch a partir de 10.1.1, mais le paquet est
+          # TRANSITIF — seul @fastify/swagger-ui@5.2.6 le tire, et il declare
+          # `@fastify/static: ^9.1.2`. Un override vers 10.x le sortirait de sa plage
+          # testee, ce qui est exactement ce qui a casse la CI en juin (cf. SECURITY.md
+          # §9 item #19). Le chemin propre est de monter @fastify/swagger-ui en 6.1.1,
+          # qui declare lui-meme `^10.1.0` — bump majeur d'une dependance directe de
+          # l'API, donc sa propre PR avec les tests api verts (cf. §9 item #21).
+          # ATTENTION : contrairement aux autres exceptions de cette liste, celle-ci
+          # est reellement atteignable — /docs est publique et sans authentification.
+          # A traiter en priorite, pas a laisser dormir.
+          # GHSA-52cp-r559-cp3m / GHSA-5p4m-2wfm-xmqj / GHSA-2883-xcg3-v3hh : js-yaml
+          # (DoS CPU quadratique sur les clés de fusion YAML). Pas de bump possible :
+          # `js-yaml` est EPINGLE a 4.1.1 dans package.json#pnpm.overrides, et c'est
+          # deliberé — 4.2.0 a retiré l'export par defaut du build ESM, or
+          # @astrojs/markdown-remark fait `import yaml from 'js-yaml'`. Des 4.2.0,
+          # `astro check` ne demarre plus (verifie en depaquetant 4.1.1, 4.2.0, 4.3.0
+          # et 4.3.2 — cf. SECURITY.md §9 item #19, ou un bump a deja casse la CI).
+          # Exposition reelle nulle : js-yaml ne lit ici que le frontmatter du depot
+          # au build, jamais du YAML fourni par un visiteur. A lever quand Astro sera
+          # passe aux imports nommes (cf. §9 item #20).
+          # GHSA-f88m-g3jw-g9cj / GHSA-rgj7-g3m4-5g8c : sharp (vulns heritees de
+          # libvips et libheif). Patch a partir de 0.35.0, mais astro@5.18.2 declare
+          # `sharp: ^0.34.0` en optionalDependency : forcer 0.35.x sortirait de la
+          # plage testee par Astro, sur le paquet qui genere justement les images du
+          # site. Meme raisonnement d'exposition que l'advisory AVIF ci-dessus :
+          # apps/web est `output: static`, l'optimisation tourne au build sur des
+          # fichiers du depot. A lever avec la montee Astro (cf. §9 item #18).
+          IGNORED_GHSAS: 'GHSA-gv7w-rqvm-qjhr GHSA-8hv8-536x-4wqp GHSA-2pvr-wf23-7pc7 GHSA-26w7-cxv4-gfx2 GHSA-52cp-r559-cp3m GHSA-5p4m-2wfm-xmqj GHSA-2883-xcg3-v3hh GHSA-f88m-g3jw-g9cj GHSA-rgj7-g3m4-5g8c GHSA-83w8-p2f5-377r'
         run: |
           set -euo pipefail
           # On laisse pnpm audit retourner non-zéro (présence de vulns) sans
@@ -161,12 +189,28 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install pip-audit
-        run: pip install pip-audit
+      # setuptools est fourni par l'image du runner, pas par nos requirements :
+      # la 79.0.1 livree par defaut porte PYSEC-2026-3447, corrigee en 83.0.0.
+      # On le monte ici plutot que de l'epingler dans requirements.txt, ou il
+      # n'a rien a faire — le firmware ne l'importe pas, c'est un outil de build.
+      - name: Install pip-audit (et setuptools a jour)
+        run: pip install -U pip setuptools pip-audit
 
       - name: pip-audit (firmware)
         working-directory: services/firmware
         # --requirement plutôt que --strict pour ne pas bloquer sur les
         # warnings transitifs (deps de deps). On bloque sur les CVE
         # confirmées seulement.
-        run: pip-audit --requirement requirements.txt || pip-audit
+        #
+        # PYSEC-2026-1325 : ecdsa, tire transitivement par
+        # python-jose[cryptography]. **Aucune version corrigee n'existe** en
+        # amont — ce n'est donc pas un bump qu'on repousse, il n'y a rien a
+        # installer. Et le code ne l'atteint jamais : le firmware ne verifie
+        # que des JWT **HS256** (`jwt_verify.py`, JWT_ALGORITHM = "HS256"),
+        # un HMAC. Aucune signature a courbe elliptique n'est produite ni
+        # verifiee sur la borne, donc le chemin de code vulnerable n'est
+        # jamais execute. A retirer si une version corrigee parait, ou le jour
+        # ou le firmware passerait a un algorithme asymetrique (cf. §9 #22).
+        run: |
+          pip-audit --requirement requirements.txt --ignore-vuln PYSEC-2026-1325 \
+            || pip-audit --ignore-vuln PYSEC-2026-1325
