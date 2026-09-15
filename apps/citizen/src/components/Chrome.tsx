@@ -18,7 +18,7 @@ export function TopBar({ siteName }: { siteName?: string | undefined }) {
           SportLocker
         </span>
         {siteName ? (
-          <span className="block truncate text-[0.9375rem] font-bold text-ink">{siteName}</span>
+          <span className="block text-[0.9375rem] font-bold leading-tight text-ink">{siteName}</span>
         ) : null}
       </Link>
       <div className="flex shrink-0 items-center gap-1">

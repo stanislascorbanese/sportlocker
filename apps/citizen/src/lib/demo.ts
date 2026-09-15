@@ -21,10 +21,11 @@ const CATALOGUE = [
   { itemTypeId: 'foot', label: 'Ballon de football', kind: 'ballon' as const, available: 2 },
   { itemTypeId: 'basket', label: 'Ballon de basket', kind: 'basket' as const, available: 1 },
   { itemTypeId: 'volley', label: 'Ballon de volley', kind: 'volley' as const, available: 1 },
-  { itemTypeId: 'pingpong', label: 'Raquettes de ping-pong', kind: 'raquette' as const, available: 2 },
-  { itemTypeId: 'badminton', label: 'Set de badminton', kind: 'raquette' as const, available: 1 },
+  { itemTypeId: 'pingpong', label: 'Raquettes de ping-pong', kind: 'pingpong' as const, available: 2 },
+  { itemTypeId: 'badminton', label: 'Set de badminton', kind: 'badminton' as const, available: 1 },
   { itemTypeId: 'beach', label: 'Raquettes de plage', kind: 'raquette' as const, available: 0 },
   { itemTypeId: 'frisbee', label: 'Frisbee', kind: 'disque' as const, available: 1 },
+  { itemTypeId: 'tennis', label: 'Raquette de tennis', kind: 'tennis' as const, available: 1 },
   { itemTypeId: 'petanque', label: 'Jeu de pétanque', kind: 'boule' as const, available: 1 },
 ]
 

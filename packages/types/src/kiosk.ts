@@ -20,11 +20,22 @@ import { z } from 'zod'
  * Les trois ballons ont leur propre motif parce que dans un casier de camping
  * ils coexistent — un glyphe unique obligerait à lire le libellé pour les
  * distinguer, ce qu'on ne fait pas à bout de bras en plein soleil.
+ *
+ * Les raquettes suivent la même règle depuis septembre 2026, et pour une raison
+ * qui s'est vue à l'écran : hors du français, l'app remplace le libellé de
+ * l'exploitant par le mot générique du `kind`. Tant que ping-pong, badminton et
+ * raquettes de plage partageaient `raquette`, un vacancier néerlandais voyait
+ * trois tuiles identiques intitulées « Racket », avec le même dessin — soit
+ * exactement ce que les quatre langues étaient censées éviter. `raquette` reste
+ * le repli pour une raquette qu'on n'a pas su nommer.
  */
 export const ItemKind = z.enum([
   'ballon',
   'basket',
   'volley',
+  'pingpong',
+  'badminton',
+  'tennis',
   'raquette',
   'disque',
   'plot',
