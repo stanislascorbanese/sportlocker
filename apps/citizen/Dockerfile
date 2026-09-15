@@ -19,43 +19,53 @@ WORKDIR /repo
 # Manifests racine + workspaces (cache Docker layer si pas de changement)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json turbo.json ./
 COPY apps/citizen/package.json ./apps/citizen/
+COPY packages/config/package.json ./packages/config/
 COPY packages/types/package.json ./packages/types/
 
-# Install scoped sur @sportlocker/citizen + workspace deps (types).
+# Install scoped sur @sportlocker/citizen + ses dépendances d'espace de travail
+# (aujourd'hui : @sportlocker/config, qui porte le preset Tailwind partagé).
 # --ignore-scripts : évite les postinstalls d'apps/mobile (bob/husky absents).
 # --prod=false : Railway met NODE_ENV=production, or `next build` a besoin des
 #   devDeps (tailwindcss, typescript, postcss…).
 RUN corepack prepare pnpm@9.0.0 --activate \
   && pnpm install --filter @sportlocker/citizen... --frozen-lockfile --ignore-scripts --prod=false
 
-# Sources des packages workspace utilisés + de l'app
+# Sources des packages workspace utilisés + de l'app.
+# @sportlocker/config n'a rien à compiler : il expose directement du .cjs et du
+# .css. @sportlocker/types porte le contrat de l'API vacancier, partagé avec le
+# serveur pour que les deux bouts ne puissent plus diverger.
+COPY packages/config ./packages/config
 COPY packages/types ./packages/types
 COPY apps/citizen ./apps/citizen
-
-# Compile @sportlocker/types → dist/ (les exports du paquet pointent sur
-# ./dist/index.js ; sans ce build, webpack ne résout pas le module au
-# `next build` → « Module not found: Can't resolve '@sportlocker/types' »)
-RUN pnpm --filter @sportlocker/types build
 
 # NEXT_PUBLIC_* sont bakés dans le bundle client au build par Next.js.
 # Railway les injecte comme build args si on les déclare avec ARG ici.
 # Sans valeur, le build passe mais l'app ne pourra pas joindre Firebase/API
 # côté client → set ces variables dans Service → Variables → "Build Args".
+# L'app vacancier n'a plus ni Firebase ni Stripe. Il ne reste que deux
+# variables, et elles sont bakées dans le bundle client au build — donc à
+# déclarer dans Railway → Service → Variables → Build Args, pas seulement en
+# variables d'exécution.
+#
+# NEXT_PUBLIC_DEMO=1 rejoue le parcours en mémoire, sans API. À laisser à 1
+# tant que les routes /v1/kiosk/* n'existent pas côté services/api
+# (cf. docs/API-VACANCIER.md), sinon l'app se connecte dans le vide.
 ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_FIREBASE_API_KEY
-ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
-ARG NEXT_PUBLIC_FIREBASE_APP_ID
-# Clé publique Stripe (pk_test_… / pk_live_…). Requise seulement quand l'API
-# tourne en PAYMENTS_PROVIDER=stripe ; vide en mode simulate (build OK quand même).
-ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_DEMO
+ARG NEXT_PUBLIC_SENTRY_DSN
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
-    NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID \
-    NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID \
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    NEXT_PUBLIC_DEMO=$NEXT_PUBLIC_DEMO \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+
+# Compile @sportlocker/types → dist/ AVANT l'app. Les exports du paquet
+# pointent sur ./dist/index.js : sans cette étape, `next build` échoue à
+# résoudre l'import de apps/citizen/src/lib/contract.ts, et Railway continue
+# de servir la dernière image qui a réussi — donc l'ancienne app.
+# `pnpm --filter <app> build` ne construit PAS les dépendances d'espace de
+# travail (contrairement à turbo). apps/dashboard et services/api font déjà
+# cet appel explicite ; apps/citizen l'avait oublié en gagnant la dépendance.
+RUN pnpm --filter @sportlocker/types build
 
 RUN pnpm --filter @sportlocker/citizen build
 

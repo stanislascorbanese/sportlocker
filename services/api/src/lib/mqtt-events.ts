@@ -28,6 +28,7 @@ import {
   lockers,
   reservations,
 } from '../db/schema.js'
+import { notifyDoorUnlocked } from './locker-open.js'
 import { parseSignedEnvelope, verifySignature } from './mqtt-hmac.js'
 import { emitDistributorChange, emitLockerChange } from './live-emit.js'
 
@@ -108,7 +109,14 @@ export async function handleEnvelope(
       deps.log.warn({ data: parsed.data }, 'mqtt_event_door_unlocked_bad_payload')
       return false
     }
-    await handleDoorUnlocked(event, deps)
+    // Le parcours vacancier attend cette confirmation pour afficher un numéro
+    // de casier. On le réveille avant tout traitement en base : sa requête HTTP
+    // est en train d'expirer pendant que le client regarde son téléphone.
+    const wasKioskOpen = notifyDoorUnlocked(event.jti)
+    // Une ouverture d'emprunt vacancier ne correspond à aucune réservation du
+    // modèle historique : inutile de faire chercher `handleDoorUnlocked` pour
+    // rien, et surtout de logger un avertissement à chaque emprunt.
+    if (!wasKioskOpen) await handleDoorUnlocked(event, deps)
     return true
   }
 

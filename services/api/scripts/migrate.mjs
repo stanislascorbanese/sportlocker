@@ -1,6 +1,19 @@
 #!/usr/bin/env node
+// `.env` n'est lu que par ce qui l'importe : ce script tourne hors de
+// l'application, donc sans cette ligne il ne voit aucune variable.
+import 'dotenv/config'
+
 /**
- * Migrateur SQL lightweight, exécuté au boot du container API (cf. entrypoint.sh).
+ * Migrateur SQL lightweight, exécuté au boot du container API (cf. entrypoint.sh)
+ * ET par `pnpm db:migrate`. C'est le seul migrateur de ce dépôt.
+ *
+ * `drizzle-kit migrate` ne convient pas ici : il applique ce que liste un
+ * journal `meta/_journal.json` produit par `drizzle-kit generate`, et les 21
+ * migrations de `database/migrations/` sont du SQL écrit à la main. Sans
+ * journal, drizzle-kit affiche « applying migrations... » puis s'arrête sans
+ * appliquer quoi que ce soit et sans message — un échec silencieux qui ressemble
+ * à un problème de connexion. Il reste accessible sous `db:migrate:drizzle` pour
+ * le jour où le dépôt basculera sur des migrations générées.
  *
  * Comportement :
  *   1. Si la table `users` n'existe pas → applique database/schema.sql (bootstrap).

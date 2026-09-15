@@ -5,14 +5,11 @@ import { NAV } from '@/data/site'
 
 const path = Astro.url.pathname
 
-const SEGMENT_PATHS = ['/mairies', '/campings', '/hotels']
-const segments = [
-  { href: '/mairies', label: 'Mairies', icon: '🏛️', desc: 'Stades municipaux & parcs publics' },
-  { href: '/campings', label: 'Campings', icon: '🏖️', desc: 'Plages publiques & bord de mer' },
-  { href: '/hotels', label: 'Hôtels', icon: '✨', desc: 'Complexes 3★ / 4★ / 5★' },
-]
-const mainNav = NAV.filter((item) => !SEGMENT_PATHS.includes(item.href))
-const solutionsActive = SEGMENT_PATHS.includes(path)
+// Le menu déroulant « Solutions » servait les trois segments de mai 2026
+// (mairies / campings / hôtels). Depuis le pivot il n'y a plus qu'un segment,
+// « Pour les campings », qui vit directement dans la barre : un sous-menu à une
+// entrée coûte un clic pour rien.
+const mainNav = NAV
 ---
 
 <nav id="nav">
@@ -27,9 +24,8 @@ const solutionsActive = SEGMENT_PATHS.includes(path)
 
       <ul class="hidden md:flex items-center gap-1 list-none">
         {
-          mainNav.map((item, i) => {
+          mainNav.map((item) => {
             const isActive = path === item.href
-            const insertSolutionsAfter = i === 0
             return (
               <>
                 <li>
@@ -43,42 +39,6 @@ const solutionsActive = SEGMENT_PATHS.includes(path)
                     {item.label}
                   </a>
                 </li>
-                {insertSolutionsAfter && (
-                  <li class="nav-dropdown">
-                    <button
-                      type="button"
-                      class:list={['nav-link nav-dropdown-btn', solutionsActive ? 'nav-link-active' : '']}
-                      aria-haspopup="true"
-                      aria-expanded="false"
-                    >
-                      Solutions
-                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" class="nav-chevron">
-                        <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                    </button>
-                    <div class="nav-dropdown-menu" role="menu">
-                      <div class="text-[0.65rem] uppercase tracking-[0.14em] text-white/60 px-3 py-2">
-                        Par type de site
-                      </div>
-                      {segments.map((s) => (
-                        <a
-                          href={s.href}
-                          role="menuitem"
-                          class:list={[
-                            'nav-dropdown-item',
-                            path === s.href ? 'nav-dropdown-item-active' : '',
-                          ]}
-                        >
-                          <span class="text-2xl shrink-0">{s.icon}</span>
-                          <div>
-                            <div class="font-medium text-white text-sm">{s.label}</div>
-                            <div class="text-xs text-white/60 font-light mt-0.5">{s.desc}</div>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  </li>
-                )}
               </>
             )
           })
@@ -143,35 +103,4 @@ const solutionsActive = SEGMENT_PATHS.includes(path)
     })
   }
 
-  // Dropdown "Solutions" : ouverture click + fermeture click-outside / Escape.
-  // Le hover CSS gère l'ouverture passive ; le click rend le menu accessible
-  // au clavier et au touch.
-  document.querySelectorAll('.nav-dropdown').forEach((dd) => {
-    const trigger = dd.querySelector('.nav-dropdown-btn')
-    if (!trigger) return
-    trigger.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const open = dd.classList.toggle('is-open')
-      trigger.setAttribute('aria-expanded', String(open))
-    })
-  })
-  document.addEventListener('click', () => {
-    document.querySelectorAll('.nav-dropdown.is-open').forEach((dd) => {
-      dd.classList.remove('is-open')
-      const t = dd.querySelector('.nav-dropdown-btn')
-      if (t) t.setAttribute('aria-expanded', 'false')
-    })
-  })
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      document.querySelectorAll('.nav-dropdown.is-open').forEach((dd) => {
-        dd.classList.remove('is-open')
-        const t = dd.querySelector('.nav-dropdown-btn')
-        if (t) {
-          t.setAttribute('aria-expanded', 'false')
-          t.focus()
-        }
-      })
-    }
-  })
 </script>

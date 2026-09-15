@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Node 20 + pnpm (via corepack)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
@@ -106,6 +106,32 @@ jobs:
       - name: Build (apps/web)
         run: pnpm --filter @sportlocker/web build
 
+      # Les deux apps Next étaient absentes de la CI, alors que Railway les
+      # construit à chaque push sur main. Un build cassé ne se voyait donc que
+      # dans les logs de déploiement, CI verte et branche déjà fusionnée — et le
+      # site restait silencieusement sur sa version précédente. Deux incidents
+      # sont passés par là : `withSentryConfig` importé d'un sous-chemin absent
+      # de la version installée, et `@sportlocker/types` non construit.
+      #
+      # C'est `next build` qui les attrape : le typecheck ne compile pas les
+      # routes, ne résout pas les imports à l'exécution et ne génère aucune page.
+      #
+      # Par turbo et non `pnpm --filter … build` : les deux apps importent
+      # `@sportlocker/types`, dont le package.json pointe sur `dist/`. Le script
+      # de paquet lancé directement ne construit pas ses dépendances. La tâche
+      # `build` de turbo.json déclare `dependsOn: ["^build"]`, donc `types` est
+      # compilé avant, une seule fois pour les deux.
+      #
+      # NEXT_PUBLIC_DEMO=1 évite de fournir une URL d'API à un build dont on ne
+      # garde rien : on vérifie qu'il compile, pas qu'il parle au serveur.
+      - name: Build (apps/citizen)
+        run: pnpm exec turbo run build --filter=@sportlocker/citizen
+        env:
+          NEXT_PUBLIC_DEMO: '1'
+
+      - name: Build (apps/dashboard)
+        run: pnpm exec turbo run build --filter=@sportlocker/dashboard
+
   # ─── Firmware Python (services/firmware) ─────────────────────────────
   # Job parallèle au job Node ci-dessus. Lance ruff + pytest avec coverage
   # sur l'agent firmware. Indépendant de l'install pnpm — les deux jobs
@@ -120,7 +146,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'

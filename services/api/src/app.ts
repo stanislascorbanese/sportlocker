@@ -40,6 +40,9 @@ import { stripeWebhookRoutes } from './routes/stripe-webhook.js'
 import { webhooksStripeRoutes } from './routes/webhooks-stripe.js'
 import { adminLiveRoutes } from './routes/admin-live.js'
 import { devRoutes } from './routes/dev.js'
+import { kioskRoutes } from './routes/kiosk.js'
+import { adminStayRoutes } from './routes/admin-stays.js'
+import { adminLoanRoutes } from './routes/admin-loans.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -138,6 +141,8 @@ export async function buildApp() {
   await app.register(authRoutes,         { prefix: '/v1/auth' })
   await app.register(itemTypeRoutes,     { prefix: '/v1/item-types' })
   await app.register(distributorRoutes,  { prefix: '/v1/distributors' })
+  // Parcours vacancier — sans compte, sans paiement. Cf. docs/API-VACANCIER.md.
+  await app.register(kioskRoutes,        { prefix: '/v1/kiosk' })
   await app.register(reservationRoutes,  { prefix: '/v1/reservations' })
   await app.register(userRoutes,         { prefix: '/v1/users' })
   await app.register(walletRoutes,       { prefix: '/v1/wallet' })
@@ -158,6 +163,8 @@ export async function buildApp() {
   await app.register(adminPaymentRoutes,      { prefix: '/v1/admin/payments' })
   await app.register(adminStripeConnectRoutes, { prefix: '/v1/admin/stripe-connect' })
   await app.register(adminLiveRoutes,         { prefix: '/v1/admin/live' })
+  await app.register(adminStayRoutes,          { prefix: '/v1/admin/stays' })
+  await app.register(adminLoanRoutes,          { prefix: '/v1/admin/loans' })
   await app.register(webhooksStripeRoutes,    { prefix: '/v1/webhooks' })
 
   // Routes de dev/simulation — register UNIQUEMENT hors production.

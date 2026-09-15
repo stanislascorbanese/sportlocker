@@ -12,6 +12,6 @@ python-jose[cryptography]==3.5.0
 # quand on connectera un vrai reader. Le firmware actuel n'en a pas
 # besoin (machine à états + GPIO + QR suffisent).
 # llrpy==0.5.0
-pydantic==2.13.4
+pydantic==2.13.5
 structlog==26.1.0
-sentry-sdk==2.62.0
+sentry-sdk==2.69.1

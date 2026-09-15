@@ -1,0 +1,42 @@
+---
+import SegmentPage from '@/components/SegmentPage.astro'
+
+/**
+ * Villages vacances, centres de séjour, colonies.
+ *
+ * La différence tient au rythme : ici les clients restent une semaine, souvent
+ * en famille, et l'animation est un poste de coût à part entière. L'argument
+ * porte sur les heures où l'animateur n'est pas là.
+ */
+---
+
+<SegmentPage
+  segment="village"
+  titre="Du matériel de sport en village vacances."
+  titreAccent="L’animateur ne peut pas être partout à la fois."
+  intro="Une borne de huit casiers près de vos terrains. Les familles prennent le matériel avec leur numéro de séjour, aux heures où il n’y a personne pour leur ouvrir le local."
+  constat={[
+    'Le local à matériel n’ouvre que pendant les créneaux d’animation.',
+    'Les familles demandent un ballon le soir, on n’a personne pour le sortir.',
+    'On rachète des raquettes chaque année sans savoir où passent les anciennes.',
+    'Le matériel sort pour une animation et revient rarement complet.',
+  ]}
+  raisons={[
+    {
+      titre: 'Ouvert en dehors des créneaux',
+      detail:
+        'Vos animateurs gardent leurs heures pour l’animation. Le reste du temps, la borne fait le travail toute seule, y compris le dimanche et le soir.',
+    },
+    {
+      titre: 'Nominatif et horodaté',
+      detail:
+        'Chaque emprunt porte un nom et une heure. Le matériel qui ne revient pas se voit le lendemain matin, avec le séjour concerné.',
+    },
+    {
+      titre: 'Une dotation qui tient',
+      detail:
+        'Douze articles choisis dans le catalogue, remplacés au titre de l’abonnement quand ils s’usent. Vous arrêtez de racheter du matériel tous les printemps.',
+    },
+  ]}
+  nuance="Si votre village vacances appartient à une collectivité ou à un comité d’entreprise, le circuit d’achat n’est pas le même qu’en gestion privée. Dites-le nous d’emblée : ça change le calendrier, pas le produit."
+/>

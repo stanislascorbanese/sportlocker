@@ -12,6 +12,16 @@ import { Sidebar } from './Sidebar'
 
 const PUBLIC_PATHS = ['/login', '/accept-invite']
 
+/**
+ * Écrans rendus sans barre latérale, mais toujours derrière l'authentification.
+ *
+ * Le mode accueil reste ouvert des semaines sur la tablette de la réception,
+ * utilisé par un saisonnier formé dix minutes. Lui laisser la navigation
+ * complète, c'est l'inviter à se perdre dans les réglages ; la retirer, c'est
+ * lui donner un outil à une seule fonction.
+ */
+const CHROMELESS_PATHS = ['/accueil']
+
 export function Shell({
   children,
   user,
@@ -22,7 +32,10 @@ export function Shell({
   const pathname = usePathname() ?? ''
   const lang = useLang()
   const t = commonStrings(lang)
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  const matches = (list: readonly string[]) =>
+    list.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  const isPublic = matches(PUBLIC_PATHS)
+  const isChromeless = matches(CHROMELESS_PATHS)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Ferme automatiquement le drawer au changement de route — UX classique
@@ -43,7 +56,7 @@ export function Shell({
     return undefined
   }, [mobileOpen])
 
-  if (isPublic) return <>{children}</>
+  if (isPublic || isChromeless) return <>{children}</>
 
   return (
     <div className="flex min-h-screen">

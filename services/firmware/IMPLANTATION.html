@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SportLocker — Implantation armoire · Vue 3D</title>
+<style>
+  :root {
+    --g: #16a34a; --gl: #dcfce7; --s: #1e293b; --sl: #f1f5f9;
+    --lime: #a3c614; --steel: #cbd5e1; --steel-d: #94a3b8; --steel-dd: #64748b;
+    --acc: #2563eb; --warn: #d97706; --red: #dc2626;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: var(--s); }
+  #topbar { position: fixed; top:0; left:0; right:0; height:56px; background:var(--s); color:#fff;
+    display:flex; align-items:center; gap:14px; padding:0 20px; z-index:50; }
+  #topbar .logo { width:32px; height:32px; background:var(--g); border-radius:8px; display:flex;
+    align-items:center; justify-content:center; font-weight:800; }
+  #topbar h1 { font-size:15px; font-weight:600; } #topbar h1 small { opacity:.6; font-weight:400; }
+  #progress-wrap { flex:1; display:flex; align-items:center; gap:10px; justify-content:flex-end; }
+  #progress-pct { font-size:13px; font-weight:700; }
+  #progress-bar { width:180px; height:6px; background:#334155; border-radius:3px; overflow:hidden; }
+  #progress-fill { height:100%; background:var(--g); width:0%; transition:width .4s; }
+  #layout { display:flex; padding-top:56px; min-height:100vh; }
+  nav { width:270px; min-width:270px; background:#fff; border-right:1px solid #e2e8f0; padding:18px 12px;
+    position:sticky; top:56px; height:calc(100vh - 56px); overflow-y:auto; }
+  nav .nav-title { font-size:11px; letter-spacing:.1em; color:#64748b; font-weight:700; margin:4px 8px 10px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; cursor:pointer;
+    border-left:3px solid transparent; }
+  .nav-item:hover { background:var(--sl); }
+  .nav-item.active { background:var(--gl); border-left-color:var(--g); }
+  .nav-item .num { width:26px; height:26px; min-width:26px; border-radius:50%; background:var(--sl); display:flex;
+    align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .nav-item.done .num { background:var(--g); color:#fff; }
+  .nav-item .t { font-size:13px; font-weight:600; line-height:1.2; }
+  .nav-item .st { font-size:11px; color:#64748b; }
+  main { flex:1; padding:26px 34px; max-width:1050px; }
+  .step-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;
+    box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .step-head { display:flex; align-items:center; gap:14px; padding:18px 22px; background:var(--sl);
+    border-bottom:1px solid #e2e8f0; }
+  .step-head .num { width:40px; height:40px; min-width:40px; border-radius:50%; background:var(--s); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; }
+  .step-head h2 { font-size:19px; }
+  .step-head p { font-size:13px; color:#64748b; }
+  .step-head .spacer { flex:1; }
+  .btn-done { border:2px solid var(--g); background:#fff; color:var(--g); font-weight:700; font-size:13px;
+    padding:8px 16px; border-radius:10px; cursor:pointer; }
+  .btn-done.on { background:var(--g); color:#fff; }
+  .scene { padding:10px 10px 0; display:flex; justify-content:center; background:linear-gradient(180deg,#fff, #f1f5f9); }
+  .scene svg { max-width:100%; height:auto; }
+  .step-body { padding:20px 24px 24px; }
+  .step-body ol { margin:0 0 0 20px; }
+  .step-body li { margin-bottom:8px; font-size:14px; line-height:1.55; }
+  .note { margin-top:14px; padding:12px 14px; border-radius:10px; font-size:13px; line-height:1.5; }
+  .note.warn { background:#fef3c7; border-left:4px solid var(--warn); }
+  .note.tip  { background:#dbeafe; border-left:4px solid var(--acc); }
+  .stepnav { display:flex; justify-content:space-between; margin-top:20px; }
+  .stepnav button { padding:10px 20px; border-radius:10px; border:1px solid #cbd5e1; background:#fff;
+    font-weight:600; cursor:pointer; font-size:14px; }
+  .stepnav button.primary { background:var(--s); color:#fff; border-color:var(--s); }
+  .stepnav button:disabled { opacity:.35; cursor:default; }
+  text { font-family:-apple-system, BlinkMacSystemFont, sans-serif; }
+  @media (max-width: 860px) { nav { display:none; } main { padding:16px; } }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="logo">S</div>
+  <h1>Implantation armoire 9 cases <small>— vue 3D pas-à-pas</small></h1>
+  <div id="progress-wrap">
+    <span id="progress-pct">0%</span>
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+  </div>
+</div>
+<div id="layout">
+  <nav id="nav"><div class="nav-title">ÉTAPES</div></nav>
+  <main id="main"></main>
+</div>
+
+<script>
+/* ───────── Moteur isométrique minimal ─────────
+   Axes : x → vers la droite-avant, y → vers la gauche-avant, z → vertical.
+   Projection iso 2:1. Toutes les scènes sont dessinées avec isoBox/isoPanel. */
+const CX = Math.cos(Math.PI/6), CY = Math.sin(Math.PI/6);
+function ip(x, y, z) { return [(x - y) * CX, (x + y) * CY - z]; }
+function poly(pts, fill, stroke, sw, extra) {
+  return `<polygon points="${pts.map(p => p.join(',')).join(' ')}" fill="${fill}"` +
+    (stroke ? ` stroke="${stroke}" stroke-width="${sw||1}" stroke-linejoin="round"` : '') +
+    (extra||'') + '/>';
+}
+/* Boîte iso : origine (x,y,z) = coin bas-avant-gauche, dims (w = axe x, d = axe y, h = haut) */
+function isoBox(x, y, z, w, d, h, cTop, cLeft, cRight, stroke='#475569') {
+  const A = ip(x, y, z+h), B = ip(x+w, y, z+h), C = ip(x+w, y+d, z+h), D = ip(x, y+d, z+h);
+  const B2 = ip(x+w, y, z), C2 = ip(x+w, y+d, z), D2 = ip(x, y+d, z);
+  return poly([A,B,C,D], cTop, stroke) +
+         poly([D,C,C2,D2], cLeft, stroke) +   /* face avant-gauche (vers y+) */
+         poly([B,C,C2,B2], cRight, stroke);   /* face avant-droite (vers x+) */
+}
+function label(x, y, z, txt, dx=0, dy=0, anchor='middle', size=11, color='#334155', bold=false) {
+  const p = ip(x, y, z);
+  return `<text x="${p[0]+dx}" y="${p[1]+dy}" text-anchor="${anchor}" font-size="${size}" fill="${color}"` +
+    (bold ? ' font-weight="700"' : '') + `>${txt}</text>`;
+}
+function arrow(p1, p2, color='#dc2626', w=2) {
+  const a = ip(...p1), b = ip(...p2);
+  const ang = Math.atan2(b[1]-a[1], b[0]-a[0]);
+  const h1 = [b[0]-9*Math.cos(ang-0.4), b[1]-9*Math.sin(ang-0.4)];
+  const h2 = [b[0]-9*Math.cos(ang+0.4), b[1]-9*Math.sin(ang+0.4)];
+  return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="${w}"/>` +
+         poly([b, h1, h2], color);
+}
+function svgWrap(inner, vb='-320 -260 640 480') {
+  return `<svg viewBox="${vb}" width="760" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+}
+
+/* ───────── Armoire 3×3 (90 × 45 × 92,5 → unités : 1 cm ≈ 2 u) ───────── */
+const W = 180, D = 90, H = 185, CW = W/3, CH = H/3;
+const LIME = '#a3c614', LIME_D = '#8aab0f', STEEL = '#cbd5e1', STEEL_D = '#94a3b8', STEEL_T = '#e2e8f0';
+
+/* Armoire vue iso — options : portes ouvertes, surlignages, contenu TECH… */
+function cabinet(opts = {}) {
+  let s = '';
+  /* caisson */
+  s += isoBox(0, 0, 0, W, D, H, STEEL_T, STEEL, STEEL_D);
+  /* portes en façade (face avant-droite du caisson = plan x/z à y=D) —
+     on les dessine comme panneaux sur la face avant-gauche visible */
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const caseNum = (2 - r) * 3 + c + 1;               /* n° 1..9, rangée haute = 1,2,3 */
+    const x0 = c * CW + 3, z0 = r * CH + 3, w = CW - 6, h = CH - 6;
+    const hi = (opts.highlight || []).includes(caseNum);
+    const isTech = caseNum === 5;
+    const fill = isTech ? (opts.techColor || '#475569') : (hi ? (opts.hiColor || '#fbbf24') : LIME);
+    const A = ip(x0, D, z0+h), B = ip(x0+w, D, z0+h), C = ip(x0+w, D, z0), Dp = ip(x0, D, z0);
+    s += poly([A,B,C,Dp], fill, '#475569', 1);
+    /* persiennes */
+    for (let l = 1; l <= 3; l++) {
+      const lz = z0 + h - 9*l, p1 = ip(x0+8, D, lz), p2 = ip(x0+w-8, D, lz);
+      s += `<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" stroke="rgba(30,41,59,.35)" stroke-width="2"/>`;
+    }
+    /* poignée/serrure */
+    const hp = ip(x0+w-7, D, z0+h/2);
+    s += `<circle cx="${hp[0]}" cy="${hp[1]}" r="3" fill="#1e293b"/>`;
+    /* numéro */
+    s += label(x0 + w/2, D, z0 + h/2 + 14, caseNum === 5 ? 'TECH' : caseNum, 0, 0, 'middle', 12,
+               isTech ? '#fff' : '#1e293b', true);
+  }
+  return s;
+}
+
+/* ───────── Scènes par étape ───────── */
+const SCENES = {
+  /* 1 — banc de test validé */
+  bench() {
+    let s = '';
+    s += isoBox(-30, -20, 0, 260, 150, 8, '#d6c8a8', '#c3b28d', '#a99a78');   /* établi */
+    s += isoBox(10, 10, 8, 80, 45, 6, '#166534', '#14532d', '#052e16');       /* IO board */
+    s += label(50, 32, 24, 'CM4 IO Board', 0, 0, 'middle', 11, '#fff', true);
+    s += isoBox(110, 15, 8, 70, 28, 8, '#1d4ed8', '#1e40af', '#172554');      /* relais */
+    s += label(145, 29, 26, 'Relais 8CH', 0, 0, 'middle', 11, '#fff', true);
+    s += isoBox(15, 80, 8, 14, 15, 10, '#b45309', '#92400e', '#78350f');      /* solénoïde */
+    s += label(22, 87, 30, 'Solénoïde ×4', -6, 0, 'start', 11);
+    s += isoBox(120, 75, 8, 26, 26, 3, '#0f172a', '#020617', '#020617');      /* caméra */
+    s += label(133, 88, 22, 'Caméra v3 + PN532', 8, 0, 'start', 11);
+    s += label(90, -25, 60, '✅ BENCH_TEST.md étapes 1→6 vertes', 0, 0, 'middle', 14, '#16a34a', true);
+    return svgWrap(s, '-300 -160 640 340');
+  },
+  /* 2 — fixation murale en hauteur */
+  wall() {
+    let s = '';
+    s += poly([ip(-60,0,-10), ip(260,0,-10), ip(260,0,300), ip(-60,0,300)], '#f1f5f9', '#cbd5e1'); /* mur */
+    s += poly([ip(-60,0,-10), ip(260,0,-10), ip(260,160,-10), ip(-60,160,-10)], '#e2e8f0', '#cbd5e1'); /* sol */
+    const zOff = 130;  /* 65 cm × 2 */
+    s += `<g transform="translate(0,${-0})">`;
+    s += `</g>`;
+    /* armoire posée en hauteur : redessin translaté via groupe SVG */
+    s += `<g>${cabinet({highlight:[]})}</g>`.replace('<g>', `<g transform="translate(0,${-zOff * 0})">`);
+    /* Pour la simplicité : on dessine l'armoire déjà à z=130 via un wrapper —
+       ici on triche : translation écran verticale = -zOff */
+    s = '';
+    s += poly([ip(-60,0,-130), ip(280,0,-130), ip(280,0,220), ip(-60,0,220)], '#f8fafc', '#cbd5e1');
+    s += poly([ip(-60,0,-130), ip(280,0,-130), ip(280,170,-130), ip(-60,170,-130)], '#e2e8f0', '#cbd5e1');
+    s += cabinet({});
+    /* cotes */
+    s += arrow([220, 20, -130], [220, 20, 0], '#dc2626');
+    s += arrow([220, 20, 0], [220, 20, -130], '#dc2626');
+    s += label(220, 20, -60, '0,65 m sol → bas armoire', 14, 0, 'start', 12, '#dc2626', true);
+    s += arrow([-40, 20, -130], [-40, 20, 92], '#2563eb');
+    s += label(-40, 20, 60, 'façade TECH ≈ 1,15 m', -14, 0, 'end', 12, '#2563eb', true);
+    /* chevilles */
+    s += label(90, 0, 200, '🔩 Kit mural fourni — 4 fixations dans les montants', 0, 0, 'middle', 12, '#334155', true);
+    return svgWrap(s, '-340 -230 700 460');
+  },
+  /* 3 — façade TECH : perçages */
+  facade() {
+    let s = '';
+    /* porte TECH agrandie, vue de face (pas iso, plan de perçage) */
+    s += `<rect x="-130" y="-160" width="260" height="270" rx="8" fill="#475569" stroke="#1e293b" stroke-width="2"/>`;
+    for (let l = 0; l < 4; l++)
+      s += `<line x1="-100" y1="${60 + l*12}" x2="100" y2="${60 + l*12}" stroke="rgba(255,255,255,.25)" stroke-width="3"/>`;
+    /* fenêtre caméra */
+    s += `<circle cx="0" cy="-105" r="14" fill="#0f172a" stroke="#93c5fd" stroke-width="3"/>`;
+    s += `<circle cx="0" cy="-105" r="6" fill="#1e3a8a"/>`;
+    s += `<text x="115" y="-102" font-size="12" fill="#1d4ed8" font-weight="700">Ø 12 mm — caméra (h ≈ 1,25 m)</text>`;
+    s += `<line x1="18" y1="-105" x2="108" y2="-105" stroke="#1d4ed8" stroke-width="1.5"/>`;
+    /* découpe NFC + plaque acrylique */
+    s += `<rect x="-45" y="-55" width="90" height="90" fill="#94a3b8" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="6 4"/>`;
+    s += `<rect x="-55" y="-65" width="110" height="110" fill="rgba(147,197,253,.35)" stroke="#2563eb" stroke-width="2.5" rx="4"/>`;
+    s += `<circle cx="-49" cy="-59" r="2.5" fill="#1e293b"/><circle cx="49" cy="-59" r="2.5" fill="#1e293b"/>`;
+    s += `<circle cx="-49" cy="39" r="2.5" fill="#1e293b"/><circle cx="49" cy="39" r="2.5" fill="#1e293b"/>`;
+    s += `<text x="115" y="-40" font-size="12" fill="#dc2626" font-weight="700">Découpe 60×60 mm (tôle)</text>`;
+    s += `<text x="115" y="-24" font-size="12" fill="#2563eb" font-weight="700">Plaque acrylique 3 mm vissée</text>`;
+    s += `<text x="115" y="-8" font-size="11" fill="#334155">PN532 collé au dos → le NFC</text>`;
+    s += `<text x="115" y="6" font-size="11" fill="#334155">traverse le plastique (3-4 cm)</text>`;
+    s += `<text x="0" y="-6" font-size="11" fill="#1e293b" font-weight="700" text-anchor="middle">📶 badge ici</text>`;
+    /* LED */
+    s += `<circle cx="0" cy="48" r="5" fill="#22c55e" stroke="#166534" stroke-width="1.5"/>`;
+    s += `<text x="115" y="52" font-size="12" fill="#16a34a" font-weight="700">Ø 6 mm — LED d'état</text>`;
+    s += `<line x1="7" y1="48" x2="108" y2="48" stroke="#16a34a" stroke-width="1.5"/>`;
+    /* serrure d'origine conservée */
+    s += `<circle cx="95" y="0" cy="-140" r="6" fill="#0f172a" stroke="#f59e0b" stroke-width="2.5"/>`;
+    s += `<text x="115" y="-136" font-size="12" fill="#d97706" font-weight="700">Serrure à clé d'origine = accès mainteneur</text>`;
+    s += `<text x="0" y="135" font-size="13" fill="#334155" text-anchor="middle" font-weight="700">Vue de face — porte du compartiment TECH (plan de perçage)</text>`;
+    return svgWrap(s, '-340 -190 700 350');
+  },
+  /* 4 — plaque de montage */
+  plate() {
+    let s = '';
+    s += isoBox(0, 0, 0, 150, 125, 5, '#d6bc8f', '#c5a878', '#a98f60');     /* plaque CP 10 mm */
+    s += label(75, -8, 8, 'Plaque 300×250 support amovible', 0, -6, 'middle', 12, '#334155', true);
+    s += isoBox(8, 8, 5, 40, 30, 22, '#e2e8f0', '#cbd5e1', '#94a3b8');       /* alim 5V */
+    s += label(28, 23, 40, 'Alim 5V', 0, 0, 'middle', 10, '#334155', true);
+    s += isoBox(56, 8, 5, 40, 30, 22, '#e2e8f0', '#cbd5e1', '#94a3b8');      /* alim 12V */
+    s += label(76, 23, 40, 'Alim 12V', 0, 0, 'middle', 10, '#334155', true);
+    s += isoBox(104, 8, 5, 38, 26, 16, '#fdba74', '#fb923c', '#ea580c');     /* WAGO */
+    s += label(123, 21, 34, 'WAGO ×2', 0, 0, 'middle', 10, '#7c2d12', true);
+    s += isoBox(8, 50, 5, 80, 42, 8, '#166534', '#14532d', '#052e16');       /* IO board */
+    s += label(48, 71, 26, 'CM4 IO Board', 0, 0, 'middle', 11, '#fff', true);
+    s += isoBox(96, 52, 5, 46, 34, 14, '#0ea5e9', '#0284c7', '#075985');     /* routeur 4G */
+    s += label(119, 69, 32, 'RUT241', 0, 0, 'middle', 10, '#fff', true);
+    s += isoBox(8, 98, 5, 70, 25, 9, '#1d4ed8', '#1e40af', '#172554');       /* relais */
+    s += label(43, 110, 27, 'Relais 8CH', 0, 0, 'middle', 10, '#fff', true);
+    s += label(75, 135, 30, '⚙️ Câblée et testée SUR L\'ÉTABLI avant la pose', 0, 20, 'middle', 12, '#d97706', true);
+    return svgWrap(s, '-260 -140 620 330');
+  },
+  /* 5 — pose de la plaque dans TECH */
+  install() {
+    let s = '';
+    s += cabinet({techColor:'#334155'});
+    /* porte TECH « ouverte » : plaque glissée */
+    s += isoBox(CW+8, 20, CH+8, CW-16, 4, CH-16, '#d6bc8f', '#c5a878', '#a98f60');
+    s += arrow([CW+30, -55, CH+30], [CW+30, 12, CH+30], '#dc2626', 2.5);
+    s += label(CW+30, -60, CH+42, 'Plaque complète → fond de la case TECH', 0, 0, 'middle', 12, '#dc2626', true);
+    s += label(90, 0, 208, '4 entretoises + boulons M3 traversants (tôle 0,6 mm — pas de rivnuts)', 0, 0, 'middle', 12, '#334155', true);
+    return svgWrap(s, '-320 -250 660 470');
+  },
+  /* 6 — solénoïde sur cloison + retour de porte */
+  solenoid() {
+    let s = '';
+    /* vue de dessus (coupe) d'une case : cloison, porte, solénoïde, pêne, retour */
+    s += `<text x="0" y="-150" font-size="13" fill="#334155" text-anchor="middle" font-weight="700">Vue de DESSUS — case équipée (coupe au niveau de la serrure)</text>`;
+    /* cloison verticale */
+    s += `<rect x="-160" y="-120" width="10" height="200" fill="#94a3b8" stroke="#475569"/>`;
+    s += `<text x="-175" y="-20" font-size="11" fill="#334155" transform="rotate(-90 -175 -20)" text-anchor="middle">cloison verticale</text>`;
+    /* porte fermée avec retour replié */
+    s += `<rect x="-150" y="70" width="290" height="8" fill="#a3c614" stroke="#65790a"/>`;
+    s += `<rect x="-150" y="46" width="8" height="32" fill="#a3c614" stroke="#65790a"/>`;
+    s += `<text x="20" y="94" font-size="11" fill="#65790a" font-weight="700">porte (fermée) — persiennes côté extérieur</text>`;
+    s += `<text x="-190" y="56" font-size="11" fill="#65790a">retour replié</text>`;
+    s += `<line x1="-152" y1="58" x2="-146" y2="58" stroke="#65790a"/>`;
+    /* solénoïde sur la cloison */
+    s += `<rect x="-148" y="-6" width="54" height="36" fill="#b45309" stroke="#78350f" stroke-width="1.5" rx="3"/>`;
+    s += `<text x="-121" y="15" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">solénoïde</text>`;
+    /* boulons M3 */
+    s += `<circle cx="-155" cy="0" r="3" fill="#1e293b"/><circle cx="-155" cy="24" r="3" fill="#1e293b"/>`;
+    s += `<text x="-200" y="4" font-size="10" fill="#334155">M3 + nylstop</text>`;
+    /* pêne sorti (repos = verrouillé) */
+    s += `<rect x="-108" y="30" width="12" height="26" fill="#f59e0b" stroke="#b45309" stroke-width="1.5"/>`;
+    s += `<text x="-84" y="46" font-size="11" fill="#b45309" font-weight="700">pêne (sorti au repos = verrouillé)</text>`;
+    /* engagement derrière retour */
+    s += `<path d="M -102 56 L -102 66" stroke="#dc2626" stroke-width="2" marker-end="none"/>`;
+    s += `<text x="-84" y="66" font-size="11" fill="#dc2626" font-weight="700">s'engage derrière le retour — pas de gâche à fabriquer</text>`;
+    /* came retirée */
+    s += `<circle cx="110" cy="58" r="9" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>`;
+    s += `<line x1="103" y1="51" x2="117" y2="65" stroke="#dc2626" stroke-width="2.5"/>`;
+    s += `<text x="128" y="55" font-size="11" fill="#334155">barillet conservé (bouche le trou),</text>`;
+    s += `<text x="128" y="69" font-size="11" fill="#334155">came (languette) démontée</text>`;
+    /* pulse */
+    s += `<text x="-121" y="-24" font-size="11" fill="#16a34a" font-weight="700">pulse 12 V · 0,5 s → pêne rentre → porte libre</text>`;
+    /* flyback */
+    s += `<rect x="-88" y="-2" width="26" height="10" fill="#fff" stroke="#dc2626" rx="2"/>`;
+    s += `<line x1="-70" y1="-2" x2="-70" y2="8" stroke="#dc2626" stroke-width="2"/>`;
+    s += `<text x="-56" y="7" font-size="10" fill="#dc2626" font-weight="700">1N4007 aux cosses</text>`;
+    return svgWrap(s, '-330 -170 680 290');
+  },
+  /* 7 — câblage inter-cases */
+  wiring() {
+    let s = '';
+    s += cabinet({highlight:[2,4,6,8], hiColor:'#fbbf24'});
+    /* lignes 12V du TECH vers les 4 cases (dessinées sur la façade) */
+    const mid = [W/2, D, H/2 + 6];
+    const targets = [[W/2, D, H - CH/2], [CW/2 + 4, D, H/2], [W - CW/2 - 4, D, H/2], [W/2, D, CH/2]];
+    for (const t of targets) {
+      const a = ip(...mid), b = ip(...t);
+      s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="7 4"/>`;
+      s += `<circle cx="${b[0]}" cy="${b[1]}" r="4" fill="#0f172a" stroke="#dc2626"/>`;
+    }
+    s += label(W/2, D, H/2 - 4, '⭐ WAGO', 0, 24, 'middle', 11, '#dc2626', true);
+    s += label(90, 0, 212, 'Perçages Ø 10 mm + passe-fils · 2×0,75 mm² · étiquettes aux 2 bouts', 0, 0, 'middle', 12, '#334155', true);
+    s += label(90, 0, -18, 'Cases 2·4·6·8 = phase pilote (4 solénoïdes) · 1·3·7·9 restent à clé', 0, 26, 'middle', 12, '#b45309', true);
+    return svgWrap(s, '-320 -250 660 480');
+  },
+  /* 8 — antennes + routeur */
+  antenna() {
+    let s = '';
+    s += cabinet({});
+    /* antennes sur le toit */
+    for (const ax of [30, 60]) {
+      s += isoBox(ax, 30, H, 4, 4, 8, '#0f172a', '#020617', '#020617');
+      s += isoBox(ax, 30, H+8, 4, 4, 34, '#334155', '#1e293b', '#0f172a');
+      s += `<circle cx="${ip(ax+2, 32, H+46)[0]}" cy="${ip(ax+2, 32, H+46)[1]}" r="4" fill="#0ea5e9"/>`;
+    }
+    s += label(45, 30, H+56, 'Antennes 4G ×2 — embases SMA traversantes (Ø 6,5 mm + joint)', 0, -6, 'middle', 12, '#0369a1', true);
+    s += label(90, 0, 214, '⚠️ Armoire acier = cage de Faraday → antenne INTERNE = zéro signal', 0, 0, 'middle', 12, '#dc2626', true);
+    s += label(90, 0, -16, 'RUT241 sur la plaque (12 V WAGO) → RJ45 30 cm → IO Board · SIM M2M 1 Go', 0, 24, 'middle', 12, '#334155', true);
+    return svgWrap(s, '-320 -300 660 520');
+  },
+  /* 9 — tests finaux */
+  final() {
+    let s = '';
+    s += cabinet({highlight:[4], hiColor:'#4ade80'});
+    /* porte 4 ouverte symbolisée */
+    s += label(CW/2, D, H/2 + CH/2 + 10, '✅ ouverte', 0, -4, 'middle', 12, '#16a34a', true);
+    /* téléphone + QR devant la façade */
+    s += isoBox(115, 150, 60, 22, 4, 40, '#0f172a', '#020617', '#1e293b');
+    const q = ip(126, 154, 92);
+    s += `<rect x="${q[0]-8}" y="${q[1]-8}" width="16" height="16" fill="#fff" stroke="#0f172a"/>`;
+    s += `<rect x="${q[0]-5}" y="${q[1]-5}" width="4" height="4" fill="#0f172a"/><rect x="${q[0]+1}" y="${q[1]-5}" width="4" height="4" fill="#0f172a"/><rect x="${q[0]-5}" y="${q[1]+1}" width="4" height="4" fill="#0f172a"/>`;
+    s += arrow([126, 148, 80], [95, 96, 96], '#2563eb', 2);
+    s += label(126, 150, 46, 'QR à 10-25 cm de la fenêtre caméra', 0, 18, 'middle', 12, '#2563eb', true);
+    s += label(90, 0, 214, 'Scan → LA BONNE porte s\'ouvre · reboot = tout verrouillé · heartbeat MQTT OK', 0, 0, 'middle', 12, '#334155', true);
+    return svgWrap(s, '-320 -260 660 500');
+  },
+};
+
+/* ───────── Contenu des étapes ───────── */
+const STEPS = [
+  { id:'bench', title:'Valider le banc de test', sub:'Prérequis absolu', time:'~2 h', scene:'bench',
+    items:[
+      'Dérouler <b>BENCH_TEST.md</b> étapes 1→6 : boot eMMC → firmware → GPIO → relais → solénoïde → chaîne QR complète.',
+      'Les 4 canaux verts, <code>calibration.json</code> figé, test de reboot fail-secure OK.',
+      'Ne rien monter dans l\'armoire avant ce feu vert — règle d\'or : jamais deux inconnues à la fois.'],
+    note:{type:'warn', txt:'⚠️ Vérifier au multimètre que la carte relais est bien <b>active-LOW</b> avant tout branchement 12 V (cf. BENCH_TEST §0).'}},
+  { id:'wall', title:'Fixer l\'armoire au mur', sub:'Bas à 0,65 m du sol', time:'~1 h', scene:'wall',
+    items:[
+      'L\'armoire ne fait que <b>92,5 cm de haut</b> : posée au sol, la caméra serait à 45 cm. La fixer avec le kit mural fourni, <b>bas de caisson à ~0,65 m</b>.',
+      'La rangée médiane (façade caméra/NFC) tombe alors à ~1,15 m — hauteur naturelle pour présenter un téléphone.',
+      'Chevilles adaptées au support (parpaing/béton) — l\'armoire chargée de matériel sportif pèsera.'],
+    note:{type:'tip', txt:'💡 Sur terrain public, prévoir aussi un ancrage antivol bas (platine au sol ou chaîne scellée).'}},
+  { id:'facade', title:'Percer la façade TECH', sub:'Caméra · NFC · LED', time:'~1 h 30', scene:'facade',
+    items:[
+      'Porte de la case centrale : fenêtre <b>Ø 12 mm</b> pour l\'objectif caméra (haut de porte).',
+      '<b>Découpe 60×60 mm</b> au centre : le métal bloque le NFC. Visser la <b>plaque acrylique 3 mm</b> par-dessus, PN532 collé au dos — le champ 13,56 MHz traverse le plastique (lecture à 3-4 cm).',
+      'Perçage Ø 6 mm pour la LED d\'état (vert = accordé, rouge = refus).',
+      'Ébavurer chaque perçage, passe-fils sur chaque traversée. La serrure à clé d\'origine de cette porte est <b>conservée</b> : c\'est l\'accès mainteneur.'],
+    note:{type:'tip', txt:'💡 Découpe propre dans la tôle fine : percer les 4 coins Ø 8 mm puis relier à la scie sauteuse lame métal fine, ou grignoteuse.'}},
+  { id:'plate', title:'Préparer la plaque de montage', sub:'Sur l\'établi, pas dans l\'armoire', time:'~2 h', scene:'plate',
+    items:[
+      'Plaque contreplaqué 10 mm (~300×250 mm) : IO Board (entretoises M2,5), relais 8CH (M3), routeur RUT241, 2 alims, 2 borniers WAGO.',
+      'Distribution <b>en étoile</b> depuis les WAGO : une borne 12 V+, une borne GND <b>commune</b> (Pi + relais + alim 12 V). Jamais de GND en chaîne.',
+      'Câbler entièrement, puis rejouer un <code>local_scan</code> sur la plaque seule : c\'est le banc validé, juste re-mécanisé.'],
+    note:{type:'warn', txt:'⚠️ Serre-câble sur l\'arrivée 230 V et connecteurs vissés (pas de Dupont volants) : version armoire = version qui vibre.'}},
+  { id:'install', title:'Poser la plaque dans la case TECH', sub:'4 boulons M3 traversants', time:'~45 min', scene:'install',
+    items:[
+      'Glisser la plaque complète au fond de la case centrale, fixer sur 4 entretoises par <b>boulons M3 traversants + écrous nylstop</b> (tôle 0,6 mm : les rivnuts tiennent mal).',
+      'Fixer caméra + PN532 + LED au dos de la façade percée à l\'étape 3, avec une boucle de mou sur la nappe CSI (la porte doit s\'ouvrir pour la maintenance).',
+      'Les persiennes de la porte assurent la ventilation — rien à percer de plus. Dissipateur collé sur le CM4 quand même (caisson fermé l\'été).'],
+    note:null},
+  { id:'solenoid', title:'Monter les 4 solénoïdes', sub:'Cases 2 · 4 · 6 · 8', time:'~2 h', scene:'solenoid',
+    items:[
+      'Sur chaque case équipée : <b>démonter la came</b> (languette) de la serrure d\'origine, laisser le barillet (bouche le trou, la poignée reste).',
+      'Solénoïde sur la <b>cloison verticale côté serrure</b>, boulons M3 traversants, à la hauteur de l\'ancienne came. Le pêne s\'engage <b>derrière le retour replié de la porte</b> — pas de gâche à fabriquer dans la plupart des cas.',
+      'Trous oblongs pour le réglage (tolérance ±1 mm), frein-filet une fois aligné, 20 cycles manuels de test.',
+      '<b>Diode 1N4007 soudée aux cosses du solénoïde</b> (bande blanche côté +12 V) + gaine thermo.'],
+    note:{type:'tip', txt:'💡 Ouverture de secours : poussoir Ø 4 mm à travers une persienne aligné sur le pêne, ou accès par la case voisine ouverte à la clé.'}},
+  { id:'wiring', title:'Câbler les 4 lignes 12 V', sub:'TECH → cases 2/4/6/8', time:'~1 h 30', scene:'wiring',
+    items:[
+      'Perçages Ø 10 mm dans les cloisons + <b>passe-fils caoutchouc</b> (la tôle fine coupe les câbles).',
+      '2 × 0,75 mm² par solénoïde depuis les borniers relais (COM/NO), runs < 50 cm — aucune chute de tension.',
+      '<b>Étiqueter chaque conducteur aux deux bouts</b> (ex. <code>L2-BCM17-CH1</code>) et remplir le tableau de câblage d\'IMPLANTATION.md.',
+      'Ce tableau <b>est</b> le <code>calibration.json</code> : le vérifier à deux — une inversion = la mauvaise porte s\'ouvre.'],
+    note:null},
+  { id:'antenna', title:'Réseau 4G + antennes', sub:'Toujours à l\'extérieur du caisson', time:'~45 min', scene:'antenna',
+    items:[
+      '2 embases <b>SMA traversantes</b> sur le toit de l\'armoire (Ø 6,5 mm + joint) → antennes 4G dehors. Armoire acier = cage de Faraday : une antenne interne ne capte rien.',
+      'RUT241 alimenté en 12 V depuis le WAGO, RJ45 30 cm vers l\'IO Board, SIM M2M (500 Mo–1 Go suffisent).',
+      'MQTT et Balena sont en connexions <b>sortantes</b> : le CGNAT 4G ne pose aucun problème, rien à configurer côté réseau.'],
+    note:{type:'tip', txt:'💡 Le firmware est offline-first (JWT local + cache) : une coupure 4G n\'empêche pas les ouvertures des réservations déjà en cache.'}},
+  { id:'final', title:'Tests finaux in situ', sub:'Checklist de mise en service', time:'~1 h', scene:'final',
+    items:[
+      'Scan QR sur chaque case → <b>la bonne</b> porte s\'ouvre, franche, ~0,5 s. NFC lu à travers l\'acrylique.',
+      '<code>sudo reboot</code> → toutes portes verrouillées, service revient seul, heartbeat MQTT visible sur ops.sportlocker.fr.',
+      'Coupure secteur 10 min → redémarrage propre. 10 cycles consécutifs → solénoïde à peine tiède.',
+      'Tableau de câblage plastifié collé dans la case TECH. Ouverture de secours testée sur les 4 cases.'],
+    note:{type:'warn', txt:'⚠️ Rejouer aussi le test « offline » : 4G coupée + résa en cache → ouverture OK ; pas de cache → refus propre.'}},
+];
+
+/* ───────── Rendu + état ───────── */
+const state = JSON.parse(localStorage.getItem('sl-implantation') || '{}');
+let current = state.current || 0;
+const done = state.done || {};
+
+function save() { localStorage.setItem('sl-implantation', JSON.stringify({current, done})); }
+function renderNav() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = '<div class="nav-title">ÉTAPES</div>' + STEPS.map((s, i) =>
+    `<div class="nav-item ${i === current ? 'active' : ''} ${done[s.id] ? 'done' : ''}" onclick="goTo(${i})">
+      <div class="num">${done[s.id] ? '✓' : i + 1}</div>
+      <div><div class="t">${s.title}</div><div class="st">${s.sub} · ${s.time}</div></div>
+    </div>`).join('');
+  const pct = Math.round(Object.values(done).filter(Boolean).length / STEPS.length * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+}
+function renderMain() {
+  const s = STEPS[current];
+  document.getElementById('main').innerHTML =
+    `<div class="step-card">
+      <div class="step-head">
+        <div class="num">${current + 1}</div>
+        <div><h2>${s.title}</h2><p>${s.sub} — ${s.time}</p></div>
+        <div class="spacer"></div>
+        <button class="btn-done ${done[s.id] ? 'on' : ''}" onclick="toggleDone('${s.id}')">
+          ${done[s.id] ? '✓ Fait' : '○ Marquer fait'}</button>
+      </div>
+      <div class="scene">${SCENES[s.scene]()}</div>
+      <div class="step-body">
+        <ol>${s.items.map(i => `<li>${i}</li>`).join('')}</ol>
+        ${s.note ? `<div class="note ${s.note.type}">${s.note.txt}</div>` : ''}
+        <div class="stepnav">
+          <button onclick="goTo(${current - 1})" ${current === 0 ? 'disabled' : ''}>← Précédent</button>
+          <button class="primary" onclick="goTo(${current + 1})" ${current === STEPS.length - 1 ? 'disabled' : ''}>Suivant →</button>
+        </div>
+      </div>
+    </div>`;
+}
+function goTo(i) { if (i < 0 || i >= STEPS.length) return; current = i; save(); renderNav(); renderMain(); window.scrollTo({top:0}); }
+function toggleDone(id) { done[id] = !done[id]; save(); renderNav(); renderMain(); }
+renderNav(); renderMain();
+</script>
+</body>
+</html>

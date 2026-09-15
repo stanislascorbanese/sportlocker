@@ -1,0 +1,42 @@
+---
+import SegmentPage from '@/components/SegmentPage.astro'
+
+/**
+ * Bases de loisirs privées, parcs résidentiels de loisirs, campings-clubs.
+ *
+ * Le public le plus proche du camping sur le plan physique — site clos, 230 V,
+ * terrains sur place — mais souvent sans réception ouverte en continu. C'est
+ * précisément ce qui rend la borne intéressante.
+ */
+---
+
+<SegmentPage
+  segment="loisirs"
+  titre="Du matériel de sport en base de loisirs."
+  titreAccent="Vos terrains sont là. Le matériel, non."
+  intro="Une borne de huit casiers posée au pied de vos terrains. Vos visiteurs prennent ce qu’il faut pour jouer avec leur référence de réservation, sans local à ouvrir ni personnel à mobiliser."
+  constat={[
+    'On a le terrain, mais pas de quoi prêter un ballon.',
+    'L’accueil n’est pas ouvert toute la journée.',
+    'Le matériel qu’on prête, on le revoit une fois sur deux.',
+    'Louer du matériel demanderait quelqu’un derrière un comptoir.',
+  ]}
+  raisons={[
+    {
+      titre: 'Une activité de plus',
+      detail:
+        'Un terrain sans matériel ne sert qu’à ceux qui apportent le leur. Avec la borne, il sert à tout le monde, et sans embaucher personne pour ça.',
+    },
+    {
+      titre: 'Pas de génie civil',
+      detail:
+        'La borne se pose sur une dalle existante et se branche sur une prise 230 V. Pas de tranchée, pas de raccordement, pas de permis.',
+    },
+    {
+      titre: 'Reprise hors saison',
+      detail:
+        'En formule saisonnière, on reprend la borne à l’automne. Vous ne payez pas six mois d’équipement qui dort sous la pluie.',
+    },
+  ]}
+  nuance="Si votre site est ouvert au public sans réservation nominative, la borne n’a personne à qui rattacher un emprunt — et là, elle ne marche pas. Il faut une référence client, quelle qu’elle soit."
+/>

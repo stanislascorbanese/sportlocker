@@ -1,192 +1,167 @@
 ---
 import Base from '@/layouts/Base.astro'
 import { SITE } from '@/data/site'
+
+/**
+ * Politique de confidentialité.
+ *
+ * Réécrite en septembre 2026. La version précédente décrivait un compte
+ * citoyen, un profil, des notifications push et une caution bancaire — plus
+ * rien de tout cela n'existe. Une politique qui annonce des traitements qu'on
+ * ne fait pas est fausse, et elle inquiète pour rien.
+ *
+ * Le produit actuel collecte remarquablement peu : un numéro de séjour et un
+ * nom, que l'établissement détient déjà. C'est un argument, autant l'écrire
+ * clairement plutôt que de le noyer.
+ *
+ * ⚠️ Ce texte décrit fidèlement ce que fait le logiciel aujourd'hui. Il n'a pas
+ * été relu par un juriste : à faire avant la première installation chez un
+ * client, en même temps que les CGV.
+ */
+
+const MAJ = 'septembre 2026'
 ---
 
 <Base
   title="Politique de confidentialité"
-  description="Politique de confidentialité et traitement des données personnelles SportLocker."
+  description="Ce que SportLocker collecte, pourquoi, et pendant combien de temps. Pas de compte, pas de carte bancaire, pas de géolocalisation."
   noindex={true}
 >
   <section class="pt-32 pb-20 sm:pt-40">
     <div class="container-x max-w-3xl">
       <span class="eyebrow">Confidentialité</span>
-      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-10">Politique de confidentialité</h1>
+      <h1 class="font-extrabold text-display-lg text-white mt-3 mb-8">
+        Politique de confidentialité
+      </h1>
 
-      <div class="text-white/70 font-light leading-relaxed space-y-7">
-        <p class="text-white/55 italic">Dernière mise à jour : juin 2026 — version 3.</p>
+      <div class="text-white/70 font-light leading-relaxed space-y-8">
+        <p class="text-white/55 italic">Dernière mise à jour : {MAJ}.</p>
+
+        <div class="caveat">
+          <strong class="text-white/85">En résumé.</strong> Un vacancier qui emprunte un ballon
+          nous donne son numéro d’emplacement et son nom, rien d’autre. Pas de compte, pas de mot
+          de passe, pas de carte bancaire, pas de géolocalisation, pas de notification. Ces deux
+          informations, l’établissement les détient déjà depuis votre arrivée.
+        </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">1. Responsable(s) de traitement</h2>
+          <h2 class="text-white font-bold text-lg mb-2">1. Qui est responsable</h2>
           <p>
-            {SITE.legalName} (« SportLocker ») détermine les finalités et les moyens des traitements
-            décrits ci-dessous, au sens du RGPD (Règlement UE 2016/679). Selon le traitement concerné,
-            SportLocker agit :
+            {SITE.legalName} (« SportLocker ») édite le logiciel et exploite les serveurs. Le
+            établissement sur le site duquel la borne est installée reste responsable de la relation
+            avec ses clients : c’est lui qui a recueilli leur identité au check-in, lui qui
+            facture, et lui qui décide de la durée de conservation de ses propres dossiers de
+            séjour.
           </p>
-          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
-            <li>
-              en tant que <strong class="text-white/85">responsable de traitement</strong> (seul) pour les
-              données du site vitrine (demandes de devis B2B), des comptes administrateurs du dashboard
-              opérateur et des logs techniques ;
-            </li>
-            <li>
-              en tant que <strong class="text-white/85">responsable de traitement conjoint</strong>
-              (art. 26 RGPD), avec l'opérateur — mairie, camping ou hôtel, le « tenant » — sur le site duquel
-              le distributeur est installé, pour les données des citoyens liées à l'usage du service
-              (réservation, prêt, suivi du parc), conformément à l'article 10 des CGV opérateurs.
-            </li>
-          </ul>
           <p class="mt-3">
-            La répartition des obligations entre SportLocker et le tenant peut être formalisée par un
-            accord de traitement conjoint (DPA) sur demande.<br/>
-            Contact DPO / délégué : <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a><br/>
-            <span class="text-white/60 text-sm">(à compléter : SIRET, adresse postale du siège social, une fois la société immatriculée.)</span>
+            Pour toute question sur vos données :
+            <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a>.
           </p>
         </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">2. Données collectées et finalités</h2>
-          <p class="mb-4">
-            Nous distinguons 3 surfaces : le site vitrine (ce site), l'application citoyenne
-            <strong class="text-white/85">app.sportlocker.fr</strong> (la PWA de réservation), et le dashboard opérateur
-            <strong class="text-white/85">ops.sportlocker.fr</strong> (réservé aux tenants).
-          </p>
+          <h2 class="text-white font-bold text-lg mb-2">2. Ce que nous collectons, et pourquoi</h2>
 
-          <h3 class="text-white/90 font-semibold mt-5 mb-2">a) Vitrine (ce site)</h3>
-          <p>
-            <strong class="text-white/85">Données :</strong> via le formulaire de devis — nom de l'organisation, localité,
-            type d'établissement, nombre estimé de distributeurs, email professionnel, numéro de téléphone, message libre.<br/>
-            <strong class="text-white/85">Finalité :</strong> répondre à votre demande commerciale (prospection B2B).<br/>
-            <strong class="text-white/85">Base légale :</strong> mesures précontractuelles à la demande de la personne (RGPD art. 6.1.b).
-          </p>
-
-          <h3 class="text-white/90 font-semibold mt-5 mb-2">b) Application citoyenne (app.sportlocker.fr)</h3>
-          <p class="mb-2">À l'inscription via Firebase Authentication, nous collectons :</p>
-          <ul class="list-disc list-inside space-y-1 ml-2">
-            <li>Adresse e-mail, identifiant Firebase (UID), prénom/nom si fourni</li>
-            <li>Méthode d'authentification utilisée (Google, Apple, email magic link)</li>
-          </ul>
-          <p class="mt-3 mb-2">Lors de l'usage du service, nous traitons en plus :</p>
-          <ul class="list-disc list-inside space-y-1 ml-2">
-            <li>Position GPS au moment de la recherche du distributeur le plus proche (utilisée en temps réel, non conservée)</li>
-            <li>Historique des réservations (date, sport choisi, distributeur, créneau, prix affiché)</li>
-            <li>Si vous activez les notifications : l'endpoint de votre service push (Google FCM, Mozilla, Apple), les clés de chiffrement publiques générées par votre navigateur, votre préférence de délai de rappel</li>
-            <li>User-Agent du navigateur (pour distinguer vos devices dans votre profil)</li>
-            <li>Pour les logs d'erreurs techniques : page consultée, message d'erreur, navigateur (via Sentry — pas de contenu de formulaire)</li>
-          </ul>
-          <p class="mt-3">
-            <strong class="text-white/85">Finalités :</strong> fournir le service de réservation et de prêt de matériel,
-            vous envoyer les notifications de rappel que vous avez demandées, détecter les bugs techniques.<br/>
-            <strong class="text-white/85">Base légale :</strong> exécution du contrat (RGPD art. 6.1.b) pour les réservations,
-            consentement explicite (RGPD art. 6.1.a) pour les notifications push.
-          </p>
-
-          <h3 class="text-white/90 font-semibold mt-5 mb-2">c) Dashboard opérateur (ops.sportlocker.fr)</h3>
-          <p>
-            <strong class="text-white/85">Données :</strong> e-mail professionnel et rôle du compte admin (admin commune, super-admin SportLocker),
-            historique des actions sensibles (audit logs internes).<br/>
-            <strong class="text-white/85">Finalité :</strong> permettre aux opérateurs (mairies, campings, hôtels) de gérer leur parc et leurs tarifs.<br/>
-            <strong class="text-white/85">Base légale :</strong> exécution du contrat tenant.
-          </p>
-        </div>
-
-        <div>
-          <h2 class="text-white font-bold text-lg mb-2">3. Sous-traitants</h2>
-          <p>
-            Nous utilisons des sous-traitants techniques au sens RGPD art. 28. Chacun est lié par un
-            engagement de confidentialité et opère dans les conditions ci-dessous :
-          </p>
-          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-3">
-            <li><strong class="text-white/85">Firebase / Google Cloud</strong> — authentification utilisateurs. UE et États-Unis (clauses contractuelles types).</li>
-            <li><strong class="text-white/85">Supabase</strong> — hébergement de la base de données (PostgreSQL, EU Central / Frankfurt).</li>
-            <li><strong class="text-white/85">Railway Corp.</strong> — hébergement des serveurs applicatifs (USA, garanties contractuelles).</li>
-            <li><strong class="text-white/85">EMQX Cloud</strong> — broker MQTT entre les distributeurs et notre API (EU Central).</li>
-            <li><strong class="text-white/85">Push services tiers</strong> — Google FCM / Mozilla Autopush / Apple Push (selon votre navigateur), utilisés uniquement pour acheminer les notifications de rappel que vous avez activées.</li>
-            <li><strong class="text-white/85">Sentry</strong> — collecte des erreurs techniques (UE).</li>
-            <li><strong class="text-white/85">Web3Forms</strong> — transmission du formulaire de contact de la vitrine.</li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 class="text-white font-bold text-lg mb-2">4. Durée de conservation</h2>
+          <h3 class="text-white/85 font-semibold mt-4 mb-1.5">Vacancier qui emprunte du matériel</h3>
           <ul class="list-disc list-inside space-y-1.5 ml-2">
-            <li><strong class="text-white/85">Compte citoyen actif :</strong> tant que votre compte existe.</li>
-            <li><strong class="text-white/85">Compte citoyen supprimé :</strong> les données personnelles directement identifiantes sont anonymisées dans les <strong>30 jours</strong> suivant votre demande. L'historique de réservations est conservé sous forme agrégée pour les statistiques tenant.</li>
-            <li><strong class="text-white/85">Demandes de devis B2B :</strong> 3 ans à compter de notre dernier échange (recommandation CNIL prospection B2B).</li>
-            <li><strong class="text-white/85">Logs d'erreurs Sentry :</strong> 30 jours.</li>
-            <li><strong class="text-white/85">Données comptables tenant :</strong> 10 ans (obligation légale française).</li>
+            <li><strong class="text-white/85">Numéro d’emplacement et nom de famille</strong> — pour vérifier que vous séjournez bien dans l’établissement et pour savoir à qui a été prêté un article.</li>
+            <li><strong class="text-white/85">Article emprunté, casier, date et heure</strong> — pour savoir ce qui est sorti et ce qui est rentré.</li>
+          </ul>
+          <p class="mt-3">
+            Base légale : l’exécution du service de prêt proposé par l’établissement, et son intérêt
+            légitime à retrouver son matériel.
+          </p>
+
+          <h3 class="text-white/85 font-semibold mt-5 mb-1.5">Sur votre téléphone</h3>
+          <p>
+            La page conserve localement, dans votre navigateur, votre numéro de séjour et
+            l’identifiant de l’emprunt en cours — pour ne pas vous les redemander et pour que
+            vous retrouviez le bouton « rendre l’article ». Ces informations ne quittent pas
+            votre appareil et sont effacées au retour de l’article. Vider les données du site
+            dans votre navigateur les supprime immédiatement.
+          </p>
+
+          <h3 class="text-white/85 font-semibold mt-5 mb-1.5">Gérant et personnel de l’établissement</h3>
+          <ul class="list-disc list-inside space-y-1.5 ml-2">
+            <li><strong class="text-white/85">Adresse e-mail et rôle</strong> — pour ouvrir l’accès au tableau de bord.</li>
+            <li><strong class="text-white/85">Journal des actions d’administration</strong> — pour retracer qui a modifié quoi.</li>
+          </ul>
+
+          <h3 class="text-white/85 font-semibold mt-5 mb-1.5">Visiteur de ce site</h3>
+          <p>
+            Uniquement ce que vous saisissez dans le formulaire de contact : nom de l’établissement,
+            commune, taille, e-mail et éventuellement téléphone. Ce site n’utilise <strong class="text-white/85">aucun
+            cookie de mesure d’audience ni de publicité</strong>, et ne dépose donc pas de bandeau
+            de consentement.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-white font-bold text-lg mb-2">3. Ce que nous ne collectons pas</h2>
+          <ul class="list-disc list-inside space-y-1.5 ml-2">
+            <li>Aucune coordonnée bancaire : SportLocker n’encaisse jamais de paiement d’un vacancier.</li>
+            <li>Aucune caution : celle de votre séjour est détenue par l’établissement, pas par nous.</li>
+            <li>Aucune position géographique.</li>
+            <li>Aucune date de naissance, aucune pièce d’identité, aucun numéro de téléphone de vacancier.</li>
+            <li>Aucun compte, donc aucun mot de passe côté vacancier.</li>
+            <li>Aucune image : les bornes ne comportent pas de caméra de surveillance.</li>
           </ul>
         </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">5. Vos droits</h2>
-          <p>
-            Conformément au RGPD (articles 15 à 22), vous disposez d'un droit d'accès, de rectification,
-            d'effacement, de limitation, d'opposition et de portabilité de vos données.
-          </p>
-          <p class="mt-3">
-            Vous pouvez :
-          </p>
-          <ul class="list-disc list-inside space-y-1.5 ml-2 mt-2">
-            <li>Désactiver les notifications push à tout moment depuis votre profil dans l'app citoyenne</li>
-            <li>Demander la suppression complète de votre compte en écrivant à <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a></li>
-            <li>Demander une copie de vos données dans un format structuré</li>
+          <h2 class="text-white font-bold text-lg mb-2">4. Combien de temps</h2>
+          <ul class="list-disc list-inside space-y-1.5 ml-2">
+            <li><strong class="text-white/85">Emprunts</strong> — 13 mois, le temps de comparer deux saisons, puis anonymisés : il ne reste que l’article, la date et le casier.</li>
+            <li><strong class="text-white/85">Traces sur votre téléphone</strong> — effacées au retour de l’article.</li>
+            <li><strong class="text-white/85">Demandes de contact</strong> — 3 ans après le dernier échange.</li>
+            <li><strong class="text-white/85">Comptes du tableau de bord</strong> — le temps du contrat, puis 3 mois.</li>
+            <li><strong class="text-white/85">Journaux techniques</strong> — 12 mois.</li>
           </ul>
-          <p class="mt-3">
-            En cas de différend non résolu avec nous, vous pouvez introduire une réclamation auprès de la
-            <a href="https://www.cnil.fr/fr/plaintes" target="_blank" rel="noopener noreferrer" class="text-brand-400 hover:underline">CNIL</a>.
-          </p>
         </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">6. Sécurité</h2>
+          <h2 class="text-white font-bold text-lg mb-2">5. Qui d’autre y a accès</h2>
           <p>
-            Toutes les communications avec nos serveurs sont chiffrées en HTTPS (TLS 1.2+). Les mots
-            de passe ne sont jamais stockés en clair (délégation à Firebase Authentication).
-            Les jetons d'ouverture du casier (QR codes) sont signés cryptographiquement (JWT HS256) et
-            ont une durée de validité limitée. Les notifications push sont chiffrées de bout en bout
-            (RFC 8030 + VAPID).
-          </p>
-        </div>
-
-        <div>
-          <h2 class="text-white font-bold text-lg mb-2">7. Cookies et traceurs</h2>
-          <p>
-            Le site vitrine n'utilise <strong class="text-white/85">aucun cookie de mesure d'audience, de
-            profilage ou de traçage publicitaire</strong>. Aucun consentement n'est requis pour le simple
-            affichage des pages.
+            Les prestataires techniques strictement nécessaires au fonctionnement, tous situés dans
+            l’Union européenne ou couverts par un cadre de transfert reconnu : hébergement
+            applicatif et base de données, supervision des erreurs, service d’envoi des formulaires
+            de ce site. Aucune donnée n’est vendue, louée, ni transmise à des fins publicitaires.
           </p>
           <p class="mt-3">
-            L'application citoyenne et le dashboard utilisent des cookies strictement techniques (session
-            d'authentification, préférence de langue). Ils sont nécessaires au fonctionnement du service
-            et ne sont pas soumis à consentement préalable au sens de la directive ePrivacy.
+            Chaque client accède aux emprunts de son propre établissement, et à rien d’autre.
           </p>
         </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">8. Mineurs</h2>
+          <h2 class="text-white font-bold text-lg mb-2">6. Vos droits</h2>
           <p>
-            Le service est destiné à un usage tout public. Pour les mineurs de moins de 15 ans, l'inscription
-            doit être effectuée avec l'accord d'un parent ou représentant légal. Nous ne collectons pas
-            sciemment de données concernant un mineur sans cet accord.
+            Accès, rectification, effacement, limitation, opposition et portabilité, au titre du
+            RGPD. Écrivez à
+            <a href={`mailto:${SITE.email}`} class="text-brand-400 hover:underline">{SITE.email}</a> :
+            nous répondons sous un mois. Si la réponse ne vous satisfait pas, vous pouvez saisir la
+            CNIL (<a href="https://www.cnil.fr" rel="noopener" class="text-brand-400 hover:underline">cnil.fr</a>).
+          </p>
+          <p class="mt-3">
+            Pour un emprunt, le plus rapide reste de passer à l’accueil de votre établissement : c’est lui qui
+            détient votre dossier de séjour.
           </p>
         </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">9. Transferts hors Union européenne</h2>
+          <h2 class="text-white font-bold text-lg mb-2">7. Sécurité</h2>
           <p>
-            Certains sous-traitants techniques (Firebase, Railway) sont basés aux États-Unis.
-            Ces transferts sont encadrés par les clauses contractuelles types de la Commission européenne
-            (décision 2021/914) et, le cas échéant, par le cadre <em>EU–US Data Privacy Framework</em>.
+            Chiffrement des échanges, accès au tableau de bord restreint par compte et par
+            établissement, sauvegardes chiffrées. Le code d’ouverture d’un casier est signé et à
+            usage unique : il ne contient aucune donnée personnelle et ne peut pas être rejoué.
           </p>
         </div>
 
         <div>
-          <h2 class="text-white font-bold text-lg mb-2">10. Évolution de la politique</h2>
+          <h2 class="text-white font-bold text-lg mb-2">8. Évolutions</h2>
           <p>
-            Nous pouvons être amenés à modifier cette politique pour refléter des évolutions techniques
-            ou réglementaires. La date de dernière mise à jour est indiquée en haut de cette page.
-            Les modifications substantielles font l'objet d'une information dans l'application.
+            Cette politique est mise à jour quand le produit change. La version précédente
+            décrivait un compte utilisateur, un profil et des notifications qui n’existent plus
+            depuis la refonte de septembre 2026.
           </p>
         </div>
       </div>

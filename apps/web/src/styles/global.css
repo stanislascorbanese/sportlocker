@@ -1,3 +1,6 @@
+/* Jetons partagés (clair/sombre) — packages/config/tailwind/tokens.css */
+@import '@sportlocker/config/tailwind/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,6 +15,18 @@
   --card-bg: rgba(255, 255, 255, 0.04);
   --brand: #1D9E75;
   --brand-lt: #2BC295;
+  /* Texte tertiaire (notes de bas de carte, précisions de tarif). Il était
+     référencé par .spec-note sans jamais être défini : la note restait blanche
+     en thème clair, donc invisible sur fond blanc.
+
+     0,58 et non 0,45. À 0,45 le ratio tombait à 4,29:1 sur le fond de page et
+     3,94:1 sur une carte, pour un seuil WCAG AA de 4,5:1 — et c'est la couleur
+     de la ligne « + 790 € HT / saison », c'est-à-dire précisément le chiffre
+     qu'un gérant cherche avant de décider. À 0,58 : 6,27:1 et 5,49:1. */
+  --text-2: rgba(248, 250, 252, 0.58);
+  /* Vert lisible sur fond clair (ratio ≈ 6,3:1 sur blanc). Le brand-400 du
+     thème sombre tombe à 2,3:1 en clair — illisible pour du petit texte. */
+  --brand-on-light: #2BC295;
 }
 
 html.light {
@@ -21,6 +36,10 @@ html.light {
   --text-1: #5E7080;
   --border: rgba(0, 0, 0, 0.09);
   --card-bg: rgba(0, 0, 0, 0.03);
+  /* Même correction en clair : 0,55 donnait 3,54:1 sur blanc, 0,68 donne
+     5,26:1 — et 5,08:1 sur le gris des cartes. */
+  --text-2: rgba(28, 40, 51, 0.68);
+  --brand-on-light: #0F6E56;
 }
 
 /* ─── Base ───────────────────────────────────────────────────────────────────── */
@@ -76,9 +95,14 @@ html.light {
   }
 
   /* Cards */
+  /* `backdrop-filter` : une carte à 4 % d'opacité laissait passer la cascade en
+     entier, et un ballon traversait le titre. Le flou coupe la forme derrière
+     sans opacifier la carte, qui garde son aspect de verre. */
   .card-dark {
     background-color: var(--card-bg);
     border: 1px solid var(--border);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     @apply rounded-2xl;
   }
   .card-light {
@@ -113,7 +137,72 @@ html.light {
 
   .link-quiet {
     color: var(--text-1);
-    @apply hover:text-white transition-colors;
+    @apply transition-colors;
+  }
+  .link-quiet:hover { color: var(--text-0); }
+
+  /* ─── Motifs de site fournisseur ─────────────────────────────────────────
+   *
+   * Un gérant de camping ne lit pas une landing page, il vérifie une fiche :
+   * est-ce que ça rentre chez moi, qu'est-ce qui est inclus, qui répare.
+   * D'où ces trois motifs empruntés aux fournisseurs installés du secteur —
+   * tableau de spécifications, liste d'inclus, carte de prix — plutôt que
+   * des blocs marketing.
+   */
+
+  .spec-table {
+    @apply w-full text-left text-[0.95rem];
+  }
+  .spec-table th {
+    @apply py-4 pr-6 align-top font-semibold w-[38%];
+    color: var(--text-0);
+    border-bottom: 1px solid var(--border);
+  }
+  .spec-table td {
+    @apply py-4 align-top;
+    color: var(--text-1);
+    border-bottom: 1px solid var(--border);
+  }
+  .spec-note {
+    @apply block text-sm mt-1;
+    color: var(--text-2);
+  }
+
+  .check-list {
+    @apply space-y-3 list-none p-0 m-0;
+  }
+  .check-list li {
+    @apply relative pl-7 text-[0.95rem] leading-relaxed;
+    color: var(--text-1);
+  }
+  .check-list li::before {
+    content: '';
+    @apply absolute left-0 top-[0.45em] w-3.5 h-[0.45rem] border-l-2 border-b-2 border-brand-400;
+    transform: rotate(-45deg);
+  }
+
+  .price-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    @apply rounded-2xl p-8 flex flex-col h-full;
+  }
+  .price-card-featured {
+    border-color: rgba(43, 194, 149, 0.45);
+    box-shadow: 0 0 0 1px rgba(43, 194, 149, 0.25);
+  }
+  .price-amount {
+    font-family: 'Playfair Display', Georgia, serif;
+    @apply text-4xl font-extrabold leading-none;
+    color: var(--text-0);
+  }
+
+  /* Encadré « à savoir » : les contraintes qu'on annonce plutôt que de les
+   * laisser découvrir le jour de l'installation. */
+  .caveat {
+    @apply rounded-xl border px-5 py-4 text-[0.95rem] leading-relaxed;
+    border-color: rgba(245, 190, 90, 0.3);
+    background-color: rgba(245, 190, 90, 0.07);
+    color: var(--text-1);
   }
 }
 
@@ -274,19 +363,9 @@ html.light .btn-theme:hover { background: rgba(0, 0, 0, 0.09); }
   to   { transform: translate(24px, -28px) scale(1.12); }
 }
 
-/* Sport particle decorations */
-.hero-particle {
-  position: absolute;
-  pointer-events: none;
-  opacity: 0.04;
-  animation: particle-drift var(--dur, 22s) ease-in-out infinite alternate;
-  animation-delay: var(--del, 0s);
-  color: #2BC295;
-}
-@keyframes particle-drift {
-  from { transform: translate(0,0) rotate(0deg); }
-  to   { transform: translate(var(--tx,10px), var(--ty,-15px)) rotate(var(--rot,12deg)); }
-}
+/* Les particules sport 2D du hero (trois SVG à 4 % d'opacité) ont été retirées
+   en septembre 2026 : la cascade 3D fait le même travail sur toute la page, en
+   mieux, et les superposer ne donnait qu'un hero chargé. */
 
 /* Headline word-by-word */
 .hero-headline {
@@ -412,7 +491,9 @@ html.light .btn-theme:hover { background: rgba(0, 0, 0, 0.09); }
   animation: badge-float 4s ease-in-out infinite alternate;
 }
 .hero-badge-1 { bottom: 60px; left: -20px; animation-delay: 0s; }
-.hero-badge-2 { top: 80px; right: -10px; animation-delay: -2s; color: #2BC295; }
+/* Décalée vers le haut : à 80px elle recouvrait la plaque QR du mockup, qui est
+   justement l'élément distinctif de la borne (pas d'écran, un QR à scanner). */
+.hero-badge-2 { top: 4px; right: -30px; animation-delay: -2s; color: #2BC295; }
 .hero-badge-dot {
   width: 7px; height: 7px;
   border-radius: 50%;
@@ -437,16 +518,25 @@ html.light .btn-theme:hover { background: rgba(0, 0, 0, 0.09); }
 }
 
 /* ─── Scroll reveal ──────────────────────────────────────────────────────────── */
-[data-reveal] {
+/* Voir Base.astro : l'animation n'est active que si `.js` est posée sur <html>.
+   Sans JavaScript, tout le contenu sous le hero resterait invisible. */
+html.js [data-reveal] {
   opacity: 0;
   transform: translateY(28px);
   transition:
     opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
 }
-[data-reveal].reveal-visible {
+html.js [data-reveal].reveal-visible {
   opacity: 1;
   transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 [data-reveal-delay='1'] { transition-delay: 0.1s; }
 [data-reveal-delay='2'] { transition-delay: 0.2s; }
@@ -494,16 +584,146 @@ html.light .btn-theme:hover { background: rgba(0, 0, 0, 0.09); }
 }
 .cta-finale-link:hover { color: #fff; }
 
+/* ─── Le lien dans le texte ───────────────────────────────────────────────────
+ *
+ * Le site n'en avait aucun : quinze liens par page, tous dans la navigation et
+ * le pied, donc exactement le même maillage partout. Un moteur mesure
+ * l'importance d'une page au nombre de liens internes qui la visent ; quand
+ * elles en ont toutes autant, il n'a rien à mesurer. Et un lecteur qui se
+ * demande « oui, mais combien ça coûte ? » au milieu d'un paragraphe ne va pas
+ * chercher la réponse dans le menu.
+ *
+ * Souligné, pas coloré en vert : le vert de marque sert déjà aux accents de
+ * titre et aux boutons. Un troisième emploi de la même couleur ne se lit plus
+ * comme un lien, il se lit comme de l'emphase.
+ */
+.lien-texte {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  transition: text-decoration-color 0.18s, color 0.18s;
+}
+.lien-texte:hover,
+.lien-texte:focus-visible {
+  color: var(--brand-lt);
+  text-decoration-color: currentColor;
+}
+html.light .lien-texte:hover,
+html.light .lien-texte:focus-visible { color: var(--brand-on-light); }
+
 /* ─── Light mode overrides for page backgrounds ──────────────────────────────── */
 html.light .bg-navy-900 { background-color: var(--bg-0) !important; }
 html.light .bg-navy-800 { background-color: var(--bg-1) !important; }
-html.light .text-white  { color: var(--text-0) !important; }
-html.light .text-white\/60,
-html.light .text-white\/65,
-html.light .text-white\/55,
-html.light .text-white\/70 {
-  color: var(--text-1) !important;
+/*
+ * Thème clair : la vitrine a été écrite « sombre d'abord », avec des
+ * utilitaires figés (text-white/xx, text-brand-400) qui deviennent invisibles
+ * sur fond blanc. Plutôt que de réécrire chaque page, on neutralise ces
+ * utilitaires en clair — puis on rétablit le blanc dans les zones qui restent
+ * sombres quel que soit le thème (bandeau CTA vert, scène 3D).
+ *
+ * Le bug qu'on corrige ici était visible sur /tarifs : « soit 894 € HT »,
+ * « borne installée et garnie de 12 articles » et les notes de bas de carte
+ * disparaissaient purement et simplement en thème clair.
+ */
+html.light [class*="text-white"] { color: var(--text-0) !important; }
+html.light [class*="text-white/55"],
+html.light [class*="text-white/60"],
+html.light [class*="text-white/65"],
+html.light [class*="text-white/70"],
+html.light [class*="text-white/75"],
+html.light [class*="text-white/80"],
+html.light [class*="text-white/85"],
+html.light [class*="text-white/90"] { color: var(--text-1) !important; }
+html.light [class*="text-white/35"],
+html.light [class*="text-white/40"],
+html.light [class*="text-white/45"],
+html.light [class*="text-white/50"] { color: var(--text-2) !important; }
+/* Plancher de contraste du texte secondaire en SOMBRE.
+ *
+ * Le thème clair ramenait déjà `text-white/35` à `/50` sur `--text-2` ; le
+ * thème sombre, lui, les laissait tels quels — et Tailwind les applique
+ * littéralement. Or sur le fond d'une carte (#1A2E42), /40 donne 3,4:1, /45
+ * 3,94:1 et /50 4,49:1, tous sous le seuil AA de 4,5. Ce sont trente et une
+ * occurrences dans les pages : des précisions, des notes, des légendes —
+ * jamais des titres, donc jamais du « gros texte » qui se contenterait de 3:1.
+ *
+ * 0,55 est le plancher qui passe partout : 5,80:1 sur la page, 5,10:1 sur une
+ * carte. C'est un rehaussement discret, pas un changement de hiérarchie. */
+[class*="text-white/35"],
+[class*="text-white/40"],
+[class*="text-white/45"],
+[class*="text-white/50"] { color: rgba(248, 250, 252, 0.55); }
+
+html.light [class*="border-white/"] { border-color: var(--border) !important; }
+html.light [class*="bg-white/"] { background-color: var(--card-bg) !important; }
+
+/* Vert : lisible sur fond clair. */
+html.light .text-brand-400,
+html.light .eyebrow { color: var(--brand-on-light) !important; }
+html.light .tag-brand {
+  color: var(--brand-on-light) !important;
+  background-color: rgba(29, 158, 117, 0.08) !important;
+  border-color: rgba(29, 158, 117, 0.3) !important;
 }
+html.light .hero-word-accent,
+html.light .hero-metric-accent { color: var(--brand-on-light); }
+
+/* Boutons et pastilles secondaires. */
+html.light .btn-outline {
+  color: var(--text-0) !important;
+  border-color: rgba(0, 0, 0, 0.22) !important;
+}
+html.light .btn-outline:hover {
+  border-color: rgba(0, 0, 0, 0.45) !important;
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+html.light .tag-white {
+  color: var(--text-1) !important;
+  background-color: var(--card-bg) !important;
+  border-color: var(--border) !important;
+}
+
+/* Zones qui restent sombres en thème clair : on y rétablit le blanc. */
+/*
+ * Champs de formulaire. Ils étaient en bg-black/30 : en thème clair, un aplat
+ * gris à 30 % de noir qui donnait des champs « désactivés », et un placeholder
+ * blanc sur blanc. On repasse les contrôles en fond blanc bordé.
+ */
+/* :not(...) — sinon le !important écrasait aussi l'état peer-checked et la
+   carte « intention » sélectionnée perdait sa teinte verte en thème clair. */
+html.light [class*="bg-black/"]:not([class*="peer-checked:bg-"]) { background-color: rgba(0, 0, 0, 0.03) !important; }
+html.light .peer:not(:checked) ~ [class*="peer-checked:bg-brand"] {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+html.light .peer:checked ~ [class*="peer-checked:bg-brand"] {
+  background-color: rgba(29, 158, 117, 0.1) !important;
+  border-color: #1D9E75 !important;
+}
+html.light input[class*="bg-black/"],
+html.light select[class*="bg-black/"],
+html.light textarea[class*="bg-black/"] {
+  background-color: #fff !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  color: var(--text-0) !important;
+}
+html.light input[class*="bg-black/"]:focus,
+html.light select[class*="bg-black/"]:focus,
+html.light textarea[class*="bg-black/"]:focus {
+  background-color: #fff !important;
+  border-color: #0F6E56 !important;
+}
+html.light [class*="placeholder:text-white"]::placeholder { color: var(--text-2) !important; }
+
+html.light .bg-cta-gradient [class*="text-white"] { color: #fff !important; }
+html.light .bg-cta-gradient [class*="text-white/60"] { color: rgba(255, 255, 255, 0.75) !important; }
+html.light .bg-cta-gradient [class*="text-white/80"] { color: rgba(255, 255, 255, 0.85) !important; }
+html.light .bg-cta-gradient [class*="border-white/"] { border-color: rgba(255, 255, 255, 0.5) !important; }
+html.light .bg-cta-gradient [class*="bg-white/"] { background-color: rgba(255, 255, 255, 0.12) !important; }
+html.light #sl5-stage,
+html.light #sl5-stage * { color: rgba(255, 255, 255, 0.85) !important; }
 html.light .border-white\/10 { border-color: var(--border) !important; }
 html.light .card-dark {
   background-color: var(--card-bg) !important;
@@ -514,4 +734,290 @@ html.light .btn-primary { color: #fff !important; }
 html.light .link-quiet { color: var(--text-1) !important; }
 html.light .hero-blob-1 {
   background: radial-gradient(circle, rgba(29,158,117,0.08) 0%, transparent 70%);
+}
+
+/* Légende de la borne 3D en mobile.
+ * Les six étiquettes flottantes ne tiennent pas sous 768 px (elles se
+ * chevauchaient par-dessus la borne). Le script les désactive et bascule
+ * cette liste — jusque-là réservée aux lecteurs d'écran — en légende visible. */
+.ld3-legend {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+.ld3-legend li {
+  padding-left: 0.9rem;
+  position: relative;
+}
+.ld3-legend li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: var(--brand-lt);
+}
+.ld3-legend strong { color: var(--text-0); font-weight: 600; }
+
+/* ─── Atmosphère de page ─────────────────────────────────────────────────────
+ *
+ * Le site empilait deux aplats — `--bg-0` et `--bg-1` en alternance — et ça se
+ * voyait : des pavés posés bout à bout, avec une arête nette à chaque jointure
+ * et aucune profondeur entre eux.
+ *
+ * Trois couches remplacent ça, et elles sont toutes *fixes* : c'est ce qui donne
+ * la profondeur. Le contenu défile, le décor non, donc l'œil lit deux plans au
+ * lieu d'un.
+ *
+ *   -3  l'atmosphère : halos diffus, dégradé long, grain fin
+ *   -2  la cascade 3D (SportsCascade.astro)
+ *   -1  le voile des sections alternées, à bords fondus
+ *    0  le contenu
+ *
+ * Les sections deviennent translucides au lieu d'opaques : sans ça le voile
+ * masquerait la cascade, et on serait revenu aux pavés.
+ *
+ * Le grain est un SVG en data-URI, pas une image : quelques centaines d'octets,
+ * aucune requête, et il casse le banding des grands dégradés — sur un aplat
+ * bleu nuit de 2 000 px de haut, les paliers de 8 bits se voient à l'œil nu.
+ */
+:root {
+  /* Voile des sections alternées. Assez dense pour que le texte porte, assez
+     transparent pour qu'on devine la cascade derrière. */
+  --wash: rgba(23, 42, 61, 0.82);
+  --glow-brand: rgba(29, 158, 117, 0.15);
+  --glow-cool: rgba(32, 86, 120, 0.18);
+  --grain-opacity: 0.05;
+  /* Intensité de la cascade 3D. En clair, les objets se détachent bien plus du
+     fond qu'en sombre : la même valeur donnerait un décor criard. */
+  --cascade-opacity: 1;
+  /* Voile porté par chaque bloc de texte. Plus dense que `--wash` : celui-ci
+     ne couvre qu'une ellipse autour du texte, il peut donc se permettre d'être
+     franc là où il agit sans assombrir la page. */
+  --wash-text: rgba(13, 27, 42, 0.88);
+  /* Le fond plein des cartes sur téléphone. Voir la règle mobile plus bas. */
+  --card-plein: rgba(15, 30, 46, 0.9);
+}
+
+html.light {
+  --wash: rgba(241, 245, 249, 0.88);
+  --glow-brand: rgba(43, 194, 149, 0.14);
+  --glow-cool: rgba(148, 187, 214, 0.2);
+  --grain-opacity: 0.035;
+  --cascade-opacity: 0.6;
+  --wash-text: rgba(255, 255, 255, 0.9);
+  --card-plein: rgba(255, 255, 255, 0.93);
+}
+
+/* Sur téléphone il n'y a pas de marge où reléguer le décor : le masque ne
+   s'applique pas, et une scène passe forcément derrière le texte. C'est
+   l'intensité qui fait le travail à sa place — on descend franchement, et le
+   matériel redevient une présence plutôt qu'un sujet. */
+@media (max-width: 767px) {
+  :root {
+    --cascade-opacity: 0.5;
+  }
+  html.light {
+    --cascade-opacity: 0.3;
+  }
+
+  /* ─── LE DÉCOR PASSE DERRIÈRE, PAS AU TRAVERS ───────────────────────────
+   *
+   * Le masque qui creuse la colonne centrale ne s'applique qu'au-dessus de
+   * 768 px, faute de marges où reléguer le décor. En dessous, une scène passe
+   * forcément derrière le texte — et le contraste statique ne dit rien du
+   * problème réel : ce ne sont pas les objets qui gênent, ce sont les TRAITS.
+   * Une baguette néon du terrain de pétanque traverse une carte de part en
+   * part, et la phrase qu'elle croise devient illisible sur trois mots.
+   *
+   * Deux règles, et seulement sur téléphone.
+   *
+   * La première donne aux sections impaires le voile que les paires avaient
+   * déjà : sur un écran de 390 px, l'alternance claire/sombre compte moins que
+   * de pouvoir lire un paragraphe. Le hero n'est pas concerné — il porte la
+   * classe `.hero-section`, pas `.section`, et c'est justement là que le décor
+   * doit se voir en entier.
+   *
+   * La seconde rend les cartes opaques. Le `backdrop-filter` les rendait
+   * translucides à dessein ; un flou de quatorze pixels adoucit une forme, il
+   * n'éteint pas une ligne lumineuse. Sur une carte, il y a du texte à lire et
+   * rien à voir derrière.
+   */
+  .section::before {
+    content: '';
+    position: absolute;
+    inset: -1px 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      var(--wash) 12%,
+      var(--wash) 88%,
+      transparent 100%
+    );
+  }
+  .card-dark {
+    background-color: var(--card-plein);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  html.light .card-dark {
+    background-color: var(--card-plein) !important;
+  }
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  background-image:
+    radial-gradient(58rem 42rem at 78% 8%, var(--glow-brand), transparent 68%),
+    radial-gradient(52rem 46rem at 12% 34%, var(--glow-cool), transparent 70%),
+    radial-gradient(44rem 38rem at 88% 72%, var(--glow-brand), transparent 72%),
+    radial-gradient(40rem 34rem at 22% 96%, var(--glow-cool), transparent 74%);
+  background-repeat: no-repeat;
+}
+
+/* Le grain, dosé séparément des halos. La fréquence de base est volontairement
+ * haute : plus bas, la texture devient un moutonnement visible au lieu d'un
+ * grain. Il casse le banding des grands dégradés — sur un aplat bleu nuit de
+ * 2 000 px de haut, les paliers de 8 bits se voient à l'œil nu. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Les sections laissent passer le décor. */
+.section,
+.section-alt {
+  background-color: transparent;
+  position: relative;
+}
+
+/* Le voile des sections alternées, fondu en haut et en bas : c'est lui qui
+   remplace l'arête nette entre deux blocs. Les 14 % de fondu valent environ
+   100 px sur une section de 700 px — assez pour que la transition se sente sans
+   que le texte du haut se retrouve sur un fond trop clair. */
+.section-alt::before {
+  content: '';
+  position: absolute;
+  inset: -1px 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--wash) 14%,
+    var(--wash) 86%,
+    transparent 100%
+  );
+}
+
+/* Le hero porte déjà ses propres halos animés ; inutile d'en rajouter, mais il
+   doit rester transparent pour laisser voir la cascade qui démarre derrière. */
+.hero-section {
+  background-color: transparent;
+}
+
+/* Footer : le seul bloc qui reste franc. Il ferme la page, et une fin floue
+   donne l'impression que le site continue. */
+footer {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-blob {
+    animation: none;
+  }
+}
+
+/* ─── Lisibilité du texte au-dessus de la cascade ─────────────────────────────
+ *
+ * Pas de voile. J'en avais posé un — une ellipse en dégradé derrière chaque
+ * bloc — et ça se voyait : un rectangle flou qui traîne derrière le texte est
+ * plus laid que le problème qu'il règle. Un fond qu'on remarque a échoué.
+ *
+ * L'ombre portée fait le même travail sans forme : elle épaissit le contraste
+ * autour des lettres, elle n'a pas de bord, donc rien à remarquer. Le décor
+ * reste entièrement visible, y compris à travers les interlignes.
+ */
+.section-title,
+.hero-section h1 {
+  text-shadow: 0 2px 24px var(--wash-text), 0 1px 3px var(--wash-text);
+}
+
+.section-sub,
+.hero-section p,
+.section .max-w-3xl > p,
+.section-alt .max-w-3xl > p {
+  text-shadow: 0 1px 14px var(--wash-text), 0 1px 2px var(--wash-text);
+}
+
+/* Les halos décoratifs du hero font 700 px et débordent volontairement du
+   cadre. Sans cette coupe ils créent une barre de défilement horizontale de
+   douze pixels — assez pour que la page se décale sous le doigt sur téléphone,
+   pas assez pour qu'on en trouve la cause à l'œil.
+   `clip` et non `hidden` : `hidden` établit un conteneur de défilement et
+   casse `position: sticky` sur tous les descendants. */
+html {
+  overflow-x: clip;
+}
+
+/* ─── Le bloc d'appel à l'action laisse passer le décor ───────────────────────
+ *
+ * Il portait un aplat vert opaque, et c'était le seul bloc de la page où la
+ * cascade s'arrêtait net — juste là où elle doit finir, sur la borne qui se
+ * referme. Le vert devient un voile posé par-dessus : la couleur de marque
+ * reste, la borne se devine derrière.
+ *
+ * Le voile est plus dense en haut qu'en bas pour que le titre garde son fond
+ * franc : c'est lui qui doit accrocher, pas le décor.
+ */
+.bg-cta-gradient {
+  position: relative;
+  /* Un voile, pas un aplat. À 0,88 le vert restait un mur : la borne qui se
+     referme juste au-dessus disparaissait derrière lui, et la fin de
+     l'animation tombait dans le vide. À 0,42 on voit le décor à travers, et le
+     vert reste franc parce qu'il est posé sur un fond déjà sombre. À 0,22 il
+     ne teinte plus que l'air : la borne passe franchement au travers. */
+  background-image: linear-gradient(
+    135deg,
+    rgba(15, 110, 86, 0.22) 0%,
+    rgba(21, 120, 90, 0.16) 50%,
+    rgba(29, 158, 117, 0.11) 100%
+  ) !important;
+  /* Le flou d'arrière-plan garde le titre lisible sans réopacifier le vert :
+     le décor reste visible, mais adouci derrière le texte. Ignoré par les
+     navigateurs qui ne le gèrent pas, où le voile seul suffit. */
+  backdrop-filter: blur(3px) saturate(1.1);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+}
+
+/* Le titre et les boutons portent leur propre ombre : sur un fond devenu
+   translucide, le blanc pur a besoin d'être détaché de ce qui passe derrière. */
+.bg-cta-gradient h2,
+.bg-cta-gradient p {
+  text-shadow: 0 2px 18px rgba(6, 24, 20, 0.75), 0 1px 3px rgba(6, 24, 20, 0.6);
 }

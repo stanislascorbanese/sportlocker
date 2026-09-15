@@ -5,6 +5,7 @@
     "dockerfilePath": "apps/citizen/Dockerfile",
     "watchPatterns": [
       "apps/citizen/**",
+      "packages/config/**",
       "packages/types/**",
       "package.json",
       "pnpm-lock.yaml",

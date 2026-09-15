@@ -1,10 +1,9 @@
+import * as Sentry from '@sentry/nextjs'
+
 /**
- * Next.js instrumentation hook — appelé une fois au boot du serveur,
- * AVANT que toute requête soit traitée. C'est l'endroit recommandé par
- * Next 13+ pour init Sentry côté serveur/edge.
- *
- * Le client (browser) est init séparément par Next via sentry.client.config.ts
- * (Next auto-charge ce fichier dans le bundle client).
+ * Hook d'instrumentation Next.js — exécuté une fois au démarrage du serveur,
+ * avant la première requête. C'est là que Sentry s'initialise côté serveur et
+ * edge ; le navigateur est couvert par `instrumentation-client.ts`.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -15,3 +14,10 @@ export async function register() {
     await import('./sentry.edge.config')
   }
 }
+
+/**
+ * Sans ce hook, les erreurs levées dans un Server Component imbriqué ne
+ * remontent nulle part. Or c'est précisément là que vivent les appels à l'API :
+ * une borne qui ne répond plus doit se voir.
+ */
+export const onRequestError = Sentry.captureRequestError
