@@ -12,13 +12,13 @@ import { defineConfig } from 'vitest/config'
  * Le setup file installe @testing-library/jest-dom pour les matchers
  * (`toBeInTheDocument`, `toHaveClass`, etc.).
  *
- * `esbuild.jsx: 'automatic'` → JSX transform new-style (Next.js 15 default).
+ * Vite 8 remplace esbuild par oxc comme transformeur : les options esbuild sont ignorees, d'ou la cle oxc.jsx.runtime ci-dessous.
  * Sans ça, les fichiers `.test.tsx` qui n'importent pas React explicitement
  * échouent en `React is not defined` au runtime.
  */
 export default defineConfig({
-  esbuild: {
-    jsx: 'automatic',
+  oxc: {
+    jsx: { runtime: 'automatic' },
   },
   test: {
     environment: 'happy-dom',
