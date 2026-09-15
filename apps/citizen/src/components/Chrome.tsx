@@ -18,7 +18,7 @@ export function TopBar({ siteName }: { siteName?: string | undefined }) {
           SportLocker
         </span>
         {siteName ? (
-          <span className="block truncate text-[0.9375rem] font-bold text-ink">{siteName}</span>
+          <span className="block text-[0.9375rem] font-bold leading-tight text-ink">{siteName}</span>
         ) : null}
       </Link>
       <div className="flex shrink-0 items-center gap-1">
@@ -69,12 +69,14 @@ export function Spinner({ label }: { label: string }) {
  * information portée par la seule couleur n'existe pas pour un daltonien.
  */
 export function StockPill({ count, label }: { count: number; label: string }) {
-  const empty = count <= 0
   return (
     <span
       className={
-        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-meta font-bold tabular-nums ' +
-        (empty ? 'bg-surface-2 text-ink-muted' : 'bg-brand-soft text-brand')
+        /* Neutre dans les deux cas. Le vert de la marque ne sert qu'à ce qui se
+         * touche : une pastille de stock informe, elle ne se clique pas. La
+         * teindre en vert apprenait au vacancier que le vert ne veut rien dire. */
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2.5 py-1 ' +
+        'text-[0.8125rem] font-bold tabular-nums text-ink-muted'
       }
     >
       {label}

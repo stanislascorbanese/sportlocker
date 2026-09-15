@@ -42,6 +42,22 @@ export function BorneFlow({ serial }: { serial: string }) {
 
   const error = failure === null ? '' : errorText(failure)
 
+  /* Relit l'état de la borne sans recharger la page. Sert à l'écran « la borne
+   * est vide » : du matériel rentre au fil de la journée, et quelqu'un qui
+   * attend devant préfère appuyer sur un bouton que deviner le geste de
+   * rafraîchissement de son navigateur. */
+  const [relisant, setRelisant] = useState(false)
+  async function reload() {
+    setRelisant(true)
+    try {
+      setKiosk(await api.getKiosk(serial))
+    } catch (err) {
+      setFailure(err)
+    } finally {
+      setRelisant(false)
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
     api
@@ -210,20 +226,55 @@ export function BorneFlow({ serial }: { serial: string }) {
 
       {step === 'choose' && kiosk ? (
         <div className="flex flex-1 flex-col gap-6">
-          <div>
-            <h1 className="font-display text-display-md font-bold leading-tight">
-              {t.choose.title}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-              {guestName ? (
-                <p className="text-ink-muted">{t.choose.greeting(guestName)}</p>
-              ) : null}
-              <StockPill count={inStock} label={t.choose.stock(inStock)} />
+          {/* « Qu'est-ce qui vous ferait plaisir ? » au-dessus d'une borne vide ne
+            * veut rien dire, et la pastille de stock répéterait le message de
+            * l'écran juste en dessous. Un écran dédié se suffit à lui-même. */}
+          {inStock > 0 ? (
+            <div>
+              <h1 className="font-display text-display-md font-bold leading-tight">
+                {t.choose.title}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+                {guestName ? (
+                  <p className="text-ink-muted">{t.choose.greeting(guestName)}</p>
+                ) : null}
+                <StockPill count={inStock} label={t.choose.stock(inStock)} />
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {error ? <Note tone="error">{error}</Note> : null}
 
+          {/*
+            * Une borne vide n'est pas une grille d'articles indisponibles.
+            *
+            * Afficher neuf tuiles grises donne l'impression d'une application en
+            * panne : le vacancier voit du contenu éteint et ne sait pas si c'est
+            * lui, son téléphone ou la borne. Un écran qui dit la vérité en une
+            * phrase, et qui dit quoi faire ensuite, vaut mieux que neuf cartes
+            * mortes.
+            *
+            * Le bouton relit la borne sans recharger la page : du matériel rentre
+            * au fil de la journée, et quelqu'un qui attend devant préfère un
+            * bouton à un geste de rafraîchissement.
+            */}
+          {inStock === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
+              <ItemGlyph kind="autre" className="h-16 w-16 text-ink-muted opacity-50" />
+              <div className="space-y-2">
+                <h2 className="font-display text-display-sm font-bold">{t.choose.emptyTitle}</h2>
+                <p className="max-w-sm text-ink-muted">{t.choose.emptyHint}</p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={relisant}
+                onClick={() => void reload()}
+              >
+                {t.choose.emptyAgain}
+              </button>
+            </div>
+          ) : (
           <ul className="grid grid-cols-2 gap-3">
             {kiosk.items.map((item) => {
               const out = item.available <= 0
@@ -234,14 +285,14 @@ export function BorneFlow({ serial }: { serial: string }) {
                     disabled={out}
                     onClick={() => void borrow(item)}
                     className={cn(
-                      'flex h-full w-full flex-col items-center gap-3 rounded-card border-2 p-4 text-center transition-colors duration-base',
+                      'flex h-full w-full flex-col items-center gap-3 rounded-card border-2 p-5 text-center transition-colors duration-base',
                       out
                         ? 'cursor-not-allowed border-line bg-surface-2 text-ink-muted opacity-60'
                         : 'border-line bg-surface text-ink hover:border-brand hover:bg-brand-soft',
                     )}
                   >
-                    <ItemGlyph kind={item.kind} className="h-12 w-12 text-brand" />
-                    <span className="text-[0.9375rem] font-bold leading-snug">
+                    <ItemGlyph kind={item.kind} className="h-16 w-16 text-ink" />
+                    <span className="text-[1.0625rem] font-bold leading-snug">
                       {itemLabel(item.kind, item.label)}
                     </span>
                     <StockPill
@@ -253,8 +304,11 @@ export function BorneFlow({ serial }: { serial: string }) {
               )
             })}
           </ul>
+          )}
 
-          <p className="mt-auto pt-4 text-center text-meta text-ink-muted">{t.choose.footer}</p>
+          {inStock > 0 ? (
+            <p className="mt-auto pt-4 text-center text-meta text-ink-muted">{t.choose.footer}</p>
+          ) : null}
         </div>
       ) : null}
 

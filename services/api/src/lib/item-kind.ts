@@ -19,7 +19,14 @@ export function kindOf(slug: string, name: string): ItemKind {
     .replace(/[\u0300-\u036f]/g, '')
   if (/basket/.test(h)) return 'basket'
   if (/volley/.test(h)) return 'volley'
-  if (/raquette|badminton|tennis|ping/.test(h)) return 'raquette'
+  // L'ordre compte : du plus précis au plus vague. « raquette de badminton »
+  // contient les deux mots, et c'est le sport qui doit gagner — sans quoi on
+  // retombe sur le générique, et hors du français l'app affiche le mot du
+  // `kind` : trois articles différents deviendraient trois fois « Racket ».
+  if (/ping|tennis de table|table tennis/.test(h)) return 'pingpong'
+  if (/badminton|volant/.test(h)) return 'badminton'
+  if (/tennis/.test(h)) return 'tennis'
+  if (/raquette|racket/.test(h)) return 'raquette'
   if (/frisbee|disque/.test(h)) return 'disque'
   if (/plot|cone|plots/.test(h)) return 'plot'
   if (/corde/.test(h)) return 'corde'

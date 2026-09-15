@@ -73,6 +73,10 @@ export interface Copy {
     stock: (available: number) => string
     available: (n: number) => string
     soldOut: string
+    /** Écran dédié quand la borne ne contient plus rien. */
+    emptyTitle: string
+    emptyHint: string
+    emptyAgain: string
     footer: string
   }
 
