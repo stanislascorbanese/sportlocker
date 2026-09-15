@@ -175,7 +175,12 @@ describe('GET /v1/kiosk/:serial', () => {
     const row = body.items.find((i: { itemTypeId: string }) => i.itemTypeId === raquette)
     expect(row).toBeDefined()
     expect(row.available).toBe(0)
-    expect(row.kind).toBe('raquette')
+    // `badminton` et non `raquette` depuis que l'énumération distingue les
+    // sports : hors du français, l'app affiche le mot générique du `kind`, et
+    // trois articles ne peuvent pas s'appeler tous « Racket ». Ce test-ci ne
+    // porte pas sur le pictogramme mais sur le fait qu'un type épuisé reste
+    // renvoyé — d'où l'assertion conservée, juste corrigée.
+    expect(row.kind).toBe('badminton')
   })
 
   it('404 kiosk_not_found sur un numéro de série inconnu', async () => {
