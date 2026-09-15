@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { LANGS, LANG_NAMES, useLang } from '@/lib/i18n'
 import { cn } from '@/lib/cn'
 
@@ -14,9 +16,33 @@ import { cn } from '@/lib/cn'
  *
  * La langue est déjà présélectionnée d'après le téléphone ; ces pastilles ne
  * servent qu'à corriger, ce qui justifie qu'elles restent discrètes.
+ *
+ * Elles se replient dès qu'on en a choisi une. Les quatre côte à côte mangeaient
+ * la moitié de l'en-tête et tronquaient le nom de la borne — or ce nom est ce
+ * que le vacancier vient vérifier. Après un choix, seule la langue active reste,
+ * et un appui la redéploie : on rend la place sans jamais piéger quelqu'un dans
+ * une langue qu'il ne lit pas.
  */
 export function LangPicker() {
   const { lang, setLang, t } = useLang()
+  const [choisi, setChoisi] = useState(false)
+  const replie = choisi
+
+  if (replie) {
+    return (
+      <button
+        type="button"
+        onClick={() => setChoisi(false)}
+        aria-label={t.langPicker}
+        title={t.langPicker}
+        lang={lang}
+        className="grid h-11 min-w-[2.75rem] shrink-0 place-items-center rounded-full bg-surface-2 px-2 text-[0.8125rem] font-bold uppercase tracking-wide text-ink-muted transition-colors duration-base hover:text-ink"
+      >
+        {lang}
+        <span className="sr-only"> — {LANG_NAMES[lang]}</span>
+      </button>
+    )
+  }
 
   return (
     <div
@@ -30,7 +56,10 @@ export function LangPicker() {
           <button
             key={code}
             type="button"
-            onClick={() => setLang(code)}
+            onClick={() => {
+              setLang(code)
+              setChoisi(true)
+            }}
             lang={code}
             aria-pressed={active}
             title={LANG_NAMES[code]}

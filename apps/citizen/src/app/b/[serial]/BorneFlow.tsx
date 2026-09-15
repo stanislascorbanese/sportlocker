@@ -285,14 +285,14 @@ export function BorneFlow({ serial }: { serial: string }) {
                     disabled={out}
                     onClick={() => void borrow(item)}
                     className={cn(
-                      'flex h-full w-full flex-col items-center gap-3 rounded-card border-2 p-4 text-center transition-colors duration-base',
+                      'flex h-full w-full flex-col items-center gap-3 rounded-card border-2 p-5 text-center transition-colors duration-base',
                       out
                         ? 'cursor-not-allowed border-line bg-surface-2 text-ink-muted opacity-60'
                         : 'border-line bg-surface text-ink hover:border-brand hover:bg-brand-soft',
                     )}
                   >
-                    <ItemGlyph kind={item.kind} className="h-12 w-12 text-brand" />
-                    <span className="text-[0.9375rem] font-bold leading-snug">
+                    <ItemGlyph kind={item.kind} className="h-16 w-16 text-ink" />
+                    <span className="text-[1.0625rem] font-bold leading-snug">
                       {itemLabel(item.kind, item.label)}
                     </span>
                     <StockPill

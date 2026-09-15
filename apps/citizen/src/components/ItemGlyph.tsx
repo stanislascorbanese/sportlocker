@@ -9,9 +9,13 @@ import type { ItemKind } from '@/lib/contract'
  *
  * Deux règles de dessin, qui expliquent la forme du code :
  *
- * 1. Le CONTOUR est en `currentColor`. Il hérite donc de la couleur du texte et
- *    survit au basculement clair/sombre. Un trait noir codé en dur disparaîtrait
- *    sur fond marine.
+ * 1. Le CONTOUR d'un objet REMPLI est constant (`C.encre`). Première version :
+ *    il héritait de `currentColor` — et sur fond sombre le texte est blanc, donc
+ *    un ballon blanc se retrouvait cerné de blanc, sans aucune définition. Un
+ *    contour sombre sur un remplissage clair se lit sur n'importe quel fond.
+ *    Seules les formes SANS remplissage (cordage, corde à sauter, raquette
+ *    générique) gardent `currentColor` : elles n'ont que leur trait, et il doit
+ *    suivre le thème.
  * 2. Le REMPLISSAGE porte la couleur réelle de l'objet, en dur. Un ballon de
  *    basket est orange dans les deux thèmes ; c'est précisément cette couleur
  *    qui permet de le repérer sans lire l'étiquette.
@@ -44,15 +48,15 @@ const dessins: Record<ItemKind, React.ReactNode> = {
       <circle cx="24" cy="24" r="17" fill={C.cuir} />
       <path d="M24 16.5l7.1 5.2-2.7 8.4h-8.8l-2.7-8.4z" fill={C.encre} />
       <path d="M24 16.5V7M31.1 21.7l9.1-2.9M28.4 30.1l5.6 7.7M19.6 30.1L14 37.8M16.9 21.7l-9.1-2.9" />
-      <circle cx="24" cy="24" r="17" />
+      <circle cx="24" cy="24" r="17" stroke={C.encre} />
     </>
   ),
   // Ballon de basket : orange, deux axes et deux arcs.
   basket: (
     <>
       <circle cx="24" cy="24" r="17" fill={C.orange} />
-      <path d="M24 7v34M7 24h34M12 11c7 7 7 19 0 26M36 11c-7 7-7 19 0 26" />
-      <circle cx="24" cy="24" r="17" />
+      <path d="M24 7v34M7 24h34M12 11c7 7 7 19 0 26M36 11c-7 7-7 19 0 26" stroke={C.encre} />
+      <circle cx="24" cy="24" r="17" stroke={C.encre} />
     </>
   ),
   // Ballon de volley : bandes bleues qui s'enroulent.
@@ -61,28 +65,28 @@ const dessins: Record<ItemKind, React.ReactNode> = {
       <circle cx="24" cy="24" r="17" fill={C.cuir} />
       <path d="M10 16c10 2 17 10 19 21M24 7c-6 9-8 20-4 32M40 21c-11-3-22 2-27 12"
             stroke={C.bleu} strokeWidth="3.2" />
-      <circle cx="24" cy="24" r="17" />
+      <circle cx="24" cy="24" r="17" stroke={C.encre} />
     </>
   ),
   // Ping-pong : palette rouge pleine, manche court, et la balle.
   pingpong: (
     <>
       <ellipse cx="20" cy="18" rx="11" ry="12" fill={C.rouge} />
-      <ellipse cx="20" cy="18" rx="11" ry="12" />
+      <ellipse cx="20" cy="18" rx="11" ry="12" stroke={C.encre} />
       <path d="M20 30v9" stroke={C.bois} strokeWidth="5" />
-      <path d="M20 30v9" />
+      <path d="M20 30v9" stroke={C.encre} />
       <circle cx="37" cy="33" r="5" fill={C.cuir} />
-      <circle cx="37" cy="33" r="5" />
+      <circle cx="37" cy="33" r="5" stroke={C.encre} />
     </>
   ),
   // Badminton : le volant, dont la silhouette n'appartient qu'à lui.
   badminton: (
     <>
       <path d="M8 7h32l-9 22H17z" fill={C.cuir} />
-      <path d="M8 7h32l-9 22H17z" />
-      <path d="M18.5 7L16 29M24 7v22M29.5 7L32 29" strokeWidth="1.5" />
+      <path d="M8 7h32l-9 22H17z" stroke={C.encre} />
+      <path d="M18.5 7L16 29M24 7v22M29.5 7L32 29" strokeWidth="1.5" stroke={C.encre} />
       <path d="M17 29h14a7 7 0 01-14 0z" fill={C.bois} />
-      <path d="M17 29h14a7 7 0 01-14 0z" />
+      <path d="M17 29h14a7 7 0 01-14 0z" stroke={C.encre} />
     </>
   ),
   // Tennis : tête ovale large, cordage, et la balle jaune.
@@ -94,7 +98,7 @@ const dessins: Record<ItemKind, React.ReactNode> = {
       <path d="M19 30l5 12" strokeWidth="4" stroke={C.bois} />
       <path d="M19 30l5 12" />
       <circle cx="38" cy="36" r="6" fill={C.jaune} />
-      <circle cx="38" cy="36" r="6" />
+      <circle cx="38" cy="36" r="6" stroke={C.encre} />
     </>
   ),
   // Raquette générique : le repli quand on n'a pas su nommer le sport.
@@ -110,17 +114,17 @@ const dessins: Record<ItemKind, React.ReactNode> = {
   disque: (
     <>
       <path d="M6 27c0-6 8-10 18-10s18 4 18 10v1c0 4-8 7-18 7S6 32 6 28z" fill={C.corail} />
-      <ellipse cx="24" cy="27" rx="18" ry="7" />
-      <path d="M6 27c0-6 8-10 18-10s18 4 18 10" />
-      <ellipse cx="24" cy="25" rx="7" ry="2.6" />
+      <ellipse cx="24" cy="27" rx="18" ry="7" stroke={C.encre} />
+      <path d="M6 27c0-6 8-10 18-10s18 4 18 10" stroke={C.encre} />
+      <ellipse cx="24" cy="25" rx="7" ry="2.6" stroke={C.encre} />
     </>
   ),
   // Cône de marquage.
   plot: (
     <>
       <path d="M24 8l10 28H14z" fill={C.orange} />
-      <path d="M24 8l10 28H14z" />
-      <path d="M18.5 26h11" />
+      <path d="M24 8l10 28H14z" stroke={C.encre} />
+      <path d="M18.5 26h11" stroke={C.encre} />
       <path d="M8 40h32" strokeWidth="3.2" />
     </>
   ),
@@ -136,11 +140,11 @@ const dessins: Record<ItemKind, React.ReactNode> = {
   boule: (
     <>
       <circle cx="18" cy="29" r="10" fill={C.acier} />
-      <circle cx="18" cy="29" r="10" />
+      <circle cx="18" cy="29" r="10" stroke={C.encre} />
       <circle cx="34" cy="32" r="7" fill={C.acier} />
-      <circle cx="34" cy="32" r="7" />
+      <circle cx="34" cy="32" r="7" stroke={C.encre} />
       <circle cx="31" cy="15" r="4" fill={C.bois} />
-      <circle cx="31" cy="15" r="4" />
+      <circle cx="31" cy="15" r="4" stroke={C.encre} />
     </>
   ),
   autre: (
