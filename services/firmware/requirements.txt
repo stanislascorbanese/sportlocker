@@ -4,7 +4,7 @@
 # Dev/CI utilisent plutôt `pip install -e .[dev]` qui résout depuis pyproject.
 
 paho-mqtt==2.1.0
-opencv-python==4.13.0.92
+opencv-python==5.0.0.93
 pyzbar==0.1.9
 python-jose[cryptography]==3.5.0
 # llrpy : non publié sur PyPI sous ce nom. RFID = feature future, on
