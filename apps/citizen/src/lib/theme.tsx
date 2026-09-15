@@ -1,128 +1,61 @@
 'use client'
 
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
-export type ThemeMode = 'light' | 'dark' | 'system'
-export type ResolvedTheme = 'light' | 'dark'
+/**
+ * Thème clair / sombre.
+ *
+ * Le clair est le défaut assumé : cette page s'ouvre devant une borne, dehors,
+ * souvent en plein soleil de juillet. Le sombre reste disponible pour l'usage
+ * de nuit et pour les vacanciers qui le préfèrent, et la préférence système est
+ * respectée quand aucun choix n'a été fait.
+ */
 
-interface ThemeContextValue {
-  mode: ThemeMode
-  resolved: ResolvedTheme
-  setMode: (mode: ThemeMode) => void
+export type Theme = 'light' | 'dark'
+const STORAGE_KEY = 'sl-theme'
+
+interface ThemeValue {
+  theme: Theme
   toggle: () => void
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null)
+const ThemeContext = createContext<ThemeValue>({ theme: 'light', toggle: () => {} })
 
-const STORAGE_KEY = 'sl-theme'
+/** Script inliné dans <head> : évite le flash de thème avant l'hydratation. */
+export const themeBootScript = `(function(){try{
+var t=localStorage.getItem('${STORAGE_KEY}');
+if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+if(t==='dark')document.documentElement.classList.add('dark');
+document.documentElement.dataset.theme=t;
+}catch(e){}})()`
 
-/**
- * Lit la préférence stockée + système. Inline-safe (utilisée aussi par le
- * script anti-FOUC injecté dans `<head>`). Toute modif ici doit être
- * répliquée dans `applyInitialTheme()` côté layout.tsx pour rester en sync.
- */
-function resolveTheme(mode: ThemeMode): ResolvedTheme {
-  if (mode !== 'system') return mode
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return 'dark'
-  }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light'
+function readTheme(): Theme {
+  if (typeof document === 'undefined') return 'light'
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
-function applyTheme(resolved: ResolvedTheme) {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  root.classList.toggle('dark', resolved === 'dark')
-  // Met à jour le meta theme-color pour la status bar PWA iOS/Android.
-  const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) {
-    meta.setAttribute('content', resolved === 'dark' ? '#0D1B2A' : '#FFFFFF')
-  }
-}
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>('light')
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('dark')
-  const [mounted, setMounted] = useState(false)
-
-  // Hydrate depuis localStorage au mount. Pour éviter le flash, le script
-  // inline du <head> a déjà posé la classe `dark` ; on resync juste l'état
-  // React ici.
   useEffect(() => {
-    try {
-      const stored = window.localStorage?.getItem(STORAGE_KEY) as ThemeMode | null
-      if (stored === 'light' || stored === 'dark' || stored === 'system') {
-        setModeState(stored)
-      }
-    } catch {
-      // mode privé Safari : on garde le défaut 'dark', plus de persistence.
-    }
-    setMounted(true)
-  }, [])
-
-  // Écoute les changements de prefers-color-scheme système quand mode === 'system'.
-  useEffect(() => {
-    if (mode !== 'system') return
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme(resolveTheme('system'))
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [mode])
-
-  // Applique le thème à chaque changement de mode résolu.
-  useEffect(() => {
-    if (!mounted) return
-    applyTheme(resolveTheme(mode))
-  }, [mode, mounted])
-
-  const setMode = useCallback((m: ThemeMode) => {
-    try {
-      window.localStorage?.setItem(STORAGE_KEY, m)
-    } catch {
-      // ignore — perte de persistence, pas de blocage du switch.
-    }
-    setModeState(m)
+    setTheme(readTheme())
   }, [])
 
   const toggle = useCallback(() => {
-    setModeState((prev) => {
-      const next: ThemeMode = prev === 'dark' ? 'light' : 'dark'
+    setTheme((current) => {
+      const next: Theme = current === 'dark' ? 'light' : 'dark'
+      document.documentElement.classList.toggle('dark', next === 'dark')
+      document.documentElement.dataset.theme = next
       try {
-        window.localStorage?.setItem(STORAGE_KEY, next)
+        localStorage.setItem(STORAGE_KEY, next)
       } catch {
-        // ignore
+        /* navigation privée : on garde le thème pour la session en cours */
       }
       return next
     })
   }, [])
 
-  const value = useMemo<ThemeContextValue>(
-    () => ({
-      mode,
-      resolved: resolveTheme(mode),
-      setMode,
-      toggle,
-    }),
-    [mode, setMode, toggle],
-  )
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>
 }
 
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext)
-  if (!ctx) {
-    throw new Error('useTheme must be used inside <ThemeProvider>')
-  }
-  return ctx
-}
+export const useTheme = () => useContext(ThemeContext)

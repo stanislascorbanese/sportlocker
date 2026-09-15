@@ -496,6 +496,58 @@ CREATE TABLE wallet_topups (
 CREATE INDEX idx_wallet_topups_user   ON wallet_topups(user_id);
 CREATE INDEX idx_wallet_topups_status ON wallet_topups(status, created_at);
 
+-- ─── stays / loans ─────────────────────────────────────────────────────────
+--  Modèle camping (septembre 2026) : le vacancier n'a pas de compte, il existe
+--  le temps de son séjour. Voir migrations/0021_stays_and_loans.sql pour le
+--  raisonnement complet et les index.
+
+CREATE TABLE IF NOT EXISTS stays (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  commune_id    UUID NOT NULL REFERENCES communes(id) ON DELETE CASCADE,
+  stay_ref      VARCHAR(32)  NOT NULL,
+  last_name     VARCHAR(120) NOT NULL,
+  first_name    VARCHAR(120),
+  arrives_on    DATE NOT NULL,
+  departs_on    DATE NOT NULL,
+  import_batch  UUID,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT stays_dates_check CHECK (departs_on >= arrives_on)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_stays_commune_ref_arrival
+  ON stays(commune_id, stay_ref, arrives_on);
+CREATE INDEX IF NOT EXISTS idx_stays_commune_ref ON stays(commune_id, stay_ref);
+CREATE INDEX IF NOT EXISTS idx_stays_window      ON stays(commune_id, departs_on);
+
+CREATE TABLE IF NOT EXISTS loans (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stay_id            UUID NOT NULL REFERENCES stays(id) ON DELETE RESTRICT,
+  distributor_id     UUID NOT NULL REFERENCES distributors(id) ON DELETE RESTRICT,
+  locker_id          UUID NOT NULL REFERENCES lockers(id) ON DELETE RESTRICT,
+  item_id            UUID NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+  borrowed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  returned_at        TIMESTAMPTZ,
+  return_locker_id   UUID REFERENCES lockers(id) ON DELETE SET NULL,
+  charged_at         TIMESTAMPTZ,
+  charged_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT loans_return_order_check CHECK (returned_at IS NULL OR returned_at >= borrowed_at)
+);
+
+-- Un seul emprunt vivant par séjour, et un article jamais dehors deux fois.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_loans_one_live_per_stay
+  ON loans(stay_id) WHERE returned_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_loans_one_live_per_item
+  ON loans(item_id) WHERE returned_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_loans_open
+  ON loans(distributor_id, borrowed_at DESC) WHERE returned_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_loans_stay     ON loans(stay_id);
+CREATE INDEX IF NOT EXISTS idx_loans_borrowed ON loans(borrowed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_loans_distributor_borrowed
+  ON loans(distributor_id, borrowed_at DESC);
+
 -- ─── Triggers updated_at ───────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION trg_set_updated_at() RETURNS trigger AS $$
@@ -510,7 +562,8 @@ DECLARE t TEXT;
 BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'communes', 'users', 'distributors', 'lockers', 'items',
-    'reservations', 'maintenance_tickets', 'pricing_rules', 'payments'
+    'reservations', 'maintenance_tickets', 'pricing_rules', 'payments',
+    'stays', 'loans'
   ])
   LOOP
     EXECUTE format(

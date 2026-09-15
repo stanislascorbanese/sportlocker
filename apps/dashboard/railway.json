@@ -5,6 +5,7 @@
     "dockerfilePath": "apps/dashboard/Dockerfile",
     "watchPatterns": [
       "apps/dashboard/**",
+      "packages/config/**",
       "packages/types/**",
       "package.json",
       "pnpm-lock.yaml",
@@ -14,7 +15,7 @@
     ]
   },
   "deploy": {
-    "healthcheckPath": "/",
+    "healthcheckPath": "/login",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5

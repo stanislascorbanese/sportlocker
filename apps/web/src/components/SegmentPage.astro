@@ -1,0 +1,186 @@
+---
+import Base from '@/layouts/Base.astro'
+import ContactForm from '@/components/ContactForm.astro'
+import FinalCta from '@/components/FinalCta.astro'
+import {
+  SEGMENT_META,
+  DOTATION,
+  HORS_CATALOGUE,
+  A_VOTRE_CHARGE,
+  ENGAGEMENTS,
+  buildSegmentSchemas,
+  type TenantSegment,
+} from '@/data/site'
+
+/**
+ * La page d'un public autre que le camping.
+ *
+ * Une seule page pour les trois, parce que ce qu'on vend est rigoureusement le
+ * même objet : la borne ne sait pas si elle est dans un camping ou dans la cour
+ * d'un hôtel. Ce qui change, c'est ce que l'exploitant vient chercher, et c'est
+ * exactement ce que la page reçoit en propriétés.
+ *
+ * Trois copies auraient divergé au premier changement de prix — c'est ce qui
+ * était arrivé en mai avec les trois segments de l'époque, qui annonçaient
+ * chacun un modèle économique différent.
+ */
+
+interface Props {
+  segment: TenantSegment
+  /** Le titre de la page. Deux lignes : le contexte, puis la promesse. */
+  titre: string
+  titreAccent: string
+  intro: string
+  /** Ce que ce public vit aujourd'hui, dans ses mots. */
+  constat: string[]
+  /** Les trois raisons qui lui parlent, à lui. */
+  raisons: { titre: string; detail: string }[]
+  /** La différence honnête avec le camping, s'il y en a une. */
+  nuance?: string | undefined
+}
+
+const { segment, titre, titreAccent, intro, constat, raisons, nuance } = Astro.props
+const meta = SEGMENT_META[segment]
+---
+
+<Base
+  title={meta.titreCourt}
+  description={meta.metaDescription}
+  extraJsonLd={buildSegmentSchemas(segment)}
+>
+  <section class="section pt-36 sm:pt-40">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>{meta.label}</span>
+      <h1 class="section-title mt-3 mb-6" data-reveal data-reveal-delay="1">
+        {titre}<br /><span class="text-brand-400">{titreAccent}</span>
+      </h1>
+      <p class="section-sub max-w-2xl" data-reveal data-reveal-delay="2">{intro}</p>
+      <p class="mt-5 text-[0.95rem] leading-relaxed opacity-75 max-w-2xl" data-reveal data-reveal-delay="3">
+        C’est la même borne que dans un camping, au même prix : huit casiers, une prise 230 V,
+        la 4G intégrée. Les cotes sont sur la <a href="/la-borne" class="lien-texte">fiche
+        technique</a>. Les trois formules sont sur la page
+        <a href="/tarifs" class="lien-texte">tarifs</a>, et le parcours du client dans
+        <a href="/comment-ca-marche" class="lien-texte">comment ça marche</a>.
+      </p>
+    </div>
+  </section>
+
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Aujourd’hui</span>
+      <h2 class="section-title mt-3 mb-8" data-reveal data-reveal-delay="1">
+        Ce qu’on nous décrit.
+      </h2>
+      <ul class="grid gap-3 sm:grid-cols-2" data-reveal data-reveal-delay="2">
+        {constat.map((c) => (
+          <li class="card-dark p-5 text-[0.95rem] leading-relaxed">« {c} »</li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Ce que ça change</span>
+      <h2 class="section-title mt-3 mb-10" data-reveal data-reveal-delay="1">{meta.argument}</h2>
+      <div class="grid gap-5 md:grid-cols-3">
+        {raisons.map((r, i) => (
+          <div class="card-dark p-6" data-reveal data-reveal-delay={String(i + 1)}>
+            <h3 class="font-semibold text-lg mb-2">{r.titre}</h3>
+            <p class="text-[0.95rem] leading-relaxed opacity-80">{r.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      {nuance && (
+        <p class="mt-8 text-sm opacity-70 max-w-2xl" data-reveal>
+          <strong class="opacity-100">À savoir :</strong> {nuance}
+        </p>
+      )}
+    </div>
+  </section>
+
+  <!--
+    CE QU'IL Y A DEDANS, CE QUI SE PASSE QUAND ÇA CASSE, CE QUI RESTE À VOUS.
+
+    Les trois pages de segment faisaient six à sept cents mots là où une page
+    qui vise une requête disputée en fait neuf cents à mille deux cents. Le
+    manque n'était pas décoratif : à ce format, la page posait le problème et
+    la promesse, puis envoyait au formulaire sans jamais répondre aux trois
+    questions que se pose quelqu'un qui compare — qu'est-ce qu'il y a dans les
+    casiers, qui vient si ça tombe en panne, et qu'est-ce qui reste à ma charge.
+
+    Tout est lu depuis `produit.json` : aucune de ces lignes n'est propre à un
+    public, et c'est justement le propos — la borne ne sait pas où elle est
+    posée. Une seule source, donc trois pages qui ne peuvent pas se contredire
+    le jour où un délai change.
+  -->
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>La dotation</span>
+      <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+        Douze articles, choisis avec vous.
+      </h2>
+      <p class="section-sub max-w-2xl mb-8" data-reveal data-reveal-delay="2">
+        Un article par casier, huit casiers, et douze articles en rotation. Le contenu se
+        décide avec vous avant la pose. Il s’ajuste après la première saison : le tableau de
+        bord dit ce qui sort et ce qui dort.
+      </p>
+      <div class="grid gap-4 sm:grid-cols-2" data-reveal data-reveal-delay="3">
+        {DOTATION.map((d) => (
+          <div class="card-dark p-5">
+            <h3 class="font-semibold mb-1">{d.titre}</h3>
+            <p class="text-sm opacity-75 leading-relaxed">{d.detail}</p>
+          </div>
+        ))}
+      </div>
+      <p class="text-sm opacity-60 mt-6 max-w-2xl" data-reveal>{HORS_CATALOGUE}</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Nos engagements</span>
+      <h2 class="section-title mt-3 mb-8" data-reveal data-reveal-delay="1">
+        Des délais écrits, pas promis.
+      </h2>
+      <div class="grid gap-4 sm:grid-cols-2" data-reveal data-reveal-delay="2">
+        {ENGAGEMENTS.map((e) => (
+          <div class="card-dark p-5">
+            <h3 class="font-semibold mb-1">{e.titre}</h3>
+            <p class="text-sm opacity-75 leading-relaxed">{e.detail}</p>
+          </div>
+        ))}
+      </div>
+      <p class="text-sm opacity-70 mt-6 max-w-2xl" data-reveal>
+        Le détail des interventions, des garanties et de la fin de contrat est sur la page
+        <a href="/installation-sav" class="lien-texte">installation et SAV</a>.
+      </p>
+    </div>
+  </section>
+
+  <section class="section-alt">
+    <div class="container-x max-w-4xl">
+      <span class="eyebrow" data-reveal>Ce qui reste à votre charge</span>
+      <h2 class="section-title mt-3 mb-4" data-reveal data-reveal-delay="1">
+        Quatre choses, et elles sont écrites.
+      </h2>
+      <p class="section-sub max-w-2xl mb-8" data-reveal data-reveal-delay="2">
+        Écrit ici pour éviter le litige, pas pour l’éviter. Le reste — matériel, maintenance,
+        remplacement des pièces d’usure — est compris dans les
+        <a href="/tarifs" class="lien-texte">trois formules</a>.
+      </p>
+      <ul class="check-list" data-reveal data-reveal-delay="3">
+        {A_VOTRE_CHARGE.map((item) => <li>{item}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="formulaire">
+    <div class="container-x">
+      <ContactForm segment={segment} />
+    </div>
+  </section>
+
+  <FinalCta />
+</Base>
