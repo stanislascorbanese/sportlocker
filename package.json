@@ -14,11 +14,11 @@
     "db:studio":  "pnpm --filter @sportlocker/api db:studio"
   },
   "devDependencies": {
-    "turbo":            "^2.10.3",
+    "turbo":            "^2.10.12",
     "typescript":       "^5.9.3",
     "eslint":           "^8.57.1",
-    "@types/node":      "^26.1.0",
-    "prettier":         "^3.9.4"
+    "@types/node":      "^26.5.1",
+    "prettier":         "^3.9.6"
   },
   "pnpm": {
     "//overrides": "Overrides de sécurité — forcent les versions patchées pour les vulns ≥ high (cf. docs/SECURITY.md §9). La forme `paquet@plage` cible une ligne de version précise : le sélecteur est comparé à la plage que déclare le dépendant, pas à la version résolue, d'où `@>=4` plutôt que `@4` : brace-expansion et fast-uri vivent en plusieurs majeures dans l'arbre, et forcer une seule version pour toutes casserait les paquets qui dépendent de l'ancienne API.",
