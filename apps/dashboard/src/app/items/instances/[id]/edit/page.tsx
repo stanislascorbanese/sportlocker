@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { ApiError, fetchAdminItemTypes, fetchItem } from '../../../../../lib/api'
+import { isDemoFallbackEnabled } from '../../../../../lib/demo-fallback'
 import { getLang } from '../../../../../lib/lang-server'
 import { commonStrings } from '../../../../../lib/i18n/common'
 import { itemsStrings } from '../../../../../lib/i18n/items'
@@ -31,7 +32,10 @@ export default async function EditItemPage({
       types = await fetchAdminItemTypes()
     } catch {
       // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
-      types = (await import('../../../../../lib/demo-data')).DEMO_ITEM_TYPES
+      // Coupé en prod (garde) : on affiche un catalogue vide réel, pas de fixtures.
+      types = isDemoFallbackEnabled()
+        ? (await import('../../../../../lib/demo-data')).DEMO_ITEM_TYPES
+        : []
     }
     try {
       lockers = await fetchAllLockerOptions()

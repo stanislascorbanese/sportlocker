@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import { USER_ROLES, fetchUsers, type AdminUser, type UserRole } from '../../lib/api'
 import { RefreshButton } from '../../components/RefreshButton'
+import { isDemoFallbackEnabled } from '../../lib/demo-fallback'
 import { getLang } from '../../lib/lang-server'
 import { commonStrings } from '../../lib/i18n/common'
 import { usersStrings, userRoleLabel } from '../../lib/i18n/users'
@@ -52,7 +53,7 @@ export default async function UsersPage({
   }
 
   const noFilter = !role && !banned && !q
-  const useDemo = fetchError !== null || (realUsers.length === 0 && noFilter)
+  const useDemo = isDemoFallbackEnabled() && (fetchError !== null || (realUsers.length === 0 && noFilter))
 
   // Lazy-load demo-data uniquement en fallback (code-splitting serveur).
   let users = useDemo

@@ -8,6 +8,7 @@ import {
   type MaintenanceTicketDetail,
 } from '../../../lib/api'
 import { cn } from '../../../lib/cn'
+import { isDemoFallbackEnabled } from '../../../lib/demo-fallback'
 import { RefreshButton } from '../../../components/RefreshButton'
 import { getLang } from '../../../lib/lang-server'
 import { commonStrings, fmtDateTime } from '../../../lib/i18n/common'
@@ -60,8 +61,13 @@ export default async function MaintenanceTicketPage(
     fetchError = err instanceof Error ? err.message : 'API unreachable'
   }
 
-  const useDemo = ticket === null
-  if (!ticket) ticket = await demoDetail(id)
+  const useDemo = isDemoFallbackEnabled() && (ticket === null)
+  if (!ticket) {
+    // Sans fallback démo (prod), on ne fabrique pas de ticket fictif : on
+    // propage l'erreur d'API réelle (ou 404) plutôt qu'un faux ticket.
+    if (!useDemo) notFound()
+    ticket = await demoDetail(id)
+  }
 
   // Admins de la commune pour le sélecteur d'assignation (échoue silencieusement
   // en démo → sélecteur avec la seule option "non assigné").
