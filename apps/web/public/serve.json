@@ -37,9 +37,14 @@
       ]
     }
   ],
+  "redirects": [
+    { "source": "/campings", "destination": "/", "type": 301 },
+    { "source": "/mairies", "destination": "/pour-qui", "type": 301 },
+    { "source": "/communes", "destination": "/pour-qui", "type": 301 },
+    { "source": "/couverture", "destination": "/installation-sav", "type": 301 },
+    { "source": "/faq", "destination": "/installation-sav#faq", "type": 301 }
+  ],
   "rewrites": [
-    { "source": "/mairies", "destination": "/mairies/index.html" },
-    { "source": "/campings", "destination": "/campings/index.html" },
     { "source": "/hotels", "destination": "/hotels/index.html" },
     { "source": "/tarifs", "destination": "/tarifs/index.html" },
     { "source": "/contact", "destination": "/contact/index.html" },

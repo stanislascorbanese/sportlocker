@@ -42,8 +42,8 @@ const piliers = [
 ---
 
 <Base
-  title="Le matériel de sport de votre camping, en libre-service"
-  description="Une borne de 8 casiers connectés dans votre camping. Vos clients empruntent ballon, raquette ou matériel de plage avec leur numéro de séjour, 24 h/24, sans passer par l’accueil. Saison pilote à 149 € HT/mois, achat à 4 500 € HT."
+  title="Matériel de sport de camping, libre-service"
+  description="Une borne de 8 casiers connectés dans votre camping. Vos clients empruntent ballon ou raquette 24 h/24 avec leur numéro de séjour. Dès 149 € HT/mois."
   extraJsonLd={buildSegmentSchemas('camping')}
 >
   <Hero
@@ -132,10 +132,10 @@ const piliers = [
           Deux critères de la grille,<br/>sans embaucher personne.
         </h2>
         <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
-          La grille de classement des terrains de camping demande, au niveau 4 étoiles, de
-          proposer de la location de matériel sur place et de mettre à disposition le prêt de
-          jeux et de raquettes. Une borne SportLocker répond aux deux, sans mobiliser votre
-          accueil et sans saisonnier dédié.
+          La grille de classement des campings demande deux choses au niveau 4 étoiles. De la
+          location de matériel sur place. Et le prêt de jeux et de raquettes. Une <a href="/la-borne" class="lien-texte">borne de huit casiers</a> y répond
+          des deux côtés, sans mobiliser votre accueil ni embaucher un saisonnier. Elle
+          s’installe aussi en <a href="/pour-qui" class="lien-texte">hôtel, en village vacances ou sur une base de loisirs</a>.
         </p>
         <p class="text-xs text-white/40 mt-6 font-light" data-reveal data-reveal-delay="3">
           Référentiel Atout France, chapitre équipements et services. Vérifiez le libellé exact
@@ -193,30 +193,6 @@ const piliers = [
 
       <div class="text-center mt-12">
         <a href="/tarifs" class="btn btn-outline">Le détail de chaque formule →</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- LA BORNE -->
-  <section class="section-alt">
-    <div class="container-x">
-      <div class="text-center mb-10 max-w-3xl mx-auto">
-        <span class="eyebrow" data-reveal>La borne</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Voilà ce qui arrive<br/><span class="text-brand-400">dans votre camping.</span>
-        </h2>
-        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Faites-la pivoter, ouvrez les portes. Huit casiers, une prise 230 V, une carte SIM.
-          Pas de génie civil, pas de raccordement à votre réseau.
-        </p>
-      </div>
-
-      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
-        <LockerDistributor3D />
-      </div>
-
-      <div class="text-center mt-10">
-        <a href="/la-borne" class="btn btn-outline">Fiche technique et prérequis →</a>
       </div>
     </div>
   </section>
@@ -283,9 +259,9 @@ const piliers = [
           Trois campings pilotes recherchés
         </h2>
         <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          En Vendée et Loire-Atlantique, pour la saison 2027. Et si vous voulez simplement nous
-          raconter comment vous prêtez du matériel aujourd’hui, c’est utile aussi — c’est même
-          ce qui nous intéresse le plus en ce moment.
+          En Vendée et Loire-Atlantique, pour la saison 2027. Et si vous voulez juste nous
+          raconter comment vous prêtez du matériel aujourd’hui, c’est utile aussi. C’est même ce
+          qui nous intéresse le plus en ce moment.
         </p>
       </div>
       <ContactForm segment="camping" />
@@ -306,6 +282,45 @@ const piliers = [
       </p>
     </div>
   </section>
+
+  <!--
+    LA BORNE — volontairement en fin de page.
+
+    Elle était au milieu, juste après les tarifs. Elle ferme désormais le
+    parcours, et c'est sur elle que la cascade vient se refermer : la borne 3D
+    du décor se pose exactement sur la borne interactive de cette section, se
+    referme, et l'une devient l'autre. Le visiteur finit sur l'objet par lequel
+    il a commencé, et il peut le manipuler.
+
+    Conséquence à assumer : la fiche détaillée du produit arrive après les
+    tarifs et les engagements. C'est le bon ordre pour quelqu'un qui veut
+    savoir combien ça coûte avant de savoir comment c'est fait.
+  -->
+  <!-- LA BORNE -->
+  <section class="section-alt">
+    <div class="container-x">
+      <div class="text-center mb-10 max-w-3xl mx-auto">
+        <span class="eyebrow" data-reveal>La borne</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Voilà ce qui arrive<br/><span class="text-brand-400">dans votre camping.</span>
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Faites-la pivoter, ouvrez les portes. Huit casiers, une prise 230 V, une carte SIM.
+          Pas de génie civil, pas de raccordement à votre réseau. Le détail des cotes est sur la
+          <a href="/la-borne" class="lien-texte">fiche technique</a> ; ce qui se passe en cas de panne est <a href="/installation-sav" class="lien-texte">écrit ici</a>.
+        </p>
+      </div>
+
+      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
+        <LockerDistributor3D />
+      </div>
+
+      <div class="text-center mt-10">
+        <a href="/la-borne" class="btn btn-outline">Fiche technique et prérequis →</a>
+      </div>
+    </div>
+  </section>
+
 
   <FinalCta
     title="Trente minutes sur votre site."

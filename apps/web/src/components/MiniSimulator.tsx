@@ -84,7 +84,7 @@ export default function MiniSimulator() {
 
       <p className="text-xs text-white/40 font-light mt-7 leading-relaxed">
         Environ une borne pour {EMPLACEMENTS_PAR_BORNE} emplacements. Le nombre exact se décide
-        sur place : ce qui compte n’est pas la taille du camping mais la distance entre la borne
+        sur place. Ce qui compte n’est pas la taille du camping, mais la distance entre la borne
         et vos terrains.
       </p>
     </div>

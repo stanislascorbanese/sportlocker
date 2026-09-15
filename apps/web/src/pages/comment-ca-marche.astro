@@ -87,13 +87,13 @@ const jsonLd = [
 
 <Base
   title="Comment ça marche"
-  description="Le parcours complet : le vacancier scanne, saisit son numéro de séjour, le casier s’ouvre. Côté exploitant, un écran de réassort et la liste des articles non rendus. Prise 230 V, 4G intégrée, aucun génie civil."
+  description="Le vacancier scanne, saisit son numéro de séjour, le casier s’ouvre. Côté accueil, un écran de réassort et la liste des articles non rendus."
   extraJsonLd={jsonLd}
 >
   <Hero
     tag="Le fonctionnement, en détail"
-    title="Trois gestes pour le vacancier,"
-    highlight="un écran pour votre accueil."
+    title="Le prêt de matériel, geste par geste."
+    highlight="Trois pour le vacancier, un écran pour votre accueil."
     desc="Pas d’application à installer, pas de compte à créer, pas de carte bancaire. Le numéro de séjour suffit — vous l’avez déjà."
     primary={{ href: '/contact#formulaire', label: 'En parler 15 minutes' }}
     secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
@@ -107,6 +107,12 @@ const jsonLd = [
         <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
           Trente secondes,<br/>de la borne au terrain.
         </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Sans application à installer, sans compte à créer, sans passer par l’accueil. Le
+          matériel disponible est celui de la <a href="/la-borne" class="lien-texte">dotation
+          choisie avec vous</a> ; ce que ça coûte est sur la page
+          <a href="/tarifs" class="lien-texte">tarifs</a>.
+        </p>
       </div>
       <ol class="space-y-4">
         {vacancier.map((s, i) => (
@@ -145,25 +151,6 @@ const jsonLd = [
     </div>
   </section>
 
-  <!-- BORNE 3D -->
-  <section id="distributeur-3d" class="section-alt">
-    <div class="container-x">
-      <div class="text-center mb-10 max-w-3xl mx-auto">
-        <span class="eyebrow" data-reveal>La borne</span>
-        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
-          Faites-la tourner.
-        </h2>
-        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
-          Ouvrez les portes, survolez les étiquettes. Le rendu correspond à la borne en cours
-          d’assemblage ; les dimensions définitives seront figées après le prototype.
-        </p>
-      </div>
-      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
-        <LockerDistributor3D />
-      </div>
-    </div>
-  </section>
-
   <!-- FICHE TECHNIQUE -->
   <section class="section">
     <div class="container-x max-w-4xl">
@@ -178,6 +165,26 @@ const jsonLd = [
             <div class="text-sm text-white/70 font-light leading-relaxed">{t.value}</div>
           </div>
         ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- BORNE 3D -->
+  <section id="distributeur-3d" class="section-alt">
+    <div class="container-x">
+      <div class="text-center mb-10 max-w-3xl mx-auto">
+        <span class="eyebrow" data-reveal>La borne</span>
+        <h2 class="section-title mt-3" data-reveal data-reveal-delay="1">
+          Faites-la tourner.
+        </h2>
+        <p class="section-sub mt-4 mx-auto text-center" data-reveal data-reveal-delay="2">
+          Ouvrez les portes, survolez les étiquettes. Le rendu correspond à la borne en cours
+          d’assemblage ; les dimensions définitives seront figées après le prototype. Les cotes
+          provisoires et les prérequis d’installation sont sur la <a href="/la-borne" class="lien-texte">fiche de la borne</a>.
+        </p>
+      </div>
+      <div class="max-w-5xl mx-auto" data-reveal data-reveal-delay="3">
+        <LockerDistributor3D />
       </div>
     </div>
   </section>

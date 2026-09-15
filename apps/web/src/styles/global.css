@@ -17,8 +17,13 @@
   --brand-lt: #2BC295;
   /* Texte tertiaire (notes de bas de carte, précisions de tarif). Il était
      référencé par .spec-note sans jamais être défini : la note restait blanche
-     en thème clair, donc invisible sur fond blanc. */
-  --text-2: rgba(248, 250, 252, 0.45);
+     en thème clair, donc invisible sur fond blanc.
+
+     0,58 et non 0,45. À 0,45 le ratio tombait à 4,29:1 sur le fond de page et
+     3,94:1 sur une carte, pour un seuil WCAG AA de 4,5:1 — et c'est la couleur
+     de la ligne « + 790 € HT / saison », c'est-à-dire précisément le chiffre
+     qu'un gérant cherche avant de décider. À 0,58 : 6,27:1 et 5,49:1. */
+  --text-2: rgba(248, 250, 252, 0.58);
   /* Vert lisible sur fond clair (ratio ≈ 6,3:1 sur blanc). Le brand-400 du
      thème sombre tombe à 2,3:1 en clair — illisible pour du petit texte. */
   --brand-on-light: #2BC295;
@@ -31,7 +36,9 @@ html.light {
   --text-1: #5E7080;
   --border: rgba(0, 0, 0, 0.09);
   --card-bg: rgba(0, 0, 0, 0.03);
-  --text-2: rgba(28, 40, 51, 0.55);
+  /* Même correction en clair : 0,55 donnait 3,54:1 sur blanc, 0,68 donne
+     5,26:1 — et 5,08:1 sur le gris des cartes. */
+  --text-2: rgba(28, 40, 51, 0.68);
   --brand-on-light: #0F6E56;
 }
 
@@ -577,6 +584,35 @@ html.js [data-reveal].reveal-visible {
 }
 .cta-finale-link:hover { color: #fff; }
 
+/* ─── Le lien dans le texte ───────────────────────────────────────────────────
+ *
+ * Le site n'en avait aucun : quinze liens par page, tous dans la navigation et
+ * le pied, donc exactement le même maillage partout. Un moteur mesure
+ * l'importance d'une page au nombre de liens internes qui la visent ; quand
+ * elles en ont toutes autant, il n'a rien à mesurer. Et un lecteur qui se
+ * demande « oui, mais combien ça coûte ? » au milieu d'un paragraphe ne va pas
+ * chercher la réponse dans le menu.
+ *
+ * Souligné, pas coloré en vert : le vert de marque sert déjà aux accents de
+ * titre et aux boutons. Un troisième emploi de la même couleur ne se lit plus
+ * comme un lien, il se lit comme de l'emphase.
+ */
+.lien-texte {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  transition: text-decoration-color 0.18s, color 0.18s;
+}
+.lien-texte:hover,
+.lien-texte:focus-visible {
+  color: var(--brand-lt);
+  text-decoration-color: currentColor;
+}
+html.light .lien-texte:hover,
+html.light .lien-texte:focus-visible { color: var(--brand-on-light); }
+
 /* ─── Light mode overrides for page backgrounds ──────────────────────────────── */
 html.light .bg-navy-900 { background-color: var(--bg-0) !important; }
 html.light .bg-navy-800 { background-color: var(--bg-1) !important; }
@@ -604,6 +640,22 @@ html.light [class*="text-white/35"],
 html.light [class*="text-white/40"],
 html.light [class*="text-white/45"],
 html.light [class*="text-white/50"] { color: var(--text-2) !important; }
+/* Plancher de contraste du texte secondaire en SOMBRE.
+ *
+ * Le thème clair ramenait déjà `text-white/35` à `/50` sur `--text-2` ; le
+ * thème sombre, lui, les laissait tels quels — et Tailwind les applique
+ * littéralement. Or sur le fond d'une carte (#1A2E42), /40 donne 3,4:1, /45
+ * 3,94:1 et /50 4,49:1, tous sous le seuil AA de 4,5. Ce sont trente et une
+ * occurrences dans les pages : des précisions, des notes, des légendes —
+ * jamais des titres, donc jamais du « gros texte » qui se contenterait de 3:1.
+ *
+ * 0,55 est le plancher qui passe partout : 5,80:1 sur la page, 5,10:1 sur une
+ * carte. C'est un rehaussement discret, pas un changement de hiérarchie. */
+[class*="text-white/35"],
+[class*="text-white/40"],
+[class*="text-white/45"],
+[class*="text-white/50"] { color: rgba(248, 250, 252, 0.55); }
+
 html.light [class*="border-white/"] { border-color: var(--border) !important; }
 html.light [class*="bg-white/"] { background-color: var(--card-bg) !important; }
 
@@ -751,6 +803,12 @@ html.light .hero-blob-1 {
   /* Intensité de la cascade 3D. En clair, les objets se détachent bien plus du
      fond qu'en sombre : la même valeur donnerait un décor criard. */
   --cascade-opacity: 1;
+  /* Voile porté par chaque bloc de texte. Plus dense que `--wash` : celui-ci
+     ne couvre qu'une ellipse autour du texte, il peut donc se permettre d'être
+     franc là où il agit sans assombrir la page. */
+  --wash-text: rgba(13, 27, 42, 0.88);
+  /* Le fond plein des cartes sur téléphone. Voir la règle mobile plus bas. */
+  --card-plein: rgba(15, 30, 46, 0.9);
 }
 
 html.light {
@@ -759,6 +817,8 @@ html.light {
   --glow-cool: rgba(148, 187, 214, 0.2);
   --grain-opacity: 0.035;
   --cascade-opacity: 0.6;
+  --wash-text: rgba(255, 255, 255, 0.9);
+  --card-plein: rgba(255, 255, 255, 0.93);
 }
 
 /* Sur téléphone il n'y a pas de marge où reléguer le décor : le masque ne
@@ -771,6 +831,51 @@ html.light {
   }
   html.light {
     --cascade-opacity: 0.3;
+  }
+
+  /* ─── LE DÉCOR PASSE DERRIÈRE, PAS AU TRAVERS ───────────────────────────
+   *
+   * Le masque qui creuse la colonne centrale ne s'applique qu'au-dessus de
+   * 768 px, faute de marges où reléguer le décor. En dessous, une scène passe
+   * forcément derrière le texte — et le contraste statique ne dit rien du
+   * problème réel : ce ne sont pas les objets qui gênent, ce sont les TRAITS.
+   * Une baguette néon du terrain de pétanque traverse une carte de part en
+   * part, et la phrase qu'elle croise devient illisible sur trois mots.
+   *
+   * Deux règles, et seulement sur téléphone.
+   *
+   * La première donne aux sections impaires le voile que les paires avaient
+   * déjà : sur un écran de 390 px, l'alternance claire/sombre compte moins que
+   * de pouvoir lire un paragraphe. Le hero n'est pas concerné — il porte la
+   * classe `.hero-section`, pas `.section`, et c'est justement là que le décor
+   * doit se voir en entier.
+   *
+   * La seconde rend les cartes opaques. Le `backdrop-filter` les rendait
+   * translucides à dessein ; un flou de quatorze pixels adoucit une forme, il
+   * n'éteint pas une ligne lumineuse. Sur une carte, il y a du texte à lire et
+   * rien à voir derrière.
+   */
+  .section::before {
+    content: '';
+    position: absolute;
+    inset: -1px 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      var(--wash) 12%,
+      var(--wash) 88%,
+      transparent 100%
+    );
+  }
+  .card-dark {
+    background-color: var(--card-plein);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  html.light .card-dark {
+    background-color: var(--card-plein) !important;
   }
 }
 
@@ -846,4 +951,73 @@ footer {
   .hero-blob {
     animation: none;
   }
+}
+
+/* ─── Lisibilité du texte au-dessus de la cascade ─────────────────────────────
+ *
+ * Pas de voile. J'en avais posé un — une ellipse en dégradé derrière chaque
+ * bloc — et ça se voyait : un rectangle flou qui traîne derrière le texte est
+ * plus laid que le problème qu'il règle. Un fond qu'on remarque a échoué.
+ *
+ * L'ombre portée fait le même travail sans forme : elle épaissit le contraste
+ * autour des lettres, elle n'a pas de bord, donc rien à remarquer. Le décor
+ * reste entièrement visible, y compris à travers les interlignes.
+ */
+.section-title,
+.hero-section h1 {
+  text-shadow: 0 2px 24px var(--wash-text), 0 1px 3px var(--wash-text);
+}
+
+.section-sub,
+.hero-section p,
+.section .max-w-3xl > p,
+.section-alt .max-w-3xl > p {
+  text-shadow: 0 1px 14px var(--wash-text), 0 1px 2px var(--wash-text);
+}
+
+/* Les halos décoratifs du hero font 700 px et débordent volontairement du
+   cadre. Sans cette coupe ils créent une barre de défilement horizontale de
+   douze pixels — assez pour que la page se décale sous le doigt sur téléphone,
+   pas assez pour qu'on en trouve la cause à l'œil.
+   `clip` et non `hidden` : `hidden` établit un conteneur de défilement et
+   casse `position: sticky` sur tous les descendants. */
+html {
+  overflow-x: clip;
+}
+
+/* ─── Le bloc d'appel à l'action laisse passer le décor ───────────────────────
+ *
+ * Il portait un aplat vert opaque, et c'était le seul bloc de la page où la
+ * cascade s'arrêtait net — juste là où elle doit finir, sur la borne qui se
+ * referme. Le vert devient un voile posé par-dessus : la couleur de marque
+ * reste, la borne se devine derrière.
+ *
+ * Le voile est plus dense en haut qu'en bas pour que le titre garde son fond
+ * franc : c'est lui qui doit accrocher, pas le décor.
+ */
+.bg-cta-gradient {
+  position: relative;
+  /* Un voile, pas un aplat. À 0,88 le vert restait un mur : la borne qui se
+     referme juste au-dessus disparaissait derrière lui, et la fin de
+     l'animation tombait dans le vide. À 0,42 on voit le décor à travers, et le
+     vert reste franc parce qu'il est posé sur un fond déjà sombre. À 0,22 il
+     ne teinte plus que l'air : la borne passe franchement au travers. */
+  background-image: linear-gradient(
+    135deg,
+    rgba(15, 110, 86, 0.22) 0%,
+    rgba(21, 120, 90, 0.16) 50%,
+    rgba(29, 158, 117, 0.11) 100%
+  ) !important;
+  /* Le flou d'arrière-plan garde le titre lisible sans réopacifier le vert :
+     le décor reste visible, mais adouci derrière le texte. Ignoré par les
+     navigateurs qui ne le gèrent pas, où le voile seul suffit. */
+  backdrop-filter: blur(3px) saturate(1.1);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+}
+
+/* Le titre et les boutons portent leur propre ombre : sur un fond devenu
+   translucide, le blanc pur a besoin d'être détaché de ce qui passe derrière. */
+.bg-cta-gradient h2,
+.bg-cta-gradient p {
+  text-shadow: 0 2px 18px rgba(6, 24, 20, 0.75), 0 1px 3px rgba(6, 24, 20, 0.6);
 }

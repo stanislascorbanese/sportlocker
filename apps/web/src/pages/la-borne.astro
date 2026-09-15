@@ -3,7 +3,7 @@ import Base from '@/layouts/Base.astro'
 import Hero from '@/components/Hero.astro'
 import FinalCta from '@/components/FinalCta.astro'
 import LockerDistributor3D from '@/components/LockerDistributor3D.astro'
-import { DOTATION, HORS_CATALOGUE, SITE, SPECS, recommendBornes } from '@/data/site'
+import { DOTATION, HORS_CATALOGUE, SITE, SPECS, buildBorneSchema, recommendBornes } from '@/data/site'
 
 /**
  * Fiche technique.
@@ -24,6 +24,9 @@ const dimensionnement = [
 ]
 
 const jsonLd = [
+  // La fiche technique elle-même, en `additionalProperty` : dix lignes que le
+  // lecteur vérifie et qu'aucun moteur ne pouvait lire.
+  ...buildBorneSchema(),
   {
     '@type': 'BreadcrumbList',
     itemListElement: [
@@ -36,13 +39,13 @@ const jsonLd = [
 
 <Base
   title="La borne — fiche technique et prérequis"
-  description="Encombrement, alimentation, connexion, fixation, contenu : tout ce qu’il faut vérifier avant d’installer une borne SportLocker. Une prise 230 V et une surface plane suffisent."
+  description="Encombrement, alimentation, connexion, fixation, contenu : tout ce qu’il faut vérifier avant l’installation. Une prise 230 V et un sol plat suffisent."
   extraJsonLd={jsonLd}
 >
   <Hero
     tag="Fiche technique"
-    title="Est-ce que ça rentre"
-    highlight="chez vous ?"
+    title="Une borne de huit casiers."
+    highlight="Est-ce que ça rentre chez vous ?"
     desc="Une prise 230 V, une surface plane, de préférence à l’abri. Pas de génie civil, pas de dalle à couler, aucun raccordement à votre réseau informatique."
     primary={{ href: '/contact#formulaire', label: 'Demander une visite' }}
     secondary={{ href: '/tarifs', label: 'Voir les tarifs' }}
@@ -83,7 +86,8 @@ const jsonLd = [
         <strong class="text-white/85">Où en est le produit.</strong> Le prototype est en cours
         d’assemblage pour des essais en octobre 2026, en vue d’installations au printemps 2027.
         Les cotes ci-dessus seront figées à l’issue de ces essais. Nous préférons vous l’écrire
-        ici plutôt que vous le découvrir le jour de la pose.
+        ici plutôt que vous le découvrir le jour de la pose. Les <a href="/tarifs" class="lien-texte">trois formules et leurs prix</a> de la saison 2027 sont déjà
+        arrêtés, eux.
       </p>
     </div>
   </section>
@@ -98,7 +102,8 @@ const jsonLd = [
         </h2>
         <p class="section-sub mx-auto text-center" data-reveal data-reveal-delay="2">
           Le contenu s’ajuste à votre clientèle après la première saison : les chiffres du
-          tableau de bord disent ce qui sort et ce qui dort.
+          tableau de bord disent ce qui sort et ce qui dort. Le tableau de bord et le parcours
+          du vacancier sont détaillés dans <a href="/comment-ca-marche" class="lien-texte">comment ça marche</a>.
         </p>
       </div>
 
@@ -139,7 +144,7 @@ const jsonLd = [
       </div>
       <p class="text-center text-xs text-white/40 font-light mt-8 max-w-2xl mx-auto" data-reveal>
         Ordre de grandeur pour situer. La bonne question n’est pas le nombre d’emplacements,
-        c’est la distance entre la borne et vos terrains : au-delà de deux ou trois minutes de
+        c’est la distance entre la borne et vos terrains. Au-delà de deux ou trois minutes de
         marche, les gens n’y vont plus.
       </p>
     </div>

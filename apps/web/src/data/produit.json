@@ -151,7 +151,7 @@
   ],
   "pms": {
     "titre": "Rien à changer dans votre logiciel",
-    "corps": "SportLocker ne se branche pas sur votre PMS et ne vous demande pas de le faire évoluer. Vous voyez la liste de ce qui n’est pas rentré, avec le nom du client et son emplacement, et vous le passez en mise en compte comme vous le faites déjà pour un vélo ou la laverie.",
+    "corps": "SportLocker ne se branche pas sur votre PMS et ne vous demande pas de le faire évoluer. Vous voyez la liste de ce qui n’est pas rentré, avec le nom du client et son emplacement. Vous le passez en mise en compte, comme vous le faites déjà pour un vélo ou la laverie.",
     "cite": "eSeason, Naxi Commerce, Secureholiday : aucune adaptation nécessaire, quel que soit le vôtre."
   },
   "emplacementsParBorne": 120
