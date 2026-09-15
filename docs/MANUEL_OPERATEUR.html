@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manuel opérateur — SportLocker ops</title>
+<style>
+  :root {
+    --brand: #0150F6;
+    --accent: #1D9E75;
+    --navy: #0D1B2A;
+    --ink: #1a2233;
+    --muted: #5b6472;
+    --line: #e3e7ee;
+    --bg-soft: #f5f7fb;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 15px;
+    background: #fff;
+  }
+  .page { max-width: 820px; margin: 0 auto; padding: 40px 44px 64px; }
+  header.cover {
+    display: flex; align-items: center; gap: 18px;
+    border-bottom: 3px solid var(--brand);
+    padding-bottom: 22px; margin-bottom: 8px;
+  }
+  .logo { width: 52px; height: 52px; flex: none; }
+  .brandline .name { font-size: 22px; font-weight: 700; color: var(--navy); letter-spacing: -0.01em; }
+  .brandline .name .ops { color: var(--accent); }
+  .brandline .sub { font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+  h1 { font-size: 27px; color: var(--navy); letter-spacing: -0.015em; line-height: 1.25; margin: 26px 0 6px; }
+  h2 {
+    font-size: 20px; color: var(--navy); margin: 40px 0 12px;
+    padding: 8px 0 8px 14px; border-left: 4px solid var(--brand);
+    background: linear-gradient(90deg, var(--bg-soft), transparent);
+    break-after: avoid;
+  }
+  h3 { font-size: 16px; color: var(--brand); margin: 26px 0 8px; break-after: avoid; }
+  p { margin: 8px 0; }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  strong { color: var(--navy); }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em; background: var(--bg-soft);
+    border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px;
+  }
+  hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+  blockquote {
+    margin: 14px 0; padding: 10px 16px;
+    border-left: 3px solid var(--accent);
+    background: #f2faf7; color: var(--muted); border-radius: 0 8px 8px 0;
+  }
+  blockquote p { margin: 0; }
+  ul, ol { margin: 8px 0 12px; padding-left: 26px; }
+  li { margin: 4px 0; }
+  table {
+    width: 100%; border-collapse: collapse; margin: 14px 0 18px;
+    font-size: 13.5px; break-inside: avoid;
+  }
+  th {
+    text-align: left; background: var(--navy); color: #fff;
+    padding: 8px 10px; font-weight: 600; font-size: 12.5px;
+  }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--bg-soft); }
+  .box {
+    margin: 14px 0; padding: 12px 16px; border-radius: 10px;
+    font-size: 14px; break-inside: avoid;
+  }
+  .box.warn { background: #fff7ed; border: 1px solid #fdba74; }
+  .box.tip { background: #ecfdf5; border: 1px solid #6ee7b7; }
+  .capture {
+    margin: 14px 0; padding: 18px; text-align: center;
+    border: 2px dashed #b9c2d0; border-radius: 10px;
+    color: var(--muted); font-size: 13px; background: var(--bg-soft);
+    break-inside: avoid;
+  }
+  footer.doc {
+    margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--muted); text-align: center;
+  }
+  @media print {
+    @page { size: A4; margin: 16mm 14mm; }
+    body { font-size: 11pt; }
+    .page { max-width: none; padding: 0; }
+    h2 { break-before: page; }
+    h1 + p + blockquote + hr + h2, header.cover + h1 { break-before: auto; }
+    a { color: var(--ink); }
+    tr, .box, .capture, blockquote { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+<header class="cover">
+  <svg class="logo" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="2" y="2" width="40" height="40" rx="9" fill="#0150F6"/>
+  <rect x="9" y="9" width="12" height="12" rx="2.5" fill="#fff" opacity=".95"/>
+  <rect x="23" y="9" width="12" height="12" rx="2.5" fill="#fff" opacity=".55"/>
+  <rect x="9" y="23" width="12" height="12" rx="2.5" fill="#fff" opacity=".55"/>
+  <rect x="23" y="23" width="12" height="12" rx="2.5" fill="#1D9E75"/>
+  <circle cx="29" cy="29" r="2.4" fill="#fff"/>
+</svg>
+  <div class="brandline">
+    <div class="name">SportLocker <span class="ops">· ops</span></div>
+    <div class="sub">Manuel utilisateur opérateur — ops.sportlocker.fr</div>
+  </div>
+</header>
+<h1 id="manuel-utilisateur--dashboard-opérateur-sportlocker">Manuel utilisateur — Dashboard opérateur SportLocker</h1>
+<p><strong>ops.sportlocker.fr</strong> · Guide destiné aux agents municipaux et gérants de camping</p>
+<blockquote><p>Version de juillet 2026 — rédigé à partir de la version en production du dashboard. Ce manuel décrit uniquement les fonctionnalités réellement disponibles à l'écran.</p></blockquote>
+<hr>
+<h2 id="table-des-matières">Table des matières</h2>
+<ol>
+<li><a href="#1-bienvenue">Bienvenue</a></li>
+<li><a href="#2-prise-en-main">Prise en main</a></li>
+<li><a href="#3-tableau-de-bord-accueil">Tableau de bord (Accueil)</a></li>
+<li><a href="#4-carte-du-parc">Carte du parc</a></li>
+<li><a href="#5-distributeurs">Distributeurs</a></li>
+<li><a href="#6-santé-du-parc">Santé du parc</a></li>
+<li><a href="#7-articles--stock">Articles &amp; stock</a></li>
+<li><a href="#8-tarification">Tarification</a></li>
+<li><a href="#9-réservations">Réservations</a></li>
+<li><a href="#10-utilisateurs--score-de-confiance">Utilisateurs &amp; score de confiance</a></li>
+<li><a href="#11-paiements--reversements">Paiements &amp; reversements</a></li>
+<li><a href="#12-maintenance">Maintenance</a></li>
+<li><a href="#13-statistiques-rapports--audit">Statistiques, rapports &amp; audit</a></li>
+<li><a href="#14-administration-communes-invitations-super-admin">Administration (communes, invitations, super-admin)</a></li>
+<li><a href="#15-que-faire-quand-dépannage">Que faire quand… (dépannage)</a></li>
+<li><a href="#16-bientôt-disponible">Bientôt disponible</a></li>
+<li><a href="#17-faq-opérateur">FAQ opérateur</a></li>
+<li><a href="#18-glossaire">Glossaire</a></li>
+</ol>
+<hr>
+<h2 id="1-bienvenue">1. Bienvenue</h2>
+<p>SportLocker met à disposition de vos administrés (ou de vos vacanciers) des <strong>distributeurs de matériel sportif en libre-service</strong> : des casiers connectés installés sur les terrains de sport ou dans votre camping. Les citoyens réservent depuis leur téléphone, déverrouillent le casier avec un QR code, empruntent le matériel, puis le rapportent.</p>
+<p>Le <strong>dashboard opérateur</strong> (ops.sportlocker.fr) est votre poste de pilotage. Il vous permet de :</p>
+<ul>
+<li>suivre en temps réel l'état de vos distributeurs et de chaque casier ;</li>
+<li>gérer votre stock de matériel (ballons, raquettes, etc.) ;</li>
+<li>fixer vos tarifs de location ;</li>
+<li>consulter les réservations et repérer les retards ;</li>
+<li>suivre les paiements et vos reversements ;</li>
+<li>traiter les incidents via des tickets de maintenance ;</li>
+<li>produire des rapports d'activité (PDF) pour votre conseil municipal ou votre direction.</li>
+</ul>
+<div class="box warn">⚠️ <strong>Important</strong> — Le dashboard est un outil de <strong>supervision et de gestion</strong>. Les citoyens, eux, utilisent une application distincte (app.sportlocker.fr) pour réserver et payer. Ce manuel ne couvre que le dashboard opérateur.</div>
+<h3 id="à-qui-sadresse-quel-écran--les-trois-rôles">À qui s'adresse quel écran ? Les trois rôles</h3>
+<table>
+<thead><tr><th>Rôle</th><th>Qui ?</th><th>Ce qu'il voit</th></tr></thead>
+<tbody>
+<tr><td><strong>Super-admin</strong></td><td>L'équipe SportLocker</td><td>L'ensemble du parc, toutes les communes, plus deux menus réservés (« Tenants », « Agent Office »)</td></tr>
+<tr><td><strong>Admin</strong></td><td>Vous : référent mairie ou gérant de camping</td><td>Les données de <strong>votre</strong> commune ou camping uniquement</td></tr>
+<tr><td><strong>Opérateur</strong></td><td>Agent de terrain</td><td>Consultation, sans les actions d'administration</td></tr>
+</tbody>
+</table>
+<div class="box tip">💡 <strong>Astuce</strong> — Votre rôle est affiché en bas du menu latéral, sous votre adresse e-mail (par exemple « Admin · 1 commune »).</div>
+<hr>
+<h2 id="2-prise-en-main">2. Prise en main</h2>
+<h3 id="21-activer-votre-compte-invitation-par-e-mail">2.1 Activer votre compte (invitation par e-mail)</h3>
+<p>Vous ne créez pas votre compte vous-même : vous recevez un <strong>lien d'invitation</strong> de la part de SportLocker ou d'un administrateur de votre commune.</p>
+<div class="capture">📷 Emplacement réservé — Capture : page « Activation du compte » avec les trois champs</div>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Ouvrez le lien d'invitation reçu par e-mail. La page « Activation du compte » s'affiche, avec votre adresse e-mail déjà renseignée (non modifiable).</li>
+<li>Choisissez un <strong>mot de passe</strong> (8 caractères minimum) et saisissez-le une seconde fois dans le champ « Confirmation ».</li>
+<li>Cliquez sur <strong>« Activer mon compte »</strong>. Vous êtes connecté et redirigé vers l'accueil.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — Le lien d'invitation expire après <strong>7 jours</strong> et ne peut être utilisé qu'<strong>une seule fois</strong>. Si vous voyez le message « Ce lien d'invitation est expiré ou a déjà été utilisé », demandez à votre administrateur de vous <strong>renvoyer une invitation</strong> (voir section 14.2).</div>
+<p>Messages d'erreur possibles à cette étape :</p>
+<ul>
+<li>« Les deux mots de passe ne correspondent pas. » — resaisissez la confirmation.</li>
+<li>« Mot de passe : 8 caractères minimum. » — choisissez un mot de passe plus long.</li>
+<li>« Un compte Firebase existe déjà pour cet email. Connectez-vous via la page de connexion. » — votre compte existe déjà : passez par la page de connexion classique.</li>
+</ul>
+<h3 id="22-se-connecter">2.2 Se connecter</h3>
+<p>Rendez-vous sur <strong>ops.sportlocker.fr</strong>. La page de connexion « SportLocker · ops — Console opérateur » comporte deux champs : <strong>Email</strong> et <strong>Mot de passe</strong>.</p>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Saisissez votre e-mail et votre mot de passe.</li>
+<li>Cliquez sur <strong>« Se connecter »</strong>.</li>
+</ol>
+<p>En cas d'échec, un message précis s'affiche :</p>
+<table>
+<thead><tr><th>Message affiché</th><th>Cause probable</th><th>Que faire</th></tr></thead>
+<tbody>
+<tr><td>« Email ou mot de passe incorrect. »</td><td>Faute de frappe</td><td>Vérifiez la saisie, ou réinitialisez le mot de passe</td></tr>
+<tr><td>« Adresse email invalide. »</td><td>Format d'e-mail incorrect</td><td>Corrigez l'adresse</td></tr>
+<tr><td>« Ce compte a été désactivé. »</td><td>Compte suspendu</td><td>Contactez SportLocker</td></tr>
+<tr><td>« Trop de tentatives. Réessayez dans quelques minutes. »</td><td>Sécurité anti-essais</td><td>Patientez quelques minutes</td></tr>
+<tr><td>« Votre compte n'a pas accès à ce dashboard. »</td><td>Compte citoyen, pas opérateur</td><td>Utilisez un compte invité comme administrateur</td></tr>
+</tbody>
+</table>
+<h3 id="23-mot-de-passe-oublié">2.3 Mot de passe oublié</h3>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Sur la page de connexion, cliquez sur <strong>« Mot de passe oublié ? »</strong>.</li>
+<li>Saisissez votre e-mail, puis cliquez sur <strong>« Envoyer le lien de réinitialisation »</strong>.</li>
+<li>Ouvrez l'e-mail reçu (vérifiez vos indésirables) et suivez le lien pour choisir un nouveau mot de passe sur une page sécurisée.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — Le lien de réinitialisation expire après <strong>1 heure</strong>. Si vous ne recevez rien sous 5 minutes, vérifiez l'adresse saisie ou contactez l'équipe SportLocker.</div>
+<h3 id="24-le-menu-latéral-navigation">2.4 Le menu latéral (navigation)</h3>
+<p>Une fois connecté, le <strong>menu latéral</strong> occupe la gauche de l'écran (sur mobile, ouvrez-le avec le bouton ☰ en haut à gauche). De haut en bas :</p>
+<ol>
+<li>Le logo <strong>SportLocker · ops</strong> ;</li>
+<li>Les entrées de navigation : <strong>Accueil</strong>, <strong>Carte</strong>, <strong>Distributeurs</strong>, <strong>Santé du parc</strong>, <strong>Articles</strong>, <strong>Tarification</strong>, <strong>Communes</strong>, <strong>Utilisateurs</strong>, <strong>Réservations</strong>, <strong>Maintenance</strong>, <strong>Stats</strong>, <strong>Rapports</strong>, <strong>Audit</strong>, <strong>Paiements</strong> ;</li>
+<li><em>(Super-admin uniquement)</em> <strong>Tenants</strong> et <strong>Agent Office</strong> ;</li>
+<li>Votre encart profil : e-mail + rôle ;</li>
+<li>Le sélecteur de langue <strong>FR / EN</strong> et l'interrupteur <strong>thème clair / sombre</strong> ;</li>
+<li>Le bouton <strong>« Se déconnecter »</strong> et le numéro de version.</li>
+</ol>
+<p>L'entrée active est signalée par une barre verte à gauche du libellé.</p>
+<div class="box tip">💡 <strong>Astuce</strong> — Sur chaque page, un bouton <strong>« Rafraîchir »</strong> en haut à droite recharge les données ; l'heure de la dernière actualisation s'affiche à côté.</div>
+<h3 id="25-changer-la-langue-fr--en">2.5 Changer la langue (FR / EN)</h3>
+<p>Cliquez sur <strong>FR</strong> ou <strong>EN</strong> en bas du menu latéral. Le choix est mémorisé pendant un an sur votre navigateur.</p>
+<div class="box warn">⚠️ <strong>Important</strong> — La traduction anglaise couvre les pages de connexion, le menu et le profil ; la plupart des écrans métier restent pour l'instant en français.</div>
+<h3 id="26-thème-clair--sombre">2.6 Thème clair / sombre</h3>
+<p>Le dashboard s'ouvre par défaut en <strong>thème sombre</strong>. L'icône soleil/lune en bas du menu latéral bascule entre les deux thèmes ; votre préférence est mémorisée sur ce navigateur.</p>
+<h3 id="27-votre-profil--mon-compte">2.7 Votre profil (« Mon compte »)</h3>
+<p>Cliquez sur votre encart profil pour ouvrir la page <strong>Mon compte</strong>. Elle affiche :</p>
+<ul>
+<li>votre identité (avatar à initiales, e-mail, badge de rôle) ;</li>
+<li>la section <strong>Profil</strong> : e-mail, dernière activité, date de création du compte ;</li>
+<li><em>(admin)</em> la section <strong>Ma commune</strong> : statut du contrat (badge « actif », « &lt; 60 j », « expiré » ou « sans contrat »), code INSEE, population, dates de contrat, contacts, et quatre indicateurs (distributeurs déployés, casiers totaux, réservations 30 j, taux d'occupation) ;</li>
+<li>la section <strong>Sécurité</strong> avec le bouton <strong>« Changer mon mot de passe »</strong>, qui vous envoie un lien par e-mail (confirmation verte « Email envoyé à … » une fois parti).</li>
+</ul>
+<h3 id="28-le-mode-démonstration-badge--démo">2.8 Le mode démonstration (badge « Démo »)</h3>
+<p>Si le dashboard ne parvient pas à joindre le serveur, ou si votre parc est encore vide, certaines pages affichent des <strong>données fictives</strong> signalées par un badge orange <strong>« Démo »</strong> et la mention « données fictives ». Dans ce mode, les actions de modification sont bloquées avec un message du type « Mode démo — branchez un token admin valide… ».</p>
+<div class="box tip">💡 <strong>Astuce</strong> — Si vous voyez « Démo » alors que votre parc est bien installé, commencez par cliquer sur « Rafraîchir », puis déconnectez-vous / reconnectez-vous. Si le badge persiste, contactez le support (support@sportlocker.fr).</div>
+<hr>
+<h2 id="3-tableau-de-bord-accueil">3. Tableau de bord (Accueil)</h2>
+<p>La page d'accueil s'adapte à votre rôle.</p>
+<h3 id="31-vue--tableau-de-bord--admin-de-commune-ou-de-camping">3.1 Vue « Tableau de bord » (admin de commune ou de camping)</h3>
+<div class="capture">📷 Emplacement réservé — Capture : accueil admin avec bandeau de bienvenue vert</div>
+<p>En haut, un bandeau de bienvenue « Bonjour, <em>votre commune</em> » récapitule d'une phrase : nombre de distributeurs en service, casiers libres sur le total, taux d'occupation.</p>
+<p>Ensuite, deux blocs côte à côte :</p>
+<ul>
+<li><strong>Aujourd'hui</strong> — <em>Réservations en cours</em> (emprunts actifs à l'instant T) et <em>En retard</em> (matériel non rendu à l'échéance ; cliquez sur ce chiffre pour ouvrir la liste filtrée).</li>
+<li><strong>Cette semaine</strong> — <em>Tickets ouverts</em> (avec, le cas échéant, « dont X critique(s) ») et un mini-graphique des réservations des 7 derniers jours, avec le lien « voir stats détaillées → ».</li>
+</ul>
+<p>Puis la section <strong>« Vos distributeurs »</strong> : une carte par distributeur affichant son nom, son numéro de série, sa pastille d'état (en ligne / hors ligne / maintenance), ses casiers libres (« 3/8 »), son taux d'occupation, ses réservations sur 7 jours, la mention « Vu il y a X min » et un badge d'alerte si des tickets sont ouverts. Cliquer sur une carte ouvre la fiche du distributeur.</p>
+<p>Enfin, si nécessaire, la section <strong>« Alertes à traiter »</strong> liste les réservations en retard et les tickets critiques, avec des liens directs.</p>
+<div class="box tip">💡 <strong>Astuce</strong> — En bas de page : « Besoin d'aide ? Un casier bloqué, un distributeur hors ligne ? Ouvrez un ticket de maintenance ou contactez support@sportlocker.fr ».</div>
+<h3 id="32-vue--vue-densemble--super-admin">3.2 Vue « Vue d'ensemble » (super-admin)</h3>
+<p>La version super-admin présente le parc entier : tendance des réservations sur 7 jours, section <strong>Parc</strong> (Distributeurs, Casiers libres, Réservations actives, En retard), section <strong>Maintenance</strong> (Tickets ouverts, Sévérité moyenne, Sites impactés, Non assignés), et la même section <strong>Alertes à traiter</strong>.</p>
+<h3 id="33-comprendre-les-couleurs-des-indicateurs">3.3 Comprendre les couleurs des indicateurs</h3>
+<table>
+<thead><tr><th>Couleur</th><th>Signification</th></tr></thead>
+<tbody>
+<tr><td><strong>Vert</strong></td><td>Tout va bien</td></tr>
+<tr><td><strong>Ambre / orange</strong></td><td>Point de vigilance (ex. occupation &gt; 80 %, tickets non assignés)</td></tr>
+<tr><td><strong>Rouge / rose</strong></td><td>Action attendue (retards, tickets critiques, distributeur hors ligne)</td></tr>
+<tr><td>Gris</td><td>Information neutre</td></tr>
+</tbody>
+</table>
+<p>La plupart des cartes chiffrées sont <strong>cliquables</strong> et mènent à la liste détaillée correspondante (par exemple « En retard » ouvre les réservations filtrées sur les retards).</p>
+<hr>
+<h2 id="4-carte-du-parc">4. Carte du parc</h2>
+<p>Le menu <strong>Carte</strong> affiche tous vos distributeurs sur une carte de France interactive.</p>
+<div class="capture">📷 Emplacement réservé — Capture : carte avec marqueurs colorés et légende</div>
+<ul>
+<li>Chaque distributeur est un <strong>cercle coloré</strong> : vert = en ligne, rose = hors ligne, ambre = maintenance, gris = désactivé.</li>
+<li>Cliquez sur un cercle pour ouvrir une <strong>fiche résumée</strong> : nom, numéro de série, état, casiers libres, et un lien « Modifier → ».</li>
+<li>La <strong>légende</strong> au-dessus de la carte sert aussi de filtre : cliquez sur un état pour le masquer/afficher (le nombre de distributeurs par état est indiqué). Votre sélection et la position de la carte sont mémorisées.</li>
+<li>La <strong>barre de recherche</strong> accepte un nom de distributeur, un numéro de série, une région, un numéro de département ou une commune (ex. « SL-MAIRIE, Bretagne, 44, Nantes… ») et recentre la carte sur le résultat choisi.</li>
+</ul>
+<div class="box warn">⚠️ <strong>Important</strong> — Si certains distributeurs n'ont pas de coordonnées GPS, un bandeau « X distributeur(s) sans coordonnées — renseigner » s'affiche : cliquez sur « renseigner » pour compléter leur position depuis la liste des distributeurs.</div>
+<hr>
+<h2 id="5-distributeurs">5. Distributeurs</h2>
+<h3 id="51-la-liste--parc-de-distributeurs">5.1 La liste (« Parc de distributeurs »)</h3>
+<p>Le menu <strong>Distributeurs</strong> liste toutes vos bornes avec les colonnes : <strong>Distributeur</strong> (nom + numéro de série), <strong>Statut</strong>, <strong>Casiers libres</strong> (« 3 / 8 »), <strong>Batterie</strong>, <strong>Position</strong> (GPS), <strong>Dernier signe</strong> (« il y a 2 min ») et <strong>Actions</strong> (Détail, Santé, Modifier).</p>
+<p>Les quatre états possibles d'un distributeur :</p>
+<table>
+<thead><tr><th>État</th><th>Pastille</th><th>Signification</th></tr></thead>
+<tbody>
+<tr><td><strong>en ligne</strong></td><td>verte</td><td>La borne communique normalement</td></tr>
+<tr><td><strong>hors ligne</strong></td><td>rose</td><td>Plus aucun signal reçu — voir section 15.1</td></tr>
+<tr><td><strong>maintenance</strong></td><td>ambre</td><td>État posé manuellement pendant une intervention</td></tr>
+<tr><td><strong>désactivé</strong></td><td>grise</td><td>Borne retirée du parc</td></tr>
+</tbody>
+</table>
+<p>Un badge en haut de liste indique l'état de la <strong>connexion temps réel</strong> : « Temps réel » (vert) quand la page se met à jour toute seule, « Reconnexion… » (ambre) ou « Hors ligne » (rose) en cas de coupure réseau de votre côté.</p>
+<div class="box warn">⚠️ <strong>Important</strong> — La jauge <strong>Batterie</strong> affiche « — » pour le moment : la remontée du niveau de batterie par les bornes n'est pas encore activée (voir section 16).</div>
+<h3 id="52-ajouter-un-distributeur">5.2 Ajouter un distributeur</h3>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Cliquez sur <strong>« + Nouveau »</strong> en haut à droite de la liste.</li>
+<li>Utilisez le champ <strong>« 🔎 Rechercher une adresse »</strong> : tapez au moins 3 caractères, choisissez l'adresse dans la liste (source officielle : api-adresse.data.gouv.fr). La position GPS et l'adresse postale se remplissent automatiquement.</li>
+<li>Vérifiez ou ajustez la position sur la <strong>carte interactive</strong> : cliquez, ou faites glisser le marqueur.</li>
+<li>Renseignez le <strong>numéro de série</strong> (inscrit sur la borne), le <strong>nom lisible</strong> (ex. « Distributeur Parc Mairie »), la <strong>commune</strong> et le <strong>nombre de casiers</strong> (de 1 à 64 — il doit correspondre à la grille physique de la borne).</li>
+<li>Cliquez sur <strong>« Créer le distributeur »</strong>.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — Le <strong>numéro de série</strong> et le <strong>nombre de casiers</strong> ne sont <strong>plus modifiables</strong> après création. En cas d'erreur, contactez le support. Si le message « Numéro de série déjà utilisé. » apparaît, la borne est déjà enregistrée.</div>
+<p>Pour modifier un distributeur existant (nom, statut, position, adresse), utilisez le lien <strong>Modifier</strong> de la liste, puis <strong>« Enregistrer »</strong>.</p>
+<h3 id="53-la-fiche-détaillée--casiers-en-temps-réel">5.3 La fiche détaillée : casiers en temps réel</h3>
+<p>Cliquez sur <strong>Détail</strong> pour ouvrir la fiche d'un distributeur.</p>
+<div class="capture">📷 Emplacement réservé — Capture : fiche distributeur avec grille de casiers colorée</div>
+<p>En haut : nom, numéro de série, pastille d'état, bouton <strong>Modifier</strong> et bouton vert <strong>« + Charger un casier »</strong>. Une ligne résume l'instantané : « 3 / 8 vides · 5 chargés · 2 en circulation · 1 en panne », suivie du badge « Temps réel ».</p>
+<p>Quatre indicateurs : <strong>Casiers libres pour chargement</strong>, <strong>Articles chargés</strong>, <strong>Réservations en cours</strong>, <strong>Batterie / dernier signe</strong>.</p>
+<p>Puis la <strong>grille des casiers</strong>, une case par casier (numérotée #1, #2…), dont la couleur indique l'état :</p>
+<table>
+<thead><tr><th>État affiché</th><th>Couleur</th><th>Signification</th></tr></thead>
+<tbody>
+<tr><td><strong>Vide</strong></td><td>contour gris pointillé</td><td>Casier libre, sans article — prêt à être chargé</td></tr>
+<tr><td><strong>Idle</strong></td><td>vert</td><td>Casier fermé avec un article disponible à la location</td></tr>
+<tr><td><strong>Réservé</strong></td><td>bleu</td><td>Un citoyen a réservé cet article et va venir le chercher</td></tr>
+<tr><td><strong>En cours</strong></td><td>ambre</td><td>L'article est actuellement emprunté</td></tr>
+<tr><td><strong>Retour</strong></td><td>violet</td><td>Le citoyen est en train de rapporter l'article</td></tr>
+<tr><td><strong>Panne</strong></td><td>rose</td><td>Casier signalé défectueux — à diagnostiquer</td></tr>
+</tbody>
+</table>
+<p>Chaque case affiche aussi le nom de l'article qu'elle contient (ex. « Ballon de basket »). La grille se met à jour <strong>en direct</strong> : quand un citoyen ouvre un casier sur le terrain, la case change de couleur sous vos yeux.</p>
+<p>En bas de fiche : adresse postale, coordonnées GPS et commune de rattachement.</p>
+<h3 id="54-charger-un-casier-mettre-un-article-en-service">5.4 Charger un casier (mettre un article en service)</h3>
+<p>C'est l'opération que vous ferez le plus souvent sur le terrain : placer un article dans un casier vide et l'enregistrer.</p>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Sur la fiche du distributeur, cliquez sur <strong>« + Charger un casier »</strong>. Un panneau s'ouvre à droite.</li>
+<li>Choisissez le <strong>type d'article</strong> (ex. « Ballon de basket »).</li>
+<li>Saisissez ou scannez le <strong>tag RFID</strong> de l'article (identifiant unique, 4 caractères minimum).</li>
+<li>Indiquez l'<strong>état de l'article</strong> : Neuf, Bon état ou À restaurer.</li>
+<li>Choisissez le <strong>casier</strong> de destination (seuls les casiers vides sont proposés).</li>
+<li>Cliquez sur <strong>Charger</strong>. Le message « Casier chargé. » confirme l'opération et la grille se met à jour.</li>
+</ol>
+<p>Messages d'erreur possibles :</p>
+<ul>
+<li>« Ce tag RFID est déjà associé à un autre article. » — chaque article a un tag unique.</li>
+<li>« Ce casier ne peut pas être chargé (déjà occupé ou en panne). Rafraîchissez la liste. »</li>
+<li>« Ce casier appartient à une autre commune. » — vérifiez le distributeur sélectionné.</li>
+</ul>
+<h3 id="55-la-page--santé--dun-distributeur">5.5 La page « Santé » d'un distributeur</h3>
+<p>Depuis la liste (lien <strong>Santé</strong>) ou la page Santé du parc, ouvrez le <strong>diagnostic technique</strong> d'une borne. Choisissez la fenêtre d'analyse : <strong>24 h</strong>, <strong>3 j</strong> ou <strong>7 j</strong>.</p>
+<p>Quatre indicateurs :</p>
+<table>
+<thead><tr><th>Indicateur</th><th>Lecture</th><th>Seuil d'alerte</th></tr></thead>
+<tbody>
+<tr><td><strong>Disponibilité</strong></td><td>% du temps où la borne a donné signe de vie</td><td>vert ≥ 95 %, ambre ≥ 80 %, rouge en dessous</td></tr>
+<tr><td><strong>Température CPU</strong></td><td>Température du processeur embarqué</td><td>rouge &gt; 75 °C</td></tr>
+<tr><td><strong>Signal réseau</strong></td><td>Qualité de la connexion (dBm ; plus proche de 0 = meilleur)</td><td>rouge &lt; −80 dBm</td></tr>
+<tr><td><strong>Mémoire libre</strong></td><td>Mémoire disponible de la borne</td><td>rouge &lt; 64 Mo</td></tr>
+</tbody>
+</table>
+<p>Suivent trois <strong>courbes</strong> (température, signal, mémoire — moyennes horaires) et un résumé « X heartbeats reçus · uptime … · dernier paquet il y a … ».</p>
+<div class="box tip">💡 <strong>Astuce</strong> — Une borne est considérée « en ligne » si elle a donné signe de vie dans les <strong>10 dernières minutes</strong>. Si la page indique « Aucun heartbeat reçu sur la période », la borne est hors ligne ou pas encore appairée : voir section 15.1.</div>
+<hr>
+<h2 id="6-santé-du-parc">6. Santé du parc</h2>
+<p>Le menu <strong>Santé du parc</strong> offre la même lecture technique, mais pour <strong>toutes vos bornes d'un coup</strong>, sous forme de tableau : distributeur, commune, statut, dernier signe, CPU °C, signal, mémoire libre, tickets, alertes, et un lien « Détail → » vers la page santé individuelle.</p>
+<p>Le filtre <strong>« Avec alertes seulement »</strong> ne garde que les bornes qui demandent votre attention. Les alertes possibles :</p>
+<ul>
+<li><strong>Hors ligne</strong> — plus de signal ;</li>
+<li><strong>Silence &gt; 24 h</strong> — aucun signe de vie depuis plus d'un jour ;</li>
+<li><strong>CPU trop chaud</strong> — température &gt; 75 °C ;</li>
+<li><strong>Signal faible</strong> — réception &lt; −80 dBm ;</li>
+<li><strong>Mémoire basse</strong> — &lt; 64 Mo disponibles ;</li>
+<li><strong>Ticket critique</strong> — un ticket de sévérité 4 ou 5 est ouvert sur cette borne.</li>
+</ul>
+<p>Le rappel des seuils figure en bas de page : « Seuils : CPU &gt; 75°C · Signal &lt; -80 dBm · Mémoire libre &lt; 64 Mo · Heartbeat absent &gt; 24 h · ticket critique sév. ≥ 4. »</p>
+<hr>
+<h2 id="7-articles--stock">7. Articles &amp; stock</h2>
+<p>Le menu <strong>Articles</strong> gère votre catalogue en deux onglets :</p>
+<ul>
+<li><strong>Types d'articles</strong> — les <em>modèles</em> de votre catalogue (ex. « Ballon de basket ») ;</li>
+<li><strong>Articles physiques</strong> — les <em>exemplaires</em> réels, identifiés par leur tag RFID.</li>
+</ul>
+<p>L'en-tête récapitule : « X types · Y articles physiques », avec en surbrillance les exemplaires <strong>endommagés</strong> (orange) et <strong>perdus</strong> (rouge).</p>
+<h3 id="71-types-darticles">7.1 Types d'articles</h3>
+<p>Le tableau des types affiche : Type (nom + identifiant), Catégorie, <strong>Caution</strong> (montant retenu en garantie), <strong>Durée max</strong> d'emprunt, nombre d'Articles rattachés, nombre d'Emprunts, Actions.</p>
+<div class="box warn">⚠️ <strong>Important</strong> — La création et la modification des <strong>types</strong> sont réservées au <strong>super-admin</strong> (le bouton indique « Création réservée aux super-admins »). En tant qu'admin, vous gérez librement les <strong>exemplaires</strong> ; pour ajouter un nouveau type au catalogue, adressez-vous à SportLocker.</div>
+<p>Champs d'un type (pour information) : identifiant (« slug », non modifiable après création), catégorie, nom, notes, URL d'image (optionnelle, image carrée 400×400 minimum), caution en euros, durée maximale en minutes. La suppression d'un type est bloquée tant que des articles physiques l'utilisent.</p>
+<h3 id="72-articles-physiques-exemplaires">7.2 Articles physiques (exemplaires)</h3>
+<p>Le tableau des exemplaires affiche : <strong>RFID</strong>, Type, <strong>État</strong>, <strong>Localisation</strong> (distributeur + « Casier #N », ou « — orphelin » si l'article n'est dans aucun casier), <strong>Inspection</strong> (date du dernier contrôle, « jamais » sinon), Emprunts, Actions.</p>
+<p>Les cinq états d'un exemplaire :</p>
+<table>
+<thead><tr><th>État</th><th>Badge</th><th>Signification</th></tr></thead>
+<tbody>
+<tr><td><strong>neuf</strong></td><td>vert</td><td>Jamais utilisé</td></tr>
+<tr><td><strong>bon</strong></td><td>bleu</td><td>Utilisable sans réserve</td></tr>
+<tr><td><strong>usé</strong></td><td>ambre</td><td>Utilisable mais fatigué — à surveiller</td></tr>
+<tr><td><strong>endommagé</strong></td><td>orange</td><td>À retirer du service et réparer</td></tr>
+<tr><td><strong>perdu</strong></td><td>rouge</td><td>Non restitué / introuvable</td></tr>
+</tbody>
+</table>
+<p>Deux filtres au-dessus du tableau : par <strong>état</strong> et par <strong>type</strong>, avec un lien « Réinitialiser ».</p>
+<p><strong>Pas à pas — enregistrer un nouvel exemplaire :</strong></p>
+<ol>
+<li>Onglet « Articles physiques », cliquez sur <strong>« + Nouvel article »</strong>.</li>
+<li>Choisissez le <strong>type</strong>, saisissez le <strong>tag RFID</strong> (unique, 4 caractères minimum), sélectionnez l'<strong>état</strong>.</li>
+<li>Optionnel : affectez directement un <strong>casier</strong> (le menu liste chaque casier disponible sous la forme « Nom du distributeur · Casier #1 »). Si vous laissez vide, l'article est en « stock libre », non attribué.</li>
+<li>Cliquez sur <strong>« Créer l'article »</strong>.</li>
+</ol>
+<p><strong>Pas à pas — après une inspection ou une réparation :</strong></p>
+<ol>
+<li>Ouvrez l'exemplaire (lien <strong>Modifier</strong>).</li>
+<li>Mettez à jour l'<strong>état</strong> (ex. « endommagé » → « bon ») et la date de <strong>dernière inspection</strong>.</li>
+<li>Cliquez sur <strong>« Enregistrer »</strong>.</li>
+</ol>
+<div class="box tip">💡 <strong>Astuce</strong> — Pour charger un article directement dans un casier depuis le terrain, passez plutôt par la fiche du distributeur → « + Charger un casier » (section 5.4) : l'exemplaire est créé et placé en une seule opération.</div>
+<hr>
+<h2 id="8-tarification">8. Tarification</h2>
+<p>Le menu <strong>Tarification</strong> vous permet de fixer le <strong>prix de location</strong> de chaque type d'article, pour chaque durée de créneau.</p>
+<div class="capture">📷 Emplacement réservé — Capture : matrice des prix avec une cellule en cours d'édition</div>
+<h3 id="81-la-matrice-des-prix">8.1 La matrice des prix</h3>
+<ul>
+<li><strong>Lignes</strong> : vos types d'articles (« Sport / item_type », avec la catégorie).</li>
+<li><strong>Colonnes</strong> : les durées — <strong>30, 60, 90, 120 minutes</strong>, et <strong>1440 min</strong>, le « Forfait journée » (un créneau par jour, signalé par une infobulle et une colonne surlignée).</li>
+<li><strong>Cellules</strong> : le prix en euros. Une cellule <strong>vide</strong> signifie que ce créneau <strong>n'est pas proposé</strong> pour ce type d'article.</li>
+</ul>
+<p>Le compteur « X / Y créneaux tarifés » en haut de page suit votre avancement.</p>
+<p><strong>Pas à pas — modifier un prix :</strong></p>
+<ol>
+<li>Cliquez dans la cellule voulue et tapez le montant (virgule ou point acceptés, ex. « 1,50 »).</li>
+<li>Validez avec <strong>Entrée</strong> ou <strong>Tab</strong> (la touche Échap annule la saisie).</li>
+<li>La cellule s'enregistre immédiatement — pas de bouton « Sauvegarder » global.</li>
+</ol>
+<p>Pour <strong>retirer un créneau</strong>, videz simplement la cellule puis validez : la règle de prix est supprimée. En cas de saisie invalide (texte, montant négatif), la mention « invalide » apparaît et la valeur précédente est restaurée.</p>
+<h3 id="82-démarrer-avec-un-modèle-de-grille">8.2 Démarrer avec un modèle de grille</h3>
+<p>La section <strong>« Démarrer avec un template »</strong> propose quatre grilles prêtes à l'emploi :</p>
+<table>
+<thead><tr><th>Modèle</th><th>Pour qui</th><th>Ordre de prix</th></tr></thead>
+<tbody>
+<tr><td><strong>Communal léger</strong></td><td>Mairies, équipement grand public (ballons, raquettes de ping-pong, frisbees)</td><td>0,50 € les 30 min · forfait journée 3 €</td></tr>
+<tr><td><strong>Saisonnier camping / plage</strong></td><td>Beach-volley, raquettes de plage, snorkel</td><td>1 € les 30 min · forfait journée 5 €</td></tr>
+<tr><td><strong>Hôtel premium</strong></td><td>Matériel haut de gamme (tennis, fitness, pool)</td><td>2 € les 30 min · forfait journée 15 €</td></tr>
+<tr><td><strong>Forfait journalier seul</strong></td><td>Modèle « day pass » : uniquement le forfait journée</td><td>3 à 5 € la journée selon l'article</td></tr>
+</tbody>
+</table>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Cliquez sur <strong>« Appliquer ce template »</strong> sous le modèle choisi.</li>
+<li>Confirmez avec <strong>« Écraser les prix »</strong> (ou « Annuler »).</li>
+<li>Le message « X règles appliquées » confirme ; ajustez ensuite les cellules à la main si besoin.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — L'application d'un modèle <strong>écrase</strong> les prix existants pour les articles concernés. Le rattachement se fait par correspondance de nom/catégorie : si le message « Ce template ne matche aucun de vos item_types existants » apparaît, saisissez les prix à la main dans la matrice.</div>
+<h3 id="83-qui-peut-modifier-les-prix">8.3 Qui peut modifier les prix ?</h3>
+<p>En tant qu'<strong>admin</strong>, vous modifiez la grille de <strong>votre</strong> commune ou camping. Le <strong>super-admin</strong> voit en plus un sélecteur « Tarif de la commune : » pour choisir le client dont il édite la grille.</p>
+<hr>
+<h2 id="9-réservations">9. Réservations</h2>
+<p>Le menu <strong>Réservations</strong> liste toutes les locations, de la réservation au retour.</p>
+<h3 id="91-le-cycle-de-vie-dune-réservation">9.1 Le cycle de vie d'une réservation</h3>
+<table>
+<thead><tr><th>Statut</th><th>Badge</th><th>Ce que cela signifie</th><th>Action de votre part</th></tr></thead>
+<tbody>
+<tr><td><strong>programmée</strong></td><td>violet</td><td>Réservation à l'avance (jusqu'à J+7), pas encore active</td><td>Aucune</td></tr>
+<tr><td><strong>en attente</strong></td><td>bleu</td><td>QR code émis, le citoyen n'a pas encore ouvert le casier</td><td>Aucune — expire seule si non utilisée</td></tr>
+<tr><td><strong>active</strong></td><td>vert</td><td>Article emprunté, dans les temps</td><td>Aucune</td></tr>
+<tr><td><strong>rendue</strong></td><td>gris</td><td>Article restitué et contrôlé</td><td>Aucune</td></tr>
+<tr><td><strong>en retard</strong></td><td>rouge</td><td>Échéance dépassée, article non rendu</td><td>Surveiller ; contacter l'usager si besoin</td></tr>
+<tr><td><strong>annulée</strong></td><td>gris foncé</td><td>Annulée par le citoyen ou par vous</td><td>Aucune</td></tr>
+<tr><td><strong>expirée</strong></td><td>ambre</td><td>QR jamais utilisé, casier libéré automatiquement</td><td>Aucune</td></tr>
+</tbody>
+</table>
+<div class="box tip">💡 <strong>Astuce</strong> — En cas de retard, le système agit tout seul : le citoyen reçoit un <strong>rappel sur son téléphone</strong> et son <strong>score de confiance</strong> baisse automatiquement (voir section 10). Vous n'avez pas de relance manuelle à faire.</div>
+<h3 id="92-consulter-et-filtrer">9.2 Consulter et filtrer</h3>
+<p>Colonnes du tableau : Créée le, Utilisateur, Distributeur, Article, Statut, Échéance, Prolong. (nombre de prolongations). Les filtres : <strong>Statut</strong>, <strong>Distributeur</strong>, <strong>Du / Au</strong> (dates de création), boutons <strong>Filtrer</strong> et <strong>Réinitialiser</strong>. L'affichage va de 50 en 50 (« Page suivante → » en bas de liste).</p>
+<p>Cliquez sur une ligne pour ouvrir le <strong>panneau de détail</strong> : usager (avec lien vers son profil), distributeur et article, cycle de vie complet (création, expiration du QR, ouverture, échéance, retour, prolongations, raison d'annulation) et la <strong>chronologie</strong> de tous les événements (« Réservé », « Ouverture casier », « Retour confirmé »…).</p>
+<h3 id="93-annulation-forcée">9.3 Annulation forcée</h3>
+<p>En dernier recours (article perdu, usager injoignable, casier à libérer), vous pouvez forcer l'annulation d'une réservation en cours.</p>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Ouvrez le détail de la réservation.</li>
+<li>En bas du panneau, cliquez sur <strong>« Annulation forcée »</strong> (bouton rouge).</li>
+<li>Saisissez la <strong>raison</strong> (4 caractères minimum) — elle est conservée dans l'historique.</li>
+<li>Validez : le casier est libéré et l'événement est tracé comme action administrateur.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — L'annulation forcée est <strong>définitive</strong> et tracée. Le message « Réservation déjà terminée » signifie qu'elle était déjà rendue, annulée ou expirée.</div>
+<h3 id="94-export-csv">9.4 Export CSV</h3>
+<p>Le bouton <strong>« Exporter CSV »</strong> (en haut à droite) télécharge la liste <strong>telle que filtrée</strong> au format tableur : identifiant, date, statut, e-mail et nom de l'usager, distributeur, article, échéances, retour, prolongations, raison d'annulation. Le nom du fichier reprend la période filtrée (ex. <code>reservations-2026-06-01_2026-06-30.csv</code>) — pratique pour vos archives mensuelles.</p>
+<hr>
+<h2 id="10-utilisateurs--score-de-confiance">10. Utilisateurs &amp; score de confiance</h2>
+<p>Le menu <strong>Utilisateurs</strong> liste les citoyens inscrits (et les comptes du personnel).</p>
+<p>Colonnes : Utilisateur (nom, e-mail, badges éventuels « banni » / « RGPD »), Rôle, <strong>Confiance</strong>, Résa. (nombre de réservations), Commune, Dernière activité, Actions. Recherche par <strong>e-mail ou nom</strong>, filtres par <strong>rôle</strong> et par <strong>état</strong> (actif / banni).</p>
+<h3 id="101-le-score-de-confiance">10.1 Le score de confiance</h3>
+<p>Chaque citoyen a un score de <strong>0 à 100</strong>, qui baisse automatiquement à chaque retard :</p>
+<table>
+<thead><tr><th>Score</th><th>Couleur</th><th>Lecture</th></tr></thead>
+<tbody>
+<tr><td>90 à 100</td><td>vert</td><td>Usager fiable</td></tr>
+<tr><td>60 à 89</td><td>ambre</td><td>Quelques incidents (retards) — à surveiller</td></tr>
+<tr><td>0 à 59</td><td>rouge</td><td>Usager problématique</td></tr>
+</tbody>
+</table>
+<h3 id="102-actions-sur-un-usager">10.2 Actions sur un usager</h3>
+<ul>
+<li><strong>Bannir</strong> : cliquez sur l'icône bouclier, saisissez la <strong>raison</strong> (4 caractères minimum), confirmez. L'usager ne peut plus réserver ; le badge « banni » et la raison s'affichent. <strong>Débannir</strong> suit le chemin inverse.</li>
+<li><strong>Changer le rôle</strong> : menu déroulant (citoyen / opérateur / admin / super-admin), avec confirmation. À manier avec précaution : donner « admin » ouvre l'accès au dashboard.</li>
+<li><strong>Suppression RGPD</strong> : l'icône corbeille enregistre une <strong>demande d'effacement</strong>. Les données sont anonymisées automatiquement <strong>30 jours</strong> plus tard ; d'ici là, la demande est annulable (icône « annuler la demande RGPD »).</li>
+</ul>
+<div class="box warn">⚠️ <strong>Important</strong> — Si un administré exerce son droit à l'effacement (RGPD), utilisez la demande de suppression RGPD plutôt que le bannissement : c'est elle qui déclenche l'anonymisation légale sous 30 jours.</div>
+<hr>
+<h2 id="11-paiements--reversements">11. Paiements &amp; reversements</h2>
+<p>Le menu <strong>Paiements</strong> (page « Paiements &amp; reversements ») réunit vos transactions et votre compte de reversement Stripe.</p>
+<h3 id="111-les-transactions">11.1 Les transactions</h3>
+<p>Le tableau <strong>Transactions</strong> affiche les <strong>50 derniers paiements</strong> : Date, Citoyen, Matériel · Distributeur, Montant, Statut. Les statuts possibles :</p>
+<table>
+<thead><tr><th>Statut</th><th>Badge</th><th>Signification</th></tr></thead>
+<tbody>
+<tr><td><strong>Payé</strong></td><td>vert</td><td>Encaissé avec succès</td></tr>
+<tr><td><strong>En attente</strong></td><td>bleu</td><td>En cours de traitement bancaire</td></tr>
+<tr><td><strong>Échoué</strong></td><td>rouge</td><td>Paiement refusé ou expiré</td></tr>
+<tr><td><strong>Annulé</strong></td><td>gris</td><td>Annulation avant encaissement</td></tr>
+<tr><td><strong>Remboursé</strong></td><td>ambre</td><td>Remboursement effectué</td></tr>
+</tbody>
+</table>
+<p>La mention « (test) » à côté d'un montant signale un paiement de démonstration.</p>
+<div class="box warn">⚠️ <strong>Important</strong> — Le dashboard <strong>ne permet pas d'initier un remboursement</strong>. Pour rembourser un citoyen, contactez le support SportLocker (support@sportlocker.fr) avec la date et le montant de la transaction.</div>
+<h3 id="112-connecter-votre-compte-stripe-reversements">11.2 Connecter votre compte Stripe (reversements)</h3>
+<p>Pour recevoir vos reversements (notamment en camping : <strong>75 % du montant de chaque location vous est reversé</strong>, SportLocker conserve 25 % de commission), vous devez connecter un compte <strong>Stripe</strong> — le prestataire de paiement.</p>
+<p><strong>Pas à pas — première connexion :</strong></p>
+<ol>
+<li>Sur la page Paiements, repérez le badge d'état : <strong>« Non configuré »</strong>.</li>
+<li>Cliquez sur <strong>« Connecter mon compte Stripe »</strong>. Vous êtes redirigé vers Stripe.</li>
+<li>Suivez le guide Stripe : identité de votre structure (KYC) et RIB. Comptez environ 10 minutes avec les pièces sous la main.</li>
+<li>De retour sur le dashboard, le badge passe à <strong>« Vérification en cours »</strong> : Stripe contrôle votre dossier, généralement sous <strong>24 à 48 h</strong>.</li>
+<li>Quand tout est validé, le badge devient <strong>« Connecté »</strong> (vert), avec deux coches : « Paiements entrants » et « Payouts vers ton RIB ».</li>
+</ol>
+<p>Les états intermédiaires possibles :</p>
+<ul>
+<li><strong>« Vérification en cours »</strong> — dossier incomplet ou en cours d'examen : le bouton « Continuer la vérification » vous ramène chez Stripe.</li>
+<li><strong>« Payouts bloqués »</strong> — les paiements fonctionnent mais Stripe retient les virements (contrôle complémentaire) : poursuivez la vérification ou contactez le support Stripe.</li>
+<li><strong>« Paiements bloqués »</strong> — cas rare, contactez le support Stripe.</li>
+</ul>
+<p>Le bouton <strong>« Rafraîchir le statut »</strong> resynchronise l'état avec Stripe à tout moment.</p>
+<div class="box tip">💡 <strong>Astuce</strong> — Une fois le compte connecté, les reversements sont <strong>automatiques, sous 2 jours ouvrés (J+2)</strong>, directement sur votre RIB. La section « Comment fonctionne le reversement ? » en bas de page résume le circuit en trois étapes.</div>
+<hr>
+<h2 id="12-maintenance">12. Maintenance</h2>
+<p>Le menu <strong>Maintenance</strong> organise le suivi des incidents en trois colonnes (kanban) :</p>
+<table>
+<thead><tr><th>Colonne</th><th>Contenu</th></tr></thead>
+<tbody>
+<tr><td><strong>Ouverts</strong></td><td>Tickets à prendre en charge</td></tr>
+<tr><td><strong>En cours</strong></td><td>Tickets assignés, en cours de traitement</td></tr>
+<tr><td><strong>Terminés</strong></td><td>Tickets résolus ou abandonnés</td></tr>
+</tbody>
+</table>
+<h3 id="121-lire-un-ticket">12.1 Lire un ticket</h3>
+<p>Chaque carte affiche : le titre, un badge de <strong>sévérité</strong> de <strong>S1</strong> (mineur) à <strong>S5</strong> (critique), le distributeur concerné, la date d'ouverture, l'assigné éventuel et un extrait de la description.</p>
+<div class="box tip">💡 <strong>Astuce</strong> — Le badge bleu <strong>« Auto »</strong> signale un ticket <strong>ouvert automatiquement par la surveillance</strong> (borne silencieuse, casier en panne…). Pas d'inquiétude : c'est le système qui veille. Les tickets sans ce badge ont été créés par un humain.</div>
+<h3 id="122-traiter-un-ticket">12.2 Traiter un ticket</h3>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Colonne « Ouverts » : cliquez sur <strong>« Prendre en charge → »</strong> — le ticket passe « En cours ». (Le bouton « ✕ » le classe au contraire sans suite : « Abandonné ».)</li>
+<li>Ouvrez le ticket pour l'<strong>assigner</strong> : menu « Assigner à » → choisissez la personne (ou « Non assigné »).</li>
+<li>Consignez vos observations dans <strong>« Commentaires internes »</strong> (zone de texte, 2000 caractères max, bouton <strong>« Commenter »</strong>). Ces commentaires ne sont visibles que de votre équipe.</li>
+<li>Une fois l'intervention terminée, cliquez sur <strong>« ✓ Résoudre »</strong>. Une note de résolution peut être associée au ticket.</li>
+<li>En cas de besoin, <strong>« Rouvrir »</strong> relance un ticket terminé.</li>
+</ol>
+<p>La fiche du ticket affiche aussi le <strong>contexte</strong> (distributeur, casier, article, ouvert par — « Système (automatique) » pour les tickets Auto) et l'<strong>historique des transitions</strong> (qui a fait quoi, quand).</p>
+<h3 id="123-créer-un-ticket">12.3 Créer un ticket</h3>
+<p>Les tickets naissent soit <strong>automatiquement</strong> (surveillance), soit depuis les fiches concernées (par exemple depuis un casier en panne). Décrivez le problème précisément : distributeur, numéro de casier, symptôme constaté.</p>
+<hr>
+<h2 id="13-statistiques-rapports--audit">13. Statistiques, rapports &amp; audit</h2>
+<h3 id="131-stats">13.1 Stats</h3>
+<p>Le menu <strong>Stats</strong> analyse l'usage sur <strong>7, 30 ou 90 jours</strong> (boutons en haut à droite) :</p>
+<ul>
+<li>la <strong>tendance</strong> des réservations par jour ;</li>
+<li>la <strong>répartition par statut</strong> (anneau coloré : actives, en retard, rendues…) ;</li>
+<li>les <strong>Top 5 distributeurs</strong> et <strong>articles les plus empruntés</strong> ;</li>
+<li>les <strong>« Heures de pointe »</strong> : un damier jour de semaine × heure, plus la case est verte, plus le créneau est demandé — idéal pour planifier vos tournées de rechargement.</li>
+</ul>
+<h3 id="132-rapports-pdf-pour-votre-conseil-ou-direction">13.2 Rapports (PDF pour votre conseil ou direction)</h3>
+<p>Le menu <strong>Rapports</strong> produit une synthèse d'activité sur la période de votre choix : raccourcis « 30 derniers jours », « Mois en cours », « Mois précédent », ou dates libres « Du / Au » + <strong>Appliquer</strong>.</p>
+<p>Huit indicateurs : Réservations totales, Achevées, En retard, Taux d'achèvement, Tickets ouverts, Distributeurs actifs, Occupation moyenne, Pic horaire — suivis de la tendance, des Top 5 et des heures de pointe.</p>
+<p><strong>Pas à pas — produire le rapport PDF :</strong></p>
+<ol>
+<li>Choisissez la période.</li>
+<li>Cliquez sur <strong>« Télécharger PDF »</strong> (en haut à droite).</li>
+<li>Le fichier <code>sportlocker-rapport-…pdf</code> se télécharge : en-tête à votre nom, chiffres clés, graphique de tendance, top distributeurs et articles — prêt à transmettre au conseil municipal ou à votre direction.</li>
+</ol>
+<h3 id="133-audit-journal-dactivité">13.3 Audit (journal d'activité)</h3>
+<p>Le menu <strong>Audit</strong> trace <strong>tous les événements</strong> du parc : « Réservé », « Ouverture casier », « Fermeture casier », « Prolongation », « Retour confirmé », « Annulé », « Expiré », « Incident », « Maintenance ». Chaque ligne indique la source (admin, api, firmware, system), le distributeur, le casier, l'usager concerné et le moment.</p>
+<p>Filtres : <strong>Type</strong> d'événement, <strong>Source</strong>, <strong>Distributeur</strong>, période <strong>Du / Au</strong>. Affichage par pages de 100 (« Page suivante → »).</p>
+<div class="box tip">💡 <strong>Astuce</strong> — L'audit est votre meilleur allié en cas de litige (« je n'ai jamais ouvert ce casier ») : la chronologie horodatée y est complète et infalsifiable.</div>
+<hr>
+<h2 id="14-administration-communes-invitations-super-admin">14. Administration (communes, invitations, super-admin)</h2>
+<h3 id="141-communes">14.1 Communes</h3>
+<p>Le menu <strong>Communes</strong> liste les collectivités/campings clients : Commune, Code INSEE, Région · Dept., <strong>Contrat</strong> (badge « actif », « &lt; 60 j » — expire dans moins de 60 jours, « expiré », « sans contrat »), Loyer / mois, nombre de distributeurs, Contact, Actions.</p>
+<p><strong>Pas à pas — ajouter une commune (généralement effectué par SportLocker) :</strong></p>
+<ol>
+<li>Cliquez sur <strong>« + Nouvelle commune »</strong>.</li>
+<li>Utilisez le champ <strong>« 🔎 Rechercher une commune »</strong> : tapez un nom ou un code postal ; la sélection remplit automatiquement le code INSEE, le code postal, le département, la région et la population (source officielle : geo.api.gouv.fr).</li>
+<li>Complétez la section <strong>Contrat</strong> (début, fin, loyer mensuel) et <strong>Contact</strong> (e-mail, téléphone).</li>
+<li>Cliquez sur <strong>« Créer la commune »</strong>.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — Le <strong>code INSEE</strong> n'est plus modifiable après création.</div>
+<h3 id="142-inviter-un-administrateur">14.2 Inviter un administrateur</h3>
+<p>Depuis <strong>Utilisateurs → Invitations</strong> (« ← Utilisateurs » pour revenir) :</p>
+<p><strong>Pas à pas :</strong></p>
+<ol>
+<li>Saisissez l'<strong>e-mail du destinataire</strong> (ex. nom@commune.fr). Le super-admin choisit en plus la commune ; en tant qu'admin, l'invité rejoindra automatiquement la vôtre.</li>
+<li>Cliquez sur <strong>« Envoyer l'invitation »</strong>.</li>
+<li>La fenêtre « Invitation créée » affiche le <strong>lien d'activation</strong> : cliquez sur <strong>« Copier le lien »</strong> et transmettez-le par e-mail au destinataire.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — Le lien n'est affiché qu'<strong>une seule fois</strong> et expire après <strong>7 jours</strong>. Le tableau de suivi indique le statut de chaque invitation : <strong>En attente</strong>, <strong>Acceptée</strong> ou <strong>Expirée</strong>, avec deux actions : <strong>« Renvoyer »</strong> (génère un nouveau lien, l'ancien devient inutilisable) et <strong>« Révoquer »</strong> (invalide le lien).</div>
+<h3 id="143-espace-super-admin">14.3 Espace super-admin</h3>
+<p>Réservé à l'équipe SportLocker :</p>
+<ul>
+<li><strong>Tenants</strong> — vue globale des communes et de leurs administrateurs, avec le formulaire d'invitation multi-communes ;</li>
+<li><strong>Agent Office</strong> — visualisation 3D interne de la flotte d'agents.</li>
+</ul>
+<p>Si vous n'êtes pas super-admin, ces pages affichent « Accès refusé ».</p>
+<hr>
+<h2 id="15-que-faire-quand-dépannage">15. Que faire quand… (dépannage)</h2>
+<h3 id="151-un-distributeur-est--hors-ligne">15.1 Un distributeur est « hors ligne »</h3>
+<ol>
+<li><strong>Vérifiez l'alimentation électrique</strong> de la borne sur place (disjoncteur, prise).</li>
+<li>Patientez quelques minutes : la borne se reconnecte seule dès le courant ou le réseau revenus (elle repasse « en ligne » dès qu'elle redonne signe de vie — seuil de 10 minutes).</li>
+<li>Consultez sa page <strong>Santé</strong> : si le « dernier signe » remonte à plusieurs heures et que l'alimentation est bonne, le problème est réseau ou matériel.</li>
+<li>Un ticket <strong>« Auto »</strong> a probablement déjà été ouvert par la surveillance (silence &gt; 24 h). Sinon, ouvrez-en un.</li>
+<li>Si la panne persiste, contactez <strong>support@sportlocker.fr</strong> en précisant le numéro de série et ce que vous avez déjà vérifié.</li>
+</ol>
+<div class="box warn">⚠️ <strong>Important</strong> — Une borne hors ligne <strong>continue de fonctionner en mode dégradé</strong> pour les citoyens : les QR codes restent vérifiables localement pendant leur durée de validité (15 minutes). Les données remontent au serveur dès le retour de la connexion.</div>
+<h3 id="152-un-casier-est-affiché--panne">15.2 Un casier est affiché « Panne »</h3>
+<ol>
+<li>Sur la fiche du distributeur, repérez la case rose « Panne ».</li>
+<li>Vérifiez le ticket de maintenance associé (souvent créé automatiquement).</li>
+<li>Après réparation sur place, faites résoudre le ticket ; si l'article était endommagé, mettez à jour son état dans <strong>Articles</strong> (section 7.2).</li>
+</ol>
+<h3 id="153-un-citoyen-ne-rend-pas-le-matériel">15.3 Un citoyen ne rend pas le matériel</h3>
+<ol>
+<li>La réservation passe automatiquement <strong>« en retard »</strong> (rouge) : rappel push envoyé au citoyen et pénalité de score de confiance appliquées sans intervention de votre part.</li>
+<li>Si le matériel revient : la réservation passera « rendue » à la restitution.</li>
+<li>S'il ne revient pas : forcez l'annulation (section 9.3) pour libérer le casier, passez l'article en état « perdu » (section 7.2), et le cas échéant bannissez l'usager récidiviste (section 10.2).</li>
+</ol>
+<h3 id="154--connexion-impossible-réessayez--à-la-connexion">15.4 « Connexion impossible. Réessayez. » à la connexion</h3>
+<p>Message générique : vérifiez votre connexion internet, puis réessayez. Si le problème persiste, tentez la réinitialisation de mot de passe ; sinon contactez le support.</p>
+<hr>
+<h2 id="16-bientôt-disponible">16. Bientôt disponible</h2>
+<p>Fonctionnalités prévues mais <strong>pas encore actives</strong> dans le dashboard — inutile de les chercher à l'écran :</p>
+<ul>
+<li><strong>Niveau de batterie des bornes</strong> — la colonne existe mais affiche « — » tant que les bornes ne remontent pas cette mesure.</li>
+<li><strong>Schéma électrique du distributeur</strong> — le diagnostic visuel des composants n'est pas encore intégré à la page Santé.</li>
+<li><strong>Avis citoyens</strong> — les notes laissées par les usagers ne sont pas encore consultables depuis le dashboard.</li>
+<li><strong>Articles premium (tarif majoré ×2/×3)</strong> — le marquage « premium » d'un type d'article n'est pas encore exposé ; utilisez la matrice de tarification pour différencier les prix.</li>
+<li><strong>Sélecteur multi-communes</strong> — un compte admin est aujourd'hui rattaché à une seule commune ; la bascule entre plusieurs entités arrivera avec le multi-tenant étendu.</li>
+<li><strong>Suivi des virements Stripe</strong> — le détail des payouts (virements J+2) n'est pas encore affiché ; seuls les paiements citoyens le sont.</li>
+<li><strong>Remboursements en un clic</strong> — passent pour l'instant par le support.</li>
+<li><strong>Porte-monnaie citoyen</strong> — le solde prépayé des usagers n'est pas visible côté opérateur.</li>
+<li><strong>Traduction anglaise complète</strong> — le menu et les pages d'accès sont traduits, le reste arrive progressivement.</li>
+</ul>
+<hr>
+<h2 id="17-faq-opérateur">17. FAQ opérateur</h2>
+<p><strong>1. Je n'ai pas reçu mon invitation, ou le lien est expiré. Que faire ?</strong> Demandez à votre administrateur (ou à SportLocker) de la <strong>renvoyer</strong> depuis Utilisateurs → Invitations : un nouveau lien valable 7 jours est généré.</p>
+<p><strong>2. Comment savoir si un distributeur fonctionne en ce moment ?</strong> Regardez sa pastille : verte = « en ligne » (signal reçu dans les 10 dernières minutes). La liste des distributeurs et la carte se mettent à jour en temps réel.</p>
+<p><strong>3. Que signifie le badge « Auto » sur un ticket de maintenance ?</strong> Le ticket a été ouvert automatiquement par la surveillance (borne silencieuse, panne détectée). Traitez-le comme un ticket normal.</p>
+<p><strong>4. Un citoyen a dépassé l'heure de retour. Dois-je faire quelque chose ?</strong> Non, dans un premier temps : rappel push et pénalité de score de confiance sont automatiques. N'intervenez (annulation forcée, article « perdu ») que si le matériel ne revient vraiment pas.</p>
+<p><strong>5. Comment changer le prix de location d'un article ?</strong> Menu <strong>Tarification</strong> : cliquez dans la cellule (article × durée), tapez le prix, validez par Entrée. C'est immédiat.</p>
+<p><strong>6. Comment retirer un article abîmé du service ?</strong> Menu <strong>Articles</strong> → onglet « Articles physiques » → Modifier → état « endommagé ». S'il occupait un casier, retirez-le physiquement et rechargez le casier avec un autre exemplaire.</p>
+<p><strong>7. Puis-je rembourser un citoyen depuis le dashboard ?</strong> Pas encore : contactez support@sportlocker.fr avec la date et le montant de la transaction (visibles dans <strong>Paiements</strong>).</p>
+<p><strong>8. Quand vais-je recevoir l'argent des locations ?</strong> Une fois votre compte Stripe « Connecté », les reversements sont automatiques sous 2 jours ouvrés (J+2) sur votre RIB, à hauteur de 75 % du montant des locations.</p>
+<p><strong>9. Comment produire un bilan pour mon conseil municipal ?</strong> Menu <strong>Rapports</strong> : choisissez la période (ex. « Mois précédent »), puis « Télécharger PDF ». Le document est prêt à diffuser.</p>
+<p><strong>10. Un usager conteste avoir ouvert un casier. Comment vérifier ?</strong> Menu <strong>Audit</strong> : filtrez par distributeur et par période. Chaque ouverture/fermeture est horodatée avec sa source. Le détail d'une réservation montre la même chronologie.</p>
+<p><strong>11. Pourquoi certaines pages affichent « Démo — données fictives » ?</strong> Le dashboard n'a pas pu joindre le serveur, ou le parc est vide. Rafraîchissez, puis reconnectez-vous ; si cela persiste, contactez le support.</p>
+<p><strong>12. Comment ajouter un nouveau type de matériel (ex. « paddle ») au catalogue ?</strong> La création de types est réservée au super-admin : adressez votre demande à SportLocker. Vous pourrez ensuite créer les exemplaires et fixer les prix vous-même.</p>
+<p><strong>13. Comment donner l'accès au dashboard à un collègue ?</strong> Utilisateurs → Invitations : saisissez son e-mail, envoyez, puis transmettez-lui le lien d'activation (valable 7 jours).</p>
+<p><strong>14. La grille de casiers ne bouge plus / le badge indique « Hors ligne ».</strong> C'est la connexion temps réel de <strong>votre navigateur</strong> qui est coupée (et non la borne). Elle se rétablit seule ; au retour, la page se resynchronise. Vous pouvez aussi cliquer sur « Rafraîchir ».</p>
+<p><strong>15. Que devient une réservation si le citoyen ne vient jamais chercher l'article ?</strong> Le QR expire, la réservation passe « expirée » et le casier est libéré automatiquement. Aucune pénalité pour l'usager, aucune action pour vous.</p>
+<hr>
+<h2 id="18-glossaire">18. Glossaire</h2>
+<table>
+<thead><tr><th>Terme</th><th>Définition</th></tr></thead>
+<tbody>
+<tr><td><strong>Distributeur</strong> (ou borne)</td><td>L'armoire connectée installée sur site, composée de plusieurs casiers</td></tr>
+<tr><td><strong>Casier</strong></td><td>Un compartiment du distributeur, contenant au plus un article</td></tr>
+<tr><td><strong>Article physique</strong> (exemplaire)</td><td>Un objet réel (un ballon précis), identifié par son tag RFID</td></tr>
+<tr><td><strong>Type d'article</strong></td><td>Le modèle au catalogue (« Ballon de basket »), avec caution et durée max</td></tr>
+<tr><td><strong>Tag RFID</strong></td><td>Étiquette électronique collée sur chaque article, qui permet de l'identifier au retour</td></tr>
+<tr><td><strong>Créneau (slot)</strong></td><td>Durée de location réservée : 30, 60, 90 ou 120 minutes</td></tr>
+<tr><td><strong>Forfait journée</strong></td><td>Créneau spécial « 1440 min » : l'article pour la journée entière</td></tr>
+<tr><td><strong>QR code</strong></td><td>Code affiché sur le téléphone du citoyen pour déverrouiller le casier (valable 15 minutes)</td></tr>
+<tr><td><strong>Heartbeat</strong> (« signal de vie »)</td><td>Message technique envoyé régulièrement par la borne pour dire « je fonctionne »</td></tr>
+<tr><td><strong>En ligne / hors ligne</strong></td><td>La borne a (ou non) donné signe de vie dans les 10 dernières minutes</td></tr>
+<tr><td><strong>Réservation « en retard » (overdue)</strong></td><td>Article non rendu à l'échéance prévue</td></tr>
+<tr><td><strong>Score de confiance</strong></td><td>Note de 0 à 100 par citoyen, qui baisse automatiquement à chaque retard</td></tr>
+<tr><td><strong>Ticket de maintenance</strong></td><td>Fiche de suivi d'un incident, du signalement à la résolution</td></tr>
+<tr><td><strong>Ticket « Auto »</strong></td><td>Ticket ouvert automatiquement par la surveillance du système</td></tr>
+<tr><td><strong>Sévérité (S1–S5)</strong></td><td>Gravité d'un ticket : S1 mineur → S5 critique</td></tr>
+<tr><td><strong>Caution</strong></td><td>Montant de garantie associé à un type d'article</td></tr>
+<tr><td><strong>Stripe</strong></td><td>Prestataire de paiement qui encaisse les locations et vous reverse votre part</td></tr>
+<tr><td><strong>Reversement (payout)</strong></td><td>Virement automatique de votre part (75 %) sur votre RIB, sous 2 jours ouvrés</td></tr>
+<tr><td><strong>KYC</strong></td><td>Vérification d'identité demandée par Stripe à l'ouverture du compte (obligation légale)</td></tr>
+<tr><td><strong>RGPD</strong></td><td>Règlement européen sur les données personnelles ; la « suppression RGPD » anonymise un compte sous 30 jours</td></tr>
+<tr><td><strong>Tenant</strong></td><td>Terme technique désignant un client (une commune, un camping) dans le système</td></tr>
+<tr><td><strong>Mode démo</strong></td><td>Affichage de données fictives quand le serveur est injoignable ou le parc vide</td></tr>
+</tbody>
+</table>
+<hr>
+<p><em>Manuel opérateur SportLocker — ops.sportlocker.fr · support : support@sportlocker.fr</em></p>
+<footer class="doc">SportLocker — Manuel opérateur · Généré depuis docs/MANUEL_OPERATEUR.md · support@sportlocker.fr</footer>
+</div>
+</body>
+</html>
