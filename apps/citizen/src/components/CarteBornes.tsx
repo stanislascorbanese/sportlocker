@@ -31,6 +31,7 @@ export function CarteBornes() {
   useEffect(() => {
     if (!conteneur.current) return
     let carte: { remove: () => void } | null = null
+    let delai: ReturnType<typeof setTimeout> | undefined
     let annule = false
 
     ;(async () => {
@@ -95,12 +96,24 @@ export function CarteBornes() {
         }
 
         m.on('load', () => { if (!annule) setEtat('prete') })
+
+        // Sans ca, une tuile qui ne se charge pas laisse un spinner infini :
+        // `load` n'arrive jamais et le try/catch ci-dessus est deja passe.
+        // Une erreur explicite vaut mieux qu'une attente sans fin.
+        m.on('error', (e) => {
+          console.error('[carte]', e.error ?? e)
+          if (!annule) setEtat('erreur')
+        })
+
+        // Filet de securite : si ni `load` ni `error` ne viennent (requete qui
+        // pend, reseau qui ne repond pas), on cesse de faire patienter.
+        delai = setTimeout(() => { if (!annule) setEtat((v) => (v === 'chargement' ? 'erreur' : v)) }, 20_000)
       } catch {
         if (!annule) setEtat('erreur')
       }
     })()
 
-    return () => { annule = true; carte?.remove() }
+    return () => { annule = true; clearTimeout(delai); carte?.remove() }
   }, [router, theme, t])
 
   return (
