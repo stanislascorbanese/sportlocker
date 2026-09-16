@@ -93,6 +93,7 @@ export const en: Copy = {
     erreur: 'The map could not load. Use the code written on the station.',
     disponibles: 'available',
     vide: 'nothing available',
+    bornesIndispo: 'The stations could not be shown. Try again in a moment.',
   },
 
   notFound: {

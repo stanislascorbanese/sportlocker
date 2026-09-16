@@ -117,6 +117,8 @@ export interface Copy {
     disponibles: string
     /** Borne sans aucun article libre. */
     vide: string
+    /** La carte s'affiche mais la liste des bornes n'a pas repondu. */
+    bornesIndispo: string
   }
   notFound: { title: string; hint: string; cta: string }
   crash: { title: string; hint: string; cta: string }

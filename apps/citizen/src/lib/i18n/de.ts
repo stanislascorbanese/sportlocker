@@ -96,6 +96,7 @@ export const de: Copy = {
     erreur: 'Die Karte konnte nicht geladen werden. Verwenden Sie den Code an der Station.',
     disponibles: 'verfügbar',
     vide: 'nichts verfügbar',
+    bornesIndispo: 'Die Stationen konnten nicht angezeigt werden. Versuchen Sie es gleich erneut.',
   },
 
   notFound: {

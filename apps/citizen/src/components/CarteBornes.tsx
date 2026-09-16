@@ -26,6 +26,7 @@ export function CarteBornes() {
   const { t } = useLang()
   const { theme } = useTheme()
   const [etat, setEtat] = useState<'chargement' | 'prete' | 'erreur'>('chargement')
+  const [bornesDispo, setBornesDispo] = useState(true)
 
   useEffect(() => {
     if (!conteneur.current) return
@@ -33,13 +34,22 @@ export function CarteBornes() {
     let annule = false
 
     ;(async () => {
+      // Le fond de plan et la liste des bornes sont deux echecs distincts :
+      // une API injoignable ne doit pas effacer la carte. On les separe donc,
+      // au lieu de les enfermer dans un try commun.
+      let bornes: Awaited<ReturnType<typeof listerBornes>> = []
+      let bornesOk = true
       try {
-        const [{ Map, Marker, NavigationControl, addProtocol }, { Protocol }, bornes] =
-          await Promise.all([
-            import('maplibre-gl'),
-            import('pmtiles'),
-            listerBornes(),
-          ])
+        bornes = await listerBornes()
+      } catch {
+        bornesOk = false
+      }
+      if (annule) return
+      setBornesDispo(bornesOk)
+
+      try {
+        const [{ Map, Marker, NavigationControl, addProtocol }, { Protocol }] =
+          await Promise.all([import('maplibre-gl'), import('pmtiles')])
         if (annule || !conteneur.current) return
 
         addProtocol('pmtiles', new Protocol().tile)
@@ -102,6 +112,11 @@ export function CarteBornes() {
             {etat === 'erreur' ? t.carte.erreur : t.carte.chargement}
           </p>
         </div>
+      )}
+      {etat === 'prete' && !bornesDispo && (
+        <p className="absolute inset-x-3 top-3 rounded-card bg-surface px-3 py-2 text-center text-meta text-ink-muted shadow">
+          {t.carte.bornesIndispo}
+        </p>
       )}
     </div>
   )

@@ -97,6 +97,7 @@ export const nl: Copy = {
     erreur: 'De kaart kon niet worden geladen. Gebruik de code op het station.',
     disponibles: 'beschikbaar',
     vide: 'niets beschikbaar',
+    bornesIndispo: 'De stations konden niet worden getoond. Probeer het zo opnieuw.',
   },
 
   notFound: {

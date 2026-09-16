@@ -94,6 +94,7 @@ export const fr: Copy = {
     erreur: "La carte n'a pas pu se charger. Utilisez le code inscrit sur la borne.",
     disponibles: 'disponibles',
     vide: 'aucun article disponible',
+    bornesIndispo: 'Les bornes ne se sont pas affichées. Réessayez dans un instant.',
   },
 
   notFound: {
