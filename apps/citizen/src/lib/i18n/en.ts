@@ -86,6 +86,15 @@ export const en: Copy = {
     done: 'Done',
   },
 
+  carte: {
+    title: 'Where are the stations?',
+    hint: 'Tap a station to see what it holds.',
+    chargement: 'Loading the map…',
+    erreur: 'The map could not load. Use the code written on the station.',
+    disponibles: 'available',
+    vide: 'nothing available',
+  },
+
   notFound: {
     title: 'Page not found',
     hint: 'Scan the QR code on the station again, or type its code.',

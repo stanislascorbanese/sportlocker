@@ -87,6 +87,15 @@ export const fr: Copy = {
     done: 'Terminé',
   },
 
+  carte: {
+    title: 'Où sont les bornes ?',
+    hint: 'Touchez une borne pour voir ce qu\'elle contient.',
+    chargement: 'Chargement de la carte…',
+    erreur: "La carte n'a pas pu se charger. Utilisez le code inscrit sur la borne.",
+    disponibles: 'disponibles',
+    vide: 'aucun article disponible',
+  },
+
   notFound: {
     title: 'Page introuvable',
     hint: 'Scannez à nouveau le QR code collé sur la borne, ou saisissez son code.',

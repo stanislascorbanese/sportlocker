@@ -93,3 +93,30 @@
     @apply rounded-card border border-line bg-surface p-5 shadow-card;
   }
 }
+
+/* Marqueur de borne sur la carte publique.
+   Vert = des articles sont libres, le chiffre est leur nombre.
+   Gris = borne vide — meme convention que l'ecran borne vide. */
+.marqueur-borne {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(var(--sl-bg));
+  background: rgb(var(--sl-brand));
+  color: rgb(var(--sl-on-brand));
+  font-weight: 600;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+.marqueur-borne[data-vide='1'] {
+  background: rgb(var(--sl-surface-2));
+  color: rgb(var(--sl-ink-muted));
+}
+.marqueur-borne:focus-visible {
+  outline: 2px solid rgb(var(--sl-brand));
+  outline-offset: 2px;
+}

@@ -89,6 +89,15 @@ export const de: Copy = {
     done: 'Fertig',
   },
 
+  carte: {
+    title: 'Wo stehen die Stationen?',
+    hint: 'Tippen Sie auf eine Station, um zu sehen, was sie enthält.',
+    chargement: 'Die Karte wird geladen…',
+    erreur: 'Die Karte konnte nicht geladen werden. Verwenden Sie den Code an der Station.',
+    disponibles: 'verfügbar',
+    vide: 'nichts verfügbar',
+  },
+
   notFound: {
     title: 'Seite nicht gefunden',
     hint: 'Scannen Sie den QR-Code an der Station erneut, oder geben Sie den Code ein.',

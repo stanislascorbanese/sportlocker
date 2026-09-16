@@ -107,6 +107,17 @@ export interface Copy {
     done: string
   }
 
+  /** Carte publique des bornes — deuxième porte d'entrée, quand le QR n'est pas là. */
+  carte: {
+    title: string
+    hint: string
+    chargement: string
+    erreur: string
+    /** Suffixe après le nombre : « 3 disponibles ». */
+    disponibles: string
+    /** Borne sans aucun article libre. */
+    vide: string
+  }
   notFound: { title: string; hint: string; cta: string }
   crash: { title: string; hint: string; cta: string }
 

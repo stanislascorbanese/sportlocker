@@ -70,6 +70,11 @@ export default function Home() {
           </button>
         </form>
 
+        {/* Deuxième porte d'entrée : pour qui n'a ni QR ni code sous les yeux. */}
+        <a href="/carte" className="text-center font-semibold text-brand underline">
+          {t.carte.title}
+        </a>
+
         {loanId ? (
           <Note>
             {t.home.hasLoan}{' '}

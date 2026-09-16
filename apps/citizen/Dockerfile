@@ -53,10 +53,14 @@ COPY apps/citizen ./apps/citizen
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_DEMO
 ARG NEXT_PUBLIC_SENTRY_DSN
+# URL du .pmtiles sur R2. Baké au build comme les autres NEXT_PUBLIC_* :
+# sans elle au moment du build, la carte se construit sans fond de plan.
+ARG NEXT_PUBLIC_TUILES_URL
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_DEMO=$NEXT_PUBLIC_DEMO \
-    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
+    NEXT_PUBLIC_TUILES_URL=$NEXT_PUBLIC_TUILES_URL
 
 # Compile @sportlocker/types → dist/ AVANT l'app. Les exports du paquet
 # pointent sur ./dist/index.js : sans cette étape, `next build` échoue à

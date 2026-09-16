@@ -90,6 +90,15 @@ export const nl: Copy = {
     done: 'Klaar',
   },
 
+  carte: {
+    title: 'Waar staan de stations?',
+    hint: 'Tik op een station om te zien wat erin zit.',
+    chargement: 'De kaart wordt geladen…',
+    erreur: 'De kaart kon niet worden geladen. Gebruik de code op het station.',
+    disponibles: 'beschikbaar',
+    vide: 'niets beschikbaar',
+  },
+
   notFound: {
     title: 'Pagina niet gevonden',
     hint: 'Scan de QR-code op het uitleenpunt opnieuw, of voer de code in.',
