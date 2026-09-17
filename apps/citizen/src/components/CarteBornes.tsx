@@ -1,5 +1,7 @@
 'use client'
 
+import 'maplibre-gl/dist/maplibre-gl.css'
+
 import type { Route } from 'next'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -27,6 +29,7 @@ export function CarteBornes() {
   const { theme } = useTheme()
   const [etat, setEtat] = useState<'chargement' | 'prete' | 'erreur'>('chargement')
   const [bornesDispo, setBornesDispo] = useState(true)
+  const [cause, setCause] = useState<string | null>(null)
 
   useEffect(() => {
     if (!conteneur.current) return
@@ -101,15 +104,21 @@ export function CarteBornes() {
         // `load` n'arrive jamais et le try/catch ci-dessus est deja passe.
         // Une erreur explicite vaut mieux qu'une attente sans fin.
         m.on('error', (e) => {
-          console.error('[carte]', e.error ?? e)
-          if (!annule) setEtat('erreur')
+          const err = e.error ?? e
+          console.error('[carte]', err)
+          if (annule) return
+          setCause(err instanceof Error ? err.message : String(err))
+          setEtat('erreur')
         })
 
         // Filet de securite : si ni `load` ni `error` ne viennent (requete qui
         // pend, reseau qui ne repond pas), on cesse de faire patienter.
         delai = setTimeout(() => { if (!annule) setEtat((v) => (v === 'chargement' ? 'erreur' : v)) }, 20_000)
-      } catch {
-        if (!annule) setEtat('erreur')
+      } catch (err) {
+        console.error('[carte]', err)
+        if (annule) return
+        setCause(err instanceof Error ? err.message : String(err))
+        setEtat('erreur')
       }
     })()
 
@@ -121,9 +130,16 @@ export function CarteBornes() {
       <div ref={conteneur} className="absolute inset-0" />
       {etat !== 'prete' && (
         <div className="absolute inset-0 grid place-items-center bg-surface-2 px-6 text-center">
-          <p className="text-ink-muted">
-            {etat === 'erreur' ? t.carte.erreur : t.carte.chargement}
-          </p>
+          <div>
+            <p className="text-ink-muted">
+              {etat === 'erreur' ? t.carte.erreur : t.carte.chargement}
+            </p>
+            {/* En developpement seulement : la cause reelle, sous les yeux,
+                plutot qu'a chercher dans la console. */}
+            {process.env.NODE_ENV !== 'production' && cause && (
+              <p className="mt-3 max-w-md break-words font-mono text-meta text-danger">{cause}</p>
+            )}
+          </div>
         </div>
       )}
       {etat === 'prete' && !bornesDispo && (
