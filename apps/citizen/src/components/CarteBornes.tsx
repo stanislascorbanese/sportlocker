@@ -73,6 +73,7 @@ export function CarteBornes() {
           maxBounds: EMPRISE_TUILES,
           attributionControl: { compact: true },
         })
+        if (annule) { m.remove(); return }
         carte = m
         m.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
 
@@ -131,6 +132,7 @@ export function CarteBornes() {
             `source=${m.getSource('protomaps') ? 'declaree' : 'ABSENTE'}`,
             `tuiles=${m.areTilesLoaded() ? 'ok' : 'NON'}`,
             `taille=${m.getContainer().clientWidth}x${m.getContainer().clientHeight}`,
+            `attache=${document.contains(m.getContainer()) ? 'oui' : 'NON'}`,
           ].join(' · ')
           console.error('[carte] blocage apres 20 s —', etapes)
           setEtat((v) => {
@@ -151,8 +153,8 @@ export function CarteBornes() {
   }, [router, theme, t])
 
   return (
-    <div className="relative min-h-[26rem] flex-1 overflow-hidden rounded-card">
-      <div ref={conteneur} className="absolute inset-0" />
+    <div className="relative flex-1">
+      <div ref={conteneur} className="h-[70vh] min-h-[26rem] w-full overflow-hidden rounded-card" />
       {etat !== 'prete' && (
         <div className="absolute inset-0 grid place-items-center bg-surface-2 px-6 text-center">
           <div>
