@@ -35,6 +35,7 @@ export function CarteBornes() {
     if (!conteneur.current) return
     let carte: { remove: () => void } | null = null
     let delai: ReturnType<typeof setTimeout> | undefined
+    let observateur: ResizeObserver | undefined
     let annule = false
 
     ;(async () => {
@@ -74,6 +75,13 @@ export function CarteBornes() {
         })
         carte = m
         m.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
+
+        // MapLibre mesure son conteneur a la construction. Si la hauteur
+        // arrive apres (mise en page flex resolue plus tard, rotation de
+        // l'ecran), il faut le lui dire — sinon il attend indefiniment, sans
+        // jamais lever d'erreur.
+        observateur = new ResizeObserver(() => m.resize())
+        observateur.observe(conteneur.current)
 
         for (const b of placees) {
           const el = document.createElement('button')
@@ -139,11 +147,11 @@ export function CarteBornes() {
       }
     })()
 
-    return () => { annule = true; clearTimeout(delai); carte?.remove() }
+    return () => { annule = true; clearTimeout(delai); observateur?.disconnect(); carte?.remove() }
   }, [router, theme, t])
 
   return (
-    <div className="relative flex-1 overflow-hidden rounded-card">
+    <div className="relative min-h-[26rem] flex-1 overflow-hidden rounded-card">
       <div ref={conteneur} className="absolute inset-0" />
       {etat !== 'prete' && (
         <div className="absolute inset-0 grid place-items-center bg-surface-2 px-6 text-center">
