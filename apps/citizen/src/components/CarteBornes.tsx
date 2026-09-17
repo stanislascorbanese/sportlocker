@@ -113,7 +113,24 @@ export function CarteBornes() {
 
         // Filet de securite : si ni `load` ni `error` ne viennent (requete qui
         // pend, reseau qui ne repond pas), on cesse de faire patienter.
-        delai = setTimeout(() => { if (!annule) setEtat((v) => (v === 'chargement' ? 'erreur' : v)) }, 20_000)
+        delai = setTimeout(() => {
+          if (annule) return
+          // Dire OU ca bloque, pas seulement QUE ca bloque. Les trois etapes
+          // peuvent echouer separement : le style (JSON + glyphes), la source
+          // (l'archive .pmtiles), puis le rendu.
+          const etapes = [
+            `style=${m.isStyleLoaded() ? 'ok' : 'NON'}`,
+            `source=${m.getSource('protomaps') ? 'declaree' : 'ABSENTE'}`,
+            `tuiles=${m.areTilesLoaded() ? 'ok' : 'NON'}`,
+            `taille=${m.getContainer().clientWidth}x${m.getContainer().clientHeight}`,
+          ].join(' · ')
+          console.error('[carte] blocage apres 20 s —', etapes)
+          setEtat((v) => {
+            if (v !== 'chargement') return v
+            setCause(`blocage apres 20 s — ${etapes}`)
+            return 'erreur'
+          })
+        }, 20_000)
       } catch (err) {
         console.error('[carte]', err)
         if (annule) return
