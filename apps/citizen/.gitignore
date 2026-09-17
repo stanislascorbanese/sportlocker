@@ -3,3 +3,5 @@ node_modules
 .turbo
 .env*.local
 *.log
+# Worker MapLibre copie par scripts/copier-worker-maplibre.mjs a chaque dev/build
+public/maplibre/

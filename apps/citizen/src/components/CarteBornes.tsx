@@ -12,6 +12,35 @@ import { useTheme } from '@/lib/theme'
 
 const URL_TUILES = process.env.NEXT_PUBLIC_TUILES_URL ?? ''
 
+/** Copie dans public/ par scripts/copier-worker-maplibre.mjs (voir ce script). */
+const URL_WORKER = '/maplibre/maplibre-gl-worker.mjs'
+
+/**
+ * Charge MapLibre et pmtiles une seule fois par page, et les regle ensemble.
+ *
+ * Le worker et le protocole `pmtiles://` sont des reglages globaux de la
+ * bibliotheque, pas de l'instance de carte : on les pose au premier appel,
+ * les suivants recoivent la meme promesse. Enregistrer le protocole a chaque
+ * effet ne cassait rien, mais melangeait reglage global et cycle de vie du
+ * composant.
+ *
+ * Sans `setWorkerUrl`, MapLibre 6 sous webpack construit `new Worker('')` :
+ * le worker charge la page HTML comme script, meurt en silence, et la carte
+ * reste bloquee « style non charge » sans jamais lever d'erreur. C'etait le
+ * blocage `style=NON · source=declaree · tuiles=NON` des deux soirees.
+ */
+let maplibrePret: Promise<typeof import('maplibre-gl')> | undefined
+function chargerMapLibre() {
+  maplibrePret ??= Promise.all([import('maplibre-gl'), import('pmtiles')]).then(
+    ([maplibre, { Protocol }]) => {
+      maplibre.setWorkerUrl(URL_WORKER)
+      maplibre.addProtocol('pmtiles', new Protocol().tile)
+      return maplibre
+    },
+  )
+  return maplibrePret
+}
+
 /**
  * Carte publique des bornes.
  *
@@ -31,6 +60,9 @@ export function CarteBornes() {
   const [bornesDispo, setBornesDispo] = useState(true)
   const [cause, setCause] = useState<string | null>(null)
 
+  // Depend de `t` et `router` sans risque : `t` sort d'un useMemo de
+  // LangProvider et `router` est stable. Mesure en dev le 17/09 avec un
+  // `console.count` en tete d'effet : un passage par montage, pas de boucle.
   useEffect(() => {
     if (!conteneur.current) return
     let carte: { remove: () => void } | null = null
@@ -53,11 +85,8 @@ export function CarteBornes() {
       setBornesDispo(bornesOk)
 
       try {
-        const [{ Map, Marker, NavigationControl, addProtocol }, { Protocol }] =
-          await Promise.all([import('maplibre-gl'), import('pmtiles')])
+        const { Map, Marker, NavigationControl } = await chargerMapLibre()
         if (annule || !conteneur.current) return
-
-        addProtocol('pmtiles', new Protocol().tile)
 
         const placees = bornes.filter(estPlacee)
         const m = new Map({
@@ -107,7 +136,14 @@ export function CarteBornes() {
           )
         }
 
-        m.on('load', () => { if (!annule) setEtat('prete') })
+        // `termine` : la carte a repondu, en bien ou en mal. Une erreur qui
+        // arrive apres `load` (un glyphe qui manque en se deplacant) se
+        // journalise mais ne recouvre pas une carte qui marche.
+        let termine = false
+        m.on('load', () => {
+          termine = true
+          if (!annule) setEtat('prete')
+        })
 
         // Sans ca, une tuile qui ne se charge pas laisse un spinner infini :
         // `load` n'arrive jamais et le try/catch ci-dessus est deja passe.
@@ -115,7 +151,8 @@ export function CarteBornes() {
         m.on('error', (e) => {
           const err = e.error ?? e
           console.error('[carte]', err)
-          if (annule) return
+          if (annule || termine) return
+          termine = true
           setCause(err instanceof Error ? err.message : String(err))
           setEtat('erreur')
         })
@@ -123,23 +160,10 @@ export function CarteBornes() {
         // Filet de securite : si ni `load` ni `error` ne viennent (requete qui
         // pend, reseau qui ne repond pas), on cesse de faire patienter.
         delai = setTimeout(() => {
-          if (annule) return
-          // Dire OU ca bloque, pas seulement QUE ca bloque. Les trois etapes
-          // peuvent echouer separement : le style (JSON + glyphes), la source
-          // (l'archive .pmtiles), puis le rendu.
-          const etapes = [
-            `style=${m.isStyleLoaded() ? 'ok' : 'NON'}`,
-            `source=${m.getSource('protomaps') ? 'declaree' : 'ABSENTE'}`,
-            `tuiles=${m.areTilesLoaded() ? 'ok' : 'NON'}`,
-            `taille=${m.getContainer().clientWidth}x${m.getContainer().clientHeight}`,
-            `attache=${document.contains(m.getContainer()) ? 'oui' : 'NON'}`,
-          ].join(' · ')
-          console.error('[carte] blocage apres 20 s —', etapes)
-          setEtat((v) => {
-            if (v !== 'chargement') return v
-            setCause(`blocage apres 20 s — ${etapes}`)
-            return 'erreur'
-          })
+          if (annule || termine) return
+          termine = true
+          setCause('aucune reponse apres 20 s')
+          setEtat('erreur')
         }, 20_000)
       } catch (err) {
         console.error('[carte]', err)
