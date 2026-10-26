@@ -14,9 +14,9 @@
   "dependencies": {
     "@sentry/nextjs": "^10.74.0",
     "@sportlocker/types": "workspace:*",
-    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-query": "^5.104.5",
     "firebase": "^12.19.0",
-    "lucide-react": "^1.45.0",
+    "lucide-react": "^1.61.0",
     "next": "^15.5.25",
     "pdfkit": "^0.20.2",
     "react": "^18.3.0",
@@ -26,21 +26,21 @@
     "@sportlocker/config": "workspace:*"
   },
   "devDependencies": {
-    "@testing-library/dom": "^10.4.0",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.3.3",
-    "@types/node": "^26.5.1",
-    "@types/pdfkit": "^0.17.6",
+    "@types/node": "^26.6.5",
+    "@types/pdfkit": "^0.17.7",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "autoprefixer": "^10.5.6",
+    "autoprefixer": "^10.6.1",
     "eslint": "^8.57.1",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.2",
     "happy-dom": "^20.14.3",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.31",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.9.3",
-    "vite": "^8.3.0",
+    "vite": "^8.3.5",
     "vitest": "^4.1.9"
   }
 }
